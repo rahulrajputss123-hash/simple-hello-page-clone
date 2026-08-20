@@ -1,0 +1,55 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Capacitor only
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android --no-save
+
+      # NOTE: capacitor.config.ts must already exist in the repo root with:
+      #   server: { url: "https://your-app.vercel.app", cleartext: false }
+      # This step just makes sure a dist/ folder exists so `cap sync` doesn't fail
+      # copying web assets -- it is NOT used at runtime since server.url takes over.
+      - name: Ensure dist folder exists
+        run: |
+          mkdir -p dist
+          echo "<!DOCTYPE html><html><body></body></html>" > dist/index.html
+
+      - name: Add Android platform (first run only)
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Build debug APK
+        working-directory: android
+        run: chmod +x ./gradlew && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: coinquest-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          
