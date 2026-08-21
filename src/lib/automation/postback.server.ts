@@ -59,6 +59,7 @@ function verifyCaller(
       req.params["sig"] ??
       req.headers["x-signature"] ??
       req.headers["x-postback-signature"] ??
+      req.headers["x-callback-signature"] ??
       "";
     const base = req.rawBody && req.rawBody.length > 0 ? req.rawBody : signatureBase(provider, req.params);
     const expected = createHmac("sha256", secret).update(base).digest("hex");
