@@ -35,7 +35,7 @@ export async function listPublicSdkProvidersImpl(
 ): Promise<PublicSdkOfferwallProvider[]> {
   let query = supabaseAdmin
     .from("sdk_offerwall_providers")
-    .select("id, slug, name, tagline, logo_url, platforms, integration_type, status, display_order")
+    .select("id, slug, name, tagline, logo_url, platforms, integration_type, status, display_order, app_id")
     .eq("enabled", true)
     .order("display_order", { ascending: true })
     .order("name", { ascending: true });
@@ -51,6 +51,7 @@ export async function listPublicSdkProvidersImpl(
     platforms: row.platforms,
     integrationType: row.integration_type,
     status: row.status,
+    appId: row.app_id,
     displayOrder: row.display_order,
   }));
 }
