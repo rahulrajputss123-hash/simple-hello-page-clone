@@ -13,6 +13,9 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
   if (slug === "affike") {
     return `https://affike.com/offerwall/${appId}/${encodeURIComponent(userId)}`;
   }
+  if (slug === "revtoo") {
+    return `https://revtoo.com/offerwall/${appId}/${encodeURIComponent(userId)}`;
+  }
   return null;
 }
 
