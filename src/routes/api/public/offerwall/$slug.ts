@@ -31,25 +31,35 @@ async function handle(request: Request, slug: string) {
   });
 
   let rawBody = "";
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    rawBody = await request.text();
-    const contentType = request.headers.get("content-type") ?? "";
-    try {
-      if (contentType.includes("application/json") && rawBody) {
-        const parsed = JSON.parse(rawBody) as Record<string, unknown>;
-        for (const [key, value] of Object.entries(parsed)) {
-          if (value !== null && typeof value !== "object") params[key] = String(value);
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      const contentType = request.headers.get("content-type") ?? "";
+      if (contentType.includes("multipart/form-data")) {
+        try {
+          const form = await request.formData();
+          form.forEach((value, key) => {
+            if (typeof value === "string") params[key] = value;
+          });
+        } catch {
+          // Malformed multipart body — fall through to query-param handling.
         }
-      } else if (rawBody) {
-        new URLSearchParams(rawBody).forEach((value, key) => {
-          params[key] = value;
-        });
+      } else {
+        rawBody = await request.text();
+        try {
+          if (contentType.includes("application/json") && rawBody) {
+            const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+            for (const [key, value] of Object.entries(parsed)) {
+              if (value !== null && typeof value !== "object") params[key] = String(value);
+            }
+          } else if (rawBody) {
+            new URLSearchParams(rawBody).forEach((value, key) => {
+              params[key] = value;
+            });
+          }
+        } catch {
+          // Malformed bodies fall through to query-param handling.
+        }
       }
-    } catch {
-      // Malformed bodies fall through to query-param handling.
     }
-  }
-
   const { processSdkPostback } = await import("@/lib/automation/postback.server");
   const result = await processSdkPostback({
     slug,
@@ -60,7 +70,12 @@ async function handle(request: Request, slug: string) {
   });
 
   const status = result.ok ? 200 : result.status === "rejected" ? 400 : 200;
-  return Response.json(result, { status });
+    if (slug === "bitcotasks" || slug === "revtoo") {
+      const okText = result.ok || result.status === "duplicate" ? "ok" : "error";
+      return new Response(okText, { status, headers: { "Content-Type": "text/plain" } });
+    }
+    return Response.json(result, { status });
+ 
 }
 
 export const Route = createFileRoute("/api/public/offerwall/$slug")({
