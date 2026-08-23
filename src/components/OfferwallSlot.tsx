@@ -10,6 +10,9 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
   if (slug === "mooffers") {
     return `https://wall.mooffers.com/offerwall/${appId}?uid=${encodeURIComponent(userId)}`;
   }
+  if (slug === "affike") {
+    return `https://affike.com/offerwall/${appId}/${encodeURIComponent(userId)}`;
+  }
   return null;
 }
 
