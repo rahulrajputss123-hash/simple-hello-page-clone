@@ -63,7 +63,7 @@ function HomePage() {
       <StarterQuests />
 
       <SectionTitle>Featured Offers</SectionTitle>
-      <FeaturedOffers limit={9} />
+      <FeaturedOffers scope="home" />
       <div className="mt-3 flex justify-center">
         <Link
           to="/featured"

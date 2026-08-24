@@ -48,11 +48,17 @@ export type NormalizedOffer = {
  * Contract for a future provider adapter. Implement one file per network later;
  * the sync engine handles upserting, deactivation and raw-data preservation.
  */
+/** Optional per-request context passed to adapters (e.g. detected GEO for geo-aware feeds). */
+export type OfferFetchContext = {
+  /** ISO-3166 alpha-2 country code of the requesting user, when known. */
+  country?: string;
+};
+
 export type OfferProviderAdapter = {
   slug: string;
   providerType: ProviderType;
   /** Fetch + normalize the provider's current catalogue. */
-  fetchOffers: (provider: OfferProvider) => Promise<NormalizedOffer[]>;
+  fetchOffers: (provider: OfferProvider, context?: OfferFetchContext) => Promise<NormalizedOffer[]>;
   /** Optional validation of sync_config before enabling/syncing. */
   validateConfig?: (config: Record<string, unknown>) => string | null;
 };

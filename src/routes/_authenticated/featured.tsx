@@ -24,7 +24,7 @@ function FeaturedPage() {
   return (
     <AppShell subtitle="Featured offers">
       <h1 className="mb-3 mt-2 text-2xl">Featured Offers</h1>
-      <FeaturedOffers />
+      <FeaturedOffers scope="all" />
     </AppShell>
   );
 }

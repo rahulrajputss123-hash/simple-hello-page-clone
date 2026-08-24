@@ -123,6 +123,96 @@ export const deleteManualOffer = createServerFn({ method: "POST" })
     return deleteManualOfferImpl(data.id);
   });
 
+/** Authenticated: geo-targeted, ranked Featured Offers for the requesting user's country. */
+export const getFeaturedFeed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ scope: z.enum(["home", "all"]).default("home") }).parse(input ?? {}),
+  )
+  .handler(async ({ data }) => {
+    const { detectCountryFromRequest } = await import("./offers/geo.server");
+    const { getFeaturedFeedImpl } = await import("./offers/feed-cache.server");
+    const country = detectCountryFromRequest();
+    return getFeaturedFeedImpl(country, data.scope);
+  });
+
+/** Admin: read feed-automation settings + per-network config + cache freshness. */
+export const getFeedAutomation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { assertAdmin } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    const { getFeedAutomationImpl } = await import("./offers/feed-cache.server");
+    return getFeedAutomationImpl();
+  });
+
+/** Admin: update global feed-automation settings. */
+export const updateFeedSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        refreshIntervalHours: z.number().int().min(1).max(168),
+        defaultCountry: z
+          .string()
+          .trim()
+          .length(2)
+          .regex(/^[A-Za-z]{2}$/),
+        fallbackBehavior: z.enum(["none", "default_country"]),
+        featuredSlots: z.number().int().min(1).max(24),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    const { updateFeedSettingsImpl } = await import("./offers/feed-settings.server");
+    return updateFeedSettingsImpl(data);
+  });
+
+/** Admin: update per-network automation config (enable, max offers, ranking weight). */
+export const updateNetworkFeedSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        providerId: z.string().uuid(),
+        enabled: z.boolean(),
+        maxOffers: z.number().int().min(1).max(50),
+        weight: z.number().min(0.01).max(1000),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    const { updateNetworkFeedSettingsImpl } = await import("./offers/feed-settings.server");
+    return updateNetworkFeedSettingsImpl(data);
+  });
+
+/** Admin: manually refresh one network's feed for a country (defaults to the default country). */
+export const adminRefreshFeed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        providerId: z.string().uuid(),
+        country: z
+          .string()
+          .trim()
+          .length(2)
+          .regex(/^[A-Za-z]{2}$/)
+          .optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    const { adminRefreshProviderImpl } = await import("./offers/feed-cache.server");
+    return adminRefreshProviderImpl(data.providerId, data.country);
+  });
+
 export const updateOfferControls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>

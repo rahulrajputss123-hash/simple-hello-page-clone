@@ -1,5 +1,5 @@
 import { ArrowUpRight, Check, Clock, Gift } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
@@ -7,17 +7,21 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/States";
 import { formatMoney } from "@/lib/coinquest";
 import { claimOffer } from "@/lib/coinquest.functions";
-import { useOfferClaims, useOffers } from "@/lib/queries";
+import { getFeaturedFeed } from "@/lib/offers.functions";
+import { useOfferClaims } from "@/lib/queries";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function FeaturedOffers({
-  featuredOnly = true,
-  limit,
+  scope = "home",
 }: {
-  featuredOnly?: boolean;
-  limit?: number;
+  /** "home" = top featured slots (geo + ranked); "all" = full ranked list for the browse page. */
+  scope?: "home" | "all";
 }) {
-  const { data, isLoading, isError, refetch } = useOffers(featuredOnly);
+  const fetchFeed = useServerFn(getFeaturedFeed);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["featured-feed", scope],
+    queryFn: () => fetchFeed({ data: { scope } }),
+  });
   const claims = useOfferClaims();
   const queryClient = useQueryClient();
   const claim = useServerFn(claimOffer);
@@ -34,7 +38,7 @@ export function FeaturedOffers({
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3" data-testid="featured-offers-loading">
         {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
           <Skeleton key={i} className="h-40 w-full rounded-2xl" />
         ))}
@@ -42,7 +46,8 @@ export function FeaturedOffers({
     );
   }
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
-  if (!data?.length) {
+  const offers = data?.offers ?? [];
+  if (!offers.length) {
     return (
       <EmptyState
         icon={Gift}
@@ -52,15 +57,13 @@ export function FeaturedOffers({
     );
   }
 
-  const offers = typeof limit === "number" ? data.slice(0, limit) : data;
-
   return (
-    <ul className="grid grid-cols-3 gap-3">
+    <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
       {offers.map((offer) => {
         const existing = (claims.data ?? []).find((c) => c.offer_id === offer.id);
         const pending = mutation.isPending && mutation.variables === offer.id;
         return (
-          <li key={offer.id} className="surface-card flex flex-col gap-2 p-3">
+          <li key={offer.id} className="surface-card flex flex-col gap-2 p-3" data-testid={`featured-offer-${offer.id}`}>
             <span className="grid size-9 place-items-center rounded-xl bg-background-alt">
               <Gift className="size-4 text-primary" />
             </span>
@@ -92,6 +95,7 @@ export function FeaturedOffers({
                 size="sm"
                 variant="mint"
                 className="mt-auto w-full gap-1 px-2 text-xs"
+                data-testid={`featured-offer-claim-${offer.id}`}
                 disabled={pending}
                 onClick={() => {
                   if (offer.click_url) {

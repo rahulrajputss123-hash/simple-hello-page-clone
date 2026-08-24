@@ -24,7 +24,7 @@ function OffersPage() {
       <p className="text-sm text-muted-foreground">Complete partner offers for bigger payouts.</p>
 
       <SectionTitle>Featured Offers</SectionTitle>
-      <FeaturedOffers limit={9} />
+      <FeaturedOffers scope="home" />
       <div className="mt-3 flex justify-center">
         <Link
           to="/featured"

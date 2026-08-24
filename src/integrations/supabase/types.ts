@@ -204,6 +204,80 @@ export type Database = {
         }
         Relationships: []
       }
+      offer_feed_cache: {
+        Row: {
+          country: string
+          created_at: string
+          expires_at: string
+          id: string
+          last_synced_at: string
+          offer_count: number
+          offers: Json
+          provider_id: string
+          sync_error: string | null
+          updated_at: string
+        }
+        Insert: {
+          country: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_synced_at?: string
+          offer_count?: number
+          offers?: Json
+          provider_id: string
+          sync_error?: string | null
+          updated_at?: string
+        }
+        Update: {
+          country?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_synced_at?: string
+          offer_count?: number
+          offers?: Json
+          provider_id?: string
+          sync_error?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_feed_cache_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "offer_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offer_feed_settings: {
+        Row: {
+          default_country: string
+          fallback_behavior: string
+          featured_slots: number
+          id: boolean
+          refresh_interval_hours: number
+          updated_at: string
+        }
+        Insert: {
+          default_country?: string
+          fallback_behavior?: string
+          featured_slots?: number
+          id?: boolean
+          refresh_interval_hours?: number
+          updated_at?: string
+        }
+        Update: {
+          default_country?: string
+          fallback_behavior?: string
+          featured_slots?: number
+          id?: boolean
+          refresh_interval_hours?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       offers: {
         Row: {
           admin_priority: number

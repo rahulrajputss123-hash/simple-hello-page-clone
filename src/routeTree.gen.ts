@@ -25,6 +25,7 @@ import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedTaskRouteImport } from './routes/_authenticated/task'
 import { Route as AuthenticatedWalletRouteImport } from './routes/_authenticated/wallet'
 import { Route as LegalTermsRouteImport } from './routes/legal/terms'
+import { Route as ApiCronRefreshOfferFeedRouteImport } from './routes/api/cron/refresh-offer-feed'
 import { Route as ApiPublicOfferwallSlugRouteImport } from './routes/api/public/offerwall/$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -107,6 +108,11 @@ const LegalTermsRoute = LegalTermsRouteImport.update({
   path: '/legal/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronRefreshOfferFeedRoute = ApiCronRefreshOfferFeedRouteImport.update({
+  id: '/api/cron/refresh-offer-feed',
+  path: '/api/cron/refresh-offer-feed',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicOfferwallSlugRoute = ApiPublicOfferwallSlugRouteImport.update({
   id: '/api/public/offerwall/$slug',
   path: '/api/public/offerwall/$slug',
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
   '/legal/terms': typeof LegalTermsRoute
+  '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
 export interface FileRoutesByTo {
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
   '/legal/terms': typeof LegalTermsRoute
+  '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
 export interface FileRoutesById {
@@ -167,6 +175,7 @@ export interface FileRoutesById {
   '/_authenticated/task': typeof AuthenticatedTaskRoute
   '/_authenticated/wallet': typeof AuthenticatedWalletRoute
   '/legal/terms': typeof LegalTermsRoute
+  '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
 export interface FileRouteTypes {
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/task'
     | '/wallet'
     | '/legal/terms'
+    | '/api/cron/refresh-offer-feed'
     | '/api/public/offerwall/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | '/task'
     | '/wallet'
     | '/legal/terms'
+    | '/api/cron/refresh-offer-feed'
     | '/api/public/offerwall/$slug'
   id:
     | '__root__'
@@ -224,6 +235,7 @@ export interface FileRouteTypes {
     | '/_authenticated/task'
     | '/_authenticated/wallet'
     | '/legal/terms'
+    | '/api/cron/refresh-offer-feed'
     | '/api/public/offerwall/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -232,6 +244,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   LegalTermsRoute: typeof LegalTermsRoute
+  ApiCronRefreshOfferFeedRoute: typeof ApiCronRefreshOfferFeedRoute
   ApiPublicOfferwallSlugRoute: typeof ApiPublicOfferwallSlugRoute
 }
 
@@ -349,6 +362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalTermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/refresh-offer-feed': {
+      id: '/api/cron/refresh-offer-feed'
+      path: '/api/cron/refresh-offer-feed'
+      fullPath: '/api/cron/refresh-offer-feed'
+      preLoaderRoute: typeof ApiCronRefreshOfferFeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/offerwall/$slug': {
       id: '/api/public/offerwall/$slug'
       path: '/api/public/offerwall/$slug'
@@ -397,6 +417,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   LegalTermsRoute: LegalTermsRoute,
+  ApiCronRefreshOfferFeedRoute: ApiCronRefreshOfferFeedRoute,
   ApiPublicOfferwallSlugRoute: ApiPublicOfferwallSlugRoute,
 }
 export const routeTree = rootRouteImport
