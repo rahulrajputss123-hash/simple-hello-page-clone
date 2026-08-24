@@ -16,6 +16,14 @@ import { createFileRoute } from "@tanstack/react-router";
  * the `x-cron-secret` header, or `?secret=` query param.
  */
 
+/** Constant-time string compare (portable — avoids node:crypto for edge/worker runtimes). */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return mismatch === 0;
+}
+
 function isAuthorized(request: Request): boolean {
   const secret = process.env["OFFER_FEED_CRON_SECRET"];
   if (!secret) return false;
@@ -24,7 +32,8 @@ function isAuthorized(request: Request): boolean {
     request.headers.get("x-cron-secret") ??
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
     url.searchParams.get("secret");
-  return provided === secret;
+  if (!provided) return false;
+  return safeEqual(provided, secret);
 }
 
 async function handle(request: Request) {
@@ -38,8 +47,9 @@ async function handle(request: Request) {
     const summary = await refreshAllFeedsImpl(force);
     return Response.json({ ok: true, ...summary });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "refresh failed";
-    return Response.json({ ok: false, error: message }, { status: 500 });
+    // Log the real error server-side; don't leak internal details to the caller.
+    console.error("[offer-feed-cron] refresh failed:", err);
+    return Response.json({ ok: false, error: "refresh failed" }, { status: 500 });
   }
 }
 

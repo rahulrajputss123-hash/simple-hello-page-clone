@@ -28,10 +28,11 @@ client in `src/integrations/supabase/client.server.ts`. Deployed via Lovable/Clo
 - `ADBLUEMEDIA_API_KEY` — set.
 - `OFFER_FEED_CRON_SECRET` — set (placeholder `..._change_me`; rotate before prod).
 
-## Verification status
+## Verification status (VERIFIED against live DB, project etwtjrkjphbdkwojhozg)
+- `.env` + `config.toml` corrected to `etwtjrkjphbdkwojhozg`; service-role key validates; migration applied (both tables + RLS + seeded settings row exist).
 - `tsc --noEmit`: clean for all new/changed files (only 2 PRE-EXISTING errors in OfferwallSlot.tsx, untouched).
-- Dev server boots; cron route auth verified (401 + JSON without secret).
-- NOT E2E-verified in pod: (1) provided service-role key is for the WRONG project → Invalid API key; (2) migration not yet applied; (3) pod Node 20 lacks WebSocket that supabase-js realtime wants (works on Node 22+/edge deploy).
+- Testing agent (iteration_1): 28/28 pytest pass, no critical/blocking issues. Cron refresh 200 → US+DE, count=10 (≤ cap); 401 without secret; cache row 5h TTL; network offers reward=payout×0.6; upsert idempotent; RLS blocks anon, allows service role. Direct-impl E2E: manual-featured first, network ranked by weight×reward desc, slots=3, on-demand DE fetch, null→US fallback.
+- Applied reviewer hardening: constant-time cron-secret compare + no error leakage; settings passed once (no double fetch); weight map renamed; max-weight on offer-id collisions.
 
 ## Backlog / next
 - P0: user runs migration SQL + provides correct service-role key for kprhboiassbbyheanqky, then E2E verify.

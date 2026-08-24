@@ -174,21 +174,25 @@ async function enabledProviders(): Promise<OfferProvider[]> {
 export async function assembleFeaturedImpl(
   requestedCountry: string | null,
   scope: "home" | "all",
+  presetSettings?: FeedSettings,
 ): Promise<FeaturedOffer[]> {
-  const settings = await getFeedSettingsImpl();
+  const settings = presetSettings ?? (await getFeedSettingsImpl());
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
 
   const providers = await enabledProviders();
-  const weightBySlug = new Map(providers.map((p) => [p.id, readNetworkFeedConfig(p.slug, p.sync_config).weight]));
+  const weightByProviderId = new Map(providers.map((p) => [p.id, readNetworkFeedConfig(p.slug, p.sync_config).weight]));
 
   // Gather network offer ids per provider for this country (refresh on miss/expiry).
-  const collected = new Map<string, number>(); // offerId -> provider weight
+  const collected = new Map<string, number>(); // offerId -> highest provider weight
   for (const provider of providers) {
     let list = await getOrRefreshProviderCountry(provider, country, settings);
     if (list.length === 0 && settings.fallbackBehavior === "default_country" && country !== settings.defaultCountry) {
       list = await getOrRefreshProviderCountry(provider, settings.defaultCountry, settings);
     }
-    for (const item of list) collected.set(item.id, weightBySlug.get(provider.id) ?? 1);
+    const weight = weightByProviderId.get(provider.id) ?? 1;
+    for (const item of list) {
+      collected.set(item.id, Math.max(collected.get(item.id) ?? 0, weight));
+    }
   }
 
   // Load live offer rows (respects admin edits / active state).
@@ -271,7 +275,7 @@ export async function getFeaturedFeedImpl(
 ): Promise<FeaturedFeedResult> {
   const settings = await getFeedSettingsImpl();
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
-  const offers = await assembleFeaturedImpl(requestedCountry, scope);
+  const offers = await assembleFeaturedImpl(requestedCountry, scope, settings);
   return { country, offers };
 }
 

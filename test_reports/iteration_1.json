@@ -1,0 +1,40 @@
+{
+  "summary": "Backend-only verification of the geo-targeted Offer Feed automation on the local TanStack app (http://localhost:8080) + Supabase project etwtjrkjphbdkwojhozg. Created a pytest suite (28 tests, 100% pass) covering the cron route auth guard (query/header/bearer, GET+POST), forced refresh output, offer_feed_cache row state & expiry window, offer_feed_settings singleton + CHECK constraints, offers table network rows and revenue-share math, upsert idempotency, provider config caps, and RLS (anon blocked / service-role allowed). Also ran the developer's direct-impl E2E script (scripts/e2e_feed.ts) to validate geo fallback and ranking, and code-reviewed all 5 reference files. No blocking defects found; the previously reported stale-.env bug is confirmed fixed (.env -> etwtjrkjphbdkwojhozg, service-role key validates).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/cron/refresh-offer-feed", "issue": "Unbounded country fan-out: refreshAllFeedsImpl refreshes every country ever present in offer_feed_cache. Each new visitor country permanently adds a row, so cron cost/external API calls grow linearly forever with no pruning of stale/low-traffic countries (e.g. rows older than N days)."},
+      {"endpoint": "getOrRefreshProviderCountry (on-demand cache miss)", "issue": "No de-dup/lock around the synchronous on-cache-miss fetch. Concurrent first requests for the same (provider,country) will each hit the AdBlueMedia API and each upsert - thundering herd on cold cache / expiry boundary."},
+      {"endpoint": "offer_feed_cache (data)", "issue": "Informational: US and DE cache rows contain the IDENTICAL 10 offer ids, because AdBlueMedia's feed endpoint takes no country param (documented in feed-cache.server.ts:96-98). So per-country caching is currently structural only - the feed is not actually geo-filtered for this network. Confirm this matches product intent, or pass the country through as a GEO/ip param if the network supports it."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_offer_feed.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional hardening: add a retention/pruning rule for offer_feed_cache countries so the cron fan-out stays bounded.",
+    "Optional hardening: add a short in-flight lock or per-(provider,country) promise cache so a cold-cache burst doesn't trigger N parallel AdBlueMedia fetches.",
+    "Confirm whether identical offers across countries (AdBlueMedia has no GEO param) is acceptable, or wire the detected country into the adapter request."
+  ],
+  "critical_code_review_comments": [
+    "feed-cache.server.ts:182 - variable is named `weightBySlug` but is keyed by `provider.id`. Lookups at line 191 use `p.id` so behaviour is correct, but the name is misleading and invites a future bug; rename to `weightByProviderId`.",
+    "feed-cache.server.ts:174-276 - getFeaturedFeedImpl calls getFeedSettingsImpl() and then assembleFeaturedImpl() which calls getFeedSettingsImpl() again (two identical DB round-trips per request). Pass settings down instead.",
+    "feed-cache.server.ts:191 - collected is a Map keyed by offer id, so if two providers ever return the same offer row the last provider's weight silently wins. Prefer max(weight) or key by (provider,offer).",
+    "feed-settings.server.ts:76 - max_offers is clamped to the hard cap at READ time as well as write time (good, defence in depth). Verified: reads never exceed 10 for adbluemedia.",
+    "refresh-offer-feed.ts:19-28 - secret comparison uses `===` (non constant-time). Low risk for a cron secret, but a timing-safe compare would be cheap. Also the route returns 500 with the raw error message on failure; consider not leaking internal error text publicly."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_offer_feed.py"
+  ],
+  "success_rate": {"backend": "100% (28/28 pytest)", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "No new seed data. Cron runs upserted/refreshed the existing 10 AdBlueMedia network offers for countries US and DE (DE row pre-existed from the developer's E2E script). The CHECK-constraint test PATCHes offer_feed_settings with invalid values which are rejected by Postgres, and it re-asserts the row is unchanged (5h / default_country) afterwards.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "/app/memory/test_credentials.md does NOT exist (only /app/memory/PRD.md). No user/admin JWT was available, so authenticated server functions (getFeaturedFeed, getFeedAutomation, updateFeedSettings, updateNetworkFeedSettings, adminRefreshFeed) could not be driven over HTTP. Verified indirectly: all 5 are wrapped in requireSupabaseAuth and the 4 admin ones additionally call assertAdmin(context.supabase, context.userId); an unauthenticated POST to the server-fn endpoint is rejected (403, no data returned). Please add test credentials so the admin panel + geo-header path can be e2e tested.",
+  "context_for_next_testing_agent": "App runs at http://localhost:8080 via `node node_modules/.bin/vite dev` on Node 22 (NOT supervisor, NOT port 3000). Run the suite with: cd /app/backend/tests && python -m pytest . -v -o addopts=\"\" --junitxml=/app/test_reports/pytest/pytest_results.xml. conftest.py reads /app/.env for SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_PUBLISHABLE_KEY / OFFER_FEED_CRON_SECRET, so no secrets are hardcoded. Verified results: cron 200 -> {ok:true, refreshed:[{adbluemedia,US,10},{adbluemedia,DE,10}], errors:[]}; offer_feed_cache US row offer_count=10, expires_at - last_synced_at = exactly 5.00h, sync_error null; offer_feed_settings singleton = 5h/US/default_country/3; all 10 network offers have revenue_share=0.6 and reward_amount == round(network_payout*0.6, 2); re-running the cron creates no duplicate (provider_id, external_offer_id) rows; anon key returns [] for offer_feed_cache and offer_feed_settings and is 4xx on write, service_role reads both. scripts/e2e_feed.ts (bun) confirmed: scope 'all' = 13 offers (3 manual featured first + 10 network), network rewards strictly descending [3.36,1.92,1.92,1.82,1.73,1.54,1.54,1.39,1.32,1.20], scope 'home' = 3 (featured_slots), null country falls back to US, DE resolves to DE. NOT tested: geo header injection through a real authenticated request, admin panel UI, and the fallback_behavior='none' branch.",
+  "rca_of_the_issue": "Original reported bug (stale .env pointing at Supabase project kprhboiassbbyheanqky) is fixed and independently verified: /app/.env SUPABASE_URL now resolves to etwtjrkjphbdkwojhozg, the service-role key authenticates against it, and both new tables (offer_feed_cache, offer_feed_settings) plus their RLS policies exist in that project. An explicit regression test (TestServerFunctionAuth::test_env_points_to_correct_project) now guards against the wrong project id reappearing."
+}
