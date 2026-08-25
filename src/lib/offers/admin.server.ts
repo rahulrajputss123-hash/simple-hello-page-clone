@@ -7,6 +7,7 @@ export type ManualOfferInput = {
   title: string;
   description: string;
   requirements: string;
+  notAllowed: string;
   icon: string;
   rewardAmount: number;
   networkPayout?: number | null | undefined;
@@ -112,7 +113,7 @@ export async function listAdminOffersImpl(input: {
   let q = supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, icon, source, provider_id, external_offer_id, reward_amount, network_payout, revenue_share, click_url, countries, devices, expires_at, last_seen_at, is_active, is_featured, sort_order, admin_priority, created_at, updated_at, offer_providers:provider_id(name, slug)",
+      "id, title, description, requirements, not_allowed, icon, source, provider_id, external_offer_id, reward_amount, network_payout, revenue_share, click_url, countries, devices, expires_at, last_seen_at, is_active, is_featured, sort_order, admin_priority, created_at, updated_at, offer_providers:provider_id(name, slug)",
     )
     .order("admin_priority", { ascending: false })
     .order("sort_order", { ascending: true })
@@ -138,6 +139,7 @@ export async function upsertManualOfferImpl(input: ManualOfferInput) {
     title: input.title,
     description: input.description,
     requirements: input.requirements,
+    not_allowed: input.notAllowed ?? "",
     icon: input.icon || "gift",
     reward_amount: input.rewardAmount,
     network_payout: input.networkPayout ?? null,

@@ -3,7 +3,6 @@ import {
   MAX_ADS_PER_HOUR,
   MIN_SECONDS_PER_AD,
   MIN_WITHDRAWAL,
-  QUESTS,
   REFERRAL_MILESTONE_BONUS,
   REFERRAL_WINDOW_DAYS,
   STREAK_BONUS,
@@ -357,8 +356,8 @@ export async function touchStreakImpl(userId: string) {
 }
 
 export async function startQuestImpl(userId: string, questKey: string) {
-  const quest = QUESTS.find((q) => q.key === questKey);
-  if (!quest) throw new Error("Unknown quest.");
+  const { getQuestByKey } = await import("./quests.server");
+  const quest = await getQuestByKey(questKey);
 
   const open = await supabaseAdmin
     .from("quest_sessions")
@@ -374,9 +373,11 @@ export async function startQuestImpl(userId: string, questKey: string) {
     .insert({
       user_id: userId,
       quest_key: quest.key,
-      ads_required: quest.ads,
-      reward_amount: quest.reward,
-    })
+      ads_required: quest.ads_required,
+      reward_amount: quest.reward_amount,
+      quest_type: quest.quest_type,
+      current_step: 0,
+    } as never)
     .select("*")
     .single();
   if (created.error) throw new Error("Could not start this quest.");

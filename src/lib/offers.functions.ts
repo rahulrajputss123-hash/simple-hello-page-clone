@@ -92,6 +92,7 @@ export const saveManualOffer = createServerFn({ method: "POST" })
         title: z.string().trim().min(2).max(120),
         description: z.string().trim().max(600).default(""),
         requirements: z.string().trim().max(600).default(""),
+        notAllowed: z.string().trim().max(1000).default(""),
         icon: z.string().trim().max(300).default("gift"),
         rewardAmount: z.number().min(0).max(10000),
         networkPayout: z.number().min(0).max(10000).nullable().optional(),

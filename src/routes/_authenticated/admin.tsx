@@ -20,6 +20,7 @@ import {
   adminUpdateWithdrawal,
 } from "@/lib/coinquest.functions";
 import { OffersManager } from "@/components/admin/OffersManager";
+import { QuestsManager } from "@/components/admin/QuestsManager";
 import { TasksManager } from "@/components/admin/TasksManager";
 import { SdkOfferwallManager } from "@/components/admin/SdkOfferwallManager";
 import { AutomationPanel } from "@/components/admin/AutomationPanel";
@@ -47,6 +48,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
 type TabKey =
   | "dashboard"
   | "offers"
+  | "quests"
   | "tasks"
   | "withdrawals"
   | "claims"
@@ -208,6 +210,7 @@ function AdminPage() {
           [
             ["dashboard", "Dashboard"],
             ["offers", "Offers"],
+            ["quests", "Quests"],
             ["tasks", "Tasks"],
             ["withdrawals", `Payouts (${pendingWithdrawals.length})`],
             ["claims", `Claims (${pendingClaims.length})`],
@@ -306,7 +309,14 @@ function AdminPage() {
 
       {tab === "tasks" && <TasksManager />}
 
-      {data.isLoading && tab !== "dashboard" && tab !== "offers" && tab !== "tasks" && (
+      {tab === "quests" && (
+        <>
+          <SectionTitle>Starter Quests</SectionTitle>
+          <QuestsManager />
+        </>
+      )}
+
+      {data.isLoading && tab !== "dashboard" && tab !== "offers" && tab !== "tasks" && tab !== "quests" && (
         <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
       )}
 

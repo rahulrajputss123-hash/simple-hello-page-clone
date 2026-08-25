@@ -1,10 +1,12 @@
 import { ArrowUpRight, Check, Clock, Gift } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/States";
+import { OfferDetailsDialog, type OfferDetailsPayload } from "@/components/OfferDetailsDialog";
 import { formatMoney } from "@/lib/coinquest";
 import { claimOffer } from "@/lib/coinquest.functions";
 import { getFeaturedFeed } from "@/lib/offers.functions";
@@ -25,6 +27,7 @@ export function FeaturedOffers({
   const claims = useOfferClaims();
   const queryClient = useQueryClient();
   const claim = useServerFn(claimOffer);
+  const [pending, setPending] = useState<OfferDetailsPayload | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (offerId: string) => claim({ data: { offerId } }),
@@ -57,59 +60,87 @@ export function FeaturedOffers({
     );
   }
 
+  const handleContinue = () => {
+    if (!pending) return;
+    if (pending.click_url) {
+      window.open(pending.click_url, "_blank", "noopener,noreferrer");
+    }
+    mutation.mutate(pending.id);
+    setPending(null);
+  };
+
   return (
-    <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
-      {offers.map((offer) => {
-        const existing = (claims.data ?? []).find((c) => c.offer_id === offer.id);
-        const pending = mutation.isPending && mutation.variables === offer.id;
-        return (
-          <li key={offer.id} className="surface-card flex flex-col gap-2 p-3" data-testid={`featured-offer-${offer.id}`}>
-            <span className="grid size-9 place-items-center rounded-xl bg-background-alt">
-              <Gift className="size-4 text-primary" />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold leading-tight">{offer.title}</p>
-              <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                {offer.description}
-              </p>
-            </div>
-            <span className="text-amount text-sm text-gold-dark">
-              {formatMoney(offer.reward_amount)}
-            </span>
-            {existing ? (
-              <span className="mt-auto flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-                {existing.status === "approved" ? (
-                  <>
-                    <Check className="size-3.5 text-primary" /> Approved
-                  </>
-                ) : existing.status === "rejected" ? (
-                  <>Rejected</>
-                ) : (
-                  <>
-                    <Clock className="size-3.5" /> In review
-                  </>
-                )}
+    <>
+      <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
+        {offers.map((offer) => {
+          const existing = (claims.data ?? []).find((c) => c.offer_id === offer.id);
+          const isPending = mutation.isPending && mutation.variables === offer.id;
+          return (
+            <li
+              key={offer.id}
+              className="surface-card flex flex-col gap-2 p-3"
+              data-testid={`featured-offer-${offer.id}`}
+            >
+              <span className="grid size-9 place-items-center rounded-xl bg-background-alt">
+                <Gift className="size-4 text-primary" />
               </span>
-            ) : (
-              <Button
-                size="sm"
-                variant="mint"
-                className="mt-auto w-full gap-1 px-2 text-xs"
-                data-testid={`featured-offer-claim-${offer.id}`}
-                disabled={pending}
-                onClick={() => {
-                  if (offer.click_url) {
-                    window.open(offer.click_url, "_blank", "noopener,noreferrer");
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold leading-tight">{offer.title}</p>
+                <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                  {offer.description}
+                </p>
+              </div>
+              <span className="text-amount text-sm text-gold-dark">
+                {formatMoney(offer.reward_amount)}
+              </span>
+              {existing ? (
+                <span className="mt-auto flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                  {existing.status === "approved" ? (
+                    <>
+                      <Check className="size-3.5 text-primary" /> Approved
+                    </>
+                  ) : existing.status === "rejected" ? (
+                    <>Rejected</>
+                  ) : (
+                    <>
+                      <Clock className="size-3.5" /> In review
+                    </>
+                  )}
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="mint"
+                  className="mt-auto w-full gap-1 px-2 text-xs"
+                  data-testid={`featured-offer-claim-${offer.id}`}
+                  disabled={isPending}
+                  onClick={() =>
+                    setPending({
+                      id: offer.id,
+                      title: offer.title,
+                      description: offer.description,
+                      requirements: offer.requirements,
+                      not_allowed: offer.not_allowed,
+                      reward_amount: offer.reward_amount,
+                      click_url: offer.click_url,
+                    })
                   }
-                  mutation.mutate(offer.id);
-                }}
-              >
-                {pending ? "Sending…" : "Claim"} <ArrowUpRight className="size-3.5" />
-              </Button>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+                >
+                  {isPending ? "Sending…" : "Claim"} <ArrowUpRight className="size-3.5" />
+                </Button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <OfferDetailsDialog
+        offer={pending}
+        open={Boolean(pending)}
+        onOpenChange={(open) => !open && setPending(null)}
+        onContinue={handleContinue}
+        isSubmitting={mutation.isPending}
+      />
+    </>
   );
 }

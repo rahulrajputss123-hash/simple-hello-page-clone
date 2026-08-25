@@ -34,6 +34,7 @@ export type FeaturedOffer = {
   title: string;
   description: string;
   requirements: string;
+  not_allowed: string;
   icon: string;
   reward_amount: number;
   click_url: string | null;
@@ -201,7 +202,7 @@ export async function assembleFeaturedImpl(
     const { data } = await supabaseAdmin
       .from("offers")
       .select(
-        "id, title, description, requirements, icon, reward_amount, click_url, source, provider_id, is_active, expires_at",
+        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, is_active, expires_at",
       )
       .in("id", [...collected.keys()])
       .eq("is_active", true);
@@ -213,6 +214,7 @@ export async function assembleFeaturedImpl(
         title: o.title,
         description: o.description,
         requirements: o.requirements,
+        not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
         icon: o.icon,
         reward_amount: Number(o.reward_amount),
         click_url: o.click_url,
@@ -232,7 +234,7 @@ export async function assembleFeaturedImpl(
   const { data: manualRows } = await supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, icon, reward_amount, click_url, source, provider_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at",
+      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at",
     )
     .eq("source", "manual")
     .eq("is_featured", true)
@@ -252,6 +254,7 @@ export async function assembleFeaturedImpl(
       title: o.title,
       description: o.description,
       requirements: o.requirements,
+      not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
       icon: o.icon,
       reward_amount: Number(o.reward_amount),
       click_url: o.click_url,

@@ -46,6 +46,7 @@ const emptyForm = {
   title: "",
   description: "",
   requirements: "",
+  notAllowed: "",
   icon: "gift",
   rewardAmount: "0",
   networkPayout: "",
@@ -128,6 +129,7 @@ export function OffersManager() {
           title: state.title.trim(),
           description: state.description.trim(),
           requirements: state.requirements.trim(),
+          notAllowed: state.notAllowed.trim(),
           icon: state.icon.trim() || "gift",
           rewardAmount: Number(state.rewardAmount) || 0,
           networkPayout: state.networkPayout ? Number(state.networkPayout) : null,
@@ -173,6 +175,7 @@ export function OffersManager() {
       title: offer.title,
       description: offer.description ?? "",
       requirements: offer.requirements ?? "",
+      notAllowed: (offer as { not_allowed?: string | null }).not_allowed ?? "",
       icon: offer.icon ?? "gift",
       rewardAmount: String(offer.reward_amount ?? 0),
       networkPayout: offer.network_payout == null ? "" : String(offer.network_payout),
@@ -394,6 +397,15 @@ export function OffersManager() {
                   rows={2}
                   value={form.requirements}
                   onChange={(event) => setForm({ ...form, requirements: event.target.value })}
+                />
+              </Field>
+              <Field label="What not to do">
+                <Textarea
+                  rows={3}
+                  placeholder="No VPN, no multiple accounts, no fake data, no emulators…"
+                  data-testid="offer-form-not-allowed"
+                  value={form.notAllowed}
+                  onChange={(event) => setForm({ ...form, notAllowed: event.target.value })}
                 />
               </Field>
               <Field label="Image URL or icon name">

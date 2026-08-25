@@ -38,3 +38,29 @@ client in `src/integrations/supabase/client.server.ts`. Deployed via Lovable/Clo
 - P0: user runs migration SQL + provides correct service-role key for kprhboiassbbyheanqky, then E2E verify.
 - P1: schedule the cron on the deploy platform; rotate OFFER_FEED_CRON_SECRET.
 - P2: true per-country GEO param once a network's feed supports it (wiring already threaded).
+
+## Feature update (2026-11) — Offer popup + Editable Starter Quests
+- **Migration** `supabase/migrations/20261101000000_offer_popup_and_quests.sql`
+  - `offers.not_allowed text NOT NULL DEFAULT ''` — new "what NOT to do" warning field.
+  - New `public.quests` table (key/label/icon/quest_type/ads_required/reward_amount/shortlink_steps jsonb/min_seconds_per_step/is_active/sort_order) with RLS (`active quests readable`), grants, updated_at trigger, and seed rows (starter_5/25/50).
+  - `public.quest_sessions` extended with `quest_type`, `current_step`, `step_issued_at`.
+- **Server**
+  - `src/lib/quests.functions.ts` + `src/lib/quests.server.ts` — CRUD (`listActiveQuests` / `listAdminQuests` / `saveQuest` / `deleteQuest`), plus `startShortlinkStep` + `completeShortlinkStep` (time-check via `min_seconds_per_step`, step sequencing, wallet credit on final step reuses `creditWallet`).
+  - `startQuestImpl` (coinquest.server.ts) now reads quest defs from the `quests` table (constant `QUESTS` array retired, seed rows preserve keys). Ads flow unchanged.
+  - Offer server code: `saveManualOffer` (offers.functions.ts) accepts `notAllowed`; `ManualOfferInput` + `upsertManualOfferImpl` + `listAdminOffersImpl` + `assembleFeaturedImpl` (feed-cache) now select/include `not_allowed`; `FeaturedOffer` type gained `not_allowed`.
+- **UI**
+  - `src/components/OfferDetailsDialog.tsx` — shared pre-redirect confirmation dialog (title, description, "How to complete", "What NOT to do" with red warning styling, Continue button). Fallback warning string when `not_allowed` empty.
+  - `FeaturedOffers` — tapping an offer opens the dialog; only after "Continue" does the app open `click_url` + call `claimOffer`. Reused across Home / Offers / /featured views.
+  - `OffersManager` admin form — new **"What not to do"** textarea (`data-testid="offer-form-not-allowed"`).
+  - `StarterQuests` — horizontally scrollable row (`flex gap-3 overflow-x-auto`, `min-w-[160px]` cards); fetches from `listActiveQuests`; renders both ads and shortlink cards (Step N of 3 / Start / Continue / Done).
+  - `QuestsManager` admin (`src/components/admin/QuestsManager.tsx`) — full CRUD with quest-type toggle, 3-step shortlink editor, helper text showing exact `/go/{key}/{step}` destinations to configure on each shortener, min-seconds-per-step field.
+  - New route `src/routes/_authenticated/go.$questKey.$step.tsx` — auto-runs `completeShortlinkStep` on mount; shows success/next-step/error states.
+  - Admin panel tabs: new **Quests** tab wired between Offers and Tasks.
+
+## Verification status
+- ESLint: clean for all new/modified files.
+- Not run: `tsc --noEmit` (no local `node_modules` in this sandbox), migration apply, and E2E — user must `bun install`, apply the migration against the Supabase project, and restart dev before verifying.
+
+## Follow-ups
+- Regenerate `src/routeTree.gen.ts` (auto by `vite dev` / `vite build` on first run).
+- P1: If Supabase types are re-generated later, add the new `quests` table + `offers.not_allowed` column + new `quest_sessions` columns to `src/integrations/supabase/types.ts`; the current code uses a local untyped alias so runtime works today.
