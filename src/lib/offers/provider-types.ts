@@ -52,6 +52,7 @@ export type NormalizedOffer = {
 export type OfferFetchContext = {
   /** ISO-3166 alpha-2 country code of the requesting user, when known. */
   country?: string;
+  ip?: string;
 };
 
 export type OfferProviderAdapter = {
