@@ -34,3 +34,16 @@ export function detectCountryFromRequest(): string | null {
   }
   return null;
 }
+/** Reads the requesting user's real IP from proxy headers (for geo-targeting on network APIs). */
+export function detectIpFromRequest(): string | null {
+  const request = getRequest();
+  const headers = request?.headers;
+  if (!headers) return null;
+  const forwarded = headers.get("x-forwarded-for");
+  if (forwarded) {
+    const first = forwarded.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  const realIp = headers.get("x-real-ip") ?? headers.get("cf-connecting-ip");
+  return realIp?.trim() || null;
+}
