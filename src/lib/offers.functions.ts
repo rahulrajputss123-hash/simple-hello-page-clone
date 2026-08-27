@@ -130,10 +130,11 @@ export const getFeaturedFeed = createServerFn({ method: "POST" })
     z.object({ scope: z.enum(["home", "all"]).default("home") }).parse(input ?? {}),
   )
   .handler(async ({ data }) => {
-    const { detectCountryFromRequest } = await import("./offers/geo.server");
+    const { detectCountryFromRequest, detectIpFromRequest } = await import("./offers/geo.server");
     const { getFeaturedFeedImpl } = await import("./offers/feed-cache.server");
     const country = detectCountryFromRequest();
-    return getFeaturedFeedImpl(country, data.scope);
+    const ip = detectIpFromRequest();
+    return getFeaturedFeedImpl(country, data.scope, ip);
   });
 
 /** Admin: read feed-automation settings + per-network config + cache freshness. */
