@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
 import { Flame, Sparkles } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
@@ -11,6 +13,8 @@ import { SectionTitle } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth";
+import { completeOnboarding } from "@/lib/coinquest.functions";
+import { getDeviceId } from "@/lib/ads";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -27,9 +31,47 @@ export const Route = createFileRoute("/_authenticated/home")({
 function HomePage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const save = useServerFn(completeOnboarding);
+  const autoOnboarded = useRef(false);
+
   useEffect(() => {
-    if (profile && !profile.onboarded) void navigate({ to: "/onboarding", replace: true });
-  }, [profile, navigate]);
+    if (!profile || profile.onboarded) return;
+    // Silent auto-onboarding from the signup-form fields captured pre-confirmation.
+    const raw =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("coinquest.pending_onboarding")
+        : null;
+    if (raw && !autoOnboarded.current) {
+      autoOnboarded.current = true;
+      try {
+        const parsed = JSON.parse(raw) as { name?: string; phone?: string };
+        const name = (parsed.name ?? "").trim();
+        if (name.length >= 2) {
+          void save({
+            data: {
+              name,
+              ...(parsed.phone?.trim() ? { phone: parsed.phone.trim() } : {}),
+              deviceId: getDeviceId(),
+            },
+          })
+            .then(() => {
+              window.localStorage.removeItem("coinquest.pending_onboarding");
+              void queryClient.invalidateQueries({ queryKey: ["profile"] });
+            })
+            .catch(() => {
+              // Fall back to the onboarding screen if the silent save fails.
+              void navigate({ to: "/onboarding", replace: true });
+            });
+          return;
+        }
+      } catch {
+        /* fall through to fallback */
+      }
+    }
+    // Fallback for edge cases (old accounts, cleared storage): keep old screen.
+    void navigate({ to: "/onboarding", replace: true });
+  }, [profile, navigate, queryClient, save]);
   const streak = profile?.streak_count ?? 0;
   const goal = 7;
 

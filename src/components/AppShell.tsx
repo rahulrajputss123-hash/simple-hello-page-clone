@@ -10,10 +10,60 @@ import { BottomNav } from "./BottomNav";
 export function BrandMark({ className = "" }: { className?: string }) {
   return (
     <span
-      className={`grid size-10 place-items-center rounded-2xl bg-jade-gradient text-primary-foreground shadow-lift ${className}`}
+      className={`inline-grid place-items-center overflow-hidden rounded-2xl bg-jade-gradient shadow-lift ${className || "size-10"}`}
     >
-      <span className="font-display text-xl leading-none">C</span>
+      <img
+        src="/icon-512.png"
+        alt="CashGPT"
+        className="h-full w-full object-cover"
+        loading="eager"
+        decoding="async"
+      />
     </span>
+  );
+}
+
+/**
+ * Horizontal wordmark lockup. Pass variant="light" for light surfaces (cream/white),
+ * variant="dark" for dark/jade surfaces, or omit (default "auto") to swap via `prefers-color-scheme`.
+ */
+export function BrandLogo({
+  variant = "auto",
+  className = "",
+}: {
+  variant?: "light" | "dark" | "auto";
+  className?: string;
+}) {
+  if (variant === "light") {
+    return (
+      <img
+        src="/logo-horizontal-light.png"
+        alt="CashGPT — Earn · Complete · Cashout"
+        className={`h-auto w-auto select-none ${className}`}
+        draggable={false}
+      />
+    );
+  }
+  if (variant === "dark") {
+    return (
+      <img
+        src="/logo-horizontal-dark.png"
+        alt="CashGPT — Earn · Complete · Cashout"
+        className={`h-auto w-auto select-none ${className}`}
+        draggable={false}
+      />
+    );
+  }
+  return (
+    <picture className={`inline-block ${className}`}>
+      <source srcSet="/logo-horizontal-dark.png" media="(prefers-color-scheme: dark)" />
+      <img
+        src="/logo-horizontal-light.png"
+        alt="CashGPT — Earn · Complete · Cashout"
+        className="h-auto w-auto select-none"
+        draggable={false}
+      />
+    </picture>
   );
 }
 

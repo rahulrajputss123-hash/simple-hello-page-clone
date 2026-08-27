@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { BrandMark } from "@/components/AppShell";
+import { BrandLogo } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,17 +57,20 @@ function OnboardingPage() {
   });
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 px-5 py-10">
-      <div className="flex flex-col items-center gap-3 text-center">
-        <BrandMark className="size-14" />
-        <h1 className="text-2xl">Welcome to CashGPT</h1>
+    <main className="auth-bg relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 overflow-hidden px-5 py-10">
+      <div className="relative flex flex-col items-center gap-3 text-center">
+        <div className="splash-logo-wrap relative">
+          <span aria-hidden className="splash-halo absolute inset-0 -z-10 rounded-[36%] blur-2xl" />
+          <BrandLogo variant="light" className="h-auto w-[200px] drop-shadow-md" />
+        </div>
+        <h1 className="font-display text-2xl">Almost there</h1>
         <p className="text-sm text-muted-foreground">
           Tell us who you are so we can send your rewards to the right place.
         </p>
       </div>
 
       <form
-        className="surface-card space-y-4 p-5"
+        className="surface-card auth-card-in relative space-y-4 p-5 shadow-lift"
         onSubmit={(e) => {
           e.preventDefault();
           if (name.trim().length < 2) {

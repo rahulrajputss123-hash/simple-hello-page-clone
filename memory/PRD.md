@@ -64,3 +64,17 @@ client in `src/integrations/supabase/client.server.ts`. Deployed via Lovable/Clo
 ## Follow-ups
 - Regenerate `src/routeTree.gen.ts` (auto by `vite dev` / `vite build` on first run).
 - P1: If Supabase types are re-generated later, add the new `quests` table + `offers.not_allowed` column + new `quest_sessions` columns to `src/integrations/supabase/types.ts`; the current code uses a local untyped alias so runtime works today.
+
+## Feature update (2026-11) — Brand logo, splash screen, unified signup, auth polish
+- **Assets** in `public/`: `favicon.ico` (16/32/48/64), `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` (180), `logo-horizontal-light.png`, `logo-horizontal-dark.png` — all derived from the user-supplied brand kit.
+- `public/manifest.webmanifest` updated: theme_color=#0F3D3A, icons array points to the new 192/512 PNGs (`any maskable`).
+- `src/routes/__root.tsx` head links now include the new 192/512 icons + `apple-touch-icon`.
+- **BrandMark** in `AppShell.tsx` now renders the actual `icon-512.png` image (used in header). New **BrandLogo** (`variant="light" | "dark" | "auto"`) renders the horizontal wordmark lockup; auto uses `<picture>` with `prefers-color-scheme` swap.
+- **SplashScreen** (`src/components/SplashScreen.tsx`) — full-screen `bg-background`, animated jade/gold radial halo behind the logo (`splash-logo-in` + `splash-halo-pulse` keyframes), 3 pulsing dots as loading indicator, 500ms cross-fade out. Mounted in `RootComponent` via `SplashGate` reading `useAuth().loading`.
+- **Merged signup fields**: `src/routes/auth.tsx` fully redesigned — Full Name and Referral Code fields appear only in signup mode; referral auto-fills from `?ref=` / `localStorage["coinquest.ref"]`. On signup, name is persisted in `localStorage["coinquest.pending_onboarding"]` (email confirmation delay = no session yet). `src/routes/_authenticated/home.tsx` picks it up on first authenticated render and silently calls `completeOnboarding`, then clears the key — no visible `/onboarding` step for new signups. `/onboarding` route retained as fallback (old accounts, cleared storage, or silent-save failure).
+- **Auth UI polish**: `auth-bg` radial background glows (`styles.css`), `surface-card + shadow-lift` on the form, `auth-card-in` entrance animation, `auth-fade-slide` on signup-only fields, larger jade primary button with `size="lg"`, data-testids on every interactive element (`auth-page`, `auth-form-signin`/`-signup`, `auth-name-input`, `auth-email-input`, `auth-password-input`, `auth-referral-input`, `auth-submit-btn`, `auth-mode-toggle`).
+- Onboarding fallback screen also refreshed to use `BrandLogo` + `auth-bg` + entrance animation for visual consistency.
+
+## Backlog / next
+- P1: If dark mode is later added globally, the `BrandLogo variant="auto"` already swaps via `prefers-color-scheme`; header/app currently sits on light surfaces only.
+- P2: Consider adding a Phone/OTP tab on auth (spec anticipated `PhoneForm` but codebase currently only ships email); same signup-fields pattern would apply.
