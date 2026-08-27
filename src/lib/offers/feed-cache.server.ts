@@ -81,6 +81,7 @@ async function refreshProviderCountry(
   provider: OfferProvider,
   country: string,
   settings: FeedSettings,
+  ip?: string | null,
 ): Promise<CachedOffer[]> {
   const adapter = getAdapter(provider.slug);
   if (!adapter) throw new Error(`No adapter registered for "${provider.slug}"`);
@@ -95,7 +96,7 @@ async function refreshProviderCountry(
 
   // The detected country is passed through to the adapter (adapters that support a GEO param can
   // use it; AdBlueMedia's feed endpoint has no country param, so its request stays unchanged).
-  const fetched = await adapter.fetchOffers(provider, { country });
+  const fetched = await adapter.fetchOffers(provider, { country, ip: ip ?? undefined });
   const limited = fetched.slice(0, maxOffers);
 
   let cached: CachedOffer[] = [];
@@ -141,13 +142,14 @@ async function getOrRefreshProviderCountry(
   provider: OfferProvider,
   country: string,
   settings: FeedSettings,
+  ip?: string | null,
 ): Promise<CachedOffer[]> {
   const existing = await readCacheRow(provider.id, country);
   const fresh = existing && new Date(existing.expires_at).getTime() > Date.now();
   if (fresh) return (existing.offers as unknown as CachedOffer[]) ?? [];
 
   try {
-    return await refreshProviderCountry(provider, country, settings);
+    return await refreshProviderCountry(provider, country, settings, ip);
   } catch (err) {
     const message = err instanceof Error ? err.message : "feed refresh failed";
     // Record the error but keep serving stale offers when we have them.
@@ -175,6 +177,7 @@ export async function assembleFeaturedImpl(
   requestedCountry: string | null,
   scope: "home" | "all",
   presetSettings?: FeedSettings,
+  ip?: string | null,
 ): Promise<FeaturedOffer[]> {
   const settings = presetSettings ?? (await getFeedSettingsImpl());
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
@@ -185,9 +188,9 @@ export async function assembleFeaturedImpl(
   // Gather network offer ids per provider for this country (refresh on miss/expiry).
   const collected = new Map<string, number>(); // offerId -> highest provider weight
   for (const provider of providers) {
-    let list = await getOrRefreshProviderCountry(provider, country, settings);
+    let list = await getOrRefreshProviderCountry(provider, country, settings, ip);
     if (list.length === 0 && settings.fallbackBehavior === "default_country" && country !== settings.defaultCountry) {
-      list = await getOrRefreshProviderCountry(provider, settings.defaultCountry, settings);
+      list = await getOrRefreshProviderCountry(provider, settings.defaultCountry, settings, ip);
     }
     const weight = weightByProviderId.get(provider.id) ?? 1;
     for (const item of list) {
@@ -272,10 +275,11 @@ export type FeaturedFeedResult = {
 export async function getFeaturedFeedImpl(
   requestedCountry: string | null,
   scope: "home" | "all",
+  ip?: string | null,
 ): Promise<FeaturedFeedResult> {
   const settings = await getFeedSettingsImpl();
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
-  const offers = await assembleFeaturedImpl(requestedCountry, scope, settings);
+  const offers = await assembleFeaturedImpl(requestedCountry, scope, settings, ip);
   return { country, offers };
 }
 
