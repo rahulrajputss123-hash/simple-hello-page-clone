@@ -47,7 +47,7 @@ export const adblueMediaAdapter: OfferProviderAdapter = {
     return null;
   },
 
-  async fetchOffers(provider) {
+  async fetchOffers(provider, options) {
     const apiKey = process.env["ADBLUEMEDIA_API_KEY"];
     if (!apiKey) throw new Error("ADBLUEMEDIA_API_KEY is not configured on the server.");
 
@@ -57,6 +57,7 @@ export const adblueMediaAdapter: OfferProviderAdapter = {
     url.searchParams.set("api_key", apiKey);
     if (s1) url.searchParams.set("s1", s1);
     if (s2) url.searchParams.set("s2", s2);
+    if (options?.ip) url.searchParams.set("ip", options.ip);
 
     const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
     const text = await response.text();
