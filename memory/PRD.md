@@ -78,3 +78,40 @@ client in `src/integrations/supabase/client.server.ts`. Deployed via Lovable/Clo
 ## Backlog / next
 - P1: If dark mode is later added globally, the `BrandLogo variant="auto"` already swaps via `prefers-color-scheme`; header/app currently sits on light surfaces only.
 - P2: Consider adding a Phone/OTP tab on auth (spec anticipated `PhoneForm` but codebase currently only ships email); same signup-fields pattern would apply.
+
+## Feature update (2026-11) — Proof upload + Limited deals + Per-offer payout mode
+Migration: `supabase/migrations/20261115000000_offer_proof_deals_payout_mode.sql` (must be run manually by user against Supabase).
+
+### 1. Proof-of-completion upload
+- `offer_claims.proof_url text NULL`.
+- Private storage bucket `offer-proofs` with path-scoped RLS: users may read/write only under `offer-proofs/{their auth.uid()}/…`; admins (`has_role admin`) read all.
+- Server: `claimOfferImpl` (coinquest.server.ts) accepts `proofUrl` and inserts it in the same claim row (the table has no UPDATE grant to authenticated).
+- Client: `OfferDetailsDialog` uploads via `requestProofUploadUrl` (server fn returning short-lived signed upload URL) directly to Supabase Storage; only the `path` is sent back with the claim.
+- Admin: `ClaimProofPreview` component renders the proof inline in the claims review tab via a signed 5-minute URL (`adminSignProofUrl` server fn).
+
+### 2. Limited Deal offers
+- New columns on `offers`: `is_limited_deal`, `deal_group_id`, `actual_cost`, `payout_percentage default 110`, `max_payout_cap`.
+- Reward calc `MIN(cost * pct / 100, cap)` is enforced server-side in `computeLimitedDealReward` (`src/lib/offers/proof.server.ts`): applied at `upsertManualOfferImpl` (save time) AND recomputed FRESHLY inside `adminUpdateOfferClaimImpl` (approval time) for limited-deal offers — never trusts the claim snapshot. Wallet credit uses the recomputed value.
+- **Group locking via RLS**: `offers` SELECT policy replaced — a user with any non-rejected claim on an offer sharing a `deal_group_id` no longer sees siblings. Admin bypass policy `admins see all offers` restored so the admin panel is unaffected. `claimOfferImpl` also mirrors the check server-side (defensive).
+- Proof is REQUIRED for limited-deal offers (submit fails without it).
+- Admin UI: `OffersManager` form has a "Limited Deal" toggle group with Deal group, Actual cost, Payout %, Max cap, and a live "Effective payout: $X" preview.
+- Offer card UI: `FeaturedOffers` shows a floating gold **Deal** ribbon + "One-time only" note when `is_limited_deal`.
+
+### 3. Per-offer payout mode
+- New column `offers.payout_mode text default 'manual'` with CHECK (`manual`, `manual_proof`, `auto_postback`). Backward compatible: every existing offer stays on 'manual'. Sync engine (`sync.server.ts` `toRow`) does NOT touch this column, so admin overrides on network offers persist across syncs (as specified).
+- `manual`: unchanged behaviour.
+- `manual_proof`: proof required at claim submission (uses the same upload flow as limited deals).
+- `auto_postback`: `Claim` button now opens the click_url but does NOT insert a claim. Crediting comes from the postback endpoint below.
+- **Postback endpoint** `POST/GET /api/public/offer-postback/{offerId}` (`src/routes/api/public/offer-postback.$offerId.ts` → `src/lib/offers/postback.server.ts`). Verification reuses the SDK offerwall patterns: HMAC-SHA256 over `txn:uid:amount` using the env var referenced by `offers.postback_secret_ref`, optional IP allowlist in `offers.postback_ip_allowlist`. Dedupe via unique index `(offer_id, postback_txn_id)`. Inserts an already-approved claim + credits the wallet + emits automation log.
+- Admin UI: `OffersManager` form now has a **Payout mode** selector plus a secret-ref/IP-allowlist block when `auto_postback` is selected; the exact postback URL and signing scheme are shown inline. Network offers get a compact `<select>` on their inline controls (wired to `updateOfferControls` which now accepts `payoutMode` + `postbackSecretRef`).
+
+### Env vars
+- New (per-offer, admin-defined): whatever the admin puts into `offers.postback_secret_ref` (e.g. `OFFER_ABC_POSTBACK_SECRET`) must be set in the deploy environment before enabling that offer's auto_postback.
+- No other new env vars.
+
+### Skipped / notes
+- Featured-feed server function (`getFeaturedFeed`) uses `supabaseAdmin` (service role, bypasses RLS) and is cached per country, not per user; deal-group hiding for that path relies on `claimOfferImpl`'s server-side check (defence-in-depth) since per-user filtering would break cache. Direct client queries against `offers` correctly hide siblings via the new RLS policy.
+- Supabase generated types (`src/integrations/supabase/types.ts`) were not regenerated; new columns are accessed via typed casts. Regenerate types after applying the migration to remove the casts.
+
+### Migration SQL for the user to run
+`supabase/migrations/20261115000000_offer_proof_deals_payout_mode.sql` — apply via `supabase db push` OR paste into the Supabase SQL editor.

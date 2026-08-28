@@ -22,6 +22,7 @@ import {
 import { OffersManager } from "@/components/admin/OffersManager";
 import { QuestsManager } from "@/components/admin/QuestsManager";
 import { TasksManager } from "@/components/admin/TasksManager";
+import { ClaimProofPreview } from "@/components/admin/ClaimProofPreview";
 import { SdkOfferwallManager } from "@/components/admin/SdkOfferwallManager";
 import { AutomationPanel } from "@/components/admin/AutomationPanel";
 import { OfferFeedAutomationPanel } from "@/components/admin/OfferFeedAutomationPanel";
@@ -408,6 +409,11 @@ function AdminPage() {
                     {claim.user?.name || claim.user?.email || "Unknown"} ·{" "}
                     {formatMoney(claim.reward_amount)} · {formatDateTime(claim.created_at)}
                   </p>
+                  {(claim as { proof_url?: string | null }).proof_url && (
+                    <ClaimProofPreview
+                      path={(claim as { proof_url: string }).proof_url}
+                    />
+                  )}
                   {claim.status === "pending" && (
                     <div className="mt-2 flex gap-2">
                       <Button

@@ -40,6 +40,12 @@ export type FeaturedOffer = {
   click_url: string | null;
   source: string;
   provider_id: string | null;
+  is_limited_deal: boolean;
+  deal_group_id: string | null;
+  actual_cost: number | null;
+  payout_percentage: number;
+  max_payout_cap: number | null;
+  payout_mode: "manual" | "manual_proof" | "auto_postback";
 };
 
 function offerRowFromNormalized(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) {
@@ -202,7 +208,7 @@ export async function assembleFeaturedImpl(
     const { data } = await supabaseAdmin
       .from("offers")
       .select(
-        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, is_active, expires_at",
+        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode",
       )
       .in("id", [...collected.keys()])
       .eq("is_active", true);
@@ -220,6 +226,12 @@ export async function assembleFeaturedImpl(
         click_url: o.click_url,
         source: o.source,
         provider_id: o.provider_id,
+        is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
+        deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
+        actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
+        payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
+        max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
+        payout_mode: ((o as { payout_mode?: string }).payout_mode ?? "manual") as FeaturedOffer["payout_mode"],
       }))
       .sort((a, b) => {
         const wa = collected.get(a.id) ?? 1;
@@ -234,7 +246,7 @@ export async function assembleFeaturedImpl(
   const { data: manualRows } = await supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at",
+      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode",
     )
     .eq("source", "manual")
     .eq("is_featured", true)
@@ -260,6 +272,12 @@ export async function assembleFeaturedImpl(
       click_url: o.click_url,
       source: o.source,
       provider_id: o.provider_id,
+      is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
+      deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
+      actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
+      payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
+      max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
+      payout_mode: ((o as { payout_mode?: string }).payout_mode ?? "manual") as FeaturedOffer["payout_mode"],
     }));
 
   const combined = [...manualOffers, ...networkOffers];

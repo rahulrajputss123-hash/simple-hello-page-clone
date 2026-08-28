@@ -58,6 +58,16 @@ const emptyForm = {
   isFeatured: false,
   sortOrder: "0",
   adminPriority: "0",
+  // Limited deal
+  isLimitedDeal: false,
+  dealGroupId: "",
+  actualCost: "",
+  payoutPercentage: "110",
+  maxPayoutCap: "",
+  // Payout mode
+  payoutMode: "manual" as "manual" | "manual_proof" | "auto_postback",
+  postbackSecretRef: "",
+  postbackIpAllowlist: "",
 };
 
 type FormState = typeof emptyForm;
@@ -113,6 +123,8 @@ export function OffersManager() {
       sortOrder?: number;
       rewardAmount?: number;
       revenueShare?: number;
+      payoutMode?: "manual" | "manual_proof" | "auto_postback";
+      postbackSecretRef?: string | null;
     }) => setControls({ data: input }),
     onSuccess: () => {
       toast.success("Offer updated.");
@@ -147,6 +159,17 @@ export function OffersManager() {
           isFeatured: state.isFeatured,
           sortOrder: Number(state.sortOrder) || 0,
           adminPriority: Number(state.adminPriority) || 0,
+          isLimitedDeal: state.isLimitedDeal,
+          dealGroupId: state.dealGroupId.trim() || null,
+          actualCost: state.actualCost.trim() ? Number(state.actualCost) : null,
+          payoutPercentage: Number(state.payoutPercentage) || 110,
+          maxPayoutCap: state.maxPayoutCap.trim() ? Number(state.maxPayoutCap) : null,
+          payoutMode: state.payoutMode,
+          postbackSecretRef: state.postbackSecretRef.trim() || null,
+          postbackIpAllowlist: state.postbackIpAllowlist
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
         },
       }),
     onSuccess: () => {
@@ -187,6 +210,33 @@ export function OffersManager() {
       isFeatured: offer.is_featured,
       sortOrder: String(offer.sort_order ?? 0),
       adminPriority: String(offer.admin_priority ?? 0),
+      isLimitedDeal: Boolean(
+        (offer as { is_limited_deal?: boolean }).is_limited_deal,
+      ),
+      dealGroupId: (offer as { deal_group_id?: string | null }).deal_group_id ?? "",
+      actualCost:
+        (offer as { actual_cost?: number | null }).actual_cost != null
+          ? String((offer as { actual_cost?: number }).actual_cost)
+          : "",
+      payoutPercentage: String(
+        (offer as { payout_percentage?: number }).payout_percentage ?? 110,
+      ),
+      maxPayoutCap:
+        (offer as { max_payout_cap?: number | null }).max_payout_cap != null
+          ? String((offer as { max_payout_cap?: number }).max_payout_cap)
+          : "",
+      payoutMode:
+        ((offer as { payout_mode?: string }).payout_mode as
+          | "manual"
+          | "manual_proof"
+          | "auto_postback"
+          | undefined) ?? "manual",
+      postbackSecretRef:
+        (offer as { postback_secret_ref?: string | null }).postback_secret_ref ?? "",
+      postbackIpAllowlist:
+        ((offer as { postback_ip_allowlist?: string[] }).postback_ip_allowlist ?? []).join(
+          ", ",
+        ),
     });
 
   return (
@@ -338,18 +388,41 @@ export function OffersManager() {
                     aria-label="Priority"
                   />
                   {isNetwork ? (
-                    <Input
-                      className="h-8 w-24"
-                      inputMode="decimal"
-                      defaultValue={String(offer.reward_amount)}
-                      onBlur={(event) => {
-                        const next = Number(event.target.value);
-                        if (Number.isFinite(next) && next !== Number(offer.reward_amount)) {
-                          controlsAction.mutate({ id: offer.id, rewardAmount: next });
+                    <>
+                      <Input
+                        className="h-8 w-24"
+                        inputMode="decimal"
+                        defaultValue={String(offer.reward_amount)}
+                        onBlur={(event) => {
+                          const next = Number(event.target.value);
+                          if (Number.isFinite(next) && next !== Number(offer.reward_amount)) {
+                            controlsAction.mutate({ id: offer.id, rewardAmount: next });
+                          }
+                        }}
+                        aria-label="User reward override"
+                      />
+                      <select
+                        className="h-8 rounded-lg border border-input bg-background px-2 text-xs"
+                        data-testid={`network-offer-payout-mode-${offer.id}`}
+                        value={
+                          ((offer as { payout_mode?: string }).payout_mode as string) ??
+                          "manual"
                         }
-                      }}
-                      aria-label="User reward override"
-                    />
+                        onChange={(event) =>
+                          controlsAction.mutate({
+                            id: offer.id,
+                            payoutMode: event.target.value as
+                              | "manual"
+                              | "manual_proof"
+                              | "auto_postback",
+                          })
+                        }
+                      >
+                        <option value="manual">Manual</option>
+                        <option value="manual_proof">Manual + proof</option>
+                        <option value="auto_postback">Auto postback</option>
+                      </select>
+                    </>
                   ) : (
                     <>
                       <Button size="sm" variant="outline" onClick={() => openEdit(offer)}>
@@ -408,6 +481,135 @@ export function OffersManager() {
                   onChange={(event) => setForm({ ...form, notAllowed: event.target.value })}
                 />
               </Field>
+
+              {/* --- Limited Deal ------------------------------------------- */}
+              <div className="rounded-xl border border-gold/40 bg-gold-gradient/5 p-3">
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <Switch
+                    checked={form.isLimitedDeal}
+                    data-testid="offer-form-is-limited-deal"
+                    onCheckedChange={(value) => setForm({ ...form, isLimitedDeal: value })}
+                  />
+                  Limited Deal (self-funded cashback)
+                </label>
+                {form.isLimitedDeal && (
+                  <div className="mt-3 space-y-3">
+                    <Field label="Deal group (offers sharing this key lock each other)">
+                      <Input
+                        placeholder="e.g. hosting-2026"
+                        data-testid="offer-form-deal-group"
+                        value={form.dealGroupId}
+                        onChange={(event) =>
+                          setForm({ ...form, dealGroupId: event.target.value })
+                        }
+                      />
+                    </Field>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Field label="Actual cost ($)">
+                        <Input
+                          inputMode="decimal"
+                          data-testid="offer-form-actual-cost"
+                          value={form.actualCost}
+                          onChange={(event) =>
+                            setForm({ ...form, actualCost: event.target.value })
+                          }
+                        />
+                      </Field>
+                      <Field label="Payout %">
+                        <Input
+                          inputMode="decimal"
+                          data-testid="offer-form-payout-pct"
+                          value={form.payoutPercentage}
+                          onChange={(event) =>
+                            setForm({ ...form, payoutPercentage: event.target.value })
+                          }
+                        />
+                      </Field>
+                      <Field label="Max cap ($)">
+                        <Input
+                          inputMode="decimal"
+                          data-testid="offer-form-max-cap"
+                          value={form.maxPayoutCap}
+                          onChange={(event) =>
+                            setForm({ ...form, maxPayoutCap: event.target.value })
+                          }
+                        />
+                      </Field>
+                    </div>
+                    <p
+                      className="rounded-lg bg-background-alt px-3 py-2 text-xs"
+                      data-testid="offer-form-effective-payout"
+                    >
+                      Effective payout:{" "}
+                      <span className="text-amount text-gold-dark">
+                        {formatMoney(
+                          computeEffective(
+                            form.actualCost,
+                            form.payoutPercentage,
+                            form.maxPayoutCap,
+                          ),
+                        )}
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* --- Payout Mode ------------------------------------------- */}
+              <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+                <Label className="text-xs text-muted-foreground">Payout mode</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["manual", "Manual review"],
+                      ["manual_proof", "Manual + proof"],
+                      ["auto_postback", "Auto postback"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      size="sm"
+                      variant={form.payoutMode === key ? "jade" : "outline"}
+                      data-testid={`offer-form-payout-mode-${key}`}
+                      onClick={() => setForm({ ...form, payoutMode: key })}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                {form.payoutMode === "auto_postback" && (
+                  <div className="mt-2 space-y-2">
+                    <Field label="Signature secret env var name">
+                      <Input
+                        placeholder="OFFER_ABC_POSTBACK_SECRET"
+                        data-testid="offer-form-postback-secret-ref"
+                        value={form.postbackSecretRef}
+                        onChange={(event) =>
+                          setForm({ ...form, postbackSecretRef: event.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="IP allowlist (comma separated, optional)">
+                      <Input
+                        placeholder="1.2.3.4, 5.6.7.8"
+                        data-testid="offer-form-postback-ip-allowlist"
+                        value={form.postbackIpAllowlist}
+                        onChange={(event) =>
+                          setForm({ ...form, postbackIpAllowlist: event.target.value })
+                        }
+                      />
+                    </Field>
+                    <p className="text-[11px] text-muted-foreground">
+                      Postback URL:{" "}
+                      <code className="rounded bg-background-alt px-1">
+                        {typeof window !== "undefined" ? window.location.origin : ""}/api/public/offer-postback/{form.id ?? "{offerId}"}
+                      </code>{" "}
+                      · signature = HMAC-SHA256(secret, "txn:uid:amount")
+                    </p>
+                  </div>
+                )}
+              </div>
               <Field label="Image URL or icon name">
                 <Input
                   value={form.icon}
@@ -542,4 +744,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+/** Client-side preview only — the server enforces the real reward on save/approval. */
+function computeEffective(cost: string, pct: string, cap: string): number {
+  const c = Number(cost);
+  const p = Number(pct);
+  const k = cap.trim() === "" ? null : Number(cap);
+  if (!Number.isFinite(c) || c <= 0) return 0;
+  const raw = (c * (Number.isFinite(p) ? p : 110)) / 100;
+  const capped = k != null && Number.isFinite(k) ? Math.min(raw, k) : raw;
+  return Math.max(0, Math.round(capped * 100) / 100);
 }

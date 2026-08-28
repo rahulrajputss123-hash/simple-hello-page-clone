@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check, Clock, Gift } from "lucide-react";
+import { ArrowUpRight, Check, Clock, Gift, Sparkles } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -30,7 +30,13 @@ export function FeaturedOffers({
   const [pending, setPending] = useState<OfferDetailsPayload | null>(null);
 
   const mutation = useMutation({
-    mutationFn: async (offerId: string) => claim({ data: { offerId } }),
+    mutationFn: async (input: { offerId: string; proofUrl: string | null }) =>
+      claim({
+        data: {
+          offerId: input.offerId,
+          ...(input.proofUrl ? { proofUrl: input.proofUrl } : {}),
+        },
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
       toast.success("Claim submitted — an admin will review it shortly.");
@@ -60,12 +66,16 @@ export function FeaturedOffers({
     );
   }
 
-  const handleContinue = () => {
+  const handleContinue = (payload: { proofPath?: string | null }) => {
     if (!pending) return;
     if (pending.click_url) {
       window.open(pending.click_url, "_blank", "noopener,noreferrer");
     }
-    mutation.mutate(pending.id);
+    // Auto-postback offers open the partner page but never submit a claim —
+    // the postback endpoint credits them.
+    if (pending.payout_mode !== "auto_postback") {
+      mutation.mutate({ offerId: pending.id, proofUrl: payload.proofPath ?? null });
+    }
     setPending(null);
   };
 
@@ -74,13 +84,21 @@ export function FeaturedOffers({
       <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
         {offers.map((offer) => {
           const existing = (claims.data ?? []).find((c) => c.offer_id === offer.id);
-          const isPending = mutation.isPending && mutation.variables === offer.id;
+          const isPending = mutation.isPending && mutation.variables?.offerId === offer.id;
           return (
             <li
               key={offer.id}
-              className="surface-card flex flex-col gap-2 p-3"
+              className="surface-card relative flex flex-col gap-2 p-3"
               data-testid={`featured-offer-${offer.id}`}
             >
+              {offer.is_limited_deal && (
+                <span
+                  className="absolute -right-1 -top-1 flex items-center gap-0.5 rounded-full bg-gold-gradient px-2 py-0.5 text-[9px] font-bold uppercase text-gold-foreground shadow-gold"
+                  data-testid={`featured-offer-deal-${offer.id}`}
+                >
+                  <Sparkles className="size-2.5" /> Deal
+                </span>
+              )}
               <span className="grid size-9 place-items-center rounded-xl bg-background-alt">
                 <Gift className="size-4 text-primary" />
               </span>
@@ -89,6 +107,11 @@ export function FeaturedOffers({
                 <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
                   {offer.description}
                 </p>
+                {offer.is_limited_deal && (
+                  <p className="mt-0.5 text-[10px] font-semibold uppercase text-gold-dark">
+                    One-time only
+                  </p>
+                )}
               </div>
               <span className="text-amount text-sm text-gold-dark">
                 {formatMoney(offer.reward_amount)}
@@ -123,6 +146,8 @@ export function FeaturedOffers({
                       not_allowed: offer.not_allowed,
                       reward_amount: offer.reward_amount,
                       click_url: offer.click_url,
+                      is_limited_deal: offer.is_limited_deal,
+                      payout_mode: offer.payout_mode,
                     })
                   }
                 >
