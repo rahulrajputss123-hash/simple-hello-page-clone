@@ -25,6 +25,11 @@ export const ONBOARDING_TARGETS: OnboardingTarget[] = [
     location: "AppHeader — links to /wallet, shows the live balance in gold.",
   },
   {
+    id: "tour-starter-quests",
+    label: "Starter Quests section (home)",
+    location: "Home page — the ads-for-cash Starter Quests row above Featured Offers.",
+  },
+  {
     id: "tour-featured-offers",
     label: "Featured Offers section (home)",
     location: "Home page — the featured offer cards below the Starter Quests.",

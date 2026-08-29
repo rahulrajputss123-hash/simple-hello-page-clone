@@ -105,8 +105,10 @@ function HomePage() {
 
       <SectionBanner section="home" />
 
-      <SectionTitle>Starter Quests</SectionTitle>
-      <StarterQuests />
+      <section id="tour-starter-quests">
+        <SectionTitle>Starter Quests</SectionTitle>
+        <StarterQuests />
+      </section>
 
       <section id="tour-featured-offers">
         <SectionTitle>Featured Offers</SectionTitle>
