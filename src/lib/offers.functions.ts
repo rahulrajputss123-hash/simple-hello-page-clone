@@ -3,6 +3,16 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+
+/** User: log a click event for an offer (called when Continue is tapped in the pre-redirect popup). */
+export const trackOfferClick = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ offerId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const { recordOfferClickImpl } = await import("./offers/tags.server");
+    return recordOfferClickImpl(data.offerId);
+  });
+
 /** Admin-only API surface for future Providers / Network offer management screens. */
 
 export const listOfferProviders = createServerFn({ method: "POST" })
@@ -92,6 +102,7 @@ export const saveManualOffer = createServerFn({ method: "POST" })
         title: z.string().trim().min(2).max(120),
         description: z.string().trim().max(600).default(""),
         requirements: z.string().trim().max(600).default(""),
+        notAllowed: z.string().trim().max(1000).default(""),
         icon: z.string().trim().max(300).default("gift"),
         rewardAmount: z.number().min(0).max(10000),
         networkPayout: z.number().min(0).max(10000).nullable().optional(),
@@ -103,6 +114,22 @@ export const saveManualOffer = createServerFn({ method: "POST" })
         isFeatured: z.boolean().default(false),
         sortOrder: z.number().int().min(0).max(9999).default(0),
         adminPriority: z.number().int().min(0).max(9999).default(0),
+        // Limited-deal fields
+        isLimitedDeal: z.boolean().default(false),
+        dealGroupId: z.string().trim().max(60).nullable().optional(),
+        actualCost: z.number().min(0).max(1000000).nullable().optional(),
+        payoutPercentage: z.number().min(0).max(1000).default(110),
+        maxPayoutCap: z.number().min(0).max(1000000).nullable().optional(),
+        // Payout mode
+        payoutMode: z.enum(["manual", "manual_proof", "auto_postback"]).default("manual"),
+        postbackSecretRef: z.string().trim().max(120).nullable().optional(),
+        postbackIpAllowlist: z.array(z.string().trim().max(64)).max(20).default([]),
+        // Category + tags
+        category: z
+          .enum(["App Install", "Trial", "Deals", "Survey", "Games", "Link Locker", "Shortlink"])
+          .nullable()
+          .optional(),
+        tags: z.array(z.enum(["Hot", "Trending", "Easy", "Popular"])).max(4).default([]),
       })
       .parse(input),
   )
@@ -226,6 +253,13 @@ export const updateOfferControls = createServerFn({ method: "POST" })
         sortOrder: z.number().int().min(0).max(9999).optional(),
         rewardAmount: z.number().min(0).max(10000).optional(),
         revenueShare: z.number().min(0).max(1).optional(),
+        payoutMode: z.enum(["manual", "manual_proof", "auto_postback"]).optional(),
+        postbackSecretRef: z.string().trim().max(120).nullable().optional(),
+        category: z
+          .enum(["App Install", "Trial", "Deals", "Survey", "Games", "Link Locker", "Shortlink"])
+          .nullable()
+          .optional(),
+        tags: z.array(z.enum(["Hot", "Trending", "Easy", "Popular"])).max(4).optional(),
       })
       .parse(input),
   )
@@ -234,4 +268,39 @@ export const updateOfferControls = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const { updateOfferControlsImpl } = await import("./offers/admin.server");
     return updateOfferControlsImpl(data);
+  });
+
+/** Admin: fetch a short-lived signed URL to preview a proof file. */
+export const adminSignProofUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ path: z.string().trim().min(1).max(500) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    const { signProofUrl } = await import("./offers/proof.server");
+    const url = await signProofUrl(data.path, 300);
+    return { url };
+  });
+
+/** User: request a signed upload URL for a proof file (path scoped to their uid). */
+export const requestProofUploadUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        offerId: z.string().uuid(),
+        filename: z
+          .string()
+          .trim()
+          .min(1)
+          .max(120)
+          .regex(/^[A-Za-z0-9._-]+$/, "Bad filename"),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requestProofUploadUrlImpl } = await import("./offers/proof-upload.server");
+    return requestProofUploadUrlImpl(context.userId, data.offerId, data.filename);
   });

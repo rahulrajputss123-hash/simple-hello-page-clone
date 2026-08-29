@@ -1,4 +1,4 @@
-import type { NormalizedOffer, OfferProvider, OfferProviderAdapter } from "../provider-types";
+import type { NormalizedOffer, OfferProvider, OfferProviderAdapter, OfferCategory } from "../provider-types";
 
 /**
  * AdBlueMedia multi-offer feed adapter.
@@ -101,6 +101,7 @@ export const adblueMediaAdapter: OfferProviderAdapter = {
         icon: String(item.network_icon ?? "").trim() || "gift",
         clickUrl,
         networkPayout: num(item.payout ?? item.user_payout),
+        category: categoryFromAdblueId(item.category_id ?? null),
         raw: item,
       });
     }
@@ -108,3 +109,29 @@ export const adblueMediaAdapter: OfferProviderAdapter = {
     return offers;
   },
 };
+
+/**
+ * AdBlueMedia's numeric `category_id` mapped to our internal category enum.
+ * The exact mapping should be verified against their publisher dashboard;
+ * values below are best-guess and can be adjusted without a code redeploy
+ * (admin can also override each offer's category via the Admin form).
+ *
+ * Unknown ids → null so the offer stays "uncategorized" (still shown under
+ * "All Offers") rather than being tagged inaccurately.
+ */
+const ADBLUEMEDIA_CATEGORY_MAP: Record<string, OfferCategory | undefined> = {
+  "1": "App Install",
+  "2": "Survey",
+  "3": "Trial",
+  "4": "Trial",       // Sign-up / registration
+  "5": "Deals",
+  "6": "Games",
+  "7": "Link Locker",
+  "8": "Shortlink",
+  "9": "Deals",
+};
+
+function categoryFromAdblueId(raw: string | null): OfferCategory | null {
+  if (!raw) return null;
+  return ADBLUEMEDIA_CATEGORY_MAP[String(raw).trim()] ?? null;
+}

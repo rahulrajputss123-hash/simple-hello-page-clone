@@ -1,16 +1,22 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { Flame, Sparkles } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Flame, Sparkles } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { BannerCarousel } from "@/components/BannerCarousel";
 import { FeaturedOffers } from "@/components/FeaturedOffers";
 import { OfferwallSlot } from "@/components/OfferwallSlot";
+import { OnboardingTour } from "@/components/OnboardingTour";
+import { SectionBanner } from "@/components/SectionBanner";
 import { StarterQuests } from "@/components/StarterQuests";
 import { SectionTitle } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth";
+import { completeOnboarding } from "@/lib/coinquest.functions";
+import { getDeviceId } from "@/lib/ads";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -27,9 +33,47 @@ export const Route = createFileRoute("/_authenticated/home")({
 function HomePage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const save = useServerFn(completeOnboarding);
+  const autoOnboarded = useRef(false);
+
   useEffect(() => {
-    if (profile && !profile.onboarded) void navigate({ to: "/onboarding", replace: true });
-  }, [profile, navigate]);
+    if (!profile || profile.onboarded) return;
+    // Silent auto-onboarding from the signup-form fields captured pre-confirmation.
+    const raw =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("coinquest.pending_onboarding")
+        : null;
+    if (raw && !autoOnboarded.current) {
+      autoOnboarded.current = true;
+      try {
+        const parsed = JSON.parse(raw) as { name?: string; phone?: string };
+        const name = (parsed.name ?? "").trim();
+        if (name.length >= 2) {
+          void save({
+            data: {
+              name,
+              ...(parsed.phone?.trim() ? { phone: parsed.phone.trim() } : {}),
+              deviceId: getDeviceId(),
+            },
+          })
+            .then(() => {
+              window.localStorage.removeItem("coinquest.pending_onboarding");
+              void queryClient.invalidateQueries({ queryKey: ["profile"] });
+            })
+            .catch(() => {
+              // Fall back to the onboarding screen if the silent save fails.
+              void navigate({ to: "/onboarding", replace: true });
+            });
+          return;
+        }
+      } catch {
+        /* fall through to fallback */
+      }
+    }
+    // Fallback for edge cases (old accounts, cleared storage): keep old screen.
+    void navigate({ to: "/onboarding", replace: true });
+  }, [profile, navigate, queryClient, save]);
   const streak = profile?.streak_count ?? 0;
   const goal = 7;
 
@@ -59,19 +103,30 @@ function HomePage() {
         ]}
       />
 
-      <SectionTitle>Starter Quests</SectionTitle>
-      <StarterQuests />
+      <SectionBanner section="home" />
 
-      <SectionTitle>Featured Offers</SectionTitle>
-      <FeaturedOffers scope="home" />
-      <div className="mt-3 flex justify-center">
-        <Link
-          to="/featured"
-          className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
-        >
-          View All
-        </Link>
-      </div>
+      <section id="tour-starter-quests">
+        <SectionTitle>Starter Quests</SectionTitle>
+        <StarterQuests />
+      </section>
+
+      <section id="tour-featured-offers">
+        <SectionTitle>Featured Offers</SectionTitle>
+        <FeaturedOffers scope="home" />
+        <div className="mt-3 flex justify-center">
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <Link
+            to={"/featured" as any}
+            data-testid="home-view-all-featured"
+            className="group inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-card px-4 py-1.5 text-xs font-semibold text-primary shadow-soft transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            View All
+            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </div>
+      </section>
+
+      <OnboardingTour />
 
       <SectionTitle>
         <span className="flex items-center gap-2">
@@ -145,15 +200,26 @@ function HomePage() {
       </ul>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <Link to="/legal/terms" className="hover:text-foreground hover:underline">
+        {/* eslint-disable @typescript-eslint/no-explicit-any */}
+        <Link to={"/legal/terms" as any} className="hover:text-foreground hover:underline">
           Terms
         </Link>
-        <Link to="/legal/terms" className="hover:text-foreground hover:underline">
+        <Link to={"/legal/privacy" as any} className="hover:text-foreground hover:underline">
           Privacy
         </Link>
-        <Link to="/legal/terms" className="hover:text-foreground hover:underline">
+        <Link
+          to={"/legal/withdrawal-policy" as any}
+          className="hover:text-foreground hover:underline"
+        >
           Payout Policy
         </Link>
+        <Link
+          to={"/legal/referral-terms" as any}
+          className="hover:text-foreground hover:underline"
+        >
+          Referral Terms
+        </Link>
+        {/* eslint-enable @typescript-eslint/no-explicit-any */}
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">CashGPT © 2026 • v1.0.0</p>
     </AppShell>

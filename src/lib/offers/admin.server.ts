@@ -7,6 +7,7 @@ export type ManualOfferInput = {
   title: string;
   description: string;
   requirements: string;
+  notAllowed: string;
   icon: string;
   rewardAmount: number;
   networkPayout?: number | null | undefined;
@@ -18,6 +19,18 @@ export type ManualOfferInput = {
   isFeatured: boolean;
   sortOrder: number;
   adminPriority: number;
+  // Limited-deal
+  isLimitedDeal?: boolean | undefined;
+  dealGroupId?: string | null | undefined;
+  actualCost?: number | null | undefined;
+  payoutPercentage?: number | undefined;
+  maxPayoutCap?: number | null | undefined;
+  // Payout mode
+  payoutMode?: "manual" | "manual_proof" | "auto_postback" | undefined;
+  postbackSecretRef?: string | null | undefined;
+  postbackIpAllowlist?: string[] | undefined;
+  category?: "App Install" | "Trial" | "Deals" | "Survey" | "Games" | "Link Locker" | "Shortlink" | null | undefined;
+  tags?: ("Hot" | "Trending" | "Easy" | "Popular")[] | undefined;
 };
 
 export async function adminDashboardImpl() {
@@ -112,7 +125,7 @@ export async function listAdminOffersImpl(input: {
   let q = supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, icon, source, provider_id, external_offer_id, reward_amount, network_payout, revenue_share, click_url, countries, devices, expires_at, last_seen_at, is_active, is_featured, sort_order, admin_priority, created_at, updated_at, offer_providers:provider_id(name, slug)",
+      "id, title, description, requirements, not_allowed, icon, source, provider_id, external_offer_id, reward_amount, network_payout, revenue_share, click_url, countries, devices, expires_at, last_seen_at, is_active, is_featured, sort_order, admin_priority, created_at, updated_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, postback_secret_ref, postback_ip_allowlist, category, category_manual, tags, tags_manual, offer_providers:provider_id(name, slug)",
     )
     .order("admin_priority", { ascending: false })
     .order("sort_order", { ascending: true })
@@ -134,12 +147,25 @@ export async function listAdminOffersImpl(input: {
 }
 
 export async function upsertManualOfferImpl(input: ManualOfferInput) {
+  // Server-side reward enforcement for limited-deal offers — never trust the
+  // client's rewardAmount, always recompute from actual_cost / % / cap.
+  let effectiveReward = input.rewardAmount;
+  if (input.isLimitedDeal) {
+    const { computeLimitedDealReward } = await import("./proof.server");
+    effectiveReward = computeLimitedDealReward({
+      actual_cost: input.actualCost ?? null,
+      payout_percentage: input.payoutPercentage ?? 110,
+      max_payout_cap: input.maxPayoutCap ?? null,
+    });
+  }
+
   const row = {
     title: input.title,
     description: input.description,
     requirements: input.requirements,
+    not_allowed: input.notAllowed ?? "",
     icon: input.icon || "gift",
-    reward_amount: input.rewardAmount,
+    reward_amount: effectiveReward,
     network_payout: input.networkPayout ?? null,
     click_url: input.clickUrl ?? null,
     countries: input.countries.map((c) => c.toUpperCase()),
@@ -150,6 +176,21 @@ export async function upsertManualOfferImpl(input: ManualOfferInput) {
     sort_order: input.sortOrder,
     admin_priority: input.adminPriority,
     source: "manual",
+    // Limited-deal
+    is_limited_deal: Boolean(input.isLimitedDeal),
+    deal_group_id: input.dealGroupId?.trim() || null,
+    actual_cost: input.actualCost ?? null,
+    payout_percentage: input.payoutPercentage ?? 110,
+    max_payout_cap: input.maxPayoutCap ?? null,
+    // Payout mode
+    payout_mode: input.payoutMode ?? "manual",
+    postback_secret_ref: input.postbackSecretRef?.trim() || null,
+    postback_ip_allowlist: input.postbackIpAllowlist ?? [],
+    // Category + tags (admin-driven, so flag as manual to freeze against syncs).
+    category: input.category ?? null,
+    category_manual: input.category !== undefined,
+    tags: input.tags ?? [],
+    tags_manual: input.tags !== undefined,
   };
 
   if (input.id) {
@@ -203,7 +244,6 @@ export async function deleteManualOfferImpl(id: string) {
   return { deleted: true, deactivated: false };
 }
 
-/** Local-only controls, safe for both manual and network offers (sync never writes these back destructively). */
 export async function updateOfferControlsImpl(input: {
   id: string;
   isActive?: boolean | undefined;
@@ -212,6 +252,19 @@ export async function updateOfferControlsImpl(input: {
   sortOrder?: number | undefined;
   rewardAmount?: number | undefined;
   revenueShare?: number | undefined;
+  payoutMode?: "manual" | "manual_proof" | "auto_postback" | undefined;
+  postbackSecretRef?: string | null | undefined;
+  category?:
+    | "App Install"
+    | "Trial"
+    | "Deals"
+    | "Survey"
+    | "Games"
+    | "Link Locker"
+    | "Shortlink"
+    | null
+    | undefined;
+  tags?: ("Hot" | "Trending" | "Easy" | "Popular")[] | undefined;
 }) {
   const patch: {
     is_active?: boolean;
@@ -220,6 +273,12 @@ export async function updateOfferControlsImpl(input: {
     sort_order?: number;
     reward_amount?: number;
     revenue_share?: number;
+    payout_mode?: string;
+    postback_secret_ref?: string | null;
+    category?: string | null;
+    category_manual?: boolean;
+    tags?: string[];
+    tags_manual?: boolean;
   } = {};
   if (input.isActive !== undefined) patch.is_active = input.isActive;
   if (input.isFeatured !== undefined) patch.is_featured = input.isFeatured;
@@ -227,6 +286,21 @@ export async function updateOfferControlsImpl(input: {
   if (input.sortOrder !== undefined) patch.sort_order = input.sortOrder;
   if (input.rewardAmount !== undefined) patch.reward_amount = input.rewardAmount;
   if (input.revenueShare !== undefined) patch.revenue_share = input.revenueShare;
+  if (input.payoutMode !== undefined) patch.payout_mode = input.payoutMode;
+  if (input.postbackSecretRef !== undefined)
+    patch.postback_secret_ref = input.postbackSecretRef?.trim() || null;
+  // Category + tags: an admin write flips the *_manual flag, which the sync
+  // engine (`syncProviderImpl`) then honours by stripping those columns from
+  // its upsert payload. Admin can still change them again later — only the
+  // sync path is restricted.
+  if (input.category !== undefined) {
+    patch.category = input.category;
+    patch.category_manual = true;
+  }
+  if (input.tags !== undefined) {
+    patch.tags = input.tags;
+    patch.tags_manual = true;
+  }
   if (!Object.keys(patch).length) return { ok: true };
   const { error } = await supabaseAdmin.from("offers").update(patch).eq("id", input.id);
   if (error) throw error;

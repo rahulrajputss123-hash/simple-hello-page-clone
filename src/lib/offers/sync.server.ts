@@ -31,6 +31,10 @@ function toRow(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) 
     is_active: true,
     sort_order: offer.sortOrder ?? 0,
     last_seen_at: seenAt,
+    // Sync-provided category. The sync engine strips this key from the upsert
+    // payload for any offer whose `category_manual` is already true (see
+    // `syncProviderImpl`), so admin edits are never overwritten.
+    category: offer.category ?? null,
     raw_payload: (offer.raw ?? null) as never,
   };
 }
@@ -66,7 +70,43 @@ export async function syncProviderImpl(providerId: string): Promise<SyncResult> 
   const seenAt = new Date().toISOString();
   try {
     const offers = await adapter.fetchOffers(provider as unknown as OfferProvider);
-    const rows = offers.map((o) => toRow(provider as unknown as OfferProvider, o, seenAt));
+
+    // Fetch existing manual-override flags so the sync never overwrites admin
+    // edits on `category` / `tags`. This replaces the old DB trigger which
+    // could not distinguish sync writes from legitimate admin re-edits.
+    // Paginated so providers with thousands of offers still get full coverage
+    // beyond PostgREST's default row cap.
+    const manualFlags = new Map<string, { categoryManual: boolean; tagsManual: boolean }>();
+    const PAGE_SIZE = 1000;
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data: page, error: pageError } = await supabaseAdmin
+        .from("offers")
+        .select("external_offer_id, category_manual, tags_manual")
+        .eq("provider_id", provider.id)
+        .range(from, from + PAGE_SIZE - 1);
+      if (pageError) throw pageError;
+      const rows = page ?? [];
+      for (const row of rows) {
+        manualFlags.set(row.external_offer_id, {
+          categoryManual: Boolean(
+            (row as { category_manual?: boolean }).category_manual,
+          ),
+          tagsManual: Boolean((row as { tags_manual?: boolean }).tags_manual),
+        });
+      }
+      if (rows.length < PAGE_SIZE) break;
+    }
+
+    const rows = offers.map((o) => {
+      const row = toRow(provider as unknown as OfferProvider, o, seenAt) as Record<
+        string,
+        unknown
+      >;
+      const flags = manualFlags.get(o.externalOfferId);
+      if (flags?.categoryManual) delete row["category"];
+      if (flags?.tagsManual) delete row["tags"];
+      return row;
+    });
 
     if (rows.length) {
       const { error: upsertError } = await supabaseAdmin

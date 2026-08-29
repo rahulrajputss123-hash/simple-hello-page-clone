@@ -65,10 +65,17 @@ export const completeTask = createServerFn({ method: "POST" })
 
 export const claimOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ offerId: z.string().uuid() }).parse(input))
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        offerId: z.string().uuid(),
+        proofUrl: z.string().trim().min(1).max(500).optional(),
+      })
+      .parse(input),
+  )
   .handler(async ({ data, context }) => {
     const { claimOfferImpl } = await import("./coinquest.server");
-    return claimOfferImpl(context.userId, data.offerId);
+    return claimOfferImpl(context.userId, data.offerId, data.proofUrl ?? null);
   });
 
 export const createWithdrawal = createServerFn({ method: "POST" })

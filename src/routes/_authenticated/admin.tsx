@@ -20,7 +20,11 @@ import {
   adminUpdateWithdrawal,
 } from "@/lib/coinquest.functions";
 import { OffersManager } from "@/components/admin/OffersManager";
+import { OnboardingManager } from "@/components/admin/OnboardingManager";
+import { QuestsManager } from "@/components/admin/QuestsManager";
 import { TasksManager } from "@/components/admin/TasksManager";
+import { BannersManager } from "@/components/admin/BannersManager";
+import { ClaimProofPreview } from "@/components/admin/ClaimProofPreview";
 import { SdkOfferwallManager } from "@/components/admin/SdkOfferwallManager";
 import { AutomationPanel } from "@/components/admin/AutomationPanel";
 import { OfferFeedAutomationPanel } from "@/components/admin/OfferFeedAutomationPanel";
@@ -47,7 +51,10 @@ export const Route = createFileRoute("/_authenticated/admin")({
 type TabKey =
   | "dashboard"
   | "offers"
+  | "quests"
   | "tasks"
+  | "banners"
+  | "onboarding"
   | "withdrawals"
   | "claims"
   | "tickets"
@@ -208,7 +215,10 @@ function AdminPage() {
           [
             ["dashboard", "Dashboard"],
             ["offers", "Offers"],
+            ["quests", "Quests"],
             ["tasks", "Tasks"],
+            ["banners", "Banners"],
+            ["onboarding", "Onboarding"],
             ["withdrawals", `Payouts (${pendingWithdrawals.length})`],
             ["claims", `Claims (${pendingClaims.length})`],
             ["tickets", `Tickets (${openTickets.length})`],
@@ -306,7 +316,28 @@ function AdminPage() {
 
       {tab === "tasks" && <TasksManager />}
 
-      {data.isLoading && tab !== "dashboard" && tab !== "offers" && tab !== "tasks" && (
+      {tab === "quests" && (
+        <>
+          <SectionTitle>Starter Quests</SectionTitle>
+          <QuestsManager />
+        </>
+      )}
+
+      {tab === "banners" && (
+        <>
+          <SectionTitle>Banners</SectionTitle>
+          <BannersManager />
+        </>
+      )}
+
+      {tab === "onboarding" && (
+        <>
+          <SectionTitle>Onboarding tour</SectionTitle>
+          <OnboardingManager />
+        </>
+      )}
+
+      {data.isLoading && tab !== "dashboard" && tab !== "offers" && tab !== "tasks" && tab !== "quests" && tab !== "banners" && tab !== "onboarding" && (
         <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
       )}
 
@@ -398,6 +429,11 @@ function AdminPage() {
                     {claim.user?.name || claim.user?.email || "Unknown"} ·{" "}
                     {formatMoney(claim.reward_amount)} · {formatDateTime(claim.created_at)}
                   </p>
+                  {(claim as { proof_url?: string | null }).proof_url && (
+                    <ClaimProofPreview
+                      path={(claim as { proof_url: string }).proof_url}
+                    />
+                  )}
                   {claim.status === "pending" && (
                     <div className="mt-2 flex gap-2">
                       <Button

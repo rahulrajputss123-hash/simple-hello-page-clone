@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { LifeBuoy } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { LifeBuoy, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -18,6 +19,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { formatDateTime } from "@/lib/coinquest";
+import { resetOnboarding } from "@/lib/onboarding/functions";
 
 export const Route = createFileRoute("/_authenticated/support")({
   head: () => ({
@@ -34,6 +36,18 @@ export const Route = createFileRoute("/_authenticated/support")({
 function SupportPage() {
   const { session } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const replay = useServerFn(resetOnboarding);
+
+  const replayAction = useMutation({
+    mutationFn: () => replay({}),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Tour will replay on the home screen.");
+      navigate({ to: "/home" });
+    },
+    onError: () => toast.error("Couldn't reset the tour."),
+  });
 
   const faq = useQuery({
     queryKey: ["faq"],
@@ -72,6 +86,26 @@ function SupportPage() {
   return (
     <AppShell subtitle="Support">
       <h1 className="mt-2 text-2xl">Help centre</h1>
+
+      <SectionTitle>Tips</SectionTitle>
+      <div className="surface-card flex items-center justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Replay the app tour</p>
+          <p className="text-xs text-muted-foreground">
+            See the quick spotlight walkthrough again.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={replayAction.isPending}
+          onClick={() => replayAction.mutate()}
+          data-testid="support-replay-tour-btn"
+        >
+          <PlayCircle className="mr-1 h-4 w-4" />
+          {replayAction.isPending ? "…" : "Replay"}
+        </Button>
+      </div>
 
       <SectionTitle>FAQ</SectionTitle>
       <div className="surface-card px-4">

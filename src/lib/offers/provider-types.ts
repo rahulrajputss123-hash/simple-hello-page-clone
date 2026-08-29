@@ -22,6 +22,25 @@ export type OfferProvider = {
   updated_at: string;
 };
 
+export type OfferCategory =
+  | "App Install"
+  | "Trial"
+  | "Deals"
+  | "Survey"
+  | "Games"
+  | "Link Locker"
+  | "Shortlink";
+
+export const OFFER_CATEGORIES: OfferCategory[] = [
+  "App Install",
+  "Trial",
+  "Deals",
+  "Survey",
+  "Games",
+  "Link Locker",
+  "Shortlink",
+];
+
 /** A single offer after an adapter has normalized it into our common shape. */
 export type NormalizedOffer = {
   /** Provider's own offer id — used with provider_id for idempotent upserts. */
@@ -40,6 +59,8 @@ export type NormalizedOffer = {
   expiresAt?: string | null;
   isFeatured?: boolean;
   sortOrder?: number;
+  /** Adapter-derived category (null when we couldn't map the provider's own id). */
+  category?: OfferCategory | null;
   /** Untouched provider payload, stored for debugging / future mapping. */
   raw?: unknown;
 };

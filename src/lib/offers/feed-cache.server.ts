@@ -34,11 +34,20 @@ export type FeaturedOffer = {
   title: string;
   description: string;
   requirements: string;
+  not_allowed: string;
   icon: string;
   reward_amount: number;
   click_url: string | null;
   source: string;
   provider_id: string | null;
+  is_limited_deal: boolean;
+  deal_group_id: string | null;
+  actual_cost: number | null;
+  payout_percentage: number;
+  max_payout_cap: number | null;
+  payout_mode: "manual" | "manual_proof" | "auto_postback";
+  category: string | null;
+  tags: ("Hot" | "Trending" | "Easy" | "Popular")[];
 };
 
 function offerRowFromNormalized(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) {
@@ -204,7 +213,7 @@ export async function assembleFeaturedImpl(
     const { data } = await supabaseAdmin
       .from("offers")
       .select(
-        "id, title, description, requirements, icon, reward_amount, click_url, source, provider_id, is_active, expires_at",
+        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual",
       )
       .in("id", [...collected.keys()])
       .eq("is_active", true);
@@ -216,11 +225,21 @@ export async function assembleFeaturedImpl(
         title: o.title,
         description: o.description,
         requirements: o.requirements,
+        not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
         icon: o.icon,
         reward_amount: Number(o.reward_amount),
         click_url: o.click_url,
         source: o.source,
         provider_id: o.provider_id,
+        is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
+        deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
+        actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
+        payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
+        max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
+        payout_mode: ((o as { payout_mode?: string }).payout_mode ?? "manual") as FeaturedOffer["payout_mode"],
+        category: (o as { category?: string | null }).category ?? null,
+        tags: normalizeStoredTags((o as { tags?: string[] }).tags),
+        _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),
       }))
       .sort((a, b) => {
         const wa = collected.get(a.id) ?? 1;
@@ -235,7 +254,7 @@ export async function assembleFeaturedImpl(
   const { data: manualRows } = await supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, icon, reward_amount, click_url, source, provider_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at",
+      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual",
     )
     .eq("source", "manual")
     .eq("is_featured", true)
@@ -255,16 +274,63 @@ export async function assembleFeaturedImpl(
       title: o.title,
       description: o.description,
       requirements: o.requirements,
+      not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
       icon: o.icon,
       reward_amount: Number(o.reward_amount),
       click_url: o.click_url,
       source: o.source,
       provider_id: o.provider_id,
+      is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
+      deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
+      actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
+      payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
+      max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
+      payout_mode: ((o as { payout_mode?: string }).payout_mode ?? "manual") as FeaturedOffer["payout_mode"],
+      category: (o as { category?: string | null }).category ?? null,
+      tags: normalizeStoredTags((o as { tags?: string[] }).tags),
+      _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),
     }));
 
   const combined = [...manualOffers, ...networkOffers];
+  // Overlay auto-tags for offers that don't have admin-locked tags.
+  await applyAutoTags(combined);
   if (scope === "home") return combined.slice(0, settings.featuredSlots);
   return combined;
+}
+
+const KNOWN_TAGS: FeaturedOffer["tags"][number][] = ["Hot", "Trending", "Easy", "Popular"];
+function normalizeStoredTags(raw: string[] | undefined | null): FeaturedOffer["tags"] {
+  if (!Array.isArray(raw)) return [];
+  const out: FeaturedOffer["tags"] = [];
+  for (const t of raw) {
+    const s = String(t);
+    if ((KNOWN_TAGS as readonly string[]).includes(s)) out.push(s as FeaturedOffer["tags"][number]);
+  }
+  return out;
+}
+
+async function applyAutoTags(offers: (FeaturedOffer & { _tagsManual?: boolean })[]) {
+  const eligible = offers.filter((o) => !o._tagsManual);
+  if (!eligible.length) {
+    for (const o of offers) delete o._tagsManual;
+    return;
+  }
+  const { computeAutoTags } = await import("./tags.server");
+  const map = await computeAutoTags(
+    eligible.map((o) => ({
+      id: o.id,
+      reward_amount: Number(o.reward_amount),
+      requirements: o.requirements ?? null,
+      category: o.category ?? null,
+    })),
+  );
+  for (const o of offers) {
+    if (!o._tagsManual) {
+      const auto = map[o.id];
+      if (auto?.length) o.tags = auto;
+    }
+    delete o._tagsManual;
+  }
 }
 
 export type FeaturedFeedResult = {

@@ -3,7 +3,6 @@ import {
   MAX_ADS_PER_HOUR,
   MIN_SECONDS_PER_AD,
   MIN_WITHDRAWAL,
-  QUESTS,
   REFERRAL_MILESTONE_BONUS,
   REFERRAL_WINDOW_DAYS,
   STREAK_BONUS,
@@ -357,8 +356,8 @@ export async function touchStreakImpl(userId: string) {
 }
 
 export async function startQuestImpl(userId: string, questKey: string) {
-  const quest = QUESTS.find((q) => q.key === questKey);
-  if (!quest) throw new Error("Unknown quest.");
+  const { getQuestByKey } = await import("./quests.server");
+  const quest = await getQuestByKey(questKey);
 
   const open = await supabaseAdmin
     .from("quest_sessions")
@@ -374,9 +373,11 @@ export async function startQuestImpl(userId: string, questKey: string) {
     .insert({
       user_id: userId,
       quest_key: quest.key,
-      ads_required: quest.ads,
-      reward_amount: quest.reward,
-    })
+      ads_required: quest.ads_required,
+      reward_amount: quest.reward_amount,
+      quest_type: quest.quest_type,
+      current_step: 0,
+    } as never)
     .select("*")
     .single();
   if (created.error) throw new Error("Could not start this quest.");
@@ -500,9 +501,45 @@ export async function completeTaskImpl(userId: string, taskId: string) {
   return { progress, completed };
 }
 
-export async function claimOfferImpl(userId: string, offerId: string) {
+export async function claimOfferImpl(
+  userId: string,
+  offerId: string,
+  proofUrl: string | null,
+) {
   const offer = await supabaseAdmin.from("offers").select("*").eq("id", offerId).single();
   if (offer.error || !offer.data.is_active) throw new Error("Offer unavailable.");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const o = offer.data as any;
+
+  // Auto-postback offers are credited by the network's postback — never the in-app button.
+  if (o.payout_mode === "auto_postback") {
+    throw new Error("This offer is credited automatically once you complete it.");
+  }
+
+  // Proof required for limited-deal offers AND for offers on 'manual_proof' mode.
+  const proofRequired = Boolean(o.is_limited_deal) || o.payout_mode === "manual_proof";
+  if (proofRequired && !proofUrl) {
+    throw new Error("Please upload proof of completion before submitting.");
+  }
+
+  // Deal-group lock: mirror the RLS filter server-side so the API is not
+  // fooled by a client that skipped the client-side check.
+  if (o.deal_group_id) {
+    const sibling = await supabaseAdmin
+      .from("offer_claims")
+      .select("id, offers:offer_id(deal_group_id)")
+      .eq("user_id", userId)
+      .neq("status", "rejected");
+    const locked = (sibling.data ?? []).some(
+      (c) =>
+        (c.offers as unknown as { deal_group_id?: string | null } | null)?.deal_group_id ===
+        o.deal_group_id,
+    );
+    if (locked) {
+      throw new Error("You already have a claim in this deal group — only one is allowed.");
+    }
+  }
 
   const existing = await supabaseAdmin
     .from("offer_claims")
@@ -514,7 +551,12 @@ export async function claimOfferImpl(userId: string, offerId: string) {
 
   const created = await supabaseAdmin
     .from("offer_claims")
-    .insert({ user_id: userId, offer_id: offerId, reward_amount: offer.data.reward_amount })
+    .insert({
+      user_id: userId,
+      offer_id: offerId,
+      reward_amount: o.reward_amount,
+      proof_url: proofUrl,
+    } as never)
     .select("*")
     .single();
   if (created.error) throw new Error("Could not submit that offer.");
@@ -522,7 +564,7 @@ export async function claimOfferImpl(userId: string, offerId: string) {
   await notify(
     userId,
     "Offer submitted",
-    `${offer.data.title} is pending review. We'll credit it once approved.`,
+    `${o.title} is pending review. We'll credit it once approved.`,
     "offer",
   );
   return created.data;
@@ -695,11 +737,36 @@ export async function adminUpdateOfferClaimImpl(id: string, status: string, note
   // Idempotent: a repeat submit (double click / retry) is a no-op, not an error.
   if (claim.data.status !== "pending") return { ok: true, alreadyReviewed: true };
 
+  // For limited-deal offers, always recompute the reward at approval time from
+  // the offer's CURRENT config — never trust the snapshot captured at claim
+  // submission (the offer's actual_cost / percentage / cap may have changed).
+  let effectiveReward = Number(claim.data.reward_amount);
+  if (status === "approved") {
+    const offer = await supabaseAdmin
+      .from("offers")
+      .select("*")
+      .eq("id", claim.data.offer_id)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const o = offer.data as any;
+    if (o?.is_limited_deal) {
+      const { computeLimitedDealReward } = await import("./offers/proof.server");
+      effectiveReward = computeLimitedDealReward({
+        actual_cost: o.actual_cost,
+        payout_percentage: o.payout_percentage,
+        max_payout_cap: o.max_payout_cap,
+      });
+      await supabaseAdmin
+        .from("offer_claims")
+        .update({ reward_amount: effectiveReward })
+        .eq("id", id);
+    }
+  }
+
   await supabaseAdmin.from("offer_claims").update({ status, admin_note: note }).eq("id", id);
 
   if (status === "approved") {
-    const reward = Number(claim.data.reward_amount);
-    await creditWallet(claim.data.user_id, reward, "offer", "Offer reward");
+    await creditWallet(claim.data.user_id, effectiveReward, "offer", "Offer reward");
     const { recordTaskEvent } = await import("./tasks/engine.server");
     await recordTaskEvent({
       userId: claim.data.user_id,
@@ -709,7 +776,7 @@ export async function adminUpdateOfferClaimImpl(id: string, status: string, note
     await notify(
       claim.data.user_id,
       "Offer approved",
-      `$${reward.toFixed(2)} was added to your wallet.`,
+      `$${effectiveReward.toFixed(2)} was added to your wallet.`,
       "offer",
     );
   } else {
@@ -777,7 +844,7 @@ export async function adminOverviewImpl() {
       .limit(200),
     supabaseAdmin
       .from("offer_claims")
-      .select("*, offers:offer_id(title)")
+      .select("*, offers:offer_id(title, is_limited_deal, deal_group_id, payout_mode)")
       .order("created_at", { ascending: false })
       .limit(200),
     supabaseAdmin
