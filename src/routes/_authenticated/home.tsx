@@ -200,15 +200,26 @@ function HomePage() {
       </ul>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <Link to="/legal/terms" className="hover:text-foreground hover:underline">
+        {/* eslint-disable @typescript-eslint/no-explicit-any */}
+        <Link to={"/legal/terms" as any} className="hover:text-foreground hover:underline">
           Terms
         </Link>
-        <Link to="/legal/terms" className="hover:text-foreground hover:underline">
+        <Link to={"/legal/privacy" as any} className="hover:text-foreground hover:underline">
           Privacy
         </Link>
-        <Link to="/legal/terms" className="hover:text-foreground hover:underline">
+        <Link
+          to={"/legal/withdrawal-policy" as any}
+          className="hover:text-foreground hover:underline"
+        >
           Payout Policy
         </Link>
+        <Link
+          to={"/legal/referral-terms" as any}
+          className="hover:text-foreground hover:underline"
+        >
+          Referral Terms
+        </Link>
+        {/* eslint-enable @typescript-eslint/no-explicit-any */}
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">CashGPT © 2026 • v1.0.0</p>
     </AppShell>
