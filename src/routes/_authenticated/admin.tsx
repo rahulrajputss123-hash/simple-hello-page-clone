@@ -20,6 +20,7 @@ import {
   adminUpdateWithdrawal,
 } from "@/lib/coinquest.functions";
 import { OffersManager } from "@/components/admin/OffersManager";
+import { OnboardingManager } from "@/components/admin/OnboardingManager";
 import { QuestsManager } from "@/components/admin/QuestsManager";
 import { TasksManager } from "@/components/admin/TasksManager";
 import { BannersManager } from "@/components/admin/BannersManager";
@@ -53,6 +54,7 @@ type TabKey =
   | "quests"
   | "tasks"
   | "banners"
+  | "onboarding"
   | "withdrawals"
   | "claims"
   | "tickets"
@@ -216,6 +218,7 @@ function AdminPage() {
             ["quests", "Quests"],
             ["tasks", "Tasks"],
             ["banners", "Banners"],
+            ["onboarding", "Onboarding"],
             ["withdrawals", `Payouts (${pendingWithdrawals.length})`],
             ["claims", `Claims (${pendingClaims.length})`],
             ["tickets", `Tickets (${openTickets.length})`],
@@ -327,7 +330,14 @@ function AdminPage() {
         </>
       )}
 
-      {data.isLoading && tab !== "dashboard" && tab !== "offers" && tab !== "tasks" && tab !== "quests" && tab !== "banners" && (
+      {tab === "onboarding" && (
+        <>
+          <SectionTitle>Onboarding tour</SectionTitle>
+          <OnboardingManager />
+        </>
+      )}
+
+      {data.isLoading && tab !== "dashboard" && tab !== "offers" && tab !== "tasks" && tab !== "quests" && tab !== "banners" && tab !== "onboarding" && (
         <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
       )}
 

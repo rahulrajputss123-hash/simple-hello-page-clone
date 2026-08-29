@@ -111,6 +111,7 @@ export function AppHeader({ subtitle }: { subtitle?: string }) {
             )}
           </Link>
           <Link
+            id="tour-wallet-balance"
             to="/wallet"
             aria-label="Open wallet"
             className="flex items-center gap-1.5 rounded-full bg-gold-gradient px-3 py-2 text-gold-foreground shadow-gold"

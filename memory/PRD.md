@@ -232,3 +232,63 @@ ALTER TABLE offer_click_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "authenticated inserts click events" ON offer_click_events
   FOR INSERT TO authenticated WITH CHECK (true);
 ```
+
+## Feature update (2026-11) — First-time onboarding coach-mark tour
+Migration: `supabase/migrations/20261130000000_onboarding_tour.sql` (must be applied manually by user).
+
+### DB
+- New `profiles.has_seen_onboarding boolean NOT NULL DEFAULT false` (deliberately different from the pre-existing `profiles.onboarded` which drives the /onboarding profile-setup redirect — never merged).
+- New table `public.onboarding_steps` (target_element_id, title, description, display_order, enabled, created/updated_at) + RLS (`enabled steps readable` for authenticated; `admins manage onboarding steps` for admin ALL) + updated_at trigger.
+- Seed: 2 rows — `tour-wallet-balance` (merged real-time+withdrawal message; the same DOM element is both the balance display AND the withdraw-entry point on Home so spotlighting it twice would be confusing, hence one merged step) and `tour-featured-offers`.
+
+### DOM anchors
+- `id="tour-wallet-balance"` on the header wallet `Link` in `src/components/AppShell.tsx`.
+- `id="tour-featured-offers"` wrapping the Featured Offers section in `src/routes/_authenticated/home.tsx`.
+
+### Source of truth for spotlight targets
+`src/lib/onboarding/targets.ts` — exports `ONBOARDING_TARGETS`, `ONBOARDING_TARGET_IDS`, `isValidTargetId`. The admin form only shows these ids; server rejects unknown target_element_ids at save time. To add another target: add the `id` to the JSX element, then register it here.
+
+### Server
+- `src/lib/onboarding/server.ts` + `.../functions.ts`:
+  - `listOnboardingSteps` (auth, cached 60s) — enabled steps in display_order.
+  - `markOnboardingSeen` (auth) — flips has_seen_onboarding=true.
+  - `resetOnboarding` (auth) — flips has_seen_onboarding=false, used by Support "Replay".
+  - `listAdminOnboardingSteps` / `saveOnboardingStep` / `deleteOnboardingStep` / `reorderOnboardingSteps` — admin CRUD; save validates target_element_id against the registry.
+
+### Client
+- `src/components/OnboardingTour.tsx` — spotlight overlay with SVG mask that punches a rounded hole around the current target, gold ring, tooltip (Step N of M, title, description, Skip/Next). Auto-scrolls the target into view, tracks scroll/resize, locks body scroll while open. Two exports:
+  - `<OnboardingTour />` — auto-runs when `profile.onboarded && !has_seen_onboarding` and calls `markOnboardingSeen` on close. Mounted at the bottom of the home page.
+  - `<OnboardingTourPreview steps={} onClose={} />` — pure local state, NEVER writes to profiles. Used by admin "Preview tour".
+- `src/components/admin/OnboardingManager.tsx` — full CRUD list with up/down reorder buttons, target picker (from `ONBOARDING_TARGETS`), enabled toggle, "Preview tour" button (runs `OnboardingTourPreview`).
+- Support tab — new "Replay the app tour" row with a button that calls `resetOnboarding` and navigates to /home.
+- Admin panel — new **Onboarding** tab wired between Banners and Withdrawals.
+
+### Migration SQL to paste in Supabase SQL editor
+Full file: `supabase/migrations/20261130000000_onboarding_tour.sql`. Highlights:
+```sql
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS has_seen_onboarding boolean NOT NULL DEFAULT false;
+
+CREATE TABLE onboarding_steps (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  target_element_id text NOT NULL,
+  title text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  display_order integer NOT NULL DEFAULT 0,
+  enabled boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE onboarding_steps ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "enabled steps readable" ON onboarding_steps FOR SELECT TO authenticated
+  USING (enabled = true OR public.has_role(auth.uid(),'admin'));
+CREATE POLICY "admins manage onboarding steps" ON onboarding_steps FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(),'admin')) WITH CHECK (public.has_role(auth.uid(),'admin'));
+
+INSERT INTO onboarding_steps (target_element_id, title, description, display_order, enabled) VALUES
+  ('tour-wallet-balance', 'Your wallet, always live', 'This is your balance — it updates in real time as you earn. Tap it any time to cash out.', 1, true),
+  ('tour-featured-offers', 'Featured Offers pay the most', 'Featured Offers are the main way to earn. Complete one and the reward lands in your wallet after review.', 2, true);
+```
+
+### Available target ids (registered in `src/lib/onboarding/targets.ts`)
+- `tour-wallet-balance` — wallet balance pill in AppHeader (links to /wallet).
+- `tour-featured-offers` — Featured Offers section on Home.
