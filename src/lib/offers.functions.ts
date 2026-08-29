@@ -3,6 +3,16 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+
+/** User: log a click event for an offer (called when Continue is tapped in the pre-redirect popup). */
+export const trackOfferClick = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ offerId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const { recordOfferClickImpl } = await import("./offers/tags.server");
+    return recordOfferClickImpl(data.offerId);
+  });
+
 /** Admin-only API surface for future Providers / Network offer management screens. */
 
 export const listOfferProviders = createServerFn({ method: "POST" })
@@ -114,6 +124,12 @@ export const saveManualOffer = createServerFn({ method: "POST" })
         payoutMode: z.enum(["manual", "manual_proof", "auto_postback"]).default("manual"),
         postbackSecretRef: z.string().trim().max(120).nullable().optional(),
         postbackIpAllowlist: z.array(z.string().trim().max(64)).max(20).default([]),
+        // Category + tags
+        category: z
+          .enum(["App Install", "Trial", "Deals", "Survey", "Games", "Link Locker", "Shortlink"])
+          .nullable()
+          .optional(),
+        tags: z.array(z.enum(["Hot", "Trending", "Easy", "Popular"])).max(4).default([]),
       })
       .parse(input),
   )

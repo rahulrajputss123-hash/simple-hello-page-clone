@@ -68,6 +68,9 @@ const emptyForm = {
   payoutMode: "manual" as "manual" | "manual_proof" | "auto_postback",
   postbackSecretRef: "",
   postbackIpAllowlist: "",
+  // Category + tags
+  category: "" as "" | "App Install" | "Trial" | "Deals" | "Survey" | "Games" | "Link Locker" | "Shortlink",
+  tags: [] as ("Hot" | "Trending" | "Easy" | "Popular")[],
 };
 
 type FormState = typeof emptyForm;
@@ -170,6 +173,8 @@ export function OffersManager() {
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean),
+          category: state.category || null,
+          tags: state.tags,
         },
       }),
     onSuccess: () => {
@@ -237,6 +242,20 @@ export function OffersManager() {
         ((offer as { postback_ip_allowlist?: string[] }).postback_ip_allowlist ?? []).join(
           ", ",
         ),
+      category:
+        ((offer as { category?: string | null }).category as
+          | ""
+          | "App Install"
+          | "Trial"
+          | "Deals"
+          | "Survey"
+          | "Games"
+          | "Link Locker"
+          | "Shortlink"
+          | null) ?? "",
+      tags: ((offer as { tags?: string[] }).tags ?? []).filter((t) =>
+        ["Hot", "Trending", "Easy", "Popular"].includes(t),
+      ) as ("Hot" | "Trending" | "Easy" | "Popular")[],
     });
 
   return (
@@ -481,6 +500,74 @@ export function OffersManager() {
                   onChange={(event) => setForm({ ...form, notAllowed: event.target.value })}
                 />
               </Field>
+
+              {/* --- Category + Tags -------------------------------------- */}
+              <div className="rounded-xl border border-border bg-card p-3 space-y-3">
+                <Field label="Category (powers the Offers filter)">
+                  <select
+                    className="h-9 w-full rounded-xl border border-input bg-background px-2 text-sm"
+                    data-testid="offer-form-category"
+                    value={form.category}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        category: event.target.value as typeof form.category,
+                      })
+                    }
+                  >
+                    <option value="">Uncategorized</option>
+                    {(
+                      [
+                        "App Install",
+                        "Trial",
+                        "Deals",
+                        "Survey",
+                        "Games",
+                        "Link Locker",
+                        "Shortlink",
+                      ] as const
+                    ).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    Manual tags (leave empty to keep auto-tagging on)
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(["Hot", "Trending", "Easy", "Popular"] as const).map((tag) => {
+                      const active = form.tags.includes(tag);
+                      return (
+                        <Button
+                          key={tag}
+                          type="button"
+                          size="sm"
+                          variant={active ? "jade" : "outline"}
+                          data-testid={`offer-form-tag-${tag.toLowerCase()}`}
+                          onClick={() =>
+                            setForm({
+                              ...form,
+                              tags: active
+                                ? form.tags.filter((t) => t !== tag)
+                                : [...form.tags, tag],
+                            })
+                          }
+                        >
+                          {tag}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Once you save any tag choice (including clearing all), this offer's
+                    tags become admin-managed and will no longer be auto-computed.
+                    The "Deal" badge is always driven by the Limited Deal toggle above.
+                  </p>
+                </div>
+              </div>
 
               {/* --- Limited Deal ------------------------------------------- */}
               <div className="rounded-xl border border-gold/40 bg-gold-gradient/5 p-3">

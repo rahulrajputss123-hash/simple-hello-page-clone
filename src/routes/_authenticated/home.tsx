@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { Flame, Sparkles } from "lucide-react";
+import { ArrowRight, Flame, Sparkles } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { BannerCarousel } from "@/components/BannerCarousel";
@@ -110,11 +110,14 @@ function HomePage() {
       <SectionTitle>Featured Offers</SectionTitle>
       <FeaturedOffers scope="home" />
       <div className="mt-3 flex justify-center">
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <Link
-          to="/featured"
-          className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
+          to={"/featured" as any}
+          data-testid="home-view-all-featured"
+          className="group inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-card px-4 py-1.5 text-xs font-semibold text-primary shadow-soft transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground"
         >
           View All
+          <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
 

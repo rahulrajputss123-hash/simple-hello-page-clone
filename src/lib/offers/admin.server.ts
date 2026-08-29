@@ -29,6 +29,8 @@ export type ManualOfferInput = {
   payoutMode?: "manual" | "manual_proof" | "auto_postback" | undefined;
   postbackSecretRef?: string | null | undefined;
   postbackIpAllowlist?: string[] | undefined;
+  category?: "App Install" | "Trial" | "Deals" | "Survey" | "Games" | "Link Locker" | "Shortlink" | null | undefined;
+  tags?: ("Hot" | "Trending" | "Easy" | "Popular")[] | undefined;
 };
 
 export async function adminDashboardImpl() {
@@ -123,7 +125,7 @@ export async function listAdminOffersImpl(input: {
   let q = supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, not_allowed, icon, source, provider_id, external_offer_id, reward_amount, network_payout, revenue_share, click_url, countries, devices, expires_at, last_seen_at, is_active, is_featured, sort_order, admin_priority, created_at, updated_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, postback_secret_ref, postback_ip_allowlist, offer_providers:provider_id(name, slug)",
+      "id, title, description, requirements, not_allowed, icon, source, provider_id, external_offer_id, reward_amount, network_payout, revenue_share, click_url, countries, devices, expires_at, last_seen_at, is_active, is_featured, sort_order, admin_priority, created_at, updated_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, postback_secret_ref, postback_ip_allowlist, category, category_manual, tags, tags_manual, offer_providers:provider_id(name, slug)",
     )
     .order("admin_priority", { ascending: false })
     .order("sort_order", { ascending: true })
@@ -184,6 +186,11 @@ export async function upsertManualOfferImpl(input: ManualOfferInput) {
     payout_mode: input.payoutMode ?? "manual",
     postback_secret_ref: input.postbackSecretRef?.trim() || null,
     postback_ip_allowlist: input.postbackIpAllowlist ?? [],
+    // Category + tags (admin-driven, so flag as manual to freeze against syncs).
+    category: input.category ?? null,
+    category_manual: input.category !== undefined,
+    tags: input.tags ?? [],
+    tags_manual: input.tags !== undefined,
   };
 
   if (input.id) {

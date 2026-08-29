@@ -31,6 +31,10 @@ function toRow(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) 
     is_active: true,
     sort_order: offer.sortOrder ?? 0,
     last_seen_at: seenAt,
+    // Sync-provided category is preserved by the DB trigger once an admin
+    // sets category_manual=true. Sending it every sync keeps categories
+    // fresh for offers admins haven't touched.
+    category: offer.category ?? null,
     raw_payload: (offer.raw ?? null) as never,
   };
 }

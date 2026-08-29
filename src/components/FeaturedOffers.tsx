@@ -7,19 +7,25 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/States";
 import { OfferDetailsDialog, type OfferDetailsPayload } from "@/components/OfferDetailsDialog";
+import { OfferTagRow } from "@/components/OfferTagRow";
+import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
 import { formatMoney } from "@/lib/coinquest";
 import { claimOffer } from "@/lib/coinquest.functions";
-import { getFeaturedFeed } from "@/lib/offers.functions";
+import { getFeaturedFeed, trackOfferClick } from "@/lib/offers.functions";
 import { useOfferClaims } from "@/lib/queries";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function FeaturedOffers({
   scope = "home",
+  filter,
 }: {
   /** "home" = top featured slots (geo + ranked); "all" = full ranked list for the browse page. */
   scope?: "home" | "all";
+  /** Optional category filter (used only on the Offers page). Undefined → no filter. */
+  filter?: OfferFilter;
 }) {
   const fetchFeed = useServerFn(getFeaturedFeed);
+  const trackClick = useServerFn(trackOfferClick);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["featured-feed", scope],
     queryFn: () => fetchFeed({ data: { scope } }),
@@ -55,12 +61,16 @@ export function FeaturedOffers({
     );
   }
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
-  const offers = data?.offers ?? [];
+  const rawOffers = data?.offers ?? [];
+  const offers =
+    filter && filter !== "All"
+      ? rawOffers.filter((o) => offerMatchesFilter(filter, o))
+      : rawOffers;
   if (!offers.length) {
     return (
       <EmptyState
         icon={Gift}
-        title="No offers available right now"
+        title={filter && filter !== "All" ? `No ${filter} offers right now` : "No offers available right now"}
         description="Check back soon — new partner offers land every day."
       />
     );
@@ -68,11 +78,11 @@ export function FeaturedOffers({
 
   const handleContinue = (payload: { proofPath?: string | null }) => {
     if (!pending) return;
+    // Fire-and-forget click event for the Popular/Trending tag engine.
+    void trackClick({ data: { offerId: pending.id } }).catch(() => {});
     if (pending.click_url) {
       window.open(pending.click_url, "_blank", "noopener,noreferrer");
     }
-    // Auto-postback offers open the partner page but never submit a claim —
-    // the postback endpoint credits them.
     if (pending.payout_mode !== "auto_postback") {
       mutation.mutate({ offerId: pending.id, proofUrl: payload.proofPath ?? null });
     }
@@ -91,17 +101,14 @@ export function FeaturedOffers({
               className="surface-card relative flex flex-col gap-2 p-3"
               data-testid={`featured-offer-${offer.id}`}
             >
-              {offer.is_limited_deal && (
-                <span
-                  className="absolute -right-1 -top-1 flex items-center gap-0.5 rounded-full bg-gold-gradient px-2 py-0.5 text-[9px] font-bold uppercase text-gold-foreground shadow-gold"
-                  data-testid={`featured-offer-deal-${offer.id}`}
-                >
-                  <Sparkles className="size-2.5" /> Deal
-                </span>
-              )}
               <span className="grid size-9 place-items-center rounded-xl bg-background-alt">
                 <Gift className="size-4 text-primary" />
               </span>
+              <OfferTagRow
+                tags={offer.tags ?? []}
+                isDeal={offer.is_limited_deal}
+                size="xs"
+              />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold leading-tight">{offer.title}</p>
                 <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">

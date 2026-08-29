@@ -172,3 +172,63 @@ INSERT INTO storage.buckets (id,name,public) VALUES ('banner-assets','banner-ass
 ON CONFLICT (id) DO NOTHING;
 -- + 4 storage.objects policies: public SELECT, admin INSERT/UPDATE/DELETE
 ```
+
+## Feature update (2026-11) — Offer tags + category filter + click tracking
+Migration: `supabase/migrations/20261125000000_offer_tags_category_clicks.sql`. Purely additive. Existing offers unchanged (tags default to empty, category to NULL).
+
+### DB
+- New columns on `offers`: `category text` (CHECK ∈ {App Install, Trial, Deals, Survey, Games, Link Locker, Shortlink} or NULL); `tags text[] default '{}'`; `category_manual bool default false`; `tags_manual bool default false`.
+- Trigger `preserve_offer_admin_overrides` (BEFORE UPDATE) restores admin-set `category` / `tags` whenever the corresponding `*_manual` flag is true, so re-syncs from network adapters never overwrite admin choices.
+- New `offer_click_events (id, offer_id, created_at)` with `authenticated INSERT` RLS + index on `(offer_id, created_at DESC)`.
+
+### Server
+- `src/lib/offers/tags.server.ts` — `computeAutoTags` (Hot = top-15% reward; Popular = top-15% 7-day click count; Trending = 7-day activity >= 1.5× prior 7-day AND ≥3 sample; Easy = short requirements OR category=Trial). Uses `offer_click_events` first, falls back to `offer_claims` counts. `recordOfferClickImpl` inserts a click row.
+- `trackOfferClick` server fn in `offers.functions.ts`.
+- `saveManualOffer` now accepts `category` (nullable) and `tags` (array of Hot/Trending/Easy/Popular). `upsertManualOfferImpl` writes both AND flips `category_manual` / `tags_manual` to true so the trigger freezes them.
+- Feed cache selects `category, category_manual, tags, tags_manual`; `assembleFeaturedImpl` overlays auto-tags onto offers whose `tags_manual=false`; admin-locked offers use their stored `tags` untouched.
+- `FeaturedOffer` type gained `category` + `tags`.
+
+### Adapter
+- `adbluemedia.server.ts` — added `ADBLUEMEDIA_CATEGORY_MAP` (best-guess mapping of `category_id` → our enum; unknown ids stay NULL). Setting `category` on `NormalizedOffer` per item. `NormalizedOffer` type in `provider-types.ts` extended with optional `category`, plus a new exported `OfferCategory` literal type + `OFFER_CATEGORIES` array.
+- `sync.server.ts` `toRow` now writes `category` on every sync. The DB trigger preserves any admin-overridden value.
+
+### Client
+- `src/components/OfferTagRow.tsx` — coloured Hot / Trending / Easy / Popular / Deal badges. "Deal" is auto-derived from `is_limited_deal`, never a separate DB tag.
+- `src/components/OfferFilterButton.tsx` — bottom-sheet with single-select filter (All / App Install / Trial / Deals / Survey / Games / Link Locker / Shortlink). `offerMatchesFilter` maps "Deals" to EITHER `category=Deals` OR `is_limited_deal=true` so cashback deals surface naturally.
+- `FeaturedOffers` — accepts `filter` prop; renders `<OfferTagRow>` above each title (replacing the old floating "Deal" ribbon). On `Continue` in the OfferDetailsDialog it fires `trackOfferClick` before opening the URL, feeding the Popular/Trending engine.
+- `routes/_authenticated/offers.tsx` — filter state + `<OfferFilterButton>` inline with the "Featured Offers" heading. Home page NOT filtered (per spec).
+- **View All** — reusable pill link on Offers page + Home page with primary border, hover fill, and animated `→` icon.
+- Admin `OffersManager` form — new Category dropdown + multi-select Tag pills; helper text explains that saving flips the offer into admin-managed mode and disables auto-tagging.
+
+### Migration SQL for the user to run
+Full file: `supabase/migrations/20261125000000_offer_tags_category_clicks.sql` — paste into Supabase SQL editor. Key statements:
+```sql
+ALTER TABLE offers
+  ADD COLUMN IF NOT EXISTS category        text,
+  ADD COLUMN IF NOT EXISTS category_manual boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS tags            text[]  NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS tags_manual     boolean NOT NULL DEFAULT false;
+ALTER TABLE offers ADD CONSTRAINT offers_category_check
+  CHECK (category IS NULL OR category IN
+    ('App Install','Trial','Deals','Survey','Games','Link Locker','Shortlink'));
+
+-- Preservation trigger keeps admin edits safe across network re-syncs
+CREATE OR REPLACE FUNCTION preserve_manual_offer_overrides() RETURNS trigger AS $$
+BEGIN
+  IF OLD.category_manual THEN NEW.category := OLD.category; NEW.category_manual := true; END IF;
+  IF OLD.tags_manual     THEN NEW.tags     := OLD.tags;     NEW.tags_manual     := true; END IF;
+  RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER preserve_offer_admin_overrides BEFORE UPDATE ON offers
+  FOR EACH ROW EXECUTE FUNCTION preserve_manual_offer_overrides();
+
+CREATE TABLE offer_click_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  offer_id uuid NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX offer_click_events_offer_created_idx ON offer_click_events (offer_id, created_at DESC);
+ALTER TABLE offer_click_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "authenticated inserts click events" ON offer_click_events
+  FOR INSERT TO authenticated WITH CHECK (true);
+```
