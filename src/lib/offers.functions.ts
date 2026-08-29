@@ -254,6 +254,11 @@ export const updateOfferControls = createServerFn({ method: "POST" })
         revenueShare: z.number().min(0).max(1).optional(),
         payoutMode: z.enum(["manual", "manual_proof", "auto_postback"]).optional(),
         postbackSecretRef: z.string().trim().max(120).nullable().optional(),
+        category: z
+          .enum(["App Install", "Trial", "Deals", "Survey", "Games", "Link Locker", "Shortlink"])
+          .nullable()
+          .optional(),
+        tags: z.array(z.enum(["Hot", "Trending", "Easy", "Popular"])).max(4).optional(),
       })
       .parse(input),
   )

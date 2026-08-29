@@ -254,6 +254,17 @@ export async function updateOfferControlsImpl(input: {
   revenueShare?: number | undefined;
   payoutMode?: "manual" | "manual_proof" | "auto_postback" | undefined;
   postbackSecretRef?: string | null | undefined;
+  category?:
+    | "App Install"
+    | "Trial"
+    | "Deals"
+    | "Survey"
+    | "Games"
+    | "Link Locker"
+    | "Shortlink"
+    | null
+    | undefined;
+  tags?: ("Hot" | "Trending" | "Easy" | "Popular")[] | undefined;
 }) {
   const patch: {
     is_active?: boolean;
@@ -264,6 +275,10 @@ export async function updateOfferControlsImpl(input: {
     revenue_share?: number;
     payout_mode?: string;
     postback_secret_ref?: string | null;
+    category?: string | null;
+    category_manual?: boolean;
+    tags?: string[];
+    tags_manual?: boolean;
   } = {};
   if (input.isActive !== undefined) patch.is_active = input.isActive;
   if (input.isFeatured !== undefined) patch.is_featured = input.isFeatured;
@@ -274,6 +289,18 @@ export async function updateOfferControlsImpl(input: {
   if (input.payoutMode !== undefined) patch.payout_mode = input.payoutMode;
   if (input.postbackSecretRef !== undefined)
     patch.postback_secret_ref = input.postbackSecretRef?.trim() || null;
+  // Category + tags: an admin write flips the *_manual flag, which the sync
+  // engine (`syncProviderImpl`) then honours by stripping those columns from
+  // its upsert payload. Admin can still change them again later — only the
+  // sync path is restricted.
+  if (input.category !== undefined) {
+    patch.category = input.category;
+    patch.category_manual = true;
+  }
+  if (input.tags !== undefined) {
+    patch.tags = input.tags;
+    patch.tags_manual = true;
+  }
   if (!Object.keys(patch).length) return { ok: true };
   const { error } = await supabaseAdmin.from("offers").update(patch).eq("id", input.id);
   if (error) throw error;

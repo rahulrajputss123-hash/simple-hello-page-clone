@@ -4,9 +4,12 @@
 -- All additive. Every existing offer keeps its current behaviour because:
 --  * `tags` defaults to '{}' (renders no badges)
 --  * `category` defaults to NULL (falls under "All Offers")
---  * `tags_manual` / `category_manual` default to false so the sync engine
---    keeps overwriting them until an admin sets one, at which point the
---    trigger below freezes the field.
+--  * `tags_manual` / `category_manual` default to false so the network sync
+--    engine keeps refreshing them until an admin sets one, at which point
+--    the sync engine (`src/lib/offers/sync.server.ts` — `syncProviderImpl`)
+--    strips those columns from its upsert payload for that offer. Admin
+--    edits therefore stick, but the admin can still change them again at
+--    any time — only the sync path is restricted.
 
 ALTER TABLE public.offers
   ADD COLUMN IF NOT EXISTS category         text,
@@ -24,27 +27,23 @@ ALTER TABLE public.offers
   );
 
 -- ---------- Preserve admin-set category / tags across network re-syncs ------
-CREATE OR REPLACE FUNCTION public.preserve_manual_offer_overrides()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  IF OLD.category_manual = true THEN
-    NEW.category := OLD.category;
-    NEW.category_manual := true;
-  END IF;
-  IF OLD.tags_manual = true THEN
-    NEW.tags := OLD.tags;
-    NEW.tags_manual := true;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
+-- NOTE: An earlier version of this migration installed a BEFORE UPDATE trigger
+-- (`preserve_offer_admin_overrides` / `preserve_manual_offer_overrides()`) to
+-- freeze admin edits. That approach was WRONG — a row-level trigger cannot
+-- distinguish a legitimate admin re-edit from a network sync overwrite, so
+-- it locked admins out of ever changing category/tags again after their
+-- first save.
+--
+-- The protection now lives in the sync engine itself (see
+-- `src/lib/offers/sync.server.ts` — `syncProviderImpl` strips `category`
+-- and `tags` from the upsert payload when the corresponding *_manual flag
+-- is already true), which is the same safe pattern already used for
+-- `payout_mode` (which is simply never written by sync).
+--
+-- These DROPs ensure any pre-existing installation of the trigger/function
+-- is removed cleanly.
 DROP TRIGGER IF EXISTS preserve_offer_admin_overrides ON public.offers;
-CREATE TRIGGER preserve_offer_admin_overrides
-  BEFORE UPDATE ON public.offers
-  FOR EACH ROW EXECUTE FUNCTION public.preserve_manual_offer_overrides();
+DROP FUNCTION IF EXISTS public.preserve_manual_offer_overrides();
 
 -- ---------------------------- Click tracking --------------------------------
 CREATE TABLE IF NOT EXISTS public.offer_click_events (
