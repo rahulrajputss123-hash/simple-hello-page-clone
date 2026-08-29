@@ -115,3 +115,60 @@ Migration: `supabase/migrations/20261115000000_offer_proof_deals_payout_mode.sql
 
 ### Migration SQL for the user to run
 `supabase/migrations/20261115000000_offer_proof_deals_payout_mode.sql` — apply via `supabase db push` OR paste into the Supabase SQL editor.
+
+## Feature update (2026-11) — Banner System (custom + scheduled + smart)
+Migration: `supabase/migrations/20261120000000_banners.sql`. Purely additive; no existing UI, layouts, colours, or offers/tasks/offerwall logic was changed.
+
+### DB
+- New table `public.banners` (section∈{home,offers,tasks,offerwall}, title, description, image_url, cta_kind, cta_target, cta_label, priority, is_active, starts_at, ends_at UTC).
+- RLS: `eligible banners readable` for authenticated (active + within schedule window); `admins manage banners` full ALL for admins.
+- Storage bucket `banner-assets` (PUBLIC read; admin-only INSERT/UPDATE/DELETE via `has_role`).
+- Smart banners are NEVER stored — they are code templates (`src/lib/banners/smart.ts`) evaluated live against real user data at render time.
+
+### Server
+- `src/lib/banners/server.ts` — `listEligibleBannersImpl` (auth): loads active-and-in-window rows; resolves CTA server-side (invalid offer/provider → falls back to section's main route so the banner doesn't break). Admin fns: `listAdminBannersImpl`, `upsertBannerImpl`, `deleteBannerImpl`, `requestBannerUploadUrlImpl`.
+- `src/lib/banners/functions.ts` — `createServerFn` wrappers: `listEligibleBanners`, `listAdminBanners`, `saveBanner`, `deleteBanner`, `requestBannerUploadUrl`.
+
+### Client
+- `src/components/SectionBanner.tsx` — fetches DB banners + builds smart banners from live queries (`offers`, `user_tasks`, `sdk_offerwall_providers`), merges by priority DESC, rotates round-robin using `localStorage["cashgpt.banner_last:<section>"]` + auto-advance every 6s. Renders premium cards inside the existing jade/gold/mint palette (custom banners use `image_url` background with a gradient overlay). CTA renders as `<Link to="/…">` or external `<a target=_blank>`.
+- `src/components/admin/BannersManager.tsx` — CRUD dialog with section selector, image URL/upload, CTA kind + target + label, priority, active toggle, `datetime-local` start/end fields (converted local↔UTC in the client so admins enter their local timezone but Supabase stores UTC). Includes a live "Preview <section>" pane that reuses the real `SectionBanner`.
+
+### Wired into
+- Admin panel: new **Banners** tab (between Tasks and Withdrawals).
+- `home.tsx`: `SectionBanner section="home"` between the existing welcome carousel and Starter Quests (headings stay left-aligned).
+- `offers.tsx`: after the "Complete partner offers…" subtitle, before "Featured Offers".
+- `task.tsx`: after the "Work through the list…" subtitle, before the task list.
+- `offerwall.tsx`: immediately below the "Offerwall" heading, above `OfferwallSlot`.
+
+### Migration SQL — paste in the Supabase SQL editor
+See `supabase/migrations/20261120000000_banners.sql` (full file). Highlights:
+```sql
+CREATE TABLE public.banners (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  section text NOT NULL CHECK (section IN ('home','offers','tasks','offerwall')),
+  title text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  image_url text,
+  cta_label text,
+  cta_kind text NOT NULL DEFAULT 'none'
+    CHECK (cta_kind IN ('none','offers','tasks','offerwall','offer','offerwall_provider','url')),
+  cta_target text,
+  priority integer NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true,
+  starts_at timestamptz,
+  ends_at   timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.banners ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "eligible banners readable" ON public.banners FOR SELECT TO authenticated USING (
+  is_active AND (starts_at IS NULL OR starts_at <= now())
+             AND (ends_at   IS NULL OR ends_at   >  now())
+);
+CREATE POLICY "admins manage banners" ON public.banners FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(),'admin')) WITH CHECK (public.has_role(auth.uid(),'admin'));
+
+INSERT INTO storage.buckets (id,name,public) VALUES ('banner-assets','banner-assets',true)
+ON CONFLICT (id) DO NOTHING;
+-- + 4 storage.objects policies: public SELECT, admin INSERT/UPDATE/DELETE
+```

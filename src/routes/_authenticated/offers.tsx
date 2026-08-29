@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { FeaturedOffers } from "@/components/FeaturedOffers";
 import { OfferwallSlot } from "@/components/OfferwallSlot";
+import { SectionBanner } from "@/components/SectionBanner";
 import { SectionTitle } from "@/components/States";
 
 export const Route = createFileRoute("/_authenticated/offers")({
@@ -22,6 +23,8 @@ function OffersPage() {
     <AppShell subtitle="Offers">
       <h1 className="mt-2 text-2xl">Offers</h1>
       <p className="text-sm text-muted-foreground">Complete partner offers for bigger payouts.</p>
+
+      <SectionBanner section="offers" />
 
       <SectionTitle>Featured Offers</SectionTitle>
       <FeaturedOffers scope="home" />

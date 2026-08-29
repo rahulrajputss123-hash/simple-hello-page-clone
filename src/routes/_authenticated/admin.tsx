@@ -22,6 +22,7 @@ import {
 import { OffersManager } from "@/components/admin/OffersManager";
 import { QuestsManager } from "@/components/admin/QuestsManager";
 import { TasksManager } from "@/components/admin/TasksManager";
+import { BannersManager } from "@/components/admin/BannersManager";
 import { ClaimProofPreview } from "@/components/admin/ClaimProofPreview";
 import { SdkOfferwallManager } from "@/components/admin/SdkOfferwallManager";
 import { AutomationPanel } from "@/components/admin/AutomationPanel";
@@ -51,6 +52,7 @@ type TabKey =
   | "offers"
   | "quests"
   | "tasks"
+  | "banners"
   | "withdrawals"
   | "claims"
   | "tickets"
@@ -213,6 +215,7 @@ function AdminPage() {
             ["offers", "Offers"],
             ["quests", "Quests"],
             ["tasks", "Tasks"],
+            ["banners", "Banners"],
             ["withdrawals", `Payouts (${pendingWithdrawals.length})`],
             ["claims", `Claims (${pendingClaims.length})`],
             ["tickets", `Tickets (${openTickets.length})`],
@@ -317,7 +320,14 @@ function AdminPage() {
         </>
       )}
 
-      {data.isLoading && tab !== "dashboard" && tab !== "offers" && tab !== "tasks" && tab !== "quests" && (
+      {tab === "banners" && (
+        <>
+          <SectionTitle>Banners</SectionTitle>
+          <BannersManager />
+        </>
+      )}
+
+      {data.isLoading && tab !== "dashboard" && tab !== "offers" && tab !== "tasks" && tab !== "quests" && tab !== "banners" && (
         <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
       )}
 

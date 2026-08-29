@@ -8,6 +8,7 @@ import { AppShell } from "@/components/AppShell";
 import { BannerCarousel } from "@/components/BannerCarousel";
 import { FeaturedOffers } from "@/components/FeaturedOffers";
 import { OfferwallSlot } from "@/components/OfferwallSlot";
+import { SectionBanner } from "@/components/SectionBanner";
 import { StarterQuests } from "@/components/StarterQuests";
 import { SectionTitle } from "@/components/States";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,8 @@ function HomePage() {
           },
         ]}
       />
+
+      <SectionBanner section="home" />
 
       <SectionTitle>Starter Quests</SectionTitle>
       <StarterQuests />
