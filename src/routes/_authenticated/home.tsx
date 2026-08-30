@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Flame, Sparkles } from "lucide-react";
+import { ArrowRight, Bitcoin, Flame, Gift, HelpCircle, Sparkles, Wallet } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { BannerCarousel } from "@/components/BannerCarousel";
@@ -146,58 +146,115 @@ function HomePage() {
         Partner networks activate in the mobile app.
       </p>
 
-      <div className="mt-8 flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-          About Us
-        </span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
-      <p className="mt-3 text-center text-sm text-muted-foreground">
-        A quick look at what CashGPT offers and how you can earn.
-      </p>
+      {/* Cash Out Your Way — the bold, eye-catching highlight of the page */}
+      <section
+        data-testid="cash-out-section"
+        className="relative mt-10 overflow-hidden rounded-[1.75rem] bg-jade-gradient p-5 shadow-lift"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-14 -top-16 size-48 rounded-full opacity-40 blur-3xl"
+          style={{ background: "radial-gradient(closest-side, var(--color-gold), transparent)" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-20 -left-12 size-44 rounded-full opacity-30 blur-3xl"
+          style={{ background: "radial-gradient(closest-side, var(--color-mint), transparent)" }}
+        />
 
-      <ul className="mt-4 grid grid-cols-2 gap-3">
-        <li className="surface-card p-4">
-          <span className="grid size-10 place-items-center rounded-xl bg-background-alt text-xl">
-            💰
+        <div className="relative">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-gold-foreground shadow-gold">
+            <Sparkles className="size-3.5" /> Payouts
           </span>
-          <p className="mt-3 font-semibold">Ways to Earn</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Watch ads, complete quests, and finish partner offers to grow your balance.
+          <h2 className="mt-3 font-display text-[1.7rem] leading-tight text-primary-foreground">
+            Cash Out <span className="text-gold">Your Way</span>
+          </h2>
+          <p className="mt-1 text-sm text-primary-foreground/70">
+            Real payouts, your choice — withdraw the moment you hit the minimum.
           </p>
-        </li>
-        <li className="surface-card p-4">
-          <span className="grid size-10 place-items-center rounded-xl bg-background-alt text-xl">
-            ⚡
-          </span>
-          <p className="mt-3 font-semibold">Instant Payout Guarantee</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Every completed quest reflects in your wallet once it's verified.
+
+          {/* Asymmetric layout: one hero method + two supporting */}
+          <div className="mt-5 grid gap-3">
+            <div
+              data-testid="payout-method-paypal"
+              style={{ animationDelay: "60ms" }}
+              className="payout-card relative flex items-center gap-4 overflow-hidden rounded-2xl bg-card/95 p-4 backdrop-blur"
+            >
+              <span
+                className="grid size-14 shrink-0 place-items-center rounded-2xl text-white shadow-lg"
+                style={{ background: "linear-gradient(135deg,#009cde,#003087)" }}
+              >
+                <Wallet className="size-7" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-display text-lg text-foreground">PayPal</p>
+                  <span className="rounded-full bg-mint/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                    Most popular
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Straight to your account — cash in hand, fast.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-bold text-primary">
+                from $1
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div
+                data-testid="payout-method-crypto"
+                style={{ animationDelay: "140ms" }}
+                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4 backdrop-blur"
+              >
+                <span
+                  className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
+                  style={{ background: "linear-gradient(135deg,#26a17b,#345d9d)" }}
+                >
+                  <Bitcoin className="size-6" />
+                </span>
+                <p className="mt-3 font-display text-base text-foreground">Crypto</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">USDT · Litecoin</p>
+              </div>
+
+              <div
+                data-testid="payout-method-giftcards"
+                style={{ animationDelay: "220ms" }}
+                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4 backdrop-blur"
+              >
+                <span
+                  className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
+                  style={{ background: "linear-gradient(135deg,#ff9900,#ff5e3a)" }}
+                >
+                  <Gift className="size-6" />
+                </span>
+                <p className="mt-3 font-display text-base text-foreground">Gift Cards</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Amazon · Google Play</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Need Help? — kept separately, still useful */}
+      <div
+        data-testid="need-help-card"
+        className="surface-card mt-4 flex items-center gap-4 p-4"
+      >
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-mint/15 text-primary">
+          <HelpCircle className="size-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Need Help?</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Our support team is here whenever you need it.
           </p>
-        </li>
-        <li className="surface-card p-4">
-          <span className="grid size-10 place-items-center rounded-xl bg-background-alt text-xl">
-            🎁
-          </span>
-          <p className="mt-3 font-semibold">More Offers, Better Rewards</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Discover different offer types with competitive payout rates.
-          </p>
-        </li>
-        <li className="surface-card p-4">
-          <span className="grid size-10 place-items-center rounded-xl bg-background-alt text-xl">
-            🆘
-          </span>
-          <p className="mt-3 font-semibold">Need Help?</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Our support team is here to help when you need it.
-          </p>
-          <Button size="sm" variant="jade" className="mt-3" asChild>
-            <Link to="/support">Get Help</Link>
-          </Button>
-        </li>
-      </ul>
+        </div>
+        <Button size="sm" variant="jade" className="shrink-0" asChild>
+          <Link to="/support">Get Help</Link>
+        </Button>
+      </div>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {/* eslint-disable @typescript-eslint/no-explicit-any */}

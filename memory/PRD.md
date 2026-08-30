@@ -292,3 +292,8 @@ INSERT INTO onboarding_steps (target_element_id, title, description, display_ord
 ### Available target ids (registered in `src/lib/onboarding/targets.ts`)
 - `tour-wallet-balance` — wallet balance pill in AppHeader (links to /wallet).
 - `tour-featured-offers` — Featured Offers section on Home.
+
+## 2026-06 — Home "Cash Out Your Way" redesign
+- Replaced the generic 4-card About Us grid (Ways to Earn / Instant Payout / More Offers / Need Help) in `src/routes/_authenticated/home.tsx`.
+- New bold jade-gradient "Cash Out Your Way" section: gold "Payouts" badge + heading, asymmetric layout (PayPal hero card + Crypto and Gift Cards), colorful brand-colored icon badges (lucide Wallet/Bitcoin/Gift).
+- "Need Help?" kept as a separate surface-card below. Added `.payout-card` staggered-reveal + hover-lift animations in `src/styles.css`. Design-only, no functionality changed.

@@ -24,8 +24,13 @@ import { Route as AuthenticatedReferRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedTaskRouteImport } from './routes/_authenticated/task'
 import { Route as AuthenticatedWalletRouteImport } from './routes/_authenticated/wallet'
+import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
+import { Route as LegalReferralTermsRouteImport } from './routes/legal/referral-terms'
 import { Route as LegalTermsRouteImport } from './routes/legal/terms'
+import { Route as LegalWithdrawalPolicyRouteImport } from './routes/legal/withdrawal-policy'
 import { Route as ApiCronRefreshOfferFeedRouteImport } from './routes/api/cron/refresh-offer-feed'
+import { Route as AuthenticatedGoQuestKeyStepRouteImport } from './routes/_authenticated/go.$questKey.$step'
+import { Route as ApiPublicOfferPostbackOfferIdRouteImport } from './routes/api/public/offer-postback.$offerId'
 import { Route as ApiPublicOfferwallSlugRouteImport } from './routes/api/public/offerwall/$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -103,9 +108,24 @@ const AuthenticatedWalletRoute = AuthenticatedWalletRouteImport.update({
   path: '/wallet',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/legal/privacy',
+  path: '/legal/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalReferralTermsRoute = LegalReferralTermsRouteImport.update({
+  id: '/legal/referral-terms',
+  path: '/legal/referral-terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LegalTermsRoute = LegalTermsRouteImport.update({
   id: '/legal/terms',
   path: '/legal/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalWithdrawalPolicyRoute = LegalWithdrawalPolicyRouteImport.update({
+  id: '/legal/withdrawal-policy',
+  path: '/legal/withdrawal-policy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCronRefreshOfferFeedRoute = ApiCronRefreshOfferFeedRouteImport.update({
@@ -113,6 +133,18 @@ const ApiCronRefreshOfferFeedRoute = ApiCronRefreshOfferFeedRouteImport.update({
   path: '/api/cron/refresh-offer-feed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedGoQuestKeyStepRoute =
+  AuthenticatedGoQuestKeyStepRouteImport.update({
+    id: '/go/$questKey/$step',
+    path: '/go/$questKey/$step',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const ApiPublicOfferPostbackOfferIdRoute =
+  ApiPublicOfferPostbackOfferIdRouteImport.update({
+    id: '/api/public/offer-postback/$offerId',
+    path: '/api/public/offer-postback/$offerId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicOfferwallSlugRoute = ApiPublicOfferwallSlugRouteImport.update({
   id: '/api/public/offerwall/$slug',
   path: '/api/public/offerwall/$slug',
@@ -134,8 +166,13 @@ export interface FileRoutesByFullPath {
   '/support': typeof AuthenticatedSupportRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
+  '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
+  '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
+  '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
 export interface FileRoutesByTo {
@@ -153,8 +190,13 @@ export interface FileRoutesByTo {
   '/support': typeof AuthenticatedSupportRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
+  '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
+  '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
+  '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
 export interface FileRoutesById {
@@ -174,8 +216,13 @@ export interface FileRoutesById {
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/_authenticated/task': typeof AuthenticatedTaskRoute
   '/_authenticated/wallet': typeof AuthenticatedWalletRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
+  '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
+  '/_authenticated/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
+  '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
 export interface FileRouteTypes {
@@ -195,8 +242,13 @@ export interface FileRouteTypes {
     | '/support'
     | '/task'
     | '/wallet'
+    | '/legal/privacy'
+    | '/legal/referral-terms'
     | '/legal/terms'
+    | '/legal/withdrawal-policy'
     | '/api/cron/refresh-offer-feed'
+    | '/go/$questKey/$step'
+    | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -214,8 +266,13 @@ export interface FileRouteTypes {
     | '/support'
     | '/task'
     | '/wallet'
+    | '/legal/privacy'
+    | '/legal/referral-terms'
     | '/legal/terms'
+    | '/legal/withdrawal-policy'
     | '/api/cron/refresh-offer-feed'
+    | '/go/$questKey/$step'
+    | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   id:
     | '__root__'
@@ -234,8 +291,13 @@ export interface FileRouteTypes {
     | '/_authenticated/support'
     | '/_authenticated/task'
     | '/_authenticated/wallet'
+    | '/legal/privacy'
+    | '/legal/referral-terms'
     | '/legal/terms'
+    | '/legal/withdrawal-policy'
     | '/api/cron/refresh-offer-feed'
+    | '/_authenticated/go/$questKey/$step'
+    | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -243,8 +305,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalReferralTermsRoute: typeof LegalReferralTermsRoute
   LegalTermsRoute: typeof LegalTermsRoute
+  LegalWithdrawalPolicyRoute: typeof LegalWithdrawalPolicyRoute
   ApiCronRefreshOfferFeedRoute: typeof ApiCronRefreshOfferFeedRoute
+  ApiPublicOfferPostbackOfferIdRoute: typeof ApiPublicOfferPostbackOfferIdRoute
   ApiPublicOfferwallSlugRoute: typeof ApiPublicOfferwallSlugRoute
 }
 
@@ -355,6 +421,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWalletRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/legal/privacy': {
+      id: '/legal/privacy'
+      path: '/legal/privacy'
+      fullPath: '/legal/privacy'
+      preLoaderRoute: typeof LegalPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/referral-terms': {
+      id: '/legal/referral-terms'
+      path: '/legal/referral-terms'
+      fullPath: '/legal/referral-terms'
+      preLoaderRoute: typeof LegalReferralTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/legal/terms': {
       id: '/legal/terms'
       path: '/legal/terms'
@@ -362,11 +442,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalTermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/legal/withdrawal-policy': {
+      id: '/legal/withdrawal-policy'
+      path: '/legal/withdrawal-policy'
+      fullPath: '/legal/withdrawal-policy'
+      preLoaderRoute: typeof LegalWithdrawalPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/refresh-offer-feed': {
       id: '/api/cron/refresh-offer-feed'
       path: '/api/cron/refresh-offer-feed'
       fullPath: '/api/cron/refresh-offer-feed'
       preLoaderRoute: typeof ApiCronRefreshOfferFeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/go/$questKey/$step': {
+      id: '/_authenticated/go/$questKey/$step'
+      path: '/go/$questKey/$step'
+      fullPath: '/go/$questKey/$step'
+      preLoaderRoute: typeof AuthenticatedGoQuestKeyStepRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/offer-postback/$offerId': {
+      id: '/api/public/offer-postback/$offerId'
+      path: '/api/public/offer-postback/$offerId'
+      fullPath: '/api/public/offer-postback/$offerId'
+      preLoaderRoute: typeof ApiPublicOfferPostbackOfferIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/offerwall/$slug': {
@@ -392,6 +493,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
   AuthenticatedTaskRoute: typeof AuthenticatedTaskRoute
   AuthenticatedWalletRoute: typeof AuthenticatedWalletRoute
+  AuthenticatedGoQuestKeyStepRoute: typeof AuthenticatedGoQuestKeyStepRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -407,6 +509,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
   AuthenticatedTaskRoute: AuthenticatedTaskRoute,
   AuthenticatedWalletRoute: AuthenticatedWalletRoute,
+  AuthenticatedGoQuestKeyStepRoute: AuthenticatedGoQuestKeyStepRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -416,8 +519,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalReferralTermsRoute: LegalReferralTermsRoute,
   LegalTermsRoute: LegalTermsRoute,
+  LegalWithdrawalPolicyRoute: LegalWithdrawalPolicyRoute,
   ApiCronRefreshOfferFeedRoute: ApiCronRefreshOfferFeedRoute,
+  ApiPublicOfferPostbackOfferIdRoute: ApiPublicOfferPostbackOfferIdRoute,
   ApiPublicOfferwallSlugRoute: ApiPublicOfferwallSlugRoute,
 }
 export const routeTree = rootRouteImport
