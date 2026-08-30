@@ -1,10 +1,13 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MessageCircle, Send, Sparkles, X } from "lucide-react";
+import { LifeBuoy, MessageCircle, Send, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { sendAssistantMessage } from "@/lib/assistant.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const FALLBACK_REPLY =
@@ -12,6 +15,15 @@ const FALLBACK_REPLY =
 
 const WELCOME =
   "Hi! I'm the CashGPT Assistant 🪙 Ask me about earning coins, quests, offers, payouts, or your wallet.";
+
+const QUICK_REPLIES = [
+  { label: "How do I earn coins?", question: "How do I earn coins?" },
+  { label: "Minimum withdrawal?", question: "What is the minimum withdrawal?" },
+  { label: "Payout time?", question: "How long do payouts take?" },
+  { label: "KYC & verification", question: "Why do I need KYC and how does verification work?" },
+];
+
+const OPENED_KEY = "cashgpt.assistant.opened";
 
 type Role = "user" | "assistant";
 
@@ -47,15 +59,60 @@ export function AssistantMascot({ className = "" }: { className?: string }) {
 }
 
 export function AiAssistant() {
+  const { session } = useAuth();
+  const queryClient = useQueryClient();
+
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: "welcome", role: "assistant", content: WELCOME },
   ]);
   const [input, setInput] = useState("");
+  const [hydrated, setHydrated] = useState(false);
+  const [showNudge, setShowNudge] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const callAssistant = useServerFn(sendAssistantMessage);
+
+  const storageKey = session?.user?.id ? `cashgpt.assistant.chat.${session.user.id}` : null;
+
+  // Chat memory — load any saved conversation for this user once we know who they are.
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ChatMessage[];
+        if (Array.isArray(parsed) && parsed.length) setMessages(parsed);
+      }
+    } catch {
+      /* ignore corrupt storage */
+    }
+    setHydrated(true);
+  }, [storageKey]);
+
+  // Persist the conversation across refreshes (only after the initial load).
+  useEffect(() => {
+    if (!storageKey || !hydrated) return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(messages));
+    } catch {
+      /* storage full / unavailable — non-fatal */
+    }
+  }, [messages, storageKey, hydrated]);
+
+  // Unread nudge — invite first-time users to ask a question.
+  useEffect(() => {
+    try {
+      if (!window.localStorage.getItem(OPENED_KEY)) setShowNudge(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
 
   const chat = useMutation({
     mutationFn: (payload: { message: string; history: { role: Role; content: string }[] }) =>
@@ -74,36 +131,75 @@ export function AiAssistant() {
     },
   });
 
+  const ticket = useMutation({
+    mutationFn: async () => {
+      if (!session) throw new Error("no-session");
+      const convo = messages
+        .filter((m) => m.id !== "welcome")
+        .map((m) => `${m.role === "user" ? "You" : "Assistant"}: ${m.content}`)
+        .join("\n\n");
+      const firstUser = messages.find((m) => m.role === "user")?.content ?? "Support request";
+      const subject = `AI chat: ${firstUser.slice(0, 80)}`;
+      const description = `Escalated from the CashGPT AI Assistant chat.\n\n${
+        convo || "(No messages yet.)"
+      }`.slice(0, 2000);
+      const { error } = await supabase
+        .from("support_tickets")
+        .insert({ user_id: session.user.id, subject, description });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Ticket submitted — a human will follow up.");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: newId(),
+          role: "assistant",
+          content:
+            "I've created a support ticket from our chat 🎫 A human will follow up — you can track it under \"Your tickets\" in the Support tab.",
+        },
+      ]);
+      void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+    },
+    onError: () => toast.error("Couldn't create a ticket. Please use the form below."),
+  });
+
   useEffect(() => {
     if (!open) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, open, chat.isPending]);
 
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
+  function openChat() {
+    setOpen(true);
+    setShowNudge(false);
+    try {
+      window.localStorage.setItem(OPENED_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }
 
-  function handleSend() {
-    const text = input.trim();
-    if (!text || chat.isPending) return;
+  function send(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || chat.isPending) return;
 
     const history = messages
       .filter((m) => m.id !== "welcome")
       .slice(-10)
       .map((m) => ({ role: m.role, content: m.content }));
 
-    setMessages((prev) => [...prev, { id: newId(), role: "user", content: text }]);
+    setMessages((prev) => [...prev, { id: newId(), role: "user", content: trimmed }]);
     setInput("");
-    chat.mutate({ message: text, history });
+    chat.mutate({ message: trimmed, history });
   }
+
+  const hasUserMessage = messages.some((m) => m.role === "user");
+  const showQuickReplies = !hasUserMessage && !chat.isPending;
 
   return (
     <>
       {/* AI Assistant card (inline in the Support tab) */}
-      <div
-        className="surface-card flex items-center gap-4 p-4"
-        data-testid="ai-assistant-card"
-      >
+      <div className="surface-card flex items-center gap-4 p-4" data-testid="ai-assistant-card">
         <AssistantMascot className="size-14 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -117,34 +213,56 @@ export function AiAssistant() {
         <Button
           size="sm"
           variant="jade"
-          onClick={() => setOpen(true)}
+          onClick={openChat}
           data-testid="ai-assistant-open-btn"
         >
           Chat now
         </Button>
       </div>
 
-      {/* Floating chat bubble */}
+      {/* Floating chat bubble + unread nudge */}
       {!open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Open AI Assistant"
-          data-testid="ai-assistant-fab"
-          className="fixed bottom-24 right-4 z-40 grid size-16 place-items-center rounded-full bg-jade-gradient p-0 shadow-lift transition-transform hover:scale-105 active:scale-95 md:right-[max(1rem,calc(50%-32rem))]"
-        >
-          <span className="absolute inset-1 overflow-hidden rounded-full">
-            <img
-              src="/assistant-mascot.png"
-              alt=""
-              className="h-full w-full scale-110 object-cover"
-              draggable={false}
-            />
-          </span>
-          <span className="absolute -right-0.5 -top-0.5 grid size-6 place-items-center rounded-full bg-gold-gradient text-gold-foreground shadow-gold">
-            <MessageCircle className="size-3.5" />
-          </span>
-        </button>
+        <div className="fixed bottom-24 right-4 z-40 flex flex-col items-end gap-2 md:right-[max(1rem,calc(50%-32rem))]">
+          {showNudge && (
+            <div
+              className="animate-in fade-in slide-in-from-bottom-2 relative max-w-[13rem] rounded-2xl rounded-br-sm border border-border bg-card px-3 py-2 text-xs font-medium text-card-foreground shadow-lift"
+              data-testid="ai-assistant-nudge"
+            >
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => setShowNudge(false)}
+                data-testid="ai-assistant-nudge-dismiss"
+                className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-soft transition-colors hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+              Need a hand? 👋 Ask me anything about earning or payouts!
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={openChat}
+            aria-label="Open AI Assistant"
+            data-testid="ai-assistant-fab"
+            className="relative grid size-16 place-items-center rounded-full bg-jade-gradient p-0 shadow-lift transition-transform hover:scale-105 active:scale-95"
+          >
+            {showNudge && (
+              <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-mint/40" />
+            )}
+            <span className="absolute inset-1 overflow-hidden rounded-full">
+              <img
+                src="/assistant-mascot.png"
+                alt=""
+                className="h-full w-full scale-110 object-cover"
+                draggable={false}
+              />
+            </span>
+            <span className="absolute -right-0.5 -top-0.5 grid size-6 place-items-center rounded-full bg-gold-gradient text-gold-foreground shadow-gold">
+              <MessageCircle className="size-3.5" />
+            </span>
+          </button>
+        </div>
       )}
 
       {/* Chat panel */}
@@ -215,14 +333,43 @@ export function AiAssistant() {
                 </div>
               </div>
             )}
+
+            {/* Quick replies */}
+            {showQuickReplies && (
+              <div className="flex flex-wrap gap-2 pt-1" data-testid="ai-assistant-quick-replies">
+                {QUICK_REPLIES.map((qr) => (
+                  <button
+                    key={qr.label}
+                    type="button"
+                    onClick={() => send(qr.question)}
+                    data-testid="ai-assistant-quick-reply"
+                    className="rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 active:scale-95"
+                  >
+                    {qr.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Escalation to a human */}
+          <button
+            type="button"
+            onClick={() => ticket.mutate()}
+            disabled={ticket.isPending || !session}
+            data-testid="ai-assistant-ticket-btn"
+            className="flex items-center justify-center gap-1.5 border-t border-border bg-background-alt/60 py-2 text-xs font-semibold text-primary transition-colors hover:bg-background-alt disabled:opacity-50"
+          >
+            <LifeBuoy className="size-3.5" />
+            {ticket.isPending ? "Creating ticket…" : "Talk to a human — create a support ticket"}
+          </button>
 
           {/* Composer */}
           <form
             className="flex items-center gap-2 border-t border-border bg-card p-3"
             onSubmit={(event) => {
               event.preventDefault();
-              handleSend();
+              send(input);
             }}
           >
             <input

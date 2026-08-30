@@ -328,3 +328,15 @@ INSERT INTO onboarding_steps (target_element_id, title, description, display_ord
 ### Next / backlog
 - P2: persist chat history per user (currently in-session only, per user choice).
 - P2: quick-reply chips for common FAQ questions.
+
+## Update — 2026-06 · Assistant enhancements (all verified)
+- **Quick Replies**: tappable FAQ chips (earn coins, min withdrawal, payout time, KYC) shown before
+  the user's first message; sending a chip triggers a normal assistant reply.
+- **Chat Memory**: conversation persists across refreshes via `localStorage` keyed per user
+  (`cashgpt.assistant.chat.<userId>`). Still client-side only (no DB).
+- **Ticket Handoff**: "Talk to a human" button in the chat inserts a `support_tickets` row with the
+  chat transcript as the description (subject `AI chat: <first question>`), toasts success, and posts
+  an in-chat confirmation. Verified a row lands in Supabase.
+- **Unread Nudge**: first-time users see a speech-bubble prompt + a pulsing ring on the floating
+  mascot; dismissed permanently once the chat is opened (`cashgpt.assistant.opened` flag).
+- All implemented in `src/components/AssistantChat.tsx`.
