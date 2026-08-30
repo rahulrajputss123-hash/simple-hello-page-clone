@@ -340,3 +340,19 @@ INSERT INTO onboarding_steps (target_element_id, title, description, display_ord
 - **Unread Nudge**: first-time users see a speech-bubble prompt + a pulsing ring on the floating
   mascot; dismissed permanently once the chat is opened (`cashgpt.assistant.opened` flag).
 - All implemented in `src/components/AssistantChat.tsx`.
+
+## Update — 2026-06 · Banner system (3 changes from artifact)
+1. **Offers key collision** — verified end-state: `/offers` renders `<SectionBanner section="offers" />`
+   and Home's Featured Offers widget has NO banner slot (Home's own slot is `section="home"`). An
+   "offers" banner now shows on the real /offers page + admin "Preview Offers". No code change needed
+   (already correct in this codebase); confirmed by test.
+2. **Smart-banner on/off switches** — new `smart_banner_settings` table (template_key PK, enabled,
+   updated_at; RLS: authenticated SELECT, admin manage). Server fns `listSmartBannerSettings` /
+   `setSmartBannerEnabled` (`src/lib/banners/functions.ts` + `server.ts`, fail-open if table missing).
+   Template registry `SMART_BANNER_TEMPLATES` in `src/lib/banners/smart.ts`. Admin toggle list added
+   to `BannersManager.tsx` below the custom-banner list. Migration:
+   `supabase/migrations/20261201000000_smart_banner_settings.sql` (user runs it on their live project).
+3. **Home = custom banners only** — `SectionBanner.tsx` excludes smart banners when `section==="home"`
+   (feeds a custom-only candidate list into the existing rotation), and elsewhere skips any template an
+   admin switched off. Verified: Home shows 0 smart + rotates the 2 custom home banners; the hardcoded
+   welcome/streak carousel is untouched.

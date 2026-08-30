@@ -6,7 +6,7 @@ import { ArrowRight, Flame, Gift, ListChecks, Sparkles } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { listEligibleBanners } from "@/lib/banners/functions";
+import { listEligibleBanners, listSmartBannerSettings } from "@/lib/banners/functions";
 import type { BannerSection, EligibleBanner } from "@/lib/banners/server";
 import { buildSmartBanners, type SmartBanner } from "@/lib/banners/smart";
 
@@ -47,10 +47,20 @@ function pickStartIndex(section: BannerSection, sortedIds: string[]): number {
 export function SectionBanner({ section }: { section: BannerSection }) {
   const { session, profile } = useAuth();
   const fetchDb = useServerFn(listEligibleBanners);
+  const fetchSmartSettings = useServerFn(listSmartBannerSettings);
 
   const dbQuery = useQuery({
     queryKey: ["banners", section],
     queryFn: () => fetchDb({ data: { section } }),
+    staleTime: 60_000,
+  });
+
+  // Smart-banner on/off switches (admin-controlled). Not needed on Home, which
+  // never renders smart banners.
+  const smartSettingsQuery = useQuery({
+    queryKey: ["smart-banner-settings"],
+    enabled: Boolean(session) && section !== "home",
+    queryFn: () => fetchSmartSettings({}),
     staleTime: 60_000,
   });
 
@@ -120,10 +130,22 @@ export function SectionBanner({ section }: { section: BannerSection }) {
     [section, profile, offersQ.data, tasksQ.data, offerwallQ.data],
   );
 
+  // Home rotates CUSTOM banners only — smart banners are never eligible there.
+  // Everywhere else, drop any template an admin has switched off.
+  const smartEligible: SmartBanner[] = useMemo(() => {
+    if (section === "home") return [];
+    const disabled = new Set(
+      (smartSettingsQuery.data ?? [])
+        .filter((s) => !s.enabled)
+        .map((s) => s.template_key),
+    );
+    return smart.filter((b) => !disabled.has(b.id));
+  }, [section, smart, smartSettingsQuery.data]);
+
   const merged: UnifiedBanner[] = useMemo(() => {
     const list: UnifiedBanner[] = [
       ...(dbQuery.data ?? []).map((b) => ({ kind: "custom" as const, data: b })),
-      ...smart.map((b) => ({ kind: "smart" as const, data: b })),
+      ...smartEligible.map((b) => ({ kind: "smart" as const, data: b })),
     ];
     return list.sort((a, b) => {
       const pa = unifiedPriority(a);
@@ -132,7 +154,7 @@ export function SectionBanner({ section }: { section: BannerSection }) {
       // Stable secondary sort by id so rotation index is deterministic.
       return unifiedId(a).localeCompare(unifiedId(b));
     });
-  }, [dbQuery.data, smart]);
+  }, [dbQuery.data, smartEligible]);
 
   const [index, setIndex] = useState(0);
 

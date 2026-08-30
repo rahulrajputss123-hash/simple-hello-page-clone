@@ -31,10 +31,13 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   deleteBanner,
   listAdminBanners,
+  listSmartBannerSettings,
   requestBannerUploadUrl,
   saveBanner,
+  setSmartBannerEnabled,
 } from "@/lib/banners/functions";
 import type { BannerCtaKind, BannerRow, BannerSection } from "@/lib/banners/server";
+import { SMART_BANNER_TEMPLATES } from "@/lib/banners/smart";
 import { formatDateTime } from "@/lib/coinquest";
 
 const SECTIONS: readonly [BannerSection, string][] = [
@@ -108,6 +111,8 @@ export function BannersManager() {
   const save = useServerFn(saveBanner);
   const remove = useServerFn(deleteBanner);
   const requestUpload = useServerFn(requestBannerUploadUrl);
+  const fetchSmartSettings = useServerFn(listSmartBannerSettings);
+  const toggleSmart = useServerFn(setSmartBannerEnabled);
 
   const [form, setForm] = useState<FormState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<BannerRow | null>(null);
@@ -116,6 +121,10 @@ export function BannersManager() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const banners = useQuery({ queryKey: ["admin-banners"], queryFn: () => fetchAll({}) });
+  const smartSettings = useQuery({
+    queryKey: ["smart-banner-settings"],
+    queryFn: () => fetchSmartSettings({}),
+  });
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-banners"] });
@@ -155,6 +164,16 @@ export function BannersManager() {
       toast.success("Banner deleted.");
       setPendingDelete(null);
       refresh();
+    },
+    onError,
+  });
+
+  const smartToggle = useMutation({
+    mutationFn: (v: { templateKey: string; enabled: boolean }) => toggleSmart({ data: v }),
+    onSuccess: () => {
+      toast.success("Smart banner updated.");
+      void queryClient.invalidateQueries({ queryKey: ["smart-banner-settings"] });
+      void queryClient.invalidateQueries({ queryKey: ["banners"] });
     },
     onError,
   });
@@ -295,6 +314,55 @@ export function BannersManager() {
           ))}
         </ul>
       )}
+
+      {/* Smart banners — code-only content, admin can only switch each on/off. */}
+      <div className="space-y-2 pt-2" data-testid="admin-smart-banners">
+        <div>
+          <p className="text-sm font-semibold">Smart banners</p>
+          <p className="text-xs text-muted-foreground">
+            Auto-generated live from user &amp; app data (no content editing). Switch one off to stop
+            it appearing anywhere.
+          </p>
+        </div>
+        <ul className="space-y-2" data-testid="admin-smart-banners-list">
+          {SMART_BANNER_TEMPLATES.map((t) => {
+            const setting = smartSettings.data?.find((s) => s.template_key === t.key);
+            const enabled = setting ? setting.enabled : true;
+            return (
+              <li
+                key={t.key}
+                className="surface-card flex items-center justify-between gap-3 p-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{t.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t.section} · <span className="font-mono">{t.key}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                      enabled
+                        ? "bg-primary/15 text-primary"
+                        : "bg-background-alt text-muted-foreground"
+                    }`}
+                  >
+                    {enabled ? "On" : "Off"}
+                  </span>
+                  <Switch
+                    checked={enabled}
+                    disabled={smartToggle.isPending}
+                    onCheckedChange={(v) =>
+                      smartToggle.mutate({ templateKey: t.key, enabled: v })
+                    }
+                    data-testid={`smart-banner-toggle-${t.key}`}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
 
       <Dialog open={Boolean(form)} onOpenChange={(open) => !open && setForm(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">

@@ -186,6 +186,36 @@ export async function deleteBannerImpl(id: string) {
   return { ok: true };
 }
 
+export type SmartBannerSetting = { template_key: string; enabled: boolean };
+
+/**
+ * On/off switches for smart-banner templates. Fails open: if the table doesn't
+ * exist yet (migration not run) or the query errors, returns [] so every
+ * template is treated as enabled by default.
+ */
+export async function listSmartBannerSettingsImpl(): Promise<SmartBannerSetting[]> {
+  const { data, error } = await db
+    .from("smart_banner_settings")
+    .select("template_key, enabled");
+  if (error) {
+    console.warn("[banners] smart_banner_settings unavailable (treating all as enabled):", error.message);
+    return [];
+  }
+  return data ?? [];
+}
+
+/** Admin: upsert a single smart-banner template's enabled flag. */
+export async function setSmartBannerEnabledImpl(templateKey: string, enabled: boolean) {
+  const { error } = await db
+    .from("smart_banner_settings")
+    .upsert(
+      { template_key: templateKey, enabled, updated_at: new Date().toISOString() },
+      { onConflict: "template_key" },
+    );
+  if (error) throw new Error(error.message ?? "Could not update smart banner.");
+  return { ok: true };
+}
+
 /** Signed upload URL to the public banner-assets bucket for admin uploads. */
 export async function requestBannerUploadUrlImpl(userId: string, filename: string) {
   const safe = filename.replace(/[^A-Za-z0-9._-]/g, "_");

@@ -34,6 +34,30 @@ export type SmartContext = {
   activeOfferwallCount: number;
 };
 
+/**
+ * Registry of every known smart-banner template. The `key` is the stable
+ * identifier used both as the rendered banner `id` and as the
+ * `smart_banner_settings.template_key` used by admin on/off switches.
+ * Keep this in sync with the ids produced by `buildSmartBanners` below.
+ */
+export const SMART_BANNER_TEMPLATES: ReadonlyArray<{
+  key: string;
+  section: BannerSection;
+  name: string;
+}> = [
+  { key: "smart:home:new-user", section: "home", name: "Welcome (new user)" },
+  { key: "smart:home:returning", section: "home", name: "Welcome back (returning user)" },
+  { key: "smart:home:streak", section: "home", name: "Daily streak" },
+  { key: "smart:home:hot-offer", section: "home", name: "High-paying offer live" },
+  { key: "smart:offers:count", section: "offers", name: "Offers ready count" },
+  { key: "smart:offers:high-value", section: "offers", name: "Big payout available" },
+  { key: "smart:tasks:near-complete", section: "tasks", name: "Tasks almost done" },
+  { key: "smart:tasks:in-progress", section: "tasks", name: "Tasks in progress" },
+  { key: "smart:tasks:streak", section: "tasks", name: "Task streak reminder" },
+  { key: "smart:offerwall:live", section: "offerwall", name: "Networks live" },
+  { key: "smart:offerwall:empty", section: "offerwall", name: "New partners on the way" },
+];
+
 const STREAK_GOAL = 7;
 
 function firstName(name?: string | null): string {

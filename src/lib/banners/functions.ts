@@ -77,6 +77,27 @@ export const deleteBanner = createServerFn({ method: "POST" })
     return deleteBannerImpl(data.id);
   });
 
+/** Authenticated: on/off state for smart-banner templates (fail-open if table missing). */
+export const listSmartBannerSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { listSmartBannerSettingsImpl } = await import("./server");
+    return listSmartBannerSettingsImpl();
+  });
+
+/** Admin: enable/disable a single smart-banner template. */
+export const setSmartBannerEnabled = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ templateKey: z.string().trim().min(1).max(100), enabled: z.boolean() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin } = await import("../coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    const { setSmartBannerEnabledImpl } = await import("./server");
+    return setSmartBannerEnabledImpl(data.templateKey, data.enabled);
+  });
+
 export const requestBannerUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
