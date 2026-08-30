@@ -236,6 +236,15 @@
   box-shadow: var(--shadow-lift);
 }
 
+/* Payout-proof live pulse dot */
+@keyframes payout-live-ping {
+  0%   { transform: scale(1); opacity: 0.7; }
+  75%, 100% { transform: scale(2.4); opacity: 0; }
+}
+.payout-live-dot {
+  animation: payout-live-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
 /* Auth page ambient glow + entrance */
 @keyframes auth-card-in {
   from { opacity: 0; transform: translateY(10px); }

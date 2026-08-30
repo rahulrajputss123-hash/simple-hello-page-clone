@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Bitcoin, Flame, Gift, HelpCircle, Sparkles, Wallet } from "lucide-react";
@@ -173,6 +173,8 @@ function HomePage() {
             Real payouts, your choice — withdraw the moment you hit the minimum.
           </p>
 
+          <PaidOutThisWeek />
+
           {/* Asymmetric layout: one hero method + two supporting */}
           <div className="mt-5 grid gap-3">
             <div
@@ -280,5 +282,48 @@ function HomePage() {
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">CashGPT © 2026 • v1.0.0</p>
     </AppShell>
+  );
+}
+
+
+// Subtle "paid out this week" trust strip. The figure is a display-only
+// placeholder (MOCKED) — wire to a real aggregate when the endpoint exists.
+const PAID_OUT_THIS_WEEK = 128540;
+
+function PaidOutThisWeek() {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setValue(PAID_OUT_THIS_WEEK);
+      return;
+    }
+    const duration = 1100;
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(Math.round(PAID_OUT_THIS_WEEK * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div
+      data-testid="payout-proof-strip"
+      className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary-foreground/15 bg-primary-foreground/10 py-1.5 pl-2.5 pr-3.5 backdrop-blur"
+    >
+      <span className="relative grid size-2.5 place-items-center">
+        <span className="payout-live-dot absolute inset-0 rounded-full bg-mint" />
+        <span className="size-2.5 rounded-full bg-mint" />
+      </span>
+      <span className="text-xs text-primary-foreground/80">
+        <span className="text-amount font-bold text-gold">${value.toLocaleString("en-US")}</span>{" "}
+        paid out this week
+      </span>
+    </div>
   );
 }
