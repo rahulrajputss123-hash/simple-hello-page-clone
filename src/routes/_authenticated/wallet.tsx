@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowDownToLine, Plus, Receipt, ShieldCheck } from "lucide-react";
+import { ArrowDownToLine, Plus, Receipt, ShieldCheck, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { AppShell } from "@/components/AppShell";
-import { EmptyState, SectionTitle } from "@/components/States";
+import { SectionHeading } from "@/components/SectionHeading";
+import { EmptyState } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -170,7 +171,9 @@ function WalletPage() {
       </div>
 
 
-      <SectionTitle
+      <SectionHeading
+        icon={Wallet}
+        title="Withdraw"
         action={
           <Dialog open={methodOpen} onOpenChange={setMethodOpen}>
             <DialogTrigger asChild>
@@ -234,9 +237,7 @@ function WalletPage() {
             </DialogContent>
           </Dialog>
         }
-      >
-        Withdraw
-      </SectionTitle>
+      />
 
       <div className="surface-card space-y-3 p-4">
         <div className="space-y-1.5">
@@ -274,7 +275,7 @@ function WalletPage() {
         </Button>
       </div>
 
-      <SectionTitle>Withdrawals</SectionTitle>
+      <SectionHeading icon={ArrowDownToLine} title="Withdrawals" />
       {!withdrawals.data?.length ? (
         <EmptyState
           icon={ArrowDownToLine}
@@ -304,7 +305,7 @@ function WalletPage() {
         </ul>
       )}
 
-      <SectionTitle>Transactions</SectionTitle>
+      <SectionHeading icon={Receipt} title="Transactions" />
       {transactions.isLoading ? (
         <Skeleton className="h-24 w-full rounded-2xl" />
       ) : !transactions.data?.length ? (

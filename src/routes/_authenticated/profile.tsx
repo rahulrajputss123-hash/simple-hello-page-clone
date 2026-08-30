@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, FileText, LogOut, Shield, Wallet } from "lucide-react";
+import { ChevronRight, FileText, LogOut, Settings, Shield, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
-import { SectionTitle } from "@/components/States";
+import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
@@ -70,7 +70,7 @@ function ProfilePage() {
         </div>
       </div>
 
-      <SectionTitle>Settings</SectionTitle>
+      <SectionHeading icon={Settings} title="Settings" />
       <div className="surface-card divide-y divide-border">
         <div className="flex items-center justify-between p-4">
           <div>

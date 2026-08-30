@@ -4,6 +4,7 @@ import { Bell } from "lucide-react";
 import { useEffect } from "react";
 
 import { AppShell } from "@/components/AppShell";
+import { SectionHeading } from "@/components/SectionHeading";
 import { EmptyState } from "@/components/States";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -49,7 +50,7 @@ function NotificationsPage() {
 
   return (
     <AppShell subtitle="Notifications">
-      <h1 className="mb-3 mt-2 text-2xl">Notifications</h1>
+      <SectionHeading size="page" icon={Bell} title="Notifications" />
       {!notifications.data?.length ? (
         <EmptyState
           icon={Bell}

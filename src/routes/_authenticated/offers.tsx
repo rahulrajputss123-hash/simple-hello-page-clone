@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Layers, Star, Tag } from "lucide-react";
 import { useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
@@ -7,7 +7,7 @@ import { FeaturedOffers } from "@/components/FeaturedOffers";
 import { OfferFilterButton, type OfferFilter } from "@/components/OfferFilterButton";
 import { OfferwallSlot } from "@/components/OfferwallSlot";
 import { SectionBanner } from "@/components/SectionBanner";
-import { SectionTitle } from "@/components/States";
+import { SectionHeading } from "@/components/SectionHeading";
 
 export const Route = createFileRoute("/_authenticated/offers")({
   head: () => ({
@@ -25,21 +25,27 @@ function OffersPage() {
   const [filter, setFilter] = useState<OfferFilter>("All");
   return (
     <AppShell subtitle="Offers">
-      <h1 className="mt-2 text-2xl">Offers</h1>
-      <p className="text-sm text-muted-foreground">Complete partner offers for bigger payouts.</p>
+      <SectionHeading
+        size="page"
+        icon={Tag}
+        title="Offers"
+        subtitle="Complete partner offers for bigger payouts."
+      />
 
       <SectionBanner section="offers" />
 
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <SectionTitle className="!m-0">Featured Offers</SectionTitle>
-        <OfferFilterButton value={filter} onChange={setFilter} />
-      </div>
+      <SectionHeading
+        icon={Star}
+        title="Featured Offers"
+        className="!mt-4"
+        action={<OfferFilterButton value={filter} onChange={setFilter} />}
+      />
       <FeaturedOffers scope="home" filter={filter} />
       <div className="mt-3 flex justify-center">
         <ViewAllLink to="/featured" testid="offers-view-all-featured" />
       </div>
 
-      <SectionTitle>Offerwall</SectionTitle>
+      <SectionHeading icon={Layers} title="Offerwall" />
       <OfferwallSlot limit={6} />
       <div className="mt-3 flex justify-center">
         <ViewAllLink to="/offerwall" testid="offers-view-all-offerwall" />

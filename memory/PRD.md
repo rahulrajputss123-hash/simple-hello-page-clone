@@ -297,3 +297,8 @@ INSERT INTO onboarding_steps (target_element_id, title, description, display_ord
 - Replaced the generic 4-card About Us grid (Ways to Earn / Instant Payout / More Offers / Need Help) in `src/routes/_authenticated/home.tsx`.
 - New bold jade-gradient "Cash Out Your Way" section: gold "Payouts" badge + heading, asymmetric layout (PayPal hero card + Crypto and Gift Cards), colorful brand-colored icon badges (lucide Wallet/Bitcoin/Gift).
 - "Need Help?" kept as a separate surface-card below. Added `.payout-card` staggered-reveal + hover-lift animations in `src/styles.css`. Design-only, no functionality changed.
+
+## 2026-06 — Reusable SectionHeading (main heading polish)
+- Added `src/components/SectionHeading.tsx`: left icon badge (soft mint circle + emerald icon), emerald bold title with subtle green brush accent + gold sparkle, optional subtitle + right action; `size="page"|"section"`.
+- Applied across home, offers, offerwall, featured, task, wallet, refer, profile, support, notifications (replaced plain h1 / SectionTitle). Admin panel left on legacy SectionTitle (internal).
+- Design-only; no layout/functionality/content changes. Verified via preview render + all 10 routes SSR 200, clean compile. Authenticated E2E not run (no test login in pod).

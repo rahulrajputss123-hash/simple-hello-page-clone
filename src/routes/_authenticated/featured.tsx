@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Star } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { FeaturedOffers } from "@/components/FeaturedOffers";
+import { SectionHeading } from "@/components/SectionHeading";
 
 export const Route = createFileRoute("/_authenticated/featured")({
   head: () => ({
@@ -23,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/featured")({
 function FeaturedPage() {
   return (
     <AppShell subtitle="Featured offers">
-      <h1 className="mb-3 mt-2 text-2xl">Featured Offers</h1>
+      <SectionHeading size="page" icon={Star} title="Featured Offers" />
       <FeaturedOffers scope="all" />
     </AppShell>
   );

@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Copy, Gift, Share2, Users } from "lucide-react";
+import { Copy, FileText, Gift, Share2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
-import { EmptyState, SectionTitle } from "@/components/States";
+import { SectionHeading } from "@/components/SectionHeading";
+import { EmptyState } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -73,10 +74,13 @@ function ReferPage() {
 
   return (
     <AppShell subtitle="Refer">
-      <header className="mb-4">
-        <h1 className="text-2xl">Refer &amp; Earn</h1>
-        <p className="text-sm text-muted-foreground">Invite friends, get rewarded together</p>
-      </header>
+      <SectionHeading
+        size="page"
+        icon={Users}
+        title="Refer & Earn"
+        subtitle="Invite friends, get rewarded together"
+        className="mb-4"
+      />
 
       <section className="rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
         <h2 className="text-xl">Invite friends, earn more</h2>
@@ -137,7 +141,7 @@ function ReferPage() {
         </div>
       </div>
 
-      <SectionTitle>How you earn {formatMoney(REFERRAL_MAX_BONUS)}</SectionTitle>
+      <SectionHeading icon={Gift} title={`How you earn ${formatMoney(REFERRAL_MAX_BONUS)}`} />
       <ol className="surface-card space-y-1 p-4">
         {MILESTONES.map((milestone, index) => (
           <li key={milestone.key} className="relative flex gap-3 pb-4 last:pb-0">
@@ -161,7 +165,7 @@ function ReferPage() {
         ))}
       </ol>
 
-      <SectionTitle>Your referrals</SectionTitle>
+      <SectionHeading icon={Users} title="Your referrals" />
       {!mine.length ? (
         <EmptyState
           icon={Users}
@@ -212,7 +216,7 @@ function ReferPage() {
         </ul>
       )}
 
-      <SectionTitle>Terms &amp; conditions</SectionTitle>
+      <SectionHeading icon={FileText} title="Terms & conditions" />
       <details className="surface-card p-4">
         <summary className="cursor-pointer text-sm font-semibold">
           Referral terms &amp; conditions

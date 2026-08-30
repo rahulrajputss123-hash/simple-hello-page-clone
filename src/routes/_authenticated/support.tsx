@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { LifeBuoy, PlayCircle } from "lucide-react";
+import { HelpCircle, LifeBuoy, Lightbulb, Mail, PlayCircle, Ticket } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
-import { EmptyState, SectionTitle } from "@/components/States";
+import { SectionHeading } from "@/components/SectionHeading";
+import { EmptyState } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,9 +86,9 @@ function SupportPage() {
 
   return (
     <AppShell subtitle="Support">
-      <h1 className="mt-2 text-2xl">Help centre</h1>
+      <SectionHeading size="page" icon={LifeBuoy} title="Help centre" />
 
-      <SectionTitle>Tips</SectionTitle>
+      <SectionHeading icon={Lightbulb} title="Tips" />
       <div className="surface-card flex items-center justify-between gap-3 p-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold">Replay the app tour</p>
@@ -107,7 +108,7 @@ function SupportPage() {
         </Button>
       </div>
 
-      <SectionTitle>FAQ</SectionTitle>
+      <SectionHeading icon={HelpCircle} title="FAQ" />
       <div className="surface-card px-4">
         <Accordion type="single" collapsible>
           {(faq.data ?? []).map((item) => (
@@ -121,7 +122,7 @@ function SupportPage() {
         </Accordion>
       </div>
 
-      <SectionTitle>Contact us</SectionTitle>
+      <SectionHeading icon={Mail} title="Contact us" />
       <form
         className="surface-card space-y-3 p-4"
         onSubmit={(event) => {
@@ -150,7 +151,7 @@ function SupportPage() {
         </Button>
       </form>
 
-      <SectionTitle>Your tickets</SectionTitle>
+      <SectionHeading icon={Ticket} title="Your tickets" />
       {!tickets.data?.length ? (
         <EmptyState
           icon={LifeBuoy}

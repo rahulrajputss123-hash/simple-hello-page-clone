@@ -2,7 +2,18 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Bitcoin, Flame, Gift, HelpCircle, Sparkles, Wallet } from "lucide-react";
+import {
+  ArrowRight,
+  Bitcoin,
+  Flame,
+  Gift,
+  HelpCircle,
+  Layers,
+  Rocket,
+  Sparkles,
+  Star,
+  Wallet,
+} from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { BannerCarousel } from "@/components/BannerCarousel";
@@ -11,7 +22,7 @@ import { OfferwallSlot } from "@/components/OfferwallSlot";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { SectionBanner } from "@/components/SectionBanner";
 import { StarterQuests } from "@/components/StarterQuests";
-import { SectionTitle } from "@/components/States";
+import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth";
@@ -106,12 +117,12 @@ function HomePage() {
       <SectionBanner section="home" />
 
       <section id="tour-starter-quests">
-        <SectionTitle>Starter Quests</SectionTitle>
+        <SectionHeading icon={Rocket} title="Starter Quests" />
         <StarterQuests />
       </section>
 
       <section id="tour-featured-offers">
-        <SectionTitle>Featured Offers</SectionTitle>
+        <SectionHeading icon={Star} title="Featured Offers" />
         <FeaturedOffers scope="home" />
         <div className="mt-3 flex justify-center">
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -128,11 +139,7 @@ function HomePage() {
 
       <OnboardingTour />
 
-      <SectionTitle>
-        <span className="flex items-center gap-2">
-          Offerwall <Sparkles className="size-4 text-gold-dark" />
-        </span>
-      </SectionTitle>
+      <SectionHeading icon={Layers} title="Offerwall" />
       <OfferwallSlot limit={6} />
       <div className="mt-3 flex justify-center">
         <Link

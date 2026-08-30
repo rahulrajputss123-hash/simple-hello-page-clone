@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
 import { EmptyState, ErrorState } from "@/components/States";
+import { SectionHeading } from "@/components/SectionHeading";
 import { SectionBanner } from "@/components/SectionBanner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -58,8 +59,13 @@ function TaskPage() {
 
   return (
     <AppShell subtitle="Tasks">
-      <h1 className="mt-2 text-2xl">Your tasks</h1>
-      <p className="mb-4 text-sm text-muted-foreground">Work through the list to unlock rewards.</p>
+      <SectionHeading
+        size="page"
+        icon={ListChecks}
+        title="Your tasks"
+        subtitle="Work through the list to unlock rewards."
+        className="mb-4"
+      />
 
       <SectionBanner section="tasks" />
 
