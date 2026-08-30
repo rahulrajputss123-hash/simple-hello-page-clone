@@ -302,3 +302,29 @@ INSERT INTO onboarding_steps (target_element_id, title, description, display_ord
 - Added `src/components/SectionHeading.tsx`: left icon badge (soft mint circle + emerald icon), emerald bold title with subtle green brush accent + gold sparkle, optional subtitle + right action; `size="page"|"section"`.
 - Applied across home, offers, offerwall, featured, task, wallet, refer, profile, support, notifications (replaced plain h1 / SectionTitle). Admin panel left on legacy SectionTitle (internal).
 - Design-only; no layout/functionality/content changes. Verified via preview render + all 10 routes SSR 200, clean compile. Authenticated E2E not run (no test login in pod).
+
+---
+
+## Update — 2026-06 · AI Support Assistant (CashGPT Assistant)
+
+**Feature:** In-app AI support chat in the Support tab, powered by Gemini.
+
+- **Server route:** `sendAssistantMessage` server function (`src/lib/assistant.functions.ts`) →
+  impl `src/lib/assistant/server.ts`. Takes a user message + short conversation history, calls the
+  Gemini `generateContent` API with `GEMINI_API_KEY` and `CASHGPT_SYSTEM_PROMPT` as the system
+  instruction, returns `{ reply }` as JSON. Auth-gated with `requireSupabaseAuth`.
+- **Model note:** Spec asked for `gemini-2.0-flash`, but that model is now retired by Google (404,
+  "no longer available"). Implemented with the recommended current model `gemini-3.6-flash`.
+- **Widget:** `src/components/AssistantChat.tsx` — floating chat bubble, chat panel (message history,
+  input, send), loading (typing dots) state, and a failure fallback message. Custom coin-mascot
+  avatar (`/public/assistant-mascot.png`, generated from the app's coin logo) reused in the floating
+  button, chat header, and the "AI Assistant" card. Matches the jade/cream/gold theme.
+- **Runtime fix (infra):** switched the supervised dev server (`lovableapp` / `run_dev.sh`) to the
+  **bun runtime** (`bun --bun`) on port 3000, because supabase-js needs a global WebSocket missing in
+  Node 20 — this was breaking ALL authenticated server functions in the sandbox.
+- **Verified:** logged-in user → Support → open chat → send → grounded reply (~7s), loading + fallback
+  paths both exercised.
+
+### Next / backlog
+- P2: persist chat history per user (currently in-session only, per user choice).
+- P2: quick-reply chips for common FAQ questions.

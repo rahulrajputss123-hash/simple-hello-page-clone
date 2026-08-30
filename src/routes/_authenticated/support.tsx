@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { HelpCircle, LifeBuoy, Lightbulb, Mail, PlayCircle, Ticket } from "lucide-react";
 import { toast } from "sonner";
 
+import { AiAssistant } from "@/components/AssistantChat";
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
 import { EmptyState } from "@/components/States";
@@ -87,6 +88,8 @@ function SupportPage() {
   return (
     <AppShell subtitle="Support">
       <SectionHeading size="page" icon={LifeBuoy} title="Help centre" />
+
+      <AiAssistant />
 
       <SectionHeading icon={Lightbulb} title="Tips" />
       <div className="surface-card flex items-center justify-between gap-3 p-4">
