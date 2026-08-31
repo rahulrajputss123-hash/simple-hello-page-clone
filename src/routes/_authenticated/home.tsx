@@ -5,7 +5,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Bitcoin,
-  Flame,
   Gift,
   HelpCircle,
   Layers,
@@ -16,7 +15,6 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
-import { BannerCarousel } from "@/components/BannerCarousel";
 import { FeaturedOffers } from "@/components/FeaturedOffers";
 import { OfferwallSlot } from "@/components/OfferwallSlot";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -24,7 +22,6 @@ import { SectionBanner } from "@/components/SectionBanner";
 import { StarterQuests } from "@/components/StarterQuests";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth";
 import { completeOnboarding } from "@/lib/coinquest.functions";
 import { getDeviceId } from "@/lib/ads";
@@ -85,35 +82,8 @@ function HomePage() {
     // Fallback for edge cases (old accounts, cleared storage): keep old screen.
     void navigate({ to: "/onboarding", replace: true });
   }, [profile, navigate, queryClient, save]);
-  const streak = profile?.streak_count ?? 0;
-  const goal = 7;
-
   return (
     <AppShell subtitle="Earn as you go">
-      <BannerCarousel
-        banners={[
-          {
-            id: "earn-today",
-            eyebrow: `Welcome back${profile?.name ? `, ${profile.name}` : ""}`,
-            title: "Let's earn today",
-            content: (
-              <>
-                <div className="mt-4 flex items-center gap-2 text-sm">
-                  <Flame className="size-4 text-gold" />
-                  <span className="font-semibold">{streak} day streak</span>
-                  <span className="opacity-70">· {Math.max(0, goal - streak)} to bonus</span>
-                </div>
-                <Progress
-                  value={(Math.min(streak, goal) / goal) * 100}
-                  className="mt-2 h-2 bg-primary-foreground/20"
-                />
-                <div className="h-4" />
-              </>
-            ),
-          },
-        ]}
-      />
-
       <SectionBanner section="home" />
 
       <section id="tour-starter-quests">

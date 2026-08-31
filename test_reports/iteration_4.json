@@ -15,6 +15,6 @@
   "should_call_test_agent_after_fix": false,
   "should_main_agent_self_test": false,
   "test_credentials": "None available in pod; /app/memory not containing usable login credentials — authenticated routes untestable",
-  "context_for_next_testing_agent": "Flat Vite/TanStack app at /app root (not /app/frontend). Dev server on 8080, node /tmp/proxy.js forwards 3000->8080, ingress maps 3000. Preview: https://cashgpt-support.preview.emergentagent.com. Root redirects to public /sign-in route. Redesigned 'Cash Out Your Way' section (data-testid=cash-out-section, payout-method-paypal/crypto/giftcards, need-help-card) remains unverified — needs Supabase test user.",
+  "context_for_next_testing_agent": "Flat Vite/TanStack app at /app root (not /app/frontend). Dev server on 8080, node /tmp/proxy.js forwards 3000->8080, ingress maps 3000. Preview: https://strip-welcome-card.preview.emergentagent.com. Root redirects to public /sign-in route. Redesigned 'Cash Out Your Way' section (data-testid=cash-out-section, payout-method-paypal/crypto/giftcards, need-help-card) remains unverified — needs Supabase test user.",
   "rca_of_the_issue": "Vite 5+ rejects requests whose Host header is not in server.allowedHosts. Adding `vite: { server: { allowedHosts: true } }` to the @lovable.dev/vite-tanstack-config defineConfig disables the host check; confirmed by 200 responses with arbitrary Host headers."
 }

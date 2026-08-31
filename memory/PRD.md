@@ -356,3 +356,9 @@ INSERT INTO onboarding_steps (target_element_id, title, description, display_ord
    (feeds a custom-only candidate list into the existing rotation), and elsewhere skips any template an
    admin switched off. Verified: Home shows 0 smart + rotates the 2 custom home banners; the hardcoded
    welcome/streak carousel is untouched.
+
+## 2026-08-31 — Home hardcoded streak card removed
+- Deleted the hardcoded BannerCarousel block ("Welcome back / Let's earn today / X day streak · Y to bonus" incl. progress bar) from /app/src/routes/_authenticated/home.tsx.
+- Removed now-unused imports (BannerCarousel, Flame, Progress) and streak/goal vars.
+- <SectionBanner section="home" /> is now the first element in AppShell (custom banner rotation unchanged).
+- Verified: vite dev serves /home with HTTP 200, no compile errors.
