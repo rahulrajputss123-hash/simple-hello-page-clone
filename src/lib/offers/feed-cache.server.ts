@@ -334,29 +334,59 @@ export async function assembleFeaturedImpl(
   // Hide offers this user has already COMPLETED (offer_claims.status = 'approved' —
   // covers both admin-approved and auto_postback credited claims). Pending / rejected
   // claims are intentionally kept so the offer stays available (and re-tryable).
-  const visible = userId ? await filterCompletedOffers(combined, userId) : combined;
+  // Also mirror the limited-deal "one per deal_group" visual hide that used to live in
+  // the offers RLS policy (moved here so the policy no longer self-references offers).
+  const visible = userId ? await filterUserHiddenOffers(combined, userId) : combined;
   if (scope === "home") return visible.slice(0, settings.featuredSlots);
   return visible;
 }
 
-/** Remove offers the user has an 'approved' claim for. */
-async function filterCompletedOffers(
+/**
+ * Remove offers the user should no longer see:
+ *  1. Offers they have an 'approved' claim for (completed).
+ *  2. Limited-deal siblings: once the user holds a non-rejected claim on ANY offer
+ *     in a deal_group, the OTHER offers in that group disappear (the claimed offer
+ *     itself stays until it is approved, per rule 1).
+ */
+async function filterUserHiddenOffers(
   offers: FeaturedOffer[],
   userId: string,
 ): Promise<FeaturedOffer[]> {
   if (!offers.length) return offers;
-  const { data } = await supabaseAdmin
+
+  // All of the user's non-rejected claims, with the claimed offer's deal_group_id.
+  const { data: claims } = await supabaseAdmin
     .from("offer_claims")
-    .select("offer_id")
+    .select("offer_id, status, offers:offer_id(deal_group_id)")
     .eq("user_id", userId)
-    .eq("status", "approved")
-    .in(
-      "offer_id",
-      offers.map((o) => o.id),
-    );
-  const completed = new Set((data ?? []).map((r) => r.offer_id));
-  if (!completed.size) return offers;
-  return offers.filter((o) => !completed.has(o.id));
+    .neq("status", "rejected");
+
+  const approved = new Set<string>();
+  const claimedIdsByGroup = new Map<string, Set<string>>();
+  for (const c of (claims ?? []) as Array<{
+    offer_id: string;
+    status: string;
+    offers: { deal_group_id?: string | null } | null;
+  }>) {
+    if (c.status === "approved") approved.add(c.offer_id);
+    const group = c.offers?.deal_group_id ?? null;
+    if (group) {
+      if (!claimedIdsByGroup.has(group)) claimedIdsByGroup.set(group, new Set());
+      claimedIdsByGroup.get(group)!.add(c.offer_id);
+    }
+  }
+
+  if (!approved.size && !claimedIdsByGroup.size) return offers;
+
+  return offers.filter((o) => {
+    if (approved.has(o.id)) return false; // completed
+    if (o.deal_group_id) {
+      const claimedInGroup = claimedIdsByGroup.get(o.deal_group_id);
+      // Hide if a SIBLING (different offer) in this group has a non-rejected claim.
+      if (claimedInGroup && [...claimedInGroup].some((id) => id !== o.id)) return false;
+    }
+    return true;
+  });
 }
 
 const KNOWN_TAGS: FeaturedOffer["tags"][number][] = ["Hot", "Trending", "Easy", "Popular"];
