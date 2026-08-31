@@ -393,3 +393,11 @@ Migration file: supabase/migrations/20261205000000_offers_image_url_and_rls_recu
 Backend regression test added by testing agent: /app/backend/tests/test_offers_rls_image_url.py
 
 Still-open, OUT OF SCOPE (not requested): client query selecting user_tasks.target (column missing -> 42703 on SectionBanner); SectionBanner queries swallow PostgREST errors (masked these bugs); OnboardingTour overlay intercepts first-visit card clicks.
+
+---
+## SectionHeading visual polish — 2026-06
+Visual-only restyle of shared SectionHeading.tsx (used app-wide: home/offers/featured/offerwall/tasks). No layout/spacing/structure change.
+- Title color: text-foreground -> text-primary (brand jade); font-display kept.
+- Underline: faint mint/40 -> mint→gold gradient stroke (id sh-underline-<slug>), strokeWidth 3.5, full opacity, taller (h-2.5).
+- Sparkle: size-4, text-gold-dark + drop-shadow, gentle shimmer (@keyframes sh-sparkle 2.4s) with prefers-reduced-motion guard (styles.css).
+- Heading accent (gradient brush + shimmer sparkle) reserved to headings only, distinct from tags/buttons/payout.

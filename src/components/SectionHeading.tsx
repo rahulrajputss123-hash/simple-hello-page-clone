@@ -46,27 +46,38 @@ export function SectionHeading({
           <span className="inline-flex items-center gap-1.5">
             <span className="relative inline-block">
               <h2
-                className={`font-display leading-tight text-foreground ${isPage ? "text-xl" : "text-lg"}`}
+                className={`font-display leading-tight text-primary ${isPage ? "text-xl" : "text-lg"}`}
               >
                 {title}
               </h2>
-              {/* subtle curved brush accent under the title */}
+              {/* mint→gold brush accent under the title (reserved for section headings) */}
               <svg
                 aria-hidden
                 viewBox="0 0 120 12"
                 fill="none"
                 preserveAspectRatio="none"
-                className="pointer-events-none absolute -bottom-1 left-0 h-2 w-full text-mint/40"
+                className="pointer-events-none absolute -bottom-1 left-0 h-2.5 w-full"
               >
+                <defs>
+                  <linearGradient id={`sh-underline-${slug}`} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="var(--mint)" />
+                    <stop offset="55%" stopColor="var(--mint)" />
+                    <stop offset="100%" stopColor="var(--gold-dark)" />
+                  </linearGradient>
+                </defs>
                 <path
                   d="M2 8C28 3 62 3 118 6"
-                  stroke="currentColor"
-                  strokeWidth="3"
+                  stroke={`url(#sh-underline-${slug})`}
+                  strokeWidth="3.5"
                   strokeLinecap="round"
                 />
               </svg>
             </span>
-            <Sparkles className="size-3.5 shrink-0 text-gold" aria-hidden />
+            <Sparkles
+              className="size-4 shrink-0 text-gold-dark drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]"
+              style={{ animation: "sh-sparkle 2.4s ease-in-out infinite" }}
+              aria-hidden
+            />
           </span>
           {subtitle ? (
             <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
