@@ -40,6 +40,7 @@ export type FeaturedOffer = {
   click_url: string | null;
   source: string;
   provider_id: string | null;
+  provider_slug: string | null;
   is_limited_deal: boolean;
   deal_group_id: string | null;
   actual_cost: number | null;
@@ -193,6 +194,7 @@ export async function assembleFeaturedImpl(
 
   const providers = await enabledProviders();
   const weightByProviderId = new Map(providers.map((p) => [p.id, readNetworkFeedConfig(p.slug, p.sync_config).weight]));
+  const slugByProviderId = new Map(providers.map((p) => [p.id, p.slug]));
 
   // Gather network offer ids per provider for this country (refresh on miss/expiry).
   const collected = new Map<string, number>(); // offerId -> highest provider weight
@@ -231,6 +233,7 @@ export async function assembleFeaturedImpl(
         click_url: o.click_url,
         source: o.source,
         provider_id: o.provider_id,
+        provider_slug: o.provider_id ? (slugByProviderId.get(o.provider_id) ?? null) : null,
         is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
         deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
         actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
@@ -280,6 +283,7 @@ export async function assembleFeaturedImpl(
       click_url: o.click_url,
       source: o.source,
       provider_id: o.provider_id,
+      provider_slug: null,
       is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
       deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
       actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,

@@ -36,6 +36,7 @@ export type OfferDetailsPayload = {
   not_allowed?: string | null;
   reward_amount: number;
   click_url?: string | null;
+  provider_slug?: string | null;
   is_limited_deal?: boolean;
   payout_mode?: "manual" | "manual_proof" | "auto_postback";
 };

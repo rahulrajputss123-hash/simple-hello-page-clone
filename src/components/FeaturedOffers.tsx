@@ -12,6 +12,8 @@ import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterBu
 import { formatMoney } from "@/lib/coinquest";
 import { claimOffer } from "@/lib/coinquest.functions";
 import { getFeaturedFeed, trackOfferClick } from "@/lib/offers.functions";
+import { useAuth } from "@/lib/auth";
+import { appendAffSub4 } from "@/lib/offers/click-url";
 import { useOfferClaims } from "@/lib/queries";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -26,6 +28,7 @@ export function FeaturedOffers({
 }) {
   const fetchFeed = useServerFn(getFeaturedFeed);
   const trackClick = useServerFn(trackOfferClick);
+  const { session } = useAuth();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["featured-feed", scope],
     queryFn: () => fetchFeed({ data: { scope } }),
@@ -81,7 +84,8 @@ export function FeaturedOffers({
     // Fire-and-forget click event for the Popular/Trending tag engine.
     void trackClick({ data: { offerId: pending.id } }).catch(() => {});
     if (pending.click_url) {
-      window.open(pending.click_url, "_blank", "noopener,noreferrer");
+      const url = appendAffSub4(pending.click_url, pending.provider_slug, session?.user.id);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
     }
     if (pending.payout_mode !== "auto_postback") {
       mutation.mutate({ offerId: pending.id, proofUrl: payload.proofPath ?? null });
@@ -153,6 +157,7 @@ export function FeaturedOffers({
                       not_allowed: offer.not_allowed,
                       reward_amount: offer.reward_amount,
                       click_url: offer.click_url,
+                      provider_slug: offer.provider_slug,
                       is_limited_deal: offer.is_limited_deal,
                       payout_mode: offer.payout_mode,
                     })
