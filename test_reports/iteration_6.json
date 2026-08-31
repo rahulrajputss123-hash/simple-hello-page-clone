@@ -1,0 +1,32 @@
+{
+  "summary": "Verified both follow-up fixes (offers RLS recursion + offers.image_url column) via Supabase REST (pytest, 7/7 pass) and through the real logged-in UI (Playwright, mobile 390x844, QA user qa.assistant@cashgpt.test). BUG 1 FIXED: the exact SectionBanner client query GET /rest/v1/offers?select=id,reward_amount,is_active&is_active=eq.true&limit=200 now returns HTTP 200 with rows both with the anon key and with a real user JWT; in the browser it was captured twice (home + offers) with status 200 and no 42P17 anywhere in network or console. RLS is correctly restrictive: inactive offers return [] for a normal user while service role sees them; INSERT by a normal user is rejected. BUG 2 FIXED: offers.image_url exists and is readable client-side (no 42703); every offer whose icon is an http(s) URL has image_url backfilled and all image_url values are http URLs. On /featured all 18 network cards render real <img> banners with naturalWidth>0 (banners.hangmyads.com / cdn.affise.com) and 0 broken images; the 3 manual offers show the Gift placeholder on the jade gradient. Regression checks all pass: featured-offers-list renders on /home (3 cards), /offers (3), /featured (21); zero 'In review'/'Approved'/'Rejected' text; zero in-card Claim buttons; featured-offer-<id> and featured-offer-claim-<id> counts match card counts on all 3 routes; clicking a card opens offer-details-dialog with title ('Coin Master Rush'), gold payout ($4.50) and footer CTA offer-details-continue. Section banners render on /offers (5 rotating). General smoke: login, app shell, bottom nav, Home/Offers/Featured all load with no runtime errors or blank screens.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "supabase REST GET /rest/v1/user_tasks?select=progress,target,status (SectionBanner client query)", "issue": "STILL OPEN from iteration 5: 400 {\"code\":\"42703\",\"message\":\"column user_tasks.target does not exist\"} — the tasks-progress smart-banner signal silently returns nothing and logs a console error on every Home/Tasks load."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "First-visit card click", "issue": "OnboardingTour overlay (tour-overlay) still intercepts clicks over the offers grid until 'Skip' is pressed (pre-existing, by design; automation must dismiss it).", "affected_selectors": ["[data-testid=\"tour-overlay\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "Featured Offers grid (390px)", "issues": ["Pre-existing: 3-column grid truncates titles heavily (many 'CTConnect ...' cards look identical).", "Pre-existing: HOT/EASY tag pills overlay the banner top-left and partly cover artwork/placeholder icon."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_offers_rls_image_url.py", "/app/test_reports/pytest/pytest_results_iter6.xml"],
+  "action_items": ["Fix the client-side user_tasks select (column 'target' does not exist) — only remaining failing request in the logged-in app."],
+  "critical_code_review_comments": [
+    "SectionBanner offers/user_tasks/offerwall queries swallow the PostgREST error (`const { data } = await ...` with no error check) — that is why the 42P17 500 and the 42703 400 were invisible in the UI. Surface or log `error` so schema/RLS regressions fail loudly.",
+    "data-testid='featured-offer-claim-<id>' now labels a pure chevron affordance (no claim action); consider renaming to featured-offer-open-<id> to avoid misleading future tests."
+  ],
+  "updated_files": ["/app/backend/tests/test_offers_rls_image_url.py"],
+  "success_rate": {"backend": "100% (7/7 Supabase REST tests)", "frontend": "100% of requested checks (BUG1, BUG2, 5 regression checks, smoke)"},
+  "seed_data_creation": "none",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "qa.assistant@cashgpt.test / CashGPT!test123 — works, lands on /home",
+  "context_for_next_testing_agent": "Login /auth -> wait ~4s for splash-screen to fully detach (an early wait_for_selector detach can pass while a second splash mounts; a flat 4s wait is more reliable), then Skip the tour. /home & /offers show 3 featured cards (manual, Gift placeholder), /featured shows 21 (18 network with real images). Images are lazy-loaded: scroll and wait ~3s before asserting naturalWidth. Backend regression suite: /app/backend/tests/test_offers_rls_image_url.py (offers RLS + image_url). Approved-claim / limited-deal-sibling auto-hide still unverified (no approved claim seed).",
+  "rca_of_the_issue": "BUG1: a self-referential RLS policy on public.offers raised Postgres 42P17 for any non-service-role read; consolidating to a single SELECT policy USING (is_active AND (expires_at IS NULL OR expires_at > now())) removed the recursion — verified 200 with both anon key and user JWT plus correct row filtering. BUG2: banner URLs were overloaded into the icon column; the new image_url column is present, backfilled from http(s) icons, and consumed by FeaturedOffers (with icon fallback and onError placeholder) — 18/18 network banners load, 0 broken."
+}

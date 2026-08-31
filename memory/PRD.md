@@ -381,3 +381,15 @@ Out of scope / pre-existing (NOT fixed, flagged by testing agent):
 - OnboardingTour overlay intercepts card clicks on first visit (by design).
 
 Env note: app runs via supervisor program `lovableapp` (/app/run_dev.sh -> bun --bun vite dev :3000). Recreated the supervisor conf + reinstalled bun after pod reset.
+
+---
+## Offers RLS recursion + real image_url column — 2026-06 (verified, testing agent 100%; backend 7/7)
+User-reported follow-ups (both DB migrations, applied by user via Supabase SQL editor since this pod only has the service-role/PostgREST key — no DDL access):
+
+1. RLS recursion (Postgres 42P17): public.offers had multiple SELECT-applicable policies; one ("offers readable" from 20261115) sub-queried offers inside its own USING clause -> infinite recursion -> every authenticated client read of offers returned 500 (broke SectionBanner's client offers-count query; FeaturedOffers feed was unaffected since it uses the service role). FIX: dropped ALL offers policies and created a single recursion-proof SELECT policy: USING (is_active = true AND (expires_at IS NULL OR expires_at > now())). Writes go through server functions on the service role, so no authenticated write policy needed. Limited-deal one-time rule still enforced at claim time (coinquest.server.ts) and visually in the feed (feed-cache.server.ts filterUserHiddenOffers: hides approved claims + limited-deal siblings).
+2. Real image_url column: added offers.image_url + backfilled from icon where icon is an http(s) URL. feed-cache.server.ts detects the column (offersHasImageUrl), reads it with icon fallback (pickImageUrl), and future network syncs write image_url too.
+
+Migration file: supabase/migrations/20261205000000_offers_image_url_and_rls_recursion_fix.sql
+Backend regression test added by testing agent: /app/backend/tests/test_offers_rls_image_url.py
+
+Still-open, OUT OF SCOPE (not requested): client query selecting user_tasks.target (column missing -> 42703 on SectionBanner); SectionBanner queries swallow PostgREST errors (masked these bugs); OnboardingTour overlay intercepts first-visit card clicks.
