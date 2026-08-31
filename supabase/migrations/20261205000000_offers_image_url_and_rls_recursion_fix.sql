@@ -1,6 +1,4 @@
--- =============================================================================
 -- (A) Fix infinite recursion in the offers SELECT RLS policy (Postgres 42P17)
--- =============================================================================
 -- The previous "offers readable" policy sub-queried public.offers INSIDE the
 -- offers policy itself (JOIN public.offers other ...). Evaluating the offers
 -- policy therefore re-triggers the same policy -> infinite recursion, so every
@@ -48,9 +46,7 @@ CREATE POLICY "offers readable" ON public.offers
 
 -- (Admin full-read policy "admins see all offers" is left intact.)
 
--- =============================================================================
 -- (B) Add a real `image_url` column instead of overloading `icon`
--- =============================================================================
 -- Network offers historically stored their banner image URL in `icon`, while
 -- manual offers store a lucide icon keyword there. Give images a dedicated
 -- column and backfill it from any icon value that is already an http(s) URL.
