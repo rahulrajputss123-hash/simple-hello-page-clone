@@ -56,6 +56,22 @@ function imageUrlFromIcon(icon: string | null | undefined): string | null {
   return typeof icon === "string" && /^https?:\/\//i.test(icon.trim()) ? icon.trim() : null;
 }
 
+// The dedicated `offers.image_url` column is added by a migration; until that
+// migration is applied on a given environment the column may not exist, so we
+// detect it once and gracefully fall back to the legacy behaviour (image URL
+// stored in `icon`). This keeps the feed working regardless of migration state.
+let _offersHasImageUrl: boolean | null = null;
+async function offersHasImageUrl(): Promise<boolean> {
+  if (_offersHasImageUrl !== null) return _offersHasImageUrl;
+  const { error } = await supabaseAdmin.from("offers").select("image_url").limit(1);
+  _offersHasImageUrl = !error;
+  return _offersHasImageUrl;
+}
+const imageCol = (has: boolean) => (has ? ", image_url" : "");
+function pickImageUrl(o: { image_url?: string | null; icon?: string | null }): string | null {
+  return imageUrlFromIcon(o.image_url) ?? imageUrlFromIcon(o.icon);
+}
+
 function offerRowFromNormalized(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) {
   const share = offer.revenueShare ?? provider.default_revenue_share;
   // NOTE: countries/devices/is_featured/sort_order/expires_at are intentionally omitted so an
@@ -116,7 +132,13 @@ async function refreshProviderCountry(
 
   let cached: CachedOffer[] = [];
   if (limited.length) {
-    const rows = limited.map((o) => offerRowFromNormalized(provider, o, seenAt));
+    const hasImageUrl = await offersHasImageUrl();
+    const rows = limited.map((o) => {
+      const row = offerRowFromNormalized(provider, o, seenAt);
+      // Once the dedicated column exists, persist the banner URL there too so
+      // `icon` is no longer the only place a network image lives.
+      return hasImageUrl ? { ...row, image_url: imageUrlFromIcon(o.icon) } : row;
+    });
     const { data: upserted, error } = await supabaseAdmin
       .from("offers")
       .upsert(rows as never, { onConflict: "provider_id,external_offer_id" })
@@ -199,6 +221,7 @@ export async function assembleFeaturedImpl(
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
 
   const providers = await enabledProviders();
+  const hasImageUrl = await offersHasImageUrl();
   const weightByProviderId = new Map(providers.map((p) => [p.id, readNetworkFeedConfig(p.slug, p.sync_config).weight]));
   const slugByProviderId = new Map(providers.map((p) => [p.id, p.slug]));
 
@@ -221,12 +244,13 @@ export async function assembleFeaturedImpl(
     const { data } = await supabaseAdmin
       .from("offers")
       .select(
-        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual",
+        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual" +
+          imageCol(hasImageUrl),
       )
       .in("id", [...collected.keys()])
       .eq("is_active", true);
     const now = Date.now();
-    networkOffers = (data ?? [])
+    networkOffers = ((data ?? []) as any[])
       .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
       .map((o) => ({
         id: o.id,
@@ -235,7 +259,7 @@ export async function assembleFeaturedImpl(
         requirements: o.requirements,
         not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
         icon: o.icon,
-        image_url: imageUrlFromIcon(o.icon),
+        image_url: pickImageUrl(o as { image_url?: string | null; icon?: string | null }),
         reward_amount: Number(o.reward_amount),
         click_url: o.click_url,
         source: o.source,
@@ -264,7 +288,8 @@ export async function assembleFeaturedImpl(
   const { data: manualRows } = await supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual",
+      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual" +
+        imageCol(hasImageUrl),
     )
     .eq("source", "manual")
     .eq("is_featured", true)
@@ -273,7 +298,7 @@ export async function assembleFeaturedImpl(
     .order("sort_order", { ascending: true });
 
   const now = Date.now();
-  const manualOffers: FeaturedOffer[] = (manualRows ?? [])
+  const manualOffers: FeaturedOffer[] = ((manualRows ?? []) as any[])
     .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
     .filter((o) => {
       const countries = (o.countries ?? []) as string[];
@@ -286,7 +311,7 @@ export async function assembleFeaturedImpl(
       requirements: o.requirements,
       not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
       icon: o.icon,
-      image_url: imageUrlFromIcon(o.icon),
+      image_url: pickImageUrl(o as { image_url?: string | null; icon?: string | null }),
       reward_amount: Number(o.reward_amount),
       click_url: o.click_url,
       source: o.source,
