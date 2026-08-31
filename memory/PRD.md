@@ -362,3 +362,22 @@ INSERT INTO onboarding_steps (target_element_id, title, description, display_ord
 - Removed now-unused imports (BannerCarousel, Flame, Progress) and streak/goal vars.
 - <SectionBanner section="home" /> is now the first element in AppShell (custom banner rotation unchanged).
 - Verified: vite dev serves /home with HTTP 200, no compile errors.
+
+---
+## Featured Offers fix & polish — 2026-06 (verified, testing agent 100%)
+Scope: FeaturedOffers.tsx, offers/feed-cache.server.ts, OfferTagRow.tsx, OfferDetailsDialog.tsx, offers.functions.ts.
+
+Done:
+- Card image: rendered full-width banner from offer.image_url with Gift-icon fallback (jade gradient) + <img> onError fallback (never a broken image).
+- ROOT-CAUSE FIX for "No offers available": offers.image_url column does NOT exist. Network offers store their image URL in the existing `icon` column; manual offers store a lucide keyword. Now image_url is derived via imageUrlFromIcon(icon) = icon when it matches ^https?://, else null. The earlier attempt selecting a nonexistent image_url column errored the whole PostgREST query -> empty feed.
+- No claim-pending UX: removed the In review / Approved / Rejected status label and the in-card Claim button. Whole <li> is clickable (role=button + keyboard) and opens OfferDetailsDialog (single CTA lives only in the dialog).
+- Completion auto-hide: server-side in getFeaturedFeedImpl/assembleFeaturedImpl via filterCompletedOffers(userId) — hides only offers with offer_claims.status='approved' (rejected/pending stay visible). getFeaturedFeed passes context.userId.
+- Redesign: compact 3-col cards, image top, tag pills overlaid (OfferTagRow higher-contrast + bigger touch target), title 1 line, description 1 line, prominent gold payout at bottom, corner chevron affordance (carries featured-offer-claim-<id>). Skeleton updated to match (aspect-[3/4] rounded).
+- data-testids preserved: featured-offers-list, featured-offers-loading, featured-offer-<id>, featured-offer-claim-<id>.
+
+Out of scope / pre-existing (NOT fixed, flagged by testing agent):
+- Recursive RLS policy on public.offers (42P17) breaks client-side offers queries (Featured feed unaffected — uses service role).
+- Client query selects user_tasks.target (column missing, 400).
+- OnboardingTour overlay intercepts card clicks on first visit (by design).
+
+Env note: app runs via supervisor program `lovableapp` (/app/run_dev.sh -> bun --bun vite dev :3000). Recreated the supervisor conf + reinstalled bun after pod reset.

@@ -36,6 +36,7 @@ export type FeaturedOffer = {
   requirements: string;
   not_allowed: string;
   icon: string;
+  image_url: string | null;
   reward_amount: number;
   click_url: string | null;
   source: string;
@@ -50,6 +51,10 @@ export type FeaturedOffer = {
   category: string | null;
   tags: ("Hot" | "Trending" | "Easy" | "Popular")[];
 };
+
+function imageUrlFromIcon(icon: string | null | undefined): string | null {
+  return typeof icon === "string" && /^https?:\/\//i.test(icon.trim()) ? icon.trim() : null;
+}
 
 function offerRowFromNormalized(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) {
   const share = offer.revenueShare ?? provider.default_revenue_share;
@@ -188,6 +193,7 @@ export async function assembleFeaturedImpl(
   scope: "home" | "all",
   presetSettings?: FeedSettings,
   ip?: string | null,
+  userId?: string | null,
 ): Promise<FeaturedOffer[]> {
   const settings = presetSettings ?? (await getFeedSettingsImpl());
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
@@ -229,6 +235,7 @@ export async function assembleFeaturedImpl(
         requirements: o.requirements,
         not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
         icon: o.icon,
+        image_url: imageUrlFromIcon(o.icon),
         reward_amount: Number(o.reward_amount),
         click_url: o.click_url,
         source: o.source,
@@ -279,6 +286,7 @@ export async function assembleFeaturedImpl(
       requirements: o.requirements,
       not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
       icon: o.icon,
+      image_url: imageUrlFromIcon(o.icon),
       reward_amount: Number(o.reward_amount),
       click_url: o.click_url,
       source: o.source,
@@ -298,8 +306,32 @@ export async function assembleFeaturedImpl(
   const combined = [...manualOffers, ...networkOffers];
   // Overlay auto-tags for offers that don't have admin-locked tags.
   await applyAutoTags(combined);
-  if (scope === "home") return combined.slice(0, settings.featuredSlots);
-  return combined;
+  // Hide offers this user has already COMPLETED (offer_claims.status = 'approved' —
+  // covers both admin-approved and auto_postback credited claims). Pending / rejected
+  // claims are intentionally kept so the offer stays available (and re-tryable).
+  const visible = userId ? await filterCompletedOffers(combined, userId) : combined;
+  if (scope === "home") return visible.slice(0, settings.featuredSlots);
+  return visible;
+}
+
+/** Remove offers the user has an 'approved' claim for. */
+async function filterCompletedOffers(
+  offers: FeaturedOffer[],
+  userId: string,
+): Promise<FeaturedOffer[]> {
+  if (!offers.length) return offers;
+  const { data } = await supabaseAdmin
+    .from("offer_claims")
+    .select("offer_id")
+    .eq("user_id", userId)
+    .eq("status", "approved")
+    .in(
+      "offer_id",
+      offers.map((o) => o.id),
+    );
+  const completed = new Set((data ?? []).map((r) => r.offer_id));
+  if (!completed.size) return offers;
+  return offers.filter((o) => !completed.has(o.id));
 }
 
 const KNOWN_TAGS: FeaturedOffer["tags"][number][] = ["Hot", "Trending", "Easy", "Popular"];
@@ -346,10 +378,11 @@ export async function getFeaturedFeedImpl(
   requestedCountry: string | null,
   scope: "home" | "all",
   ip?: string | null,
+  userId?: string | null,
 ): Promise<FeaturedFeedResult> {
   const settings = await getFeedSettingsImpl();
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
-  const offers = await assembleFeaturedImpl(requestedCountry, scope, settings, ip);
+  const offers = await assembleFeaturedImpl(requestedCountry, scope, settings, ip, userId);
   return { country, offers };
 }
 
