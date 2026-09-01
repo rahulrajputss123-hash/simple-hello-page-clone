@@ -401,3 +401,7 @@ Visual-only restyle of shared SectionHeading.tsx (used app-wide: home/offers/fea
 - Underline: faint mint/40 -> mint→gold gradient stroke (id sh-underline-<slug>), strokeWidth 3.5, full opacity, taller (h-2.5).
 - Sparkle: size-4, text-gold-dark + drop-shadow, gentle shimmer (@keyframes sh-sparkle 2.4s) with prefers-reduced-motion guard (styles.css).
 - Heading accent (gradient brush + shimmer sparkle) reserved to headings only, distinct from tags/buttons/payout.
+
+---
+## OfferwallSlot card redesign — 2026-06
+Visual/layout only (no data/query change). Replaced 36px logo icon with a full-width aspect-[16/9] banner (object-cover, rounded via surface-card+overflow-hidden), jade-gradient + Layers fallback with onError broken-image guard, content moved below banner. grid-cols-2 kept. listSdkOfferwallProviders/buildOfferwallUrl unchanged.

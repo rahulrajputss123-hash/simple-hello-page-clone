@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ExternalLink, Layers } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -22,6 +23,7 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
 export function OfferwallSlot({ limit }: { limit?: number }) {
   const { session } = useAuth();
   const fetchProviders = useServerFn(listSdkOfferwallProviders);
+  const [broken, setBroken] = useState<Record<string, boolean>>({});
 
   const providers = useQuery({
     queryKey: ["sdk-offerwall-public", limit ?? "all"],
@@ -49,29 +51,43 @@ export function OfferwallSlot({ limit }: { limit?: number }) {
             : null;
 
         return (
-          <article key={provider.id} className="surface-card flex flex-col gap-2 p-3">
-            <span className="grid size-9 place-items-center overflow-hidden rounded-xl bg-jade-gradient text-primary-foreground">
-              {provider.logoUrl ? (
-                <img src={provider.logoUrl} alt={`${provider.name} logo`} className="size-9 object-cover" />
+          <article
+            key={provider.id}
+            className="surface-card flex flex-col overflow-hidden !p-0 shadow-soft transition-shadow duration-200 hover:shadow-gold"
+          >
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-background-alt">
+              {provider.logoUrl && !broken[provider.id] ? (
+                <img
+                  src={provider.logoUrl}
+                  alt={`${provider.name} banner`}
+                  loading="lazy"
+                  onError={() => setBroken((b) => ({ ...b, [provider.id]: true }))}
+                  className="size-full object-cover"
+                />
               ) : (
-                <Layers className="size-4" />
+                <span className="grid size-full place-items-center bg-jade-gradient text-primary-foreground">
+                  <Layers className="size-7" />
+                </span>
               )}
-            </span>
-            <div>
-              <p className="font-semibold leading-tight">{provider.name}</p>
-              <p className="text-xs text-muted-foreground">{provider.tagline}</p>
             </div>
-            {url ? (
-              <Button size="sm" variant="jade" className="mt-auto gap-1" asChild>
-                <a href={url} target="_blank" rel="noopener noreferrer">
-                  Open <ExternalLink className="size-3.5" />
-                </a>
-              </Button>
-            ) : (
-              <Button size="sm" variant="outline" className="mt-auto gap-1" disabled>
-                Mobile app only <ExternalLink className="size-3.5" />
-              </Button>
-            )}
+
+            <div className="flex flex-1 flex-col gap-2 p-3">
+              <div>
+                <p className="font-semibold leading-tight">{provider.name}</p>
+                <p className="text-xs text-muted-foreground">{provider.tagline}</p>
+              </div>
+              {url ? (
+                <Button size="sm" variant="jade" className="mt-auto gap-1" asChild>
+                  <a href={url} target="_blank" rel="noopener noreferrer">
+                    Open <ExternalLink className="size-3.5" />
+                  </a>
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" className="mt-auto gap-1" disabled>
+                  Mobile app only <ExternalLink className="size-3.5" />
+                </Button>
+              )}
+            </div>
           </article>
         );
       })}
