@@ -405,3 +405,11 @@ Visual-only restyle of shared SectionHeading.tsx (used app-wide: home/offers/fea
 ---
 ## OfferwallSlot card redesign — 2026-06
 Visual/layout only (no data/query change). Replaced 36px logo icon with a full-width aspect-[16/9] banner (object-cover, rounded via surface-card+overflow-hidden), jade-gradient + Layers fallback with onError broken-image guard, content moved below banner. grid-cols-2 kept. listSdkOfferwallProviders/buildOfferwallUrl unchanged.
+
+---
+## Affike offer feed adapter — 2026-06
+- New src/lib/offers/adapters/affike.server.ts (slug "affike", cpa). Endpoint https://affike.com/api/offerwall/offers?api_key={sync_config.api_key}. Verified live: {offers:[{id,name,description,image,category,payoutAmount,countries,devices,...}]}.
+- Mapping: externalOfferId=String(id); title=name; icon=image only if starts with http (base64 data: URIs skipped); clickUrl="" (built per-user at click time); networkPayout=parseFloat(payoutAmount); countries as-is but null/contains-null -> ["all"]; devices as-is; category passthrough. validateConfig checks sync_config.api_key.
+- Registered in registry.server.ts.
+- Click URL: extended click-url.ts appendAffSub4 to build https://affike.com/track/click?offer_id={externalOfferId}&click_id={userId} for provider_slug==="affike" (from scratch, not param-append). To supply externalOfferId at the click site, threaded external_offer_id through FeaturedOffer (feed-cache selects+maps) -> OfferDetailsPayload -> FeaturedOffers setPending/handleContinue. OGAds/AdBlueMedia logic untouched.
+- ACTIVATION: create an enabled row in offer_providers (slug "affike", provider_type "cpa", sync_config {"api_key":"aff_..."}) then run the feed refresh; adapter category is not persisted by the sync upsert (same as other adapters).

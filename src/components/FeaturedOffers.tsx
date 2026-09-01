@@ -79,6 +79,7 @@ export function FeaturedOffers({
   const openOffer = (offer: (typeof offers)[number]) =>
     setPending({
       id: offer.id,
+      external_offer_id: offer.external_offer_id,
       title: offer.title,
       description: offer.description,
       requirements: offer.requirements,
@@ -94,10 +95,13 @@ export function FeaturedOffers({
     if (!pending) return;
     // Fire-and-forget click event for the Popular/Trending tag engine.
     void trackClick({ data: { offerId: pending.id } }).catch(() => {});
-    if (pending.click_url) {
-      const url = appendAffSub4(pending.click_url, pending.provider_slug, session?.user.id);
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
-    }
+    const clickUrl = appendAffSub4(
+      pending.click_url,
+      pending.provider_slug,
+      session?.user.id,
+      pending.external_offer_id,
+    );
+    if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
     if (pending.payout_mode !== "auto_postback") {
       mutation.mutate({ offerId: pending.id, proofUrl: payload.proofPath ?? null });
     }

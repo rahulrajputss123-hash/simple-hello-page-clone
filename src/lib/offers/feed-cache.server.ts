@@ -31,6 +31,7 @@ type CachedOffer = {
 
 export type FeaturedOffer = {
   id: string;
+  external_offer_id: string | null;
   title: string;
   description: string;
   requirements: string;
@@ -244,7 +245,7 @@ export async function assembleFeaturedImpl(
     const { data } = await supabaseAdmin
       .from("offers")
       .select(
-        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual" +
+        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual" +
           imageCol(hasImageUrl),
       )
       .in("id", [...collected.keys()])
@@ -254,6 +255,7 @@ export async function assembleFeaturedImpl(
       .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
       .map((o) => ({
         id: o.id,
+        external_offer_id: o.external_offer_id ?? null,
         title: o.title,
         description: o.description,
         requirements: o.requirements,
@@ -288,7 +290,7 @@ export async function assembleFeaturedImpl(
   const { data: manualRows } = await supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual" +
+      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual" +
         imageCol(hasImageUrl),
     )
     .eq("source", "manual")
@@ -306,6 +308,7 @@ export async function assembleFeaturedImpl(
     })
     .map((o) => ({
       id: o.id,
+      external_offer_id: o.external_offer_id ?? null,
       title: o.title,
       description: o.description,
       requirements: o.requirements,

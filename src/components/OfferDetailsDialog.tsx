@@ -30,6 +30,7 @@ const MAX_PROOF_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export type OfferDetailsPayload = {
   id: string;
+  external_offer_id?: string | null;
   title: string;
   description?: string | null;
   requirements?: string | null;
