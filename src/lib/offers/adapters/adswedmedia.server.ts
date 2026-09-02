@@ -129,8 +129,10 @@ export const adswedMediaAdapter: OfferProviderAdapter = {
         description: String(item.description ?? "").trim(),
         // `image` is a bare filename — prefix with the offers asset path.
         icon: item.image ? `${IMAGE_PREFIX}${item.image}` : "gift",
-        // Contains the literal "USER_ID_HERE" placeholder; substituted at click time.
-        clickUrl,
+        // The site PUBLIC-KEY is a static constant, substituted here (server-side,
+        // where the site key env exists). The per-user "USER_ID_HERE" placeholder
+        // is substituted at click time in click-url.ts.
+        clickUrl: clickUrl.split("PUBLIC-KEY").join(siteKey),
         networkPayout: typeof item.payout === "number" ? item.payout : Number.parseFloat(String(item.payout ?? "")) || 0,
         countries: normalizeList(item.countries),
         devices: normalizeList(item.devices),
