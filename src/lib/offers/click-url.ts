@@ -25,6 +25,14 @@ export function appendAffSub4(
     return `https://affike.com/track/click?offer_id=${oid}&click_id=${cid}`;
   }
 
+  // AdswedMedia: the click URL carries a literal "USER_ID_HERE" placeholder that
+  // must be replaced with the internal user id (simple substring substitution).
+  if (providerSlug === "adswedmedia") {
+    if (!url) return null;
+    if (!userId) return url;
+    return url.split("USER_ID_HERE").join(userId);
+  }
+
   if (!url) return null;
   if (providerSlug !== "ogads" || !userId) return url;
   try {

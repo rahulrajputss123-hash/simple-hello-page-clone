@@ -35,6 +35,14 @@ function signatureMatches(expected: string, provided: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+/** Signature digest algorithm for this provider's postback (default sha256). */
+function signatureAlgorithm(provider: SdkOfferwallProvider): "md5" | "sha256" {
+  // SdkOfferwallProvider's config bag is `extra_config` (there is no sync_config
+  // on this type). AdswedMedia signs with MD5; everyone else defaults to sha256.
+  const raw = provider.extra_config?.["signature_algorithm"];
+  return raw === "md5" ? "md5" : "sha256";
+}
+
 /** Verifies caller authenticity according to the provider's postback auth mode. */
 function verifyCaller(
   provider: SdkOfferwallProvider,
@@ -62,7 +70,7 @@ function verifyCaller(
       req.headers["x-callback-signature"] ??
       "";
     const base = req.rawBody && req.rawBody.length > 0 ? req.rawBody : signatureBase(provider, req.params);
-    const expected = createHmac("sha256", secret).update(base).digest("hex");
+    const expected = createHmac(signatureAlgorithm(provider), secret).update(base).digest("hex");
     signatureValid = provided.length > 0 && signatureMatches(expected, provided.toLowerCase());
     if (!signatureValid) return { ok: false, reason: "invalid_signature", signatureValid };
   }

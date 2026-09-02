@@ -1,4 +1,5 @@
 import { adblueMediaAdapter } from "./adapters/adbluemedia.server";
+import { adswedMediaAdapter } from "./adapters/adswedmedia.server";
 import { affikeAdapter } from "./adapters/affike.server";
 import { ogAdsAdapter } from "./adapters/ogads.server";
 import type { OfferProviderAdapter } from "./provider-types";
@@ -25,3 +26,4 @@ export function listAdapterSlugs(): string[] {
 registerAdapter(adblueMediaAdapter);
 registerAdapter(ogAdsAdapter);
 registerAdapter(affikeAdapter);
+registerAdapter(adswedMediaAdapter);

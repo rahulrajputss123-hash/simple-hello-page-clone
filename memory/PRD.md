@@ -413,3 +413,11 @@ Visual/layout only (no data/query change). Replaced 36px logo icon with a full-w
 - Registered in registry.server.ts.
 - Click URL: extended click-url.ts appendAffSub4 to build https://affike.com/track/click?offer_id={externalOfferId}&click_id={userId} for provider_slug==="affike" (from scratch, not param-append). To supply externalOfferId at the click site, threaded external_offer_id through FeaturedOffer (feed-cache selects+maps) -> OfferDetailsPayload -> FeaturedOffers setPending/handleContinue. OGAds/AdBlueMedia logic untouched.
 - ACTIVATION: create an enabled row in offer_providers (slug "affike", provider_type "cpa", sync_config {"api_key":"aff_..."}) then run the feed refresh; adapter category is not persisted by the sync upsert (same as other adapters).
+
+---
+## AdswedMedia feed adapter + configurable postback signature algo — 2026-06
+- New src/lib/offers/adapters/adswedmedia.server.ts (slug "adswedmedia", cpa). Endpoint https://adswedmedia.com/api/v1/offers?site_key=&site_secret= (env ADSWEDMEDIA_SITE_KEY/ADSWEDMEDIA_SITE_SECRET). In-process sliding-window rate limit 20 req/60min (enforceRateLimit). LIVE SHAPE DIFFERS from spec: offers is a flat array (not {data:[]}); adapter handles both. Mapping: externalOfferId=String(id); icon=https://adswedmedia.com/asset/images/offers/${image}; clickUrl=url as-is (contains literal USER_ID_HERE + literal PUBLIC-KEY); networkPayout=payout; countries/devices "All"->["all"] else array; category=categories[0]; events kept in raw. validateConfig checks both env vars.
+- Registered in registry.server.ts.
+- click-url.ts: provider_slug==="adswedmedia" replaces literal USER_ID_HERE with userId (string replace). FeaturedOffers click site already passes url+slug+userId (no change needed).
+- postback.server.ts: signature algorithm now configurable via provider.extra_config.signature_algorithm (SdkOfferwallProvider has extra_config, NOT sync_config); default sha256, md5 for adswedmedia. HMAC(algo,secret) over rawBody or txid:user:amount.
+- NOTE: adapter category not persisted by sync upsert (same as others). PUBLIC-KEY in click URL is literal in live response (task said pre-filled) — pending user confirmation.
