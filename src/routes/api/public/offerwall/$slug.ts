@@ -70,6 +70,12 @@ async function handle(request: Request, slug: string) {
   });
 
   const status = result.ok ? 200 : result.status === "rejected" ? 400 : 200;
+    if (slug === "adswedmedia") {
+      // AdswedMedia reads a literal plain-text body: "OK" = newly credited,
+      // "DUP" = already processed (stop retrying), otherwise an error string.
+      const body = result.status === "duplicate" ? "DUP" : result.ok ? "OK" : "ERROR";
+      return new Response(body, { status, headers: { "Content-Type": "text/plain" } });
+    }
     if (slug === "bitcotasks" || slug === "revtoo") {
       const okText = result.ok || result.status === "duplicate" ? "ok" : "error";
       return new Response(okText, { status, headers: { "Content-Type": "text/plain" } });

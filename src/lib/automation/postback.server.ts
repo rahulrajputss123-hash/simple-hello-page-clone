@@ -35,12 +35,26 @@ function signatureMatches(expected: string, provided: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-/** Signature digest algorithm for this provider's postback (default sha256). */
-function signatureAlgorithm(provider: SdkOfferwallProvider): "md5" | "sha256" {
-  // SdkOfferwallProvider's config bag is `extra_config` (there is no sync_config
-  // on this type). AdswedMedia signs with MD5; everyone else defaults to sha256.
-  const raw = provider.extra_config?.["signature_algorithm"];
-  return raw === "md5" ? "md5" : "sha256";
+/**
+ * Computes the expected postback signature for a provider.
+ * - AdswedMedia: PLAIN concatenated MD5 of subId + transId + reward + secret
+ *   (raw string concatenation, then md5 hex — NOT HMAC).
+ * - Everyone else (Affike / OGAds / …): HMAC-SHA256 over the raw body, or the
+ *   txid:user:amount base. Unchanged.
+ */
+function expectedSignature(
+  provider: SdkOfferwallProvider,
+  req: PostbackRequest,
+  secret: string,
+): string {
+  if (provider.slug === "adswedmedia") {
+    const subId = req.params[provider.user_id_param] ?? "";
+    const transId = req.params[provider.transaction_id_param] ?? "";
+    const reward = req.params[provider.reward_param] ?? "";
+    return createHash("md5").update(`${subId}${transId}${reward}${secret}`).digest("hex");
+  }
+  const base = req.rawBody && req.rawBody.length > 0 ? req.rawBody : signatureBase(provider, req.params);
+  return createHmac("sha256", secret).update(base).digest("hex");
 }
 
 /** Verifies caller authenticity according to the provider's postback auth mode. */
@@ -69,8 +83,7 @@ function verifyCaller(
       req.headers["x-postback-signature"] ??
       req.headers["x-callback-signature"] ??
       "";
-    const base = req.rawBody && req.rawBody.length > 0 ? req.rawBody : signatureBase(provider, req.params);
-    const expected = createHmac(signatureAlgorithm(provider), secret).update(base).digest("hex");
+    const expected = expectedSignature(provider, req, secret);
     signatureValid = provided.length > 0 && signatureMatches(expected, provided.toLowerCase());
     if (!signatureValid) return { ok: false, reason: "invalid_signature", signatureValid };
   }

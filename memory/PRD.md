@@ -422,3 +422,11 @@ Visual/layout only (no data/query change). Replaced 36px logo icon with a full-w
 - postback.server.ts: signature algorithm now configurable via provider.extra_config.signature_algorithm (SdkOfferwallProvider has extra_config, NOT sync_config); default sha256, md5 for adswedmedia. HMAC(algo,secret) over rawBody or txid:user:amount.
 - NOTE: adapter category not persisted by sync upsert (same as others). PUBLIC-KEY in click URL is literal in live response (task said pre-filled) — pending user confirmation.
 - UPDATE: AdswedMedia PUBLIC-KEY now substituted with ADSWEDMEDIA_SITE_KEY server-side in the adapter (public key is a static constant + site key is server-only; cannot be read in client-side click-url.ts). USER_ID_HERE still substituted client-side at click time. Final URL: /user/{userId}/site/{siteKey}.
+
+---
+## AdswedMedia postback (plain MD5 + text response) — 2026-06
+- postback.server.ts: AdswedMedia signature = md5(subId+transId+reward+secret) plain concat (createHash md5), NOT HMAC. Others keep HMAC-SHA256. expectedSignature() branches on provider.slug==="adswedmedia".
+- routes/api/public/offerwall/$slug.ts: adswedmedia returns text/plain OK (credited) / DUP (duplicate) / ERROR (rejected).
+- sdk_offerwall_providers row: slug adswedmedia, auth signature, params subId/transId/reward, secret_ref ADSWEDMEDIA_SITE_SECRET, currency 1:1 (per_usd=1,mult=1) so reward credited directly, user_identity_mode user_uuid, dedupe transaction_id/720h, enabled/live. id b0f17d40-804f-4742-84be-189c2ebb8de9.
+- Verified locally: OK(200)/DUP(200)/ERROR(400); conversion reward_amount==reward param.
+- Signature param read from `signature` or `sig` query param.
