@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Play, Loader2, Check, Link as LinkIcon, ExternalLink } from "lucide-react";
+import { Play, Loader2, Check, Link as LinkIcon, ExternalLink, Lock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -11,6 +11,7 @@ import { formatMoney } from "@/lib/coinquest";
 import { playRewardedAd } from "@/lib/ads";
 import { reportAdWatched, startQuest } from "@/lib/coinquest.functions";
 import { listActiveQuests, startShortlinkStep } from "@/lib/quests.functions";
+import { formatTimeLockReason, formatEarningLockReason } from "@/lib/lock-state";
 
 type QuestSession = {
   id: string;
@@ -137,6 +138,55 @@ export function StarterQuests() {
       data-testid="starter-quests-scroll"
     >
       {quests.data.map((quest) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const q = quest as any;
+        const isLocked: boolean = Boolean(q.is_locked);
+        const unlockReason = q.unlock_reason as
+          | { type: "time"; unlocksAt: string }
+          | { type: "earning"; required: number; current: number }
+          | null;
+
+        const lockLabel = isLocked
+          ? unlockReason?.type === "time"
+            ? formatTimeLockReason(unlockReason.unlocksAt)
+            : unlockReason?.type === "earning"
+              ? formatEarningLockReason(unlockReason.required, unlockReason.current)
+              : "Locked"
+          : null;
+
+        if (isLocked) {
+          return (
+            <article
+              key={quest.key}
+              className="surface-card flex min-w-[160px] max-w-[160px] shrink-0 flex-col items-center gap-2 p-3 text-center opacity-60"
+              data-testid={`quest-card-${quest.key}`}
+            >
+              <span className="grid size-10 place-items-center rounded-full bg-background-alt">
+                <Lock className="size-5 text-muted-foreground" />
+              </span>
+              <p className="text-xs font-semibold">{quest.label}</p>
+              <p className="text-amount text-sm text-gold-dark">
+                {formatMoney(quest.reward_amount)}
+              </p>
+              <p className="text-[11px] text-amber-500">{lockLabel}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full gap-1"
+                onClick={() =>
+                  toast.info(
+                    lockLabel
+                      ? `This quest is locked. ${lockLabel}.`
+                      : "This quest is currently locked.",
+                  )
+                }
+              >
+                <Lock className="size-3.5" /> Locked
+              </Button>
+            </article>
+          );
+        }
+
         const active = sessions.data?.find(
           (s) => s.quest_key === quest.key && s.status === "started",
         );

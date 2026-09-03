@@ -1,10 +1,10 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { creditWallet } from "./coinquest.server";
+import { computeLockState, assertNotLocked, type LockState } from "./lock-state";
 
 /**
  * Server implementations for the DB-backed Starter Quests + Shortlink Chain quests.
- * The `quests` and extra `quest_sessions` columns are added by
- * supabase/migrations/20261101000000_offer_popup_and_quests.sql.
+ * Lock columns added by 20261210000000_quest_offerwall_locks.sql.
  *
  * The generated supabase types don't include the new table yet, so we access
  * the client via an untyped alias — safe because runtime schema is authoritative.
@@ -26,6 +26,9 @@ export type QuestRow = {
   min_seconds_per_step: number;
   is_active: boolean;
   sort_order: number;
+  lock_type: "none" | "time" | "earning";
+  unlock_at: string | null;
+  required_lifetime_earned: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -38,17 +41,52 @@ function normalize(row: QuestRow): QuestRow {
     shortlink_steps: Array.isArray(row.shortlink_steps) ? row.shortlink_steps : [],
     min_seconds_per_step: Number(row.min_seconds_per_step ?? 15),
     sort_order: Number(row.sort_order ?? 0),
+    lock_type: (row.lock_type ?? "none") as QuestRow["lock_type"],
+    unlock_at: row.unlock_at ?? null,
+    required_lifetime_earned:
+      row.required_lifetime_earned != null ? Number(row.required_lifetime_earned) : null,
   };
 }
 
-export async function listActiveQuestsImpl(): Promise<QuestRow[]> {
+async function fetchLifetimeEarned(userId: string): Promise<number> {
+  const { data } = await db
+    .from("profiles")
+    .select("lifetime_earned")
+    .eq("id", userId)
+    .maybeSingle();
+  return Number(data?.lifetime_earned ?? 0);
+}
+
+/**
+ * Active quests for the starter row.
+ * When userId is provided, each quest is annotated with is_locked + unlock_reason
+ * computed server-side in UTC. Locked quests are INCLUDED so the client can render
+ * a locked state instead of hiding them.
+ */
+export async function listActiveQuestsImpl(
+  userId?: string,
+): Promise<(QuestRow & LockState)[]> {
   const { data, error } = await db
     .from("quests")
     .select("*")
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message ?? "Could not load quests.");
-  return (data ?? []).map((r: QuestRow) => normalize(r));
+
+  const rows = (data ?? []).map((r: QuestRow) => normalize(r));
+  const lifetimeEarned = userId ? await fetchLifetimeEarned(userId) : 0;
+
+  return rows.map((quest) => {
+    const lockState = userId
+      ? computeLockState(
+          quest.lock_type,
+          quest.unlock_at,
+          quest.required_lifetime_earned,
+          lifetimeEarned,
+        )
+      : { is_locked: false, unlock_reason: null };
+    return { ...quest, ...lockState };
+  });
 }
 
 export async function listAdminQuestsImpl(): Promise<QuestRow[]> {
@@ -73,6 +111,9 @@ export type QuestFormInput = {
   minSecondsPerStep: number;
   isActive: boolean;
   sortOrder: number;
+  lockType: "none" | "time" | "earning";
+  unlockAt: string | null;
+  requiredLifetimeEarned: number | null;
 };
 
 export async function upsertQuestImpl(input: QuestFormInput) {
@@ -81,6 +122,15 @@ export async function upsertQuestImpl(input: QuestFormInput) {
   }
   if (input.questType === "ads" && input.adsRequired < 1) {
     throw new Error("Ads-type quests need at least 1 ad.");
+  }
+  if (input.lockType === "time" && !input.unlockAt) {
+    throw new Error("A time-locked quest requires an unlock date.");
+  }
+  if (
+    input.lockType === "earning" &&
+    (input.requiredLifetimeEarned == null || input.requiredLifetimeEarned <= 0)
+  ) {
+    throw new Error("An earning-locked quest requires a positive required amount.");
   }
 
   const row = {
@@ -94,6 +144,9 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     min_seconds_per_step: input.minSecondsPerStep,
     is_active: input.isActive,
     sort_order: input.sortOrder,
+    lock_type: input.lockType,
+    unlock_at: input.lockType === "time" ? input.unlockAt : null,
+    required_lifetime_earned: input.lockType === "earning" ? input.requiredLifetimeEarned : null,
   };
 
   if (input.id) {
@@ -120,7 +173,6 @@ export async function deleteQuestImpl(id: string) {
     .eq("quest_key", quest.data.key)
     .limit(1);
   if (sessions.data?.length) {
-    // Preserve session history — deactivate instead of hard delete.
     const { error } = await db.from("quests").update({ is_active: false }).eq("id", id);
     if (error) throw new Error(error.message ?? "Could not deactivate quest.");
     return { deleted: false, deactivated: true };
@@ -130,7 +182,6 @@ export async function deleteQuestImpl(id: string) {
   return { deleted: true, deactivated: false };
 }
 
-/** Server-side helper: find the active-or-startable quest def by key. */
 export async function getQuestByKey(key: string): Promise<QuestRow> {
   const { data, error } = await db
     .from("quests")
@@ -143,10 +194,27 @@ export async function getQuestByKey(key: string): Promise<QuestRow> {
   return normalize(data as QuestRow);
 }
 
-/** Sets current_step + step_issued_at on an already-started shortlink session. */
+/**
+ * Server-side lock enforcement.
+ * Fetches the user's current lifetime_earned and throws if the quest is locked.
+ * Call this before allowing any quest progress or crediting any reward.
+ */
+export async function assertQuestNotLocked(userId: string, quest: QuestRow): Promise<void> {
+  if (quest.lock_type === "none") return;
+  const lifetimeEarned = await fetchLifetimeEarned(userId);
+  const state = computeLockState(
+    quest.lock_type,
+    quest.unlock_at,
+    quest.required_lifetime_earned,
+    lifetimeEarned,
+  );
+  assertNotLocked(state, quest.label);
+}
+
 export async function startShortlinkStepImpl(userId: string, questKey: string, step: number) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "shortlink") throw new Error("This quest is not a shortlink quest.");
+  await assertQuestNotLocked(userId, quest);
 
   const session = await db
     .from("quest_sessions")
@@ -157,41 +225,23 @@ export async function startShortlinkStepImpl(userId: string, questKey: string, s
     .maybeSingle();
   if (!session.data) throw new Error("Start the quest first.");
 
-  // Allow re-open of an already-issued step (user tapped again), but never skip forward.
   const currentStep = Number(session.data.current_step ?? 0);
-  if (step > currentStep + 1) {
-    throw new Error("Complete the previous step first.");
-  }
+  if (step > currentStep + 1) throw new Error("Complete the previous step first.");
 
   const nextStep = Math.max(currentStep, step);
   await db
     .from("quest_sessions")
-    .update({
-      current_step: nextStep,
-      step_issued_at: new Date().toISOString(),
-    })
+    .update({ current_step: nextStep, step_issued_at: new Date().toISOString() })
     .eq("id", session.data.id);
 
   const url = quest.shortlink_steps[step - 1]?.url ?? null;
-  return {
-    sessionId: session.data.id as string,
-    step: nextStep,
-    url,
-    minSeconds: quest.min_seconds_per_step,
-  };
+  return { sessionId: session.data.id as string, step: nextStep, url, minSeconds: quest.min_seconds_per_step };
 }
 
-/**
- * Called from the /go/$questKey/$step return page. Validates the time-check,
- * advances current_step, and credits the wallet on the final step.
- */
-export async function completeShortlinkStepImpl(
-  userId: string,
-  questKey: string,
-  step: number,
-) {
+export async function completeShortlinkStepImpl(userId: string, questKey: string, step: number) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "shortlink") throw new Error("This quest is not a shortlink quest.");
+  await assertQuestNotLocked(userId, quest);
 
   const session = await db
     .from("quest_sessions")
@@ -203,9 +253,8 @@ export async function completeShortlinkStepImpl(
   if (!session.data) throw new Error("No active session for this quest.");
 
   const currentStep = Number(session.data.current_step ?? 0);
-  if (currentStep !== step) {
-    throw new Error("Wrong step — go back and start from the app.");
-  }
+  if (currentStep !== step) throw new Error("Wrong step — go back and start from the app.");
+
   const issuedAt = session.data.step_issued_at
     ? new Date(session.data.step_issued_at as string).getTime()
     : 0;
@@ -222,12 +271,7 @@ export async function completeShortlinkStepImpl(
   if (isFinal) {
     await db
       .from("quest_sessions")
-      .update({
-        current_step: step,
-        step_issued_at: null,
-        status: "verified",
-        verified_at: new Date().toISOString(),
-      })
+      .update({ current_step: step, step_issued_at: null, status: "verified", verified_at: new Date().toISOString() })
       .eq("id", session.data.id);
     const reward = Number(quest.reward_amount);
     await creditWallet(userId, reward, "quest", `Shortlink quest — ${quest.label}`);
@@ -244,13 +288,9 @@ export async function completeShortlinkStepImpl(
     return { completed: true, credited: true, reward, nextStep: null };
   }
 
-  const nextStep = step; // increments to next-issuable step; caller taps "Open" for step+1
   await db
     .from("quest_sessions")
-    .update({
-      current_step: nextStep,
-      step_issued_at: null,
-    })
+    .update({ current_step: step, step_issued_at: null })
     .eq("id", session.data.id);
 
   return {

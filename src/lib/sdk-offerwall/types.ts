@@ -19,6 +19,9 @@ export type JsonObject = { [key: string]: Json };
 export type SdkOfferwallProvider = {
   id: string;
   slug: string;
+  lock_type: "none" | "time" | "earning";
+  unlock_at: string | null;
+  required_lifetime_earned: number | null;
   name: string;
   logo_url: string | null;
   tagline: string;
@@ -68,6 +71,14 @@ export type PublicSdkOfferwallProvider = {
   integrationType: string;
   status: string;
   displayOrder: number;
+  lockType: "none" | "time" | "earning";
+  unlockAt: string | null;
+  requiredLifetimeEarned: number | null;
+  isLocked: boolean;
+  unlockReason:
+    | { type: "time"; unlocksAt: string }
+    | { type: "earning"; required: number; current: number }
+    | null;
 };
 
 export type SdkProviderInput = {
@@ -75,6 +86,9 @@ export type SdkProviderInput = {
   slug: string;
   name: string;
   tagline: string;
+  lockType: "none" | "time" | "earning";
+  unlockAt?: string | null | undefined;
+  requiredLifetimeEarned?: number | null | undefined;
   logoUrl?: string | null | undefined;
   enabled: boolean;
   displayOrder: number;

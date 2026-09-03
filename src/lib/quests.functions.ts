@@ -24,14 +24,19 @@ const questFormSchema = z.object({
   minSecondsPerStep: z.number().int().min(1).max(600).default(15),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(9999).default(0),
+  lockType: z.enum(["none", "time", "earning"]).default("none"),
+  unlockAt: z.string().datetime({ offset: true }).nullable().optional(),
+  requiredLifetimeEarned: z.number().min(0).max(100_000).nullable().optional(),
 });
 
-/** Public (authenticated): active quests for the starter row + featured page. */
+/** Public (authenticated): active quests for the starter row + featured page.
+ *  Passes the requesting userId so lock state is computed per-user server-side.
+ */
 export const listActiveQuests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(async ({ context }) => {
     const { listActiveQuestsImpl } = await import("./quests.server");
-    return listActiveQuestsImpl();
+    return listActiveQuestsImpl(context.userId);
   });
 
 /** Admin: full list including inactive quests. */

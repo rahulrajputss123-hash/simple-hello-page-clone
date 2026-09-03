@@ -54,17 +54,22 @@ const providerSchema = z.object({
   status: z.enum(["draft", "configured", "testing", "live", "disabled"]).default("draft"),
   notes: z.string().trim().max(1000).default(""),
   metadata: z.record(z.string(), z.any()).default({}),
+  lockType: z.enum(["none", "time", "earning"]).default("none"),
+  unlockAt: z.string().datetime({ offset: true }).nullable().optional(),
+  requiredLifetimeEarned: z.number().min(0).max(100_000).nullable().optional(),
 });
 
-/** Signed-in users: enabled providers only, safe fields. */
+/** Signed-in users: enabled providers only, safe fields.
+ *  Passes the requesting userId so lock state is computed per-user server-side.
+ */
 export const listSdkOfferwallProviders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ limit: z.number().int().min(1).max(50).optional() }).parse(input ?? {}),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { listPublicSdkProvidersImpl } = await import("./sdk-offerwall/admin.server");
-    return listPublicSdkProvidersImpl(data.limit);
+    return listPublicSdkProvidersImpl(data.limit, context.userId);
   });
 
 export const listAdminSdkProviders = createServerFn({ method: "POST" })
