@@ -71,7 +71,7 @@ export const adswedMediaAdapter: OfferProviderAdapter = {
     return null;
   },
 
-  async fetchOffers() {
+  async fetchOffers(_provider, context) {
     const siteKey = process.env["ADSWEDMEDIA_SITE_KEY"];
     const siteSecret = process.env["ADSWEDMEDIA_SITE_SECRET"];
     if (!siteKey || !siteSecret) {
@@ -139,6 +139,24 @@ export const adswedMediaAdapter: OfferProviderAdapter = {
         category: (categories[0] ?? null) as OfferCategory | null,
         // Keep the multireward events array untouched for future use.
         raw: item,
+      });
+    }
+
+    // Geo-filter: keep offers eligible for the requested country.
+    // Uses the normalizeList() output already stored in each offer's .countries:
+    //   - empty array  → eligible everywhere (normalizeList returns [] for unknown shapes)
+    //   - ["all"]      → eligible everywhere (normalizeList maps the string "all" to ["all"])
+    //   - ["US","CA"]  → eligible only in those countries
+    // If context.country is absent, skip filtering (full catalog fallback).
+    if (context?.country) {
+      const target = context.country.toUpperCase();
+      return offers.filter((o) => {
+        const c = o.countries ?? [];
+        return (
+          c.length === 0 ||
+          c.some((code) => code.toUpperCase() === "ALL") ||
+          c.some((code) => code.toUpperCase() === target)
+        );
       });
     }
 

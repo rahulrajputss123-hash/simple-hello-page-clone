@@ -57,7 +57,7 @@ export const affikeAdapter: OfferProviderAdapter = {
     return null;
   },
 
-  async fetchOffers(provider: OfferProvider) {
+  async fetchOffers(provider: OfferProvider, context?: import("../provider-types").OfferFetchContext) {
     const cfg = (provider.sync_config ?? {}) as Record<string, unknown>;
     const apiKey = typeof cfg["api_key"] === "string" ? (cfg["api_key"] as string) : "";
     if (!apiKey) throw new Error("Affike sync_config.api_key is not configured.");
@@ -110,6 +110,23 @@ export const affikeAdapter: OfferProviderAdapter = {
         // Affike returns "web" / "app"; passed through (not persisted by the sync upsert).
         category: (item.category ?? null) as OfferCategory | null,
         raw: item,
+      });
+    }
+
+    // Geo-filter: keep offers eligible for the requested country.
+    // Uses the normalizeCountries() output already stored in each offer's .countries:
+    //   - ["all"]      → eligible everywhere (normalizeCountries maps empty/null to ["all"])
+    //   - ["AU"]       → eligible only in Australia
+    // If context.country is absent, skip filtering (full catalog fallback).
+    if (context?.country) {
+      const target = context.country.toUpperCase();
+      return offers.filter((o) => {
+        const c = o.countries ?? [];
+        return (
+          c.length === 0 ||
+          c.some((code) => code.toUpperCase() === "ALL") ||
+          c.some((code) => code.toUpperCase() === target)
+        );
       });
     }
 
