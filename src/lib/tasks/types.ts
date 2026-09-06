@@ -9,6 +9,7 @@ export const TASK_TYPES = [
   "ad_watch",
   "shortlink",
   "content_locker",
+  "offerwall_earning",
 ] as const;
 
 export type TaskType = (typeof TASK_TYPES)[number];
@@ -22,6 +23,7 @@ export const TASK_TYPE_LABELS: Record<TaskType, string> = {
   ad_watch: "Ads watched",
   shortlink: "Shortlink completion",
   content_locker: "Content locker completion",
+  offerwall_earning: "SDK Offerwall earning target",
 };
 
 export const TASK_FREQUENCIES = ["daily", "weekly", "one_time", "lifetime"] as const;
@@ -41,6 +43,7 @@ export const TASK_EVENT_TYPES = [
   "ad_watch",
   "shortlink",
   "content_locker",
+  "offerwall_earning",
 ] as const;
 export type TaskEventType = (typeof TASK_EVENT_TYPES)[number];
 
@@ -54,6 +57,7 @@ export const TASK_TYPE_EVENT: Record<TaskType, TaskEventType | null> = {
   ad_watch: "ad_watch",
   shortlink: "shortlink",
   content_locker: "content_locker",
+  offerwall_earning: "offerwall_earning",
 };
 
 /** Bucket a moment in time into the reset period of a task. */

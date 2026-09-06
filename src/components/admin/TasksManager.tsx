@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { listAdminSdkProviders } from "@/lib/sdk-offerwall.functions";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -61,6 +62,9 @@ const emptyForm = {
   sortOrder: "0",
   isActive: true,
   isFeatured: false,
+  // offerwall_earning-specific
+  earningTarget: "",
+  earningProviderId: "", // empty string = all providers (null on save)
 };
 
 type FormState = typeof emptyForm;
@@ -71,6 +75,13 @@ export function TasksManager() {
   const saveTask = useServerFn(saveAdminTask);
   const toggleTask = useServerFn(setAdminTaskActive);
   const removeTask = useServerFn(deleteAdminTask);
+  const fetchSdkProviders = useServerFn(listAdminSdkProviders);
+
+  const sdkProviders = useQuery({
+    queryKey: ["sdk-offerwall-providers-admin"],
+    queryFn: () => fetchSdkProviders({}),
+    staleTime: 60_000,
+  });
 
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -106,6 +117,14 @@ export function TasksManager() {
           sortOrder: Number(state.sortOrder) || 0,
           isActive: state.isActive,
           isFeatured: state.isFeatured,
+          earningTarget:
+            state.taskType === "offerwall_earning" && state.earningTarget
+              ? Number(state.earningTarget)
+              : null,
+          earningProviderId:
+            state.taskType === "offerwall_earning" && state.earningProviderId
+              ? state.earningProviderId
+              : null,
         },
       }),
     onSuccess: () => {
@@ -204,13 +223,15 @@ export function TasksManager() {
                   <Button
                     size="icon"
                     variant="outline"
-                    onClick={() =>
+                    onClick={() => {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const raw = task as any;
                       setForm({
                         id: task.id,
                         title: task.title,
                         description: task.description ?? "",
-                        icon: (task as unknown as { icon?: string }).icon ?? "target",
-                        imageUrl: (task as unknown as { image_url?: string }).image_url ?? "",
+                        icon: raw.icon ?? "target",
+                        imageUrl: raw.image_url ?? "",
                         reward: String(task.reward),
                         taskType: t.task_type,
                         target: String(t.target),
@@ -221,8 +242,10 @@ export function TasksManager() {
                         sortOrder: String(task.sort_order),
                         isActive: task.is_active,
                         isFeatured: task.is_featured,
-                      })
-                    }
+                        earningTarget: raw.earning_target != null ? String(raw.earning_target) : "",
+                        earningProviderId: raw.earning_provider_id ?? "",
+                      });
+                    }}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -374,6 +397,48 @@ export function TasksManager() {
                   Progress for this type starts counting once a provider sends completion events.
                 </p>
               ) : null}
+
+              {form.taskType === "offerwall_earning" && (
+                <div className="space-y-2 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/50 p-3 dark:border-emerald-700 dark:bg-emerald-950/20">
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                    SDK Offerwall earning target
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label>Earning target ($)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="e.g. 10.00"
+                        value={form.earningTarget}
+                        onChange={(e) => setForm({ ...form, earningTarget: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Scope</Label>
+                      <select
+                        className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                        value={form.earningProviderId}
+                        onChange={(e) => setForm({ ...form, earningProviderId: e.target.value })}
+                      >
+                        <option value="">All SDK offerwalls combined</option>
+                        {(sdkProviders.data ?? []).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Task completes when the user earns the target amount from SDK offerwall
+                    conversions
+                    {form.earningProviderId ? " from the selected provider" : " combined"}.
+                    The bonus reward is paid on top of what they already earned from the offerwall.
+                  </p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
