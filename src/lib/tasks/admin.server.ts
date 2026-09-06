@@ -17,6 +17,10 @@ export type AdminTaskInput = {
   sortOrder: number;
   isActive: boolean;
   isFeatured: boolean;
+  /** Only used when taskType === 'offerwall_earning'. */
+  earningTarget?: number | null | undefined;
+  /** Only used when taskType === 'offerwall_earning'. null = all providers. */
+  earningProviderId?: string | null | undefined;
 };
 
 export async function listAdminTasksImpl(filters: {
@@ -64,6 +68,11 @@ export async function upsertAdminTaskImpl(input: AdminTaskInput) {
     sort_order: input.sortOrder,
     is_active: input.isActive,
     is_featured: input.isFeatured,
+    // offerwall_earning-specific fields; null for all other task types.
+    earning_target:
+      input.taskType === "offerwall_earning" ? (input.earningTarget ?? null) : null,
+    earning_provider_id:
+      input.taskType === "offerwall_earning" ? (input.earningProviderId ?? null) : null,
   };
 
   const result = input.id

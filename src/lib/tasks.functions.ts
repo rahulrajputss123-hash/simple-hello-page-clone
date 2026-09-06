@@ -20,6 +20,9 @@ const taskInput = z.object({
   sortOrder: z.number().int().min(-1000).max(1000).default(0),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
+  // offerwall_earning-specific fields; ignored for all other task types.
+  earningTarget: z.number().min(0.01).max(100_000).nullable().optional(),
+  earningProviderId: z.string().uuid().nullable().optional(),
 });
 
 export const listAdminTasks = createServerFn({ method: "POST" })

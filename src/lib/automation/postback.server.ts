@@ -449,5 +449,33 @@ export async function processSdkPostback(req: PostbackRequest): Promise<Postback
     });
   }
 
+  // --- Task automation (offerwall_earning) ----------------------------------
+  // Fire after creditWallet succeeds. The conversion id is used as the event
+  // key — the unique constraint on sdk_offerwall_conversions(provider_id,
+  // provider_transaction_id) guarantees this code path is never reached twice
+  // for the same postback, so the task event is inherently deduplicated.
+  try {
+    const { recordTaskEvent } = await import("../tasks/engine.server");
+    await recordTaskEvent({
+      userId,
+      eventType: "offerwall_earning",
+      eventKey: claim.data.id,
+      quantity: reward,
+      metadata: { providerId: provider.id },
+      providerId: provider.id,
+    });
+  } catch (error) {
+    // Task automation failure must never roll back the wallet credit.
+    await logAutomation({
+      eventType: "task_automation",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: claim.data.id,
+      message: error instanceof Error ? error.message : "Task event recording failed",
+    });
+  }
+
   return { ok: true, status: "credited", reward, conversionId: claim.data.id };
 }

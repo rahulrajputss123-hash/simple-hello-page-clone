@@ -21,6 +21,10 @@ type TaskRow = {
   starts_at: string | null;
   ends_at: string | null;
   is_active: boolean;
+  /** Dollar amount target — only set for offerwall_earning tasks. */
+  earning_target: number | null;
+  /** Scope to one SDK offerwall provider; null = combined across all. */
+  earning_provider_id: string | null;
 };
 
 /**
@@ -35,6 +39,8 @@ export async function recordTaskEvent(input: {
   quantity?: number;
   metadata?: Record<string, unknown>;
   occurredAt?: string;
+  /** Optional: set for offerwall_earning events to enable per-provider scoping. */
+  providerId?: string;
 }) {
   const insert = await supabaseAdmin
     .from("task_events")
@@ -46,6 +52,8 @@ export async function recordTaskEvent(input: {
         quantity: input.quantity ?? 1,
         metadata: (input.metadata ?? {}) as never,
         ...(input.occurredAt ? { occurred_at: input.occurredAt } : {}),
+        // Only written for offerwall_earning events; null for all other types.
+        ...(input.providerId ? { provider_id: input.providerId } : {}),
       },
       { onConflict: "user_id,event_type,event_key", ignoreDuplicates: true },
     )
@@ -67,6 +75,23 @@ async function countProgress(userId: string, task: TaskRow, from: Date): Promise
       .eq("referrer_id", userId)
       .gte("created_at", from.toISOString());
     return res.count ?? 0;
+  }
+
+  if (eventType === "offerwall_earning") {
+    // Sum the dollar quantity of offerwall_earning events within the period.
+    // When the task is scoped to a specific provider, filter by provider_id;
+    // when earning_provider_id is null, sum across all SDK offerwall providers.
+    let q = supabaseAdmin
+      .from("task_events")
+      .select("quantity")
+      .eq("user_id", userId)
+      .eq("event_type", "offerwall_earning")
+      .gte("occurred_at", from.toISOString());
+    if (task.earning_provider_id) {
+      q = q.eq("provider_id", task.earning_provider_id);
+    }
+    const res = await q;
+    return (res.data ?? []).reduce((sum, row) => sum + Number(row.quantity), 0);
   }
 
   const res = await supabaseAdmin
@@ -95,7 +120,12 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
     if (raw.ends_at && new Date(raw.ends_at) < now) continue;
 
     const key = periodKey(raw.frequency, now);
-    const target = Math.max(1, Number(raw.target || raw.steps_total || 1));
+    // offerwall_earning tasks compare dollar progress against earning_target;
+    // all other task types use the integer target / steps_total as before.
+    const target =
+      raw.task_type === "offerwall_earning" && raw.earning_target != null
+        ? Number(raw.earning_target)
+        : Math.max(1, Number(raw.target || raw.steps_total || 1));
     const progress = Math.min(await countProgress(userId, raw, periodStart(raw, now)), target);
     const completed = progress >= target;
 
