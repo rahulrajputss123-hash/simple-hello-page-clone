@@ -1,3 +1,5 @@
+import { REVTOO_USER_ID_PLACEHOLDER } from "./adapters/revtoo.server";
+
 /**
  * Client-side per-user tracking for offer click URLs.
  *
@@ -8,6 +10,10 @@
  * Affike (`affike`) returns no direct click URL at all — the redirect is built
  * fresh per user from the offer's external id + user id (NOT by appending a
  * param to an existing URL).
+ *
+ * AdswedMedia (`adswedmedia`) and Revtoo (`revtoo`) embed a literal placeholder
+ * string in every cached offer URL. We replace it with the real user id here
+ * via simple substring substitution.
  *
  * Other providers' URLs are returned unchanged.
  */
@@ -31,6 +37,15 @@ export function appendAffSub4(
     if (!url) return null;
     if (!userId) return url;
     return url.split("USER_ID_HERE").join(userId);
+  }
+
+  // Revtoo: the click URL carries REVTOO_USER_ID_PLACEHOLDER (embedded at sync
+  // time because the feed runs per-country and is shared across all users).
+  // Replace it with the real user id via the same substring-substitution pattern.
+  if (providerSlug === "revtoo") {
+    if (!url) return null;
+    if (!userId) return url;
+    return url.split(REVTOO_USER_ID_PLACEHOLDER).join(userId);
   }
 
   if (!url) return null;

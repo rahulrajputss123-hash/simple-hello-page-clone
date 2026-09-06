@@ -2,6 +2,7 @@ import { adblueMediaAdapter } from "./adapters/adbluemedia.server";
 import { adswedMediaAdapter } from "./adapters/adswedmedia.server";
 import { affikeAdapter } from "./adapters/affike.server";
 import { ogAdsAdapter } from "./adapters/ogads.server";
+import revtooAdapter from "./adapters/revtoo.server";
 import type { OfferProviderAdapter } from "./provider-types";
 
 /**
@@ -27,3 +28,4 @@ registerAdapter(adblueMediaAdapter);
 registerAdapter(ogAdsAdapter);
 registerAdapter(affikeAdapter);
 registerAdapter(adswedMediaAdapter);
+registerAdapter(revtooAdapter);
