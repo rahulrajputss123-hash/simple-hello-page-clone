@@ -356,8 +356,11 @@ export async function touchStreakImpl(userId: string) {
 }
 
 export async function startQuestImpl(userId: string, questKey: string) {
-  const { getQuestByKey } = await import("./quests.server");
+  const { getQuestByKey, assertQuestNotLocked } = await import("./quests.server");
   const quest = await getQuestByKey(questKey);
+
+  // Enforce lock server-side before allowing any quest progress.
+  await assertQuestNotLocked(userId, quest);
 
   const open = await supabaseAdmin
     .from("quest_sessions")

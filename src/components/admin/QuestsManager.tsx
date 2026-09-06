@@ -46,6 +46,9 @@ type FormState = {
   minSecondsPerStep: string;
   isActive: boolean;
   sortOrder: string;
+  lockType: "none" | "time" | "earning";
+  unlockAt: string;
+  requiredLifetimeEarned: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -63,6 +66,9 @@ const emptyForm = (): FormState => ({
   minSecondsPerStep: "15",
   isActive: true,
   sortOrder: "0",
+  lockType: "none",
+  unlockAt: "",
+  requiredLifetimeEarned: "",
 });
 
 export function QuestsManager() {
@@ -105,6 +111,12 @@ export function QuestsManager() {
           minSecondsPerStep: Number(state.minSecondsPerStep) || 15,
           isActive: state.isActive,
           sortOrder: Number(state.sortOrder) || 0,
+          lockType: state.lockType,
+          unlockAt: state.lockType === "time" && state.unlockAt ? state.unlockAt : null,
+          requiredLifetimeEarned:
+            state.lockType === "earning" && state.requiredLifetimeEarned
+              ? Number(state.requiredLifetimeEarned)
+              : null,
         },
       }),
     onSuccess: () => {
@@ -153,6 +165,12 @@ export function QuestsManager() {
       minSecondsPerStep: String(quest.min_seconds_per_step ?? 15),
       isActive: quest.is_active,
       sortOrder: String(quest.sort_order ?? 0),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      lockType: ((quest as any).lock_type ?? "none") as "none" | "time" | "earning",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      unlockAt: String((quest as any).unlock_at ?? ""),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      requiredLifetimeEarned: String((quest as any).required_lifetime_earned ?? ""),
     });
 
   const canSave =
@@ -203,6 +221,17 @@ export function QuestsManager() {
                       : ` · ${quest.shortlink_steps.length} shortlinks`}
                     · reward {formatMoney(quest.reward_amount)} · sort {quest.sort_order}
                   </p>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {(quest as any).lock_type !== "none" && (
+                    <p className="text-xs text-amber-600">
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      🔒 {(quest as any).lock_type === "time"
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        ? `Until ${new Date(String((quest as any).unlock_at)).toLocaleDateString()}`
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        : `Earn $${Number((quest as any).required_lifetime_earned).toFixed(2)}`}
+                    </p>
+                  )}
                 </div>
                 <span
                   className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
@@ -362,6 +391,58 @@ export function QuestsManager() {
                   />
                   Active
                 </label>
+              </div>
+
+              {/* Lock condition */}
+              <div className="space-y-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-3 dark:border-amber-700 dark:bg-amber-950/20">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">🔒 Lock condition</p>
+                <Field label="Lock type">
+                  <div className="flex gap-2">
+                    {(["none", "time", "earning"] as const).map((t) => (
+                      <Button
+                        key={t}
+                        size="sm"
+                        type="button"
+                        variant={form.lockType === t ? "jade" : "outline"}
+                        onClick={() =>
+                          setForm({ ...form, lockType: t, unlockAt: "", requiredLifetimeEarned: "" })
+                        }
+                      >
+                        {t === "none" ? "No lock" : t === "time" ? "Until date" : "Until earned"}
+                      </Button>
+                    ))}
+                  </div>
+                </Field>
+                {form.lockType === "time" && (
+                  <Field label="Unlock at (UTC date-time)">
+                    <Input
+                      type="datetime-local"
+                      value={
+                        form.unlockAt ? new Date(form.unlockAt).toISOString().slice(0, 16) : ""
+                      }
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          unlockAt: event.target.value
+                            ? new Date(event.target.value).toISOString()
+                            : "",
+                        })
+                      }
+                    />
+                  </Field>
+                )}
+                {form.lockType === "earning" && (
+                  <Field label="Required lifetime earned ($)">
+                    <Input
+                      inputMode="decimal"
+                      placeholder="e.g. 5.00"
+                      value={form.requiredLifetimeEarned}
+                      onChange={(event) =>
+                        setForm({ ...form, requiredLifetimeEarned: event.target.value })
+                      }
+                    />
+                  </Field>
+                )}
               </div>
             </div>
           )}

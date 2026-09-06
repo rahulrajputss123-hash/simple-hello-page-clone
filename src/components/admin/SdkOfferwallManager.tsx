@@ -27,6 +27,9 @@ const EMPTY: SdkProviderInput = {
   slug: "",
   name: "",
   tagline: "",
+  lockType: "none",
+  unlockAt: null,
+  requiredLifetimeEarned: null,
   logoUrl: "",
   enabled: false,
   displayOrder: 0,
@@ -387,6 +390,58 @@ export function SdkOfferwallManager() {
             />
           </Field>
 
+          {/* Lock condition */}
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+            <p className="mb-2 text-xs font-semibold text-amber-700 dark:text-amber-300">🔒 Lock condition</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Lock type">
+                <Select
+                  value={form.lockType ?? "none"}
+                  options={["none", "time", "earning"] as const}
+                  onChange={(lockType) =>
+                    patch({ lockType, unlockAt: null, requiredLifetimeEarned: null })
+                  }
+                />
+              </Field>
+              {form.lockType === "time" && (
+                <Field label="Unlock at (UTC)">
+                  <Input
+                    type="datetime-local"
+                    value={
+                      form.unlockAt
+                        ? new Date(form.unlockAt).toISOString().slice(0, 16)
+                        : ""
+                    }
+                    onChange={(e) =>
+                      patch({
+                        unlockAt: e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : null,
+                      })
+                    }
+                  />
+                </Field>
+              )}
+              {form.lockType === "earning" && (
+                <Field label="Required lifetime earned ($)">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g. 5.00"
+                    value={form.requiredLifetimeEarned ?? ""}
+                    onChange={(e) =>
+                      patch({
+                        requiredLifetimeEarned:
+                          e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                  />
+                </Field>
+              )}
+            </div>
+          </div>
+
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -425,6 +480,17 @@ export function SdkOfferwallManager() {
                     {provider.dedupe_strategy} · identity {provider.user_identity_mode} ·{" "}
                     {provider.hasAdapter ? "adapter registered" : "no adapter yet"}
                   </p>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {(provider as any).lock_type !== "none" && (
+                    <p className="text-xs text-amber-600">
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      🔒 {(provider as any).lock_type === "time"
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        ? `Until ${new Date(String((provider as any).unlock_at)).toLocaleDateString()}`
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        : `Earn $${Number((provider as any).required_lifetime_earned).toFixed(2)}`}
+                    </p>
+                  )}
                 </div>
                 <span className="rounded-full bg-muted px-2 py-1 text-xs">{provider.status}</span>
               </div>
@@ -482,6 +548,16 @@ export function SdkOfferwallManager() {
                       status: provider.status as SdkProviderInput["status"],
                       notes: provider.notes,
                       metadata: provider.metadata,
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      lockType: ((provider as any).lock_type ?? "none") as "none" | "time" | "earning",
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      unlockAt: (provider as any).unlock_at as string | null ?? null,
+                      requiredLifetimeEarned:
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        (provider as any).required_lifetime_earned != null
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          ? Number((provider as any).required_lifetime_earned)
+                          : null,
                     })
                   }
                 >

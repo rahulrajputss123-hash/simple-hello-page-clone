@@ -29,31 +29,65 @@ export function listSdkAdaptersImpl() {
   return { slugs: listSdkAdapterSlugs() };
 }
 
-/** App-facing list — safe fields only, enabled providers in display order. */
+/** App-facing list — safe fields only, enabled providers in display order.
+ *  Includes lock state computed server-side in UTC so the client can render
+ *  locked/unlocked cards without any additional round-trips.
+ */
 export async function listPublicSdkProvidersImpl(
   limit?: number,
+  userId?: string,
 ): Promise<PublicSdkOfferwallProvider[]> {
   let query = supabaseAdmin
     .from("sdk_offerwall_providers")
-    .select("id, slug, name, tagline, logo_url, platforms, integration_type, status, display_order, app_id")
+    .select(
+      "id, slug, name, tagline, logo_url, platforms, integration_type, status, display_order, app_id, lock_type, unlock_at, required_lifetime_earned",
+    )
     .eq("enabled", true)
     .order("display_order", { ascending: true })
     .order("name", { ascending: true });
   if (typeof limit === "number") query = query.limit(limit);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    tagline: row.tagline,
-    logoUrl: row.logo_url,
-    platforms: row.platforms,
-    integrationType: row.integration_type,
-    status: row.status,
-    appId: row.app_id,
-    displayOrder: row.display_order,
-  }));
+
+  let lifetimeEarned = 0;
+  if (userId) {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("lifetime_earned")
+      .eq("id", userId)
+      .maybeSingle();
+    lifetimeEarned = Number(profile?.lifetime_earned ?? 0);
+  }
+
+  const { computeLockState } = await import("../lock-state");
+
+  return (data ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    const lockType = ((r["lock_type"] as string | null) ?? "none") as "none" | "time" | "earning";
+    const unlockAt = (r["unlock_at"] as string | null) ?? null;
+    const requiredLifetimeEarned =
+      r["required_lifetime_earned"] != null ? Number(r["required_lifetime_earned"]) : null;
+    const lockState = userId
+      ? computeLockState(lockType, unlockAt, requiredLifetimeEarned, lifetimeEarned)
+      : { is_locked: false, unlock_reason: null };
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      tagline: row.tagline,
+      logoUrl: row.logo_url,
+      platforms: row.platforms,
+      integrationType: row.integration_type,
+      status: row.status,
+      appId: row.app_id,
+      displayOrder: row.display_order,
+      lockType,
+      unlockAt,
+      requiredLifetimeEarned,
+      isLocked: lockState.is_locked,
+      unlockReason: lockState.unlock_reason,
+    };
+  });
 }
 
 function toRow(input: SdkProviderInput) {
@@ -61,6 +95,10 @@ function toRow(input: SdkProviderInput) {
     slug: input.slug,
     name: input.name,
     tagline: input.tagline,
+    lock_type: input.lockType ?? "none",
+    unlock_at: input.lockType === "time" ? (input.unlockAt ?? null) : null,
+    required_lifetime_earned:
+      input.lockType === "earning" ? (input.requiredLifetimeEarned ?? null) : null,
     logo_url: input.logoUrl ?? null,
     enabled: input.enabled,
     display_order: input.displayOrder,
