@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { Upload } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, SectionTitle } from "@/components/States";
@@ -10,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   deleteSdkProvider,
   listAdminSdkProviders,
+  requestOfferwallLogoUploadUrl,
   saveSdkProvider,
   updateSdkProviderControls,
 } from "@/lib/sdk-offerwall.functions";
@@ -104,6 +106,43 @@ export function SdkOfferwallManager() {
   const remove = useServerFn(deleteSdkProvider);
 
   const [form, setForm] = useState<SdkProviderInput | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const requestUpload = useServerFn(requestOfferwallLogoUploadUrl);
+
+  const handleLogoFile = async (file: File) => {
+    if (!form) return;
+    if (file.size > 3 * 1024 * 1024) {
+      setUploadError("File must be under 3 MB.");
+      return;
+    }
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const { uploadUrl, token, publicUrl } = await requestUpload({
+        data: { filename: file.name.slice(0, 120) },
+      });
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: file,
+      });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      patch({ logoUrl: publicUrl });
+      toast.success("Logo uploaded.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed.";
+      setUploadError(msg);
+      toast.error(msg);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const providers = useQuery({
     queryKey: ["sdk-offerwall-providers"],
@@ -171,10 +210,35 @@ export function SdkOfferwallManager() {
               <Input value={form.tagline} onChange={(e) => patch({ tagline: e.target.value })} />
             </Field>
             <Field label="Logo URL">
-              <Input
-                value={form.logoUrl ?? ""}
-                onChange={(e) => patch({ logoUrl: e.target.value })}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  value={form.logoUrl ?? ""}
+                  placeholder="https://… or upload"
+                  onChange={(e) => { setUploadError(null); patch({ logoUrl: e.target.value }); }}
+                />
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/png,image/svg+xml"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleLogoFile(f);
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={uploading}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {uploading ? "…" : <Upload className="size-4" />}
+                </Button>
+              </div>
+              {uploadError && (
+                <p className="mt-1 text-xs text-destructive">{uploadError}</p>
+              )}
             </Field>
             <Field label="Display order">
               <Input

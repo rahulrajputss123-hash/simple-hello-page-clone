@@ -120,6 +120,27 @@ export const deleteSdkProvider = createServerFn({ method: "POST" })
     return deleteSdkProviderImpl(data.id);
   });
 
+export const requestOfferwallLogoUploadUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        filename: z
+          .string()
+          .trim()
+          .min(1)
+          .max(120)
+          .regex(/^[A-Za-z0-9._-]+$/, "Bad filename"),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    const { requestOfferwallLogoUploadUrlImpl } = await import("./sdk-offerwall/admin.server");
+    return requestOfferwallLogoUploadUrlImpl(context.userId, data.filename);
+  });
+
 export const listSdkConversions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>

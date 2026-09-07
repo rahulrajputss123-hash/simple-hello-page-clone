@@ -179,6 +179,29 @@ export async function deleteSdkProviderImpl(id: string) {
   return { ok: true };
 }
 
+/** Signed upload URL to the public offerwall-assets bucket for admin logo uploads.
+ *  Identical logic to requestBannerUploadUrlImpl — only the bucket name differs.
+ */
+export async function requestOfferwallLogoUploadUrlImpl(userId: string, filename: string) {
+  const safe = filename.replace(/[^A-Za-z0-9._-]/g, "_");
+  const path = `${userId}/${Date.now()}-${safe}`;
+  const { data, error } = await supabaseAdmin.storage
+    .from("offerwall-assets")
+    .createSignedUploadUrl(path);
+  if (error || !data) {
+    throw new Error(error?.message ?? "Could not create upload URL.");
+  }
+  const publicUrl = supabaseAdmin.storage
+    .from("offerwall-assets")
+    .getPublicUrl(path).data.publicUrl as string;
+  return {
+    path,
+    uploadUrl: data.signedUrl ?? (data as Record<string, string>).signed_url ?? "",
+    token: data.token ?? "",
+    publicUrl,
+  };
+}
+
 /** Admin: recent conversion records (empty until a real adapter is added). */
 export async function listSdkConversionsImpl(input: {
   providerId?: string | undefined;
