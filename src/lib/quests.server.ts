@@ -19,11 +19,12 @@ export type QuestRow = {
   key: string;
   label: string;
   icon: string;
-  quest_type: "ads" | "shortlink";
+  quest_type: "ads" | "shortlink" | "locker";
   ads_required: number;
   reward_amount: number;
   shortlink_steps: ShortlinkStep[];
   min_seconds_per_step: number;
+  locker_url: string | null;
   is_active: boolean;
   sort_order: number;
   lock_type: "none" | "time" | "earning";
@@ -40,6 +41,7 @@ function normalize(row: QuestRow): QuestRow {
     ads_required: Number(row.ads_required ?? 0),
     shortlink_steps: Array.isArray(row.shortlink_steps) ? row.shortlink_steps : [],
     min_seconds_per_step: Number(row.min_seconds_per_step ?? 15),
+    locker_url: row.locker_url ?? null,
     sort_order: Number(row.sort_order ?? 0),
     lock_type: (row.lock_type ?? "none") as QuestRow["lock_type"],
     unlock_at: row.unlock_at ?? null,
@@ -104,11 +106,12 @@ export type QuestFormInput = {
   key: string;
   label: string;
   icon: string;
-  questType: "ads" | "shortlink";
+  questType: "ads" | "shortlink" | "locker";
   adsRequired: number;
   rewardAmount: number;
   shortlinkSteps: ShortlinkStep[];
   minSecondsPerStep: number;
+  lockerUrl: string | null;
   isActive: boolean;
   sortOrder: number;
   lockType: "none" | "time" | "earning";
@@ -122,6 +125,12 @@ export async function upsertQuestImpl(input: QuestFormInput) {
   }
   if (input.questType === "ads" && input.adsRequired < 1) {
     throw new Error("Ads-type quests need at least 1 ad.");
+  }
+  if (input.questType === "locker") {
+    const url = input.lockerUrl?.trim() ?? "";
+    if (!url || !/^https?:\/\/.+/.test(url)) {
+      throw new Error("A locker quest requires a valid locker URL (must start with http:// or https://).");
+    }
   }
   if (input.lockType === "time" && !input.unlockAt) {
     throw new Error("A time-locked quest requires an unlock date.");
@@ -142,6 +151,7 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     reward_amount: input.rewardAmount,
     shortlink_steps: input.questType === "shortlink" ? input.shortlinkSteps : [],
     min_seconds_per_step: input.minSecondsPerStep,
+    locker_url: input.questType === "locker" ? (input.lockerUrl?.trim() ?? null) : null,
     is_active: input.isActive,
     sort_order: input.sortOrder,
     lock_type: input.lockType,
@@ -209,6 +219,114 @@ export async function assertQuestNotLocked(userId: string, quest: QuestRow): Pro
     lifetimeEarned,
   );
   assertNotLocked(state, quest.label);
+}
+
+/**
+ * Start a locker quest for a user.
+ *
+ * DESIGN NOTE — "most recent started session" fallback:
+ * AdBlueMedia's locker builder has a single static "Redirect URL" field with no
+ * per-session macro support. We therefore cannot embed a unique token in the
+ * redirect URL at launch time. Instead, completeLockerQuestImpl credits the
+ * user's most recent 'started' locker session for the given quest_key.
+ * session_token is generated and stored here for future use if AdBlueMedia
+ * ever adds a {click_id} or similar macro.
+ *
+ * Returns the locker URL the client should open (quest.locker_url as-is —
+ * the admin configures AdBlueMedia's own "Redirect URL" field once in their
+ * dashboard to point to /go/locker/return?questKey=<key>).
+ */
+export async function startLockerQuestImpl(userId: string, questKey: string) {
+  const quest = await getQuestByKey(questKey);
+  if (quest.quest_type !== "locker") throw new Error("This quest is not a locker quest.");
+  if (!quest.locker_url) throw new Error("This locker quest has no URL configured.");
+  await assertQuestNotLocked(userId, quest);
+
+  // Idempotent: return the existing in-progress session rather than creating a duplicate.
+  const existing = await db
+    .from("quest_sessions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("quest_key", questKey)
+    .in("status", ["started", "verified"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existing.data) {
+    return { sessionId: existing.data.id as string, lockerUrl: quest.locker_url };
+  }
+
+  const sessionToken = crypto.randomUUID();
+  const created = await db
+    .from("quest_sessions")
+    .insert({
+      user_id: userId,
+      quest_key: quest.key,
+      ads_required: 0,
+      reward_amount: quest.reward_amount,
+      quest_type: "locker",
+      current_step: 0,
+      session_token: sessionToken,
+    } as never)
+    .select("id")
+    .single();
+  if (created.error) throw new Error("Could not start this locker quest.");
+
+  return { sessionId: created.data.id as string, lockerUrl: quest.locker_url };
+}
+
+/**
+ * Credit the user's most recent 'started' locker session for questKey.
+ *
+ * Called by the /go/locker/return route after AdBlueMedia redirects the user
+ * back. Because AdBlueMedia's redirect URL is static (no per-session token
+ * macro), we match on (userId, questKey, status='started') ordered by
+ * created_at DESC — i.e. the most recently started session wins.
+ *
+ * ⚠️  KNOWN LIMITATION: if the same user has two browser tabs or devices
+ * simultaneously running the same locker quest, the OLDER session will never
+ * be credited — only the most recent one is matched. This is an inherent
+ * consequence of the static-redirect design. See reply notes for details.
+ */
+export async function completeLockerQuestImpl(userId: string, questKey: string) {
+  const quest = await getQuestByKey(questKey);
+  if (quest.quest_type !== "locker") throw new Error("This quest is not a locker quest.");
+  await assertQuestNotLocked(userId, quest);
+
+  const session = await db
+    .from("quest_sessions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("quest_key", questKey)
+    .eq("status", "started")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!session.data) throw new Error("No active locker session found. Please start the quest again.");
+
+  // Mark verified.
+  await db
+    .from("quest_sessions")
+    .update({ status: "verified", verified_at: new Date().toISOString() })
+    .eq("id", session.data.id);
+
+  const reward = Number(quest.reward_amount);
+  await creditWallet(userId, reward, "quest", `Content locker — ${quest.label}`);
+
+  // Mark credited.
+  await db
+    .from("quest_sessions")
+    .update({ status: "credited", credited_at: new Date().toISOString() })
+    .eq("id", session.data.id);
+
+  await db.from("notifications").insert({
+    user_id: userId,
+    title: "Quest completed",
+    body: `You earned $${reward.toFixed(2)}.`,
+    kind: "quest",
+  });
+
+  return { completed: true, credited: true, reward };
 }
 
 export async function startShortlinkStepImpl(userId: string, questKey: string, step: number) {

@@ -39,11 +39,12 @@ type FormState = {
   key: string;
   label: string;
   icon: string;
-  questType: "ads" | "shortlink";
+  questType: "ads" | "shortlink" | "locker";
   adsRequired: string;
   rewardAmount: string;
   shortlinkSteps: ShortlinkStep[];
   minSecondsPerStep: string;
+  lockerUrl: string;
   isActive: boolean;
   sortOrder: string;
   lockType: "none" | "time" | "earning";
@@ -64,6 +65,7 @@ const emptyForm = (): FormState => ({
     { network: "", url: "" },
   ],
   minSecondsPerStep: "15",
+  lockerUrl: "",
   isActive: true,
   sortOrder: "0",
   lockType: "none",
@@ -109,6 +111,7 @@ export function QuestsManager() {
                 }))
               : [],
           minSecondsPerStep: Number(state.minSecondsPerStep) || 15,
+          lockerUrl: state.questType === "locker" ? state.lockerUrl.trim() || null : null,
           isActive: state.isActive,
           sortOrder: Number(state.sortOrder) || 0,
           lockType: state.lockType,
@@ -163,6 +166,7 @@ export function QuestsManager() {
           ]
       ).slice(0, 3),
       minSecondsPerStep: String(quest.min_seconds_per_step ?? 15),
+      lockerUrl: quest.locker_url ?? "",
       isActive: quest.is_active,
       sortOrder: String(quest.sort_order ?? 0),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -179,7 +183,9 @@ export function QuestsManager() {
     form.label.trim().length >= 1 &&
     (form.questType === "ads"
       ? Number(form.adsRequired) > 0
-      : form.shortlinkSteps.every((s) => s.network.trim() && s.url.trim()));
+      : form.questType === "locker"
+        ? form.lockerUrl.trim().length > 0
+        : form.shortlinkSteps.every((s) => s.network.trim() && s.url.trim()));
 
   const origin = typeof window !== "undefined" ? window.location.origin : "https://yourapp.com";
 
@@ -300,7 +306,7 @@ export function QuestsManager() {
               </div>
               <Field label="Quest type">
                 <div className="flex gap-2">
-                  {(["ads", "shortlink"] as const).map((type) => (
+                  {(["ads", "shortlink", "locker"] as const).map((type) => (
                     <Button
                       key={type}
                       size="sm"
@@ -308,7 +314,7 @@ export function QuestsManager() {
                       onClick={() => setForm({ ...form, questType: type })}
                       className="capitalize"
                     >
-                      {type === "ads" ? "Ads" : "Shortlink Chain"}
+                      {type === "ads" ? "Ads" : type === "shortlink" ? "Shortlink Chain" : "Content Locker"}
                     </Button>
                   ))}
                 </div>
@@ -322,6 +328,26 @@ export function QuestsManager() {
                     onChange={(event) => setForm({ ...form, adsRequired: event.target.value })}
                   />
                 </Field>
+              ) : form.questType === "locker" ? (
+                <div className="space-y-2">
+                  <Field label="Locker URL (AdBlueMedia \"Get Link\" output URL)">
+                    <Input
+                      value={form.lockerUrl}
+                      placeholder="https://adbluemedia.com/locker/…"
+                      onChange={(event) => setForm({ ...form, lockerUrl: event.target.value })}
+                    />
+                  </Field>
+                  <div className="rounded-xl border border-dashed border-primary/40 bg-background-alt p-3 text-xs">
+                    <p className="font-semibold">Set this as AdBlueMedia's "Redirect URL" (once, in their dashboard):</p>
+                    <p className="mt-1 break-all font-mono">
+                      {origin}/go/locker/return?questKey={form.key || "{key}"}
+                    </p>
+                    <p className="mt-2 text-muted-foreground">
+                      ⚠️ AdBlueMedia's Redirect URL is static — it cannot carry a per-session token.
+                      Crediting matches the user's most recent started session for this quest key.
+                    </p>
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {form.shortlinkSteps.map((step, index) => (

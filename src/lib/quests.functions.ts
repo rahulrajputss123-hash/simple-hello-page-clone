@@ -17,11 +17,12 @@ const questFormSchema = z.object({
     .regex(/^[a-z0-9_-]+$/i, "Key must be alphanumeric / _ / -"),
   label: z.string().trim().min(1).max(60),
   icon: z.string().trim().max(60).default("gift"),
-  questType: z.enum(["ads", "shortlink"]).default("ads"),
+  questType: z.enum(["ads", "shortlink", "locker"]).default("ads"),
   adsRequired: z.number().int().min(0).max(500).default(0),
   rewardAmount: z.number().min(0).max(10000).default(0),
   shortlinkSteps: z.array(shortlinkStepSchema).max(3).default([]),
   minSecondsPerStep: z.number().int().min(1).max(600).default(15),
+  lockerUrl: z.string().trim().url().max(2000).nullable().optional(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(9999).default(0),
   lockType: z.enum(["none", "time", "earning"]).default("none"),
@@ -101,4 +102,29 @@ export const completeShortlinkStep = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { completeShortlinkStepImpl } = await import("./quests.server");
     return completeShortlinkStepImpl(context.userId, data.questKey, data.step);
+  });
+
+/** User: start a locker quest — creates a session and returns the locker URL to open. */
+export const startLockerQuest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ questKey: z.string().min(1).max(40) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { startLockerQuestImpl } = await import("./quests.server");
+    return startLockerQuestImpl(context.userId, data.questKey);
+  });
+
+/**
+ * User: called by /go/locker/return after AdBlueMedia redirects back.
+ * Credits the most recent 'started' locker session for the given questKey.
+ */
+export const completeLockerQuest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ questKey: z.string().min(1).max(40) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { completeLockerQuestImpl } = await import("./quests.server");
+    return completeLockerQuestImpl(context.userId, data.questKey);
   });
