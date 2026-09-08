@@ -79,6 +79,18 @@ client in `src/integrations/supabase/client.server.ts`. Deployed via Lovable/Clo
 - P1: If dark mode is later added globally, the `BrandLogo variant="auto"` already swaps via `prefers-color-scheme`; header/app currently sits on light surfaces only.
 - P2: Consider adding a Phone/OTP tab on auth (spec anticipated `PhoneForm` but codebase currently only ships email); same signup-fields pattern would apply.
 
+## Feature update (2026-12) — Premium onboarding & admin step management
+- Added `src/components/PremiumOnboarding.tsx` with a nine-step mobile-first flow: welcome, nine fixed avatars, profile fields, five static earning education steps, and a wallet-aware ready screen.
+- Added `src/lib/onboarding/premium.ts` for the typed step/avatar contract and safe local defaults; static showcase steps intentionally do not call earning APIs.
+- Added `src/components/admin/PremiumOnboardingManager.tsx` to the existing Admin → Onboarding tab with CRUD, reorder, enable/disable, duplicate, and preview actions.
+- Added `supabase/migrations/20261228000000_premium_onboarding.sql` to extend `profiles` and `onboarding_steps` without changing Home or the existing coach-mark tour.
+- Added editable avatar/display-name/gender/date-of-birth controls to the existing Profile screen; completion uses the existing `profiles.onboarded` flag and routes to Home.
+
+## Verification status
+- Local Vite server responds on port 3000 after restoring the expected `/app/frontend` supervisor entrypoint.
+- TypeScript check remains blocked by pre-existing generated Supabase/type drift in untouched Offerwall, Offers, Tasks, SDK, Banner, and root route files; no premium onboarding file errors remain in the final run.
+- Public preview URL `https://feature-test-117.preview.emergentagent.com` returned Cloudflare 403/502 host errors during this run; the pod also lacked `/app/.env` Supabase credentials, so auth, migration-backed persistence, and admin CRUD require a configured runtime before retest.
+
 ## Feature update (2026-11) — Proof upload + Limited deals + Per-offer payout mode
 Migration: `supabase/migrations/20261115000000_offer_proof_deals_payout_mode.sql` (must be run manually by user against Supabase).
 

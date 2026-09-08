@@ -20,7 +20,7 @@ import {
   adminUpdateWithdrawal,
 } from "@/lib/coinquest.functions";
 import { OffersManager } from "@/components/admin/OffersManager";
-import { OnboardingManager } from "@/components/admin/OnboardingManager";
+import { PremiumOnboardingManager } from "@/components/admin/PremiumOnboardingManager";
 import { QuestsManager } from "@/components/admin/QuestsManager";
 import { TasksManager } from "@/components/admin/TasksManager";
 import { BannersManager } from "@/components/admin/BannersManager";
@@ -234,6 +234,7 @@ function AdminPage() {
             size="sm"
             variant={tab === key ? "jade" : "outline"}
             onClick={() => setTab(key)}
+            data-testid={key === "onboarding" ? "admin-tab-onboarding" : `admin-tab-${key}`}
           >
             {label}
           </Button>
@@ -332,8 +333,8 @@ function AdminPage() {
 
       {tab === "onboarding" && (
         <>
-          <SectionTitle>Onboarding tour</SectionTitle>
-          <OnboardingManager />
+          <SectionTitle>Premium onboarding</SectionTitle>
+          <PremiumOnboardingManager />
         </>
       )}
 

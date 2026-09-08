@@ -30,6 +30,7 @@ import { Route as LegalTermsRouteImport } from './routes/legal/terms'
 import { Route as LegalWithdrawalPolicyRouteImport } from './routes/legal/withdrawal-policy'
 import { Route as ApiCronRefreshOfferFeedRouteImport } from './routes/api/cron/refresh-offer-feed'
 import { Route as AuthenticatedGoQuestKeyStepRouteImport } from './routes/_authenticated/go.$questKey.$step'
+import { Route as AuthenticatedGoLockerReturnRouteImport } from './routes/_authenticated/go.locker.return'
 import { Route as ApiPublicOfferPostbackOfferIdRouteImport } from './routes/api/public/offer-postback.$offerId'
 import { Route as ApiPublicOfferwallSlugRouteImport } from './routes/api/public/offerwall/$slug'
 
@@ -139,6 +140,12 @@ const AuthenticatedGoQuestKeyStepRoute =
     path: '/go/$questKey/$step',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedGoLockerReturnRoute =
+  AuthenticatedGoLockerReturnRouteImport.update({
+    id: '/go/locker/return',
+    path: '/go/locker/return',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicOfferPostbackOfferIdRoute =
   ApiPublicOfferPostbackOfferIdRouteImport.update({
     id: '/api/public/offer-postback/$offerId',
@@ -172,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
+  '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
@@ -196,6 +204,7 @@ export interface FileRoutesByTo {
   '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
+  '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
@@ -222,6 +231,7 @@ export interface FileRoutesById {
   '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/_authenticated/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
+  '/_authenticated/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
@@ -248,6 +258,7 @@ export interface FileRouteTypes {
     | '/legal/withdrawal-policy'
     | '/api/cron/refresh-offer-feed'
     | '/go/$questKey/$step'
+    | '/go/locker/return'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '/legal/withdrawal-policy'
     | '/api/cron/refresh-offer-feed'
     | '/go/$questKey/$step'
+    | '/go/locker/return'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   id:
@@ -297,6 +309,7 @@ export interface FileRouteTypes {
     | '/legal/withdrawal-policy'
     | '/api/cron/refresh-offer-feed'
     | '/_authenticated/go/$questKey/$step'
+    | '/_authenticated/go/locker/return'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   fileRoutesById: FileRoutesById
@@ -463,6 +476,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGoQuestKeyStepRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/go/locker/return': {
+      id: '/_authenticated/go/locker/return'
+      path: '/go/locker/return'
+      fullPath: '/go/locker/return'
+      preLoaderRoute: typeof AuthenticatedGoLockerReturnRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/offer-postback/$offerId': {
       id: '/api/public/offer-postback/$offerId'
       path: '/api/public/offer-postback/$offerId'
@@ -494,6 +514,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTaskRoute: typeof AuthenticatedTaskRoute
   AuthenticatedWalletRoute: typeof AuthenticatedWalletRoute
   AuthenticatedGoQuestKeyStepRoute: typeof AuthenticatedGoQuestKeyStepRoute
+  AuthenticatedGoLockerReturnRoute: typeof AuthenticatedGoLockerReturnRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -510,6 +531,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTaskRoute: AuthenticatedTaskRoute,
   AuthenticatedWalletRoute: AuthenticatedWalletRoute,
   AuthenticatedGoQuestKeyStepRoute: AuthenticatedGoQuestKeyStepRoute,
+  AuthenticatedGoLockerReturnRoute: AuthenticatedGoLockerReturnRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

@@ -407,8 +407,10 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          date_of_birth: string | null
           device_id: string | null
           email: string | null
+          gender: string | null
           held_balance: number
           id: string
           is_flagged: boolean
@@ -429,8 +431,10 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          date_of_birth?: string | null
           device_id?: string | null
           email?: string | null
+          gender?: string | null
           held_balance?: number
           id: string
           is_flagged?: boolean
@@ -451,8 +455,10 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          date_of_birth?: string | null
           device_id?: string | null
           email?: string | null
+          gender?: string | null
           held_balance?: number
           id?: string
           is_flagged?: boolean

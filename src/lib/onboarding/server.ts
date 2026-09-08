@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { ONBOARDING_TARGET_IDS } from "./targets";
+import { DEFAULT_PREMIUM_STEPS, type PremiumOnboardingStep } from "./premium";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabaseAdmin as unknown as { from: (t: string) => any };
@@ -20,6 +21,7 @@ export async function listEnabledStepsImpl(): Promise<OnboardingStepRow[]> {
   const { data, error } = await db
     .from("onboarding_steps")
     .select("*")
+    .eq("experience", "tour")
     .eq("enabled", true)
     .order("display_order", { ascending: true });
   if (error) throw new Error(error.message ?? "Could not load onboarding steps.");
@@ -31,6 +33,7 @@ export async function listAdminStepsImpl(): Promise<OnboardingStepRow[]> {
   const { data, error } = await db
     .from("onboarding_steps")
     .select("*")
+    .eq("experience", "tour")
     .order("display_order", { ascending: true })
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message ?? "Could not load onboarding steps.");
@@ -38,7 +41,7 @@ export async function listAdminStepsImpl(): Promise<OnboardingStepRow[]> {
 }
 
 export type OnboardingStepInput = {
-  id?: string;
+  id?: string | undefined;
   targetElementId: string;
   title: string;
   description: string;
@@ -57,6 +60,7 @@ function assertKnownTarget(id: string) {
 export async function saveOnboardingStepImpl(input: OnboardingStepInput) {
   assertKnownTarget(input.targetElementId);
   const row = {
+    experience: "tour",
     target_element_id: input.targetElementId,
     title: input.title.trim(),
     description: input.description.trim(),
@@ -80,6 +84,107 @@ export async function saveOnboardingStepImpl(input: OnboardingStepInput) {
     .single();
   if (error) throw new Error(error.message ?? "Could not create step.");
   return data;
+}
+
+export async function listPremiumStepsImpl(): Promise<PremiumOnboardingStep[]> {
+  const { data, error } = await db
+    .from("onboarding_steps")
+    .select("*")
+    .eq("experience", "premium")
+    .eq("enabled", true)
+    .order("display_order", { ascending: true });
+  if (error) return DEFAULT_PREMIUM_STEPS;
+  return (data ?? []) as PremiumOnboardingStep[];
+}
+
+export async function listAdminPremiumStepsImpl(): Promise<PremiumOnboardingStep[]> {
+  const { data, error } = await db
+    .from("onboarding_steps")
+    .select("*")
+    .eq("experience", "premium")
+    .order("display_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message ?? "Could not load premium onboarding steps.");
+  return (data ?? []) as PremiumOnboardingStep[];
+}
+
+export type PremiumOnboardingStepInput = {
+  id?: string | undefined;
+  stepKey: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  stepType: PremiumOnboardingStep["step_type"];
+  ctaText: string;
+  displayOrder: number;
+  enabled: boolean;
+  accentStyle: PremiumOnboardingStep["accent_style"];
+  position: PremiumOnboardingStep["position"];
+  illustration?: string | null | undefined;
+  icon?: string | null | undefined;
+};
+
+export async function savePremiumStepImpl(input: PremiumOnboardingStepInput) {
+  const row = {
+    experience: "premium",
+    target_element_id: "premium-onboarding",
+    step_key: input.stepKey.trim(),
+    title: input.title.trim(),
+    subtitle: input.subtitle.trim(),
+    description: input.description.trim(),
+    step_type: input.stepType,
+    cta_text: input.ctaText.trim() || "Next →",
+    display_order: input.displayOrder,
+    enabled: input.enabled,
+    accent_style: input.accentStyle,
+    position: input.position,
+    illustration: input.illustration ?? null,
+    icon: input.icon ?? null,
+  };
+  if (input.id) {
+    const { data, error } = await db.from("onboarding_steps").update(row).eq("id", input.id).select("*").single();
+    if (error) throw new Error(error.message ?? "Could not save premium step.");
+    return data;
+  }
+  const { data, error } = await db.from("onboarding_steps").insert(row).select("*").single();
+  if (error) throw new Error(error.message ?? "Could not create premium step.");
+  return data;
+}
+
+export async function deletePremiumStepImpl(id: string) {
+  const { error } = await db.from("onboarding_steps").delete().eq("id", id).eq("experience", "premium");
+  if (error) throw new Error(error.message ?? "Could not delete premium step.");
+  return { ok: true };
+}
+
+export async function reorderPremiumStepsImpl(orderedIds: string[]) {
+  for (let i = 0; i < orderedIds.length; i += 1) {
+    const { error } = await db.from("onboarding_steps").update({ display_order: i + 1 }).eq("id", orderedIds[i]).eq("experience", "premium");
+    if (error) throw new Error(error.message ?? "Could not reorder premium steps.");
+  }
+  return { ok: true };
+}
+
+export async function completePremiumOnboardingImpl(
+  userId: string,
+  values: { name: string; avatarId: string; gender?: string | undefined; dateOfBirth?: string | undefined },
+) {
+  const patch = {
+    name: values.name.trim(),
+    avatar_url: values.avatarId,
+    ...(values.gender ? { gender: values.gender } : {}),
+    ...(values.dateOfBirth ? { date_of_birth: values.dateOfBirth } : {}),
+    onboarded: true,
+    has_seen_onboarding: true,
+  };
+  const updated = await supabaseAdmin.from("profiles").update(patch as never).eq("id", userId).select("*").single();
+  if (!updated.error) return updated.data;
+
+  // The core profile schema predates the optional premium fields. Keep first-run
+  // completion resilient until the additive migration is applied in Supabase.
+  const fallback = await supabaseAdmin.from("profiles").update({ name: values.name.trim(), onboarded: true } as never).eq("id", userId).select("*").single();
+  if (fallback.error) throw new Error("Could not save your profile. Please try again.");
+  return fallback.data;
 }
 
 export async function deleteOnboardingStepImpl(id: string) {

@@ -1,0 +1,194 @@
+{
+  "theme": {
+    "mode": "dark_teal_cream_gold",
+    "backgrounds": {
+      "main": "#FAF8F5",
+      "card_bg": "#0B2B28",
+      "card_secondary": "#123C38",
+      "card_cream": "#F4EFE6",
+      "accent_gold": "#D4AF37",
+      "gold_glow": "rgba(212, 175, 55, 0.35)",
+      "teal_surface": "#082220",
+      "glass_border": "rgba(212, 175, 55, 0.2)"
+    },
+    "colors": {
+      "primary_cream": "#FAF8F5",
+      "deep_jade": "#0B2B28",
+      "mid_jade": "#123C38",
+      "gold_primary": "#D4AF37",
+      "gold_light": "#F3D068",
+      "gold_dark": "#9A7B1C",
+      "text_dark": "#0B1D1B",
+      "text_muted_teal": "#A3C2BF",
+      "text_gold": "#E5C158",
+      "border_gold_subtle": "rgba(212, 175, 55, 0.25)"
+    }
+  },
+  "typography": {
+    "font_family_heading": "'Outfit', 'Plus Jakarta Sans', sans-serif",
+    "font_family_body": "'Manrope', 'DM Sans', sans-serif",
+    "scales": {
+      "hero": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "body": "text-sm sm:text-base leading-relaxed",
+      "caption": "text-xs font-medium uppercase tracking-widest"
+    }
+  },
+  "layout_and_container": {
+    "mobile_frame_max_width": "max-w-md mx-auto min-h-screen sm:min-h-[850px] sm:my-6 sm:rounded-3xl sm:shadow-2xl overflow-hidden bg-[#FAF8F5] sm:border sm:border-[#D4AF37]/30",
+    "card_style": "bg-[#0B2B28] text-white rounded-3xl p-6 sm:p-8 border border-[#D4AF37]/30 shadow-[0_20px_50px_rgba(11,43,40,0.3)] backdrop-blur-xl relative overflow-hidden",
+    "gold_glow_accent": "shadow-[0_0_25px_rgba(212,175,55,0.25)] border-[#D4AF37]",
+    "progress_indicator": "5-stage core milestone progress (1/5 to 5/5) plus 10-step pill bar with active gold glow dots"
+  },
+  "onboarding_10_step_flow": [
+    {
+      "step": 1,
+      "id": "welcome",
+      "milestone": "1/5",
+      "title": "Welcome to CashGPT",
+      "subtitle": "Your AI Financial Concierge & Premium Earning Suite",
+      "description": "Unlock high-yield offers, daily quests, video streams, and referral multiplier bonuses with smart AI guidance.",
+      "action_button": "Begin Concierge Setup"
+    },
+    {
+      "step": 2,
+      "id": "choose_avatar",
+      "milestone": "1/5",
+      "title": "Select Your Persona Avatar",
+      "subtitle": "Pick an exclusive CashGPT 3D avatar",
+      "description": "Choose from fixed premium avatars to represent your profile across leaderboards and offer payouts.",
+      "avatars": [
+        { "id": "avatar_1", "name": "Cyber Concierge", "url": "https://images.unsplash.com/photo-1740252117013-4fb21771e7ca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHw0fHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85" },
+        { "id": "avatar_2", "name": "Gold Executive", "url": "https://images.unsplash.com/photo-1740252117027-4275d3f84385?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwzfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85" },
+        { "id": "avatar_3", "name": "Jade Explorer", "url": "https://images.unsplash.com/photo-1740252117070-7aa2955b25f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwyfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85" },
+        { "id": "avatar_4", "name": "Vanguard Titan", "url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwxfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85" }
+      ],
+      "action_button": "Confirm Avatar"
+    },
+    {
+      "step": 3,
+      "id": "profile",
+      "milestone": "2/5",
+      "title": "Complete Profile Details",
+      "subtitle": "Personalize your earning preferences",
+      "description": "Enter your preferred display name, primary earning objective, and country for localized offer matching.",
+      "action_button": "Save & Continue"
+    },
+    {
+      "step": 4,
+      "id": "features_offers",
+      "milestone": "2/5",
+      "title": "Feature Showcase: Premium Offers",
+      "subtitle": "Instant high-yield payouts & tiered rewards",
+      "description": "Static educational overview of CashGPT offers. Earn up to $150 per completed financial partner deal.",
+      "is_static_educational": true,
+      "action_button": "Next Feature"
+    },
+    {
+      "step": 5,
+      "id": "quest",
+      "milestone": "3/5",
+      "title": "Feature Showcase: Daily Quests",
+      "subtitle": "Gamified streaks & multiplier bonuses",
+      "description": "Static educational overview. Complete daily check-ins and achievement benchmarks to unlock +25% earnings.",
+      "is_static_educational": true,
+      "action_button": "Explore Watch & Earn"
+    },
+    {
+      "step": 6,
+      "id": "watch_earn",
+      "milestone": "3/5",
+      "title": "Feature Showcase: Watch & Earn",
+      "subtitle": "Passive rewarded streams & video clips",
+      "description": "Static educational preview. Stream short curated partner videos to earn steady micro-payouts 24/7.",
+      "is_static_educational": true,
+      "action_button": "Explore Offerwall"
+    },
+    {
+      "step": 7,
+      "id": "offerwall",
+      "milestone": "4/5",
+      "title": "Feature Showcase: Multi-SDK Offerwall",
+      "subtitle": "Direct access to top global ad networks",
+      "description": "Static educational preview of CPX Research, AdBlueMedia, and RevToo integrations with instant credit validation.",
+      "is_static_educational": true,
+      "action_button": "Explore Referral Suite"
+    },
+    {
+      "step": 8,
+      "id": "refer_earn",
+      "milestone": "4/5",
+      "title": "Feature Showcase: Refer & Earn",
+      "subtitle": "Lifetime 20% passive revenue share",
+      "description": "Static educational breakdown. Invite friends with your unique VIP referral link to generate recurring earnings.",
+      "is_static_educational": true,
+      "action_button": "Finalize Onboarding"
+    },
+    {
+      "step": 9,
+      "id": "youre_ready",
+      "milestone": "5/5",
+      "title": "You're Ready for CashGPT!",
+      "subtitle": "Your VIP onboarding bonus is activated",
+      "description": "Your profile is verified, avatar configured, and initial 250 Gold Welcome Bonus credits are ready in your wallet.",
+      "action_button": "Enter CashGPT Dashboard"
+    },
+    {
+      "step": 10,
+      "id": "navigation_home",
+      "milestone": "5/5",
+      "title": "Launching Dashboard...",
+      "subtitle": "Redirecting to Home",
+      "description": "Redirecting user smoothly to /home while maintaining existing Home structure untouched."
+    }
+  ],
+  "admin_management_specification": {
+    "location": "/admin with Onboarding tab or OnboardingManager component",
+    "features": [
+      "CRUD operations: Create new steps, edit existing title/description/type/milestone, delete steps",
+      "Reorder controls: Drag or move up/down step sequence order",
+      "Enable / Disable toggle: Switch step status active/inactive",
+      "Duplicate step: One-click clone step configuration",
+      "Live Step Preview Modal: Interactive preview of any step in cream+jade+gold mobile frame",
+      "Preset step templates: Welcome, Avatar Picker, Profile Form, Static Showcase, Ready Banner"
+    ],
+    "test_ids": {
+      "admin_tab": "admin-tab-onboarding",
+      "add_step_button": "onboarding-add-step-btn",
+      "step_row": "onboarding-step-row-",
+      "reorder_up": "onboarding-step-up-",
+      "reorder_down": "onboarding-step-down-",
+      "toggle_active": "onboarding-step-toggle-",
+      "duplicate_btn": "onboarding-step-duplicate-",
+      "edit_btn": "onboarding-step-edit-",
+      "delete_btn": "onboarding-step-delete-",
+      "preview_btn": "onboarding-step-preview-"
+    }
+  },
+  "image_urls": {
+    "avatars": [
+      "https://images.unsplash.com/photo-1740252117013-4fb21771e7ca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHw0fHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1740252117027-4275d3f84385?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHw3fHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1740252117070-7aa2955b25f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwyfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwxfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85"
+    ],
+    "gold_coins": [
+      "https://images.unsplash.com/photo-1624365169106-1f1f4cd65c91?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHxnb2xkJTIwY29pbnMlMjByZXdhcmRzJTIwZmluYW5jZSUyMDNkfGVufDB8fHx8MTc4ODg4NDE0Nnww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1624365168012-7ed139887755?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwzfHxnb2xkJTIwY29pbnMlMjByZXdhcmRzJTIwZmluYW5jZSUyMDNkfGVufDB8fHx8MTc4ODg4NDE0Nnww&ixlib=rb-4.1.0&q=85"
+    ]
+  },
+  "instructions_to_main_agent": {
+    "visual_theme_enforcement": "Use Cream (#FAF8F5) as outer/mobile container background, Deep Jade (#0B2B28) as primary card body, Gold (#D4AF37) for buttons, badges, subtle glowing borders, and progress highlights.",
+    "static_screens_rule": "Steps 4-8 are educational feature showcases (Offers, Quests, Watch & Earn, Offerwall, Refer & Earn). They MUST NOT call live earning APIs during onboarding.",
+    "persistence": "On completion of Step 9 or clicking Finish, persist onboarding status in user settings/supabase/localStorage and navigate smoothly to /home.",
+    "admin_onboarding_manager": "Ensure OnboardingManager.tsx provides full CRUD, drag/button reorder, enable/disable toggle, duplicate, and live step preview modal with rich Cream+Jade+Gold styling.",
+    "data_testid_requirement": "Every step button, avatar card, form input, step switcher, and admin control MUST have an explicit data-testid attribute for reliable automated E2E testing."
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "No generic AI slop: Use layered z-index hierarchy, gold glow effects, and polished typography.",
+    "Responsive mobile-app look: Embed onboarding within a sleek mobile frame container on desktop or full mobile view.",
+    "Accessibility: APCA / WCAG compliant text contrast against Jade and Gold surfaces.",
+    "All interactive components MUST include explicit data-testid attributes."
+  ]
+}
