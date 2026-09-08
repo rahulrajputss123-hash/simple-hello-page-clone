@@ -221,30 +221,55 @@ function BannerCard({ banner }: { banner: UnifiedBanner }) {
 
 function CustomBannerCard({ b }: { b: EligibleBanner }) {
   const cta = b.cta_resolved;
-  const bg = b.image_url
+  const hasImage = Boolean(b.image_url);
+  // A banner has "text content" if any of title / description / CTA is present.
+  const hasText = Boolean(b.title) || Boolean(b.description) || Boolean(cta);
+  // Pure-image: image present but no text at all — no overlay, no text layer.
+  const pureImage = hasImage && !hasText;
+
+  const bg = hasImage
     ? { backgroundImage: `url(${b.image_url})`, backgroundSize: "cover", backgroundPosition: "center" }
     : undefined;
+
+  // No-image (text-only) banners keep content-driven height via padding.
+  // Image banners get a fixed 2:1 aspect-ratio container so the image is never
+  // distorted by text length.
+  const outerClass = hasImage
+    ? `surface-card relative aspect-[2/1] w-full overflow-hidden text-center shadow-lift${
+        hasImage ? "" : " bg-jade-gradient text-primary-foreground"
+      }`
+    : `surface-card relative overflow-hidden p-5 text-center shadow-lift bg-jade-gradient text-primary-foreground`;
+
   return (
     <article
-      className={`surface-card relative overflow-hidden p-5 text-center shadow-lift ${
-        b.image_url ? "" : "bg-jade-gradient text-primary-foreground"
-      }`}
+      className={outerClass}
       style={bg}
       data-testid={`banner-custom-${b.id}`}
     >
-      {b.image_url && (
+      {/* Gradient overlay: only when image + text coexist (contrast needed). */}
+      {hasImage && hasText && (
         <span
           aria-hidden
           className="absolute inset-0 bg-gradient-to-t from-primary/85 via-primary/40 to-transparent"
         />
       )}
-      <div className={`relative flex flex-col items-center gap-2 ${b.image_url ? "text-primary-foreground" : ""}`}>
-        <h3 className="font-display text-xl leading-tight">{b.title}</h3>
-        {b.description && (
-          <p className="max-w-xs text-sm leading-snug opacity-90">{b.description}</p>
-        )}
-        {cta && <BannerCta cta={cta} testid={`banner-custom-cta-${b.id}`} />}
-      </div>
+
+      {/* Text layer: skip entirely for pure-image banners. */}
+      {!pureImage && (
+        <div
+          className={`relative flex h-full flex-col items-center justify-end gap-2 p-5 ${
+            hasImage ? "text-primary-foreground" : ""
+          }`}
+        >
+          {b.title && (
+            <h3 className="font-display text-xl leading-tight">{b.title}</h3>
+          )}
+          {b.description && (
+            <p className="max-w-xs text-sm leading-snug opacity-90">{b.description}</p>
+          )}
+          {cta && <BannerCta cta={cta} testid={`banner-custom-cta-${b.id}`} />}
+        </div>
+      )}
     </article>
   );
 }

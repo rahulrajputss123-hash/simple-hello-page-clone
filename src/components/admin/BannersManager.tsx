@@ -224,7 +224,7 @@ export function BannersManager() {
     }
   };
 
-  const canSave = form && form.title.trim().length >= 2;
+  const canSave = form && (form.title.trim().length >= 2 || Boolean(form.imageUrl.trim()));
 
   return (
     <div className="space-y-3">
@@ -404,6 +404,9 @@ export function BannersManager() {
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   data-testid="banner-form-title"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Optional — leave blank for an image-only banner.
+                </p>
               </Field>
               <Field label="Short description">
                 <Textarea

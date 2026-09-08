@@ -146,9 +146,17 @@ export type BannerFormInput = {
 };
 
 export async function upsertBannerImpl(input: BannerFormInput) {
+  // Defense-in-depth: functions.ts validator should catch this first, but
+  // guard here too in case the server fn is ever called directly.
+  const titleTrimmed = input.title.trim();
+  const hasImage = Boolean(input.imageUrl?.trim());
+  if (!titleTrimmed && !hasImage) {
+    throw new Error("A banner needs either an image or a title.");
+  }
+
   const row = {
     section: input.section,
-    title: input.title.trim(),
+    title: titleTrimmed,
     description: input.description.trim(),
     image_url: input.imageUrl?.trim() || null,
     cta_label: input.ctaKind === "none" ? null : input.ctaLabel?.trim() || null,

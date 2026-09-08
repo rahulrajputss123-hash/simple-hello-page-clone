@@ -40,7 +40,7 @@ export const saveBanner = createServerFn({ method: "POST" })
       .object({
         id: z.string().uuid().optional(),
         section: sectionSchema,
-        title: z.string().trim().min(1).max(120),
+        title: z.string().trim().max(120).default(""),
         description: z.string().trim().max(500).default(""),
         imageUrl: z.string().trim().url().max(1000).nullable().optional(),
         ctaLabel: z.string().trim().max(40).nullable().optional(),
@@ -51,6 +51,10 @@ export const saveBanner = createServerFn({ method: "POST" })
         startsAt: z.string().datetime().nullable().optional(),
         endsAt: z.string().datetime().nullable().optional(),
       })
+      .refine(
+        (d) => d.title.length > 0 || Boolean(d.imageUrl),
+        { message: "A banner needs either an image or a title." },
+      )
       .parse(input),
   )
   .handler(async ({ data, context }) => {
