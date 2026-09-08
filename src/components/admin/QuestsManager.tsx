@@ -330,7 +330,7 @@ export function QuestsManager() {
                 </Field>
               ) : form.questType === "locker" ? (
                 <div className="space-y-2">
-                  <Field label="Locker URL (AdBlueMedia \"Get Link\" output URL)">
+                  <Field label={'Locker URL (AdBlueMedia "Get Link" output URL)'}>
                     <Input
                       value={form.lockerUrl}
                       placeholder="https://adbluemedia.com/locker/…"
