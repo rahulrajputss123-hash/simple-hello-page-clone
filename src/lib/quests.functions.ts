@@ -16,7 +16,7 @@ const questFormSchema = z.object({
     .max(40)
     .regex(/^[a-z0-9_-]+$/i, "Key must be alphanumeric / _ / -"),
   label: z.string().trim().min(1).max(60),
-  icon: z.string().trim().max(60).default("gift"),
+  icon: z.string().trim().max(2000).default("gift"),
   questType: z.enum(["ads", "shortlink", "locker"]).default("ads"),
   adsRequired: z.number().int().min(0).max(500).default(0),
   rewardAmount: z.number().min(0).max(10000).default(0),

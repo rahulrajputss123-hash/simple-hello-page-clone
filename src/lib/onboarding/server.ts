@@ -86,8 +86,8 @@ export async function saveOnboardingStepImpl(input: OnboardingStepInput) {
   return data;
 }
 
-export async function listPremiumStepsImpl(): Promise<PremiumOnboardingStep[]> {
-  const { data, error } = await db
+export async function listPremiumStepsImpl(client = db): Promise<PremiumOnboardingStep[]> {
+  const { data, error } = await client
     .from("onboarding_steps")
     .select("*")
     .eq("experience", "premium")
@@ -97,8 +97,8 @@ export async function listPremiumStepsImpl(): Promise<PremiumOnboardingStep[]> {
   return (data ?? []) as PremiumOnboardingStep[];
 }
 
-export async function listAdminPremiumStepsImpl(): Promise<PremiumOnboardingStep[]> {
-  const { data, error } = await db
+export async function listAdminPremiumStepsImpl(client = db): Promise<PremiumOnboardingStep[]> {
+  const { data, error } = await client
     .from("onboarding_steps")
     .select("*")
     .eq("experience", "premium")
@@ -124,7 +124,7 @@ export type PremiumOnboardingStepInput = {
   icon?: string | null | undefined;
 };
 
-export async function savePremiumStepImpl(input: PremiumOnboardingStepInput) {
+export async function savePremiumStepImpl(input: PremiumOnboardingStepInput, client = db) {
   const row = {
     experience: "premium",
     target_element_id: "premium-onboarding",
@@ -142,24 +142,24 @@ export async function savePremiumStepImpl(input: PremiumOnboardingStepInput) {
     icon: input.icon ?? null,
   };
   if (input.id) {
-    const { data, error } = await db.from("onboarding_steps").update(row).eq("id", input.id).select("*").single();
+    const { data, error } = await client.from("onboarding_steps").update(row).eq("id", input.id).select("*").single();
     if (error) throw new Error(error.message ?? "Could not save premium step.");
     return data;
   }
-  const { data, error } = await db.from("onboarding_steps").insert(row).select("*").single();
+  const { data, error } = await client.from("onboarding_steps").insert(row).select("*").single();
   if (error) throw new Error(error.message ?? "Could not create premium step.");
   return data;
 }
 
-export async function deletePremiumStepImpl(id: string) {
-  const { error } = await db.from("onboarding_steps").delete().eq("id", id).eq("experience", "premium");
+export async function deletePremiumStepImpl(id: string, client = db) {
+  const { error } = await client.from("onboarding_steps").delete().eq("id", id).eq("experience", "premium");
   if (error) throw new Error(error.message ?? "Could not delete premium step.");
   return { ok: true };
 }
 
-export async function reorderPremiumStepsImpl(orderedIds: string[]) {
+export async function reorderPremiumStepsImpl(orderedIds: string[], client = db) {
   for (let i = 0; i < orderedIds.length; i += 1) {
-    const { error } = await db.from("onboarding_steps").update({ display_order: i + 1 }).eq("id", orderedIds[i]).eq("experience", "premium");
+    const { error } = await client.from("onboarding_steps").update({ display_order: i + 1 }).eq("id", orderedIds[i]).eq("experience", "premium");
     if (error) throw new Error(error.message ?? "Could not reorder premium steps.");
   }
   return { ok: true };
@@ -168,6 +168,7 @@ export async function reorderPremiumStepsImpl(orderedIds: string[]) {
 export async function completePremiumOnboardingImpl(
   userId: string,
   values: { name: string; avatarId: string; gender?: string | undefined; dateOfBirth?: string | undefined },
+  client = db,
 ) {
   const patch = {
     name: values.name.trim(),
@@ -177,12 +178,12 @@ export async function completePremiumOnboardingImpl(
     onboarded: true,
     has_seen_onboarding: true,
   };
-  const updated = await supabaseAdmin.from("profiles").update(patch as never).eq("id", userId).select("*").single();
+  const updated = await client.from("profiles").update(patch).eq("id", userId).select("*").single();
   if (!updated.error) return updated.data;
 
   // The core profile schema predates the optional premium fields. Keep first-run
   // completion resilient until the additive migration is applied in Supabase.
-  const fallback = await supabaseAdmin.from("profiles").update({ name: values.name.trim(), onboarded: true } as never).eq("id", userId).select("*").single();
+  const fallback = await client.from("profiles").update({ name: values.name.trim(), onboarded: true }).eq("id", userId).select("*").single();
   if (fallback.error) throw new Error("Could not save your profile. Please try again.");
   return fallback.data;
 }

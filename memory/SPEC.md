@@ -19,7 +19,7 @@ Steps 4–8 are static educational content and do not call live earning APIs. Fe
 
 ## Data model
 - Existing `profiles` is extended with `gender` and `date_of_birth`; `avatar_url`, `onboarded`, and `has_seen_onboarding` remain the user profile/completion fields.
-- Existing `onboarding_steps` is extended with `experience='premium'`, step content, type, CTA, accent, and illustration fields. Existing `experience='tour'` rows continue to power the coach-mark tour.
+- Existing `onboarding_steps` is extended with `experience='premium'`, step content, type, CTA, accent, and illustration fields. Existing `experience='tour'` rows continue to power the coach-mark tour. Premium user/admin operations run through the authenticated Supabase client and existing RLS policies rather than requiring a service-role key.
 - Migration: `supabase/migrations/20261228000000_premium_onboarding.sql`.
 
 ## Admin
@@ -30,3 +30,11 @@ Supabase Auth provides sessions. Existing `profiles.onboarded=false` users enter
 
 ## Existing Home protection
 `src/routes/_authenticated/home.tsx` was not modified for this feature.
+
+## Starter Quest cards
+- Home uses a single reusable `QuestCard` presentation component driven by the existing `quests` and `quest_sessions` data.
+- Ads, shortlink, and locker quests keep their existing server-verified mutations; rewards and progress are never computed as trusted client state.
+- Admin-controlled label, icon/URL, reward, type, required count/steps, timing, sort, active state, and lock conditions drive the card automatically.
+- Each quest type has a saturated visual identity and a generated, high-resolution 3D artwork fallback: clapperboard for ads, chain links for shortlinks, and a reward lockbox for locker quests. Admin image URLs still override the fallback.
+- Locked quests remain visible with their unlock reason; credited quests are disabled and display final progress.
+- The row is a snap-scrolling mobile carousel showing one full card and part of the next card.

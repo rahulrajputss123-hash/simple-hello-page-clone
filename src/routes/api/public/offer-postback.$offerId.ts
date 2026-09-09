@@ -29,6 +29,12 @@ function headerMap(request: Request): Record<string, string> {
 }
 
 async function handle(request: Request, offerId: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(offerId)) {
+    return Response.json(
+      { ok: false, status: "rejected", reason: "invalid_offer_id" },
+      { status: 400 },
+    );
+  }
   const url = new URL(request.url);
   const params: Record<string, string> = {};
   url.searchParams.forEach((value, key) => {

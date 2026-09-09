@@ -358,7 +358,9 @@ export function QuestsManager() {
                           placeholder="Network name"
                           onChange={(event) => {
                             const next = [...form.shortlinkSteps];
-                            next[index] = { ...next[index], network: event.target.value };
+                            const current = next[index];
+                            if (!current) return;
+                            next[index] = { ...current, network: event.target.value };
                             setForm({ ...form, shortlinkSteps: next });
                           }}
                         />
@@ -369,7 +371,9 @@ export function QuestsManager() {
                           placeholder="https://…"
                           onChange={(event) => {
                             const next = [...form.shortlinkSteps];
-                            next[index] = { ...next[index], url: event.target.value };
+                            const current = next[index];
+                            if (!current) return;
+                            next[index] = { ...current, url: event.target.value };
                             setForm({ ...form, shortlinkSteps: next });
                           }}
                         />

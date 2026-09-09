@@ -75,7 +75,7 @@ export async function listActiveQuestsImpl(
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message ?? "Could not load quests.");
 
-  const rows = (data ?? []).map((r: QuestRow) => normalize(r));
+  const rows: QuestRow[] = (data ?? []).map((r: QuestRow) => normalize(r));
   const lifetimeEarned = userId ? await fetchLifetimeEarned(userId) : 0;
 
   return rows.map((quest) => {
@@ -102,7 +102,7 @@ export async function listAdminQuestsImpl(): Promise<QuestRow[]> {
 }
 
 export type QuestFormInput = {
-  id?: string;
+  id?: string | undefined;
   key: string;
   label: string;
   icon: string;
@@ -111,12 +111,12 @@ export type QuestFormInput = {
   rewardAmount: number;
   shortlinkSteps: ShortlinkStep[];
   minSecondsPerStep: number;
-  lockerUrl: string | null;
+  lockerUrl?: string | null | undefined;
   isActive: boolean;
   sortOrder: number;
   lockType: "none" | "time" | "earning";
-  unlockAt: string | null;
-  requiredLifetimeEarned: number | null;
+  unlockAt?: string | null | undefined;
+  requiredLifetimeEarned?: number | null | undefined;
 };
 
 export async function upsertQuestImpl(input: QuestFormInput) {

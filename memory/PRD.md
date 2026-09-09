@@ -91,6 +91,13 @@ client in `src/integrations/supabase/client.server.ts`. Deployed via Lovable/Clo
 - TypeScript check remains blocked by pre-existing generated Supabase/type drift in untouched Offerwall, Offers, Tasks, SDK, Banner, and root route files; no premium onboarding file errors remain in the final run.
 - Public preview URL `https://feature-test-117.preview.emergentagent.com` returned Cloudflare 403/502 host errors during this run; the pod also lacked `/app/.env` Supabase credentials, so auth, migration-backed persistence, and admin CRUD require a configured runtime before retest.
 
+## Feature update (2026-12) — Premium dynamic Starter Quest cards
+- Replaced the compact quest tiles with reusable `src/components/QuestCard.tsx` cards while preserving existing query keys, Supabase tables, server verification, reward crediting, lock enforcement, and shortlink return flow.
+- Cards adapt to admin-configured ads, shortlink, and locker quests with safe Lucide/URL icon handling, type-specific badge/accent/CTA, dynamic descriptions, circular progress, remaining count, lock reason, and credited state.
+- Final visual revision keeps cards at 214×338px while adding rich mint/gold/aqua backgrounds and high-resolution generated 3D artwork for every supported quest type.
+- `StarterQuests.tsx` remains the data/mutation owner and now renders a responsive snap carousel with approximately 1.2 cards visible on mobile; loading and retry states are retained.
+- No database migration was required. The existing admin quest form already controls every requested field; icon validation now permits full image URLs.
+
 ## Feature update (2026-11) — Proof upload + Limited deals + Per-offer payout mode
 Migration: `supabase/migrations/20261115000000_offer_proof_deals_payout_mode.sql` (must be run manually by user against Supabase).
 

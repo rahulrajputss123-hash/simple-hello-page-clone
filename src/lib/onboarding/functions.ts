@@ -99,9 +99,9 @@ export const reorderOnboardingSteps = createServerFn({ method: "POST" })
 /** Authenticated: fetch the premium onboarding flow. */
 export const listPremiumOnboardingSteps = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(async ({ context }) => {
     const { listPremiumStepsImpl } = await import("./server");
-    return listPremiumStepsImpl();
+    return listPremiumStepsImpl(context.supabase as never);
   });
 
 /** Authenticated: persist profile setup and premium onboarding completion. */
@@ -119,7 +119,7 @@ export const completePremiumOnboarding = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { completePremiumOnboardingImpl } = await import("./server");
-    return completePremiumOnboardingImpl(context.userId, data);
+    return completePremiumOnboardingImpl(context.userId, data, context.supabase as never);
   });
 
 /** Admin: full premium flow including disabled steps. */
@@ -129,7 +129,7 @@ export const listAdminPremiumOnboardingSteps = createServerFn({ method: "POST" }
     const { assertAdmin } = await import("../coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { listAdminPremiumStepsImpl } = await import("./server");
-    return listAdminPremiumStepsImpl();
+    return listAdminPremiumStepsImpl(context.supabase as never);
   });
 
 export const savePremiumOnboardingStep = createServerFn({ method: "POST" })
@@ -139,7 +139,7 @@ export const savePremiumOnboardingStep = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("../coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { savePremiumStepImpl } = await import("./server");
-    return savePremiumStepImpl(data);
+    return savePremiumStepImpl(data, context.supabase as never);
   });
 
 export const deletePremiumOnboardingStep = createServerFn({ method: "POST" })
@@ -149,7 +149,7 @@ export const deletePremiumOnboardingStep = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("../coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { deletePremiumStepImpl } = await import("./server");
-    return deletePremiumStepImpl(data.id);
+    return deletePremiumStepImpl(data.id, context.supabase as never);
   });
 
 export const reorderPremiumOnboardingSteps = createServerFn({ method: "POST" })
@@ -159,5 +159,5 @@ export const reorderPremiumOnboardingSteps = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("../coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { reorderPremiumStepsImpl } = await import("./server");
-    return reorderPremiumStepsImpl(data.orderedIds);
+    return reorderPremiumStepsImpl(data.orderedIds, context.supabase as never);
   });

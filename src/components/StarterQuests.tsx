@@ -1,59 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Play, Loader2, Check, Link as LinkIcon, ExternalLink, Lock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { QuestCard, type QuestCardQuest, type QuestSessionView } from "@/components/QuestCard";
+import { ErrorState } from "@/components/States";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { formatMoney } from "@/lib/coinquest";
 import { playRewardedAd } from "@/lib/ads";
 import { reportAdWatched, startQuest } from "@/lib/coinquest.functions";
-import { listActiveQuests, startShortlinkStep } from "@/lib/quests.functions";
+import { listActiveQuests, startLockerQuest, startShortlinkStep } from "@/lib/quests.functions";
 import { formatTimeLockReason, formatEarningLockReason } from "@/lib/lock-state";
-
-type QuestSession = {
-  id: string;
-  quest_key: string;
-  status: string;
-  ads_watched: number;
-  current_step?: number;
-};
-
-function Dial({ value, total }: { value: number; total: number }) {
-  const pct = total ? Math.min(100, (value / total) * 100) : 0;
-  const radius = 26;
-  const circumference = 2 * Math.PI * radius;
-  return (
-    <svg viewBox="0 0 64 64" className="size-16">
-      <circle cx="32" cy="32" r={radius} fill="none" stroke="var(--muted)" strokeWidth="7" />
-      <circle
-        cx="32"
-        cy="32"
-        r={radius}
-        fill="none"
-        stroke="var(--mint)"
-        strokeWidth="7"
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={circumference - (circumference * pct) / 100}
-        transform="rotate(-90 32 32)"
-        style={{ transition: "stroke-dashoffset 400ms ease" }}
-      />
-      <text
-        x="32"
-        y="36"
-        textAnchor="middle"
-        className="text-amount"
-        fontSize="15"
-        fill="var(--foreground)"
-      >
-        {value}/{total}
-      </text>
-    </svg>
-  );
-}
 
 export function StarterQuests() {
   const { session } = useAuth();
@@ -63,6 +21,7 @@ export function StarterQuests() {
   const report = useServerFn(reportAdWatched);
   const fetchQuests = useServerFn(listActiveQuests);
   const openStep = useServerFn(startShortlinkStep);
+  const openLocker = useServerFn(startLockerQuest);
 
   const quests = useQuery({
     queryKey: ["quests-active"],
@@ -78,7 +37,7 @@ export function StarterQuests() {
         .from("quest_sessions")
         .select("*")
         .order("started_at", { ascending: false });
-      return (data ?? []) as unknown as QuestSession[];
+      return (data ?? []) as unknown as QuestSessionView[];
     },
   });
 
@@ -117,11 +76,38 @@ export function StarterQuests() {
     onSettled: () => setBusy(null),
   });
 
-  if (quests.isLoading) {
+  const runLocker = useMutation({
+    mutationFn: async (questKey: string) => openLocker({ data: { questKey } }),
+    onSuccess: (result) => {
+      if (result.lockerUrl) {
+        window.open(result.lockerUrl, "_blank", "noopener,noreferrer");
+        toast.info("Complete the partner challenge, then return to CashGPT.");
+      } else {
+        toast.error("This locker has no URL configured.");
+      }
+      void queryClient.invalidateQueries({ queryKey: ["quest-sessions"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not open this locker."),
+    onSettled: () => setBusy(null),
+  });
+
+  if (quests.isLoading || sessions.isLoading) {
     return (
-      <p className="text-sm text-muted-foreground" data-testid="quests-loading">
-        Loading quests…
-      </p>
+      <div className="flex gap-3 overflow-hidden pb-2" data-testid="quests-loading">
+        {[0, 1].map((item) => (
+          <Skeleton key={item} className="h-[338px] w-[214px] min-w-[214px] rounded-[1.35rem]" />
+        ))}
+      </div>
+    );
+  }
+  if (quests.isError || sessions.isError) {
+    return (
+      <ErrorState
+        onRetry={() => {
+          void quests.refetch();
+          void sessions.refetch();
+        }}
+      />
     );
   }
   if (!quests.data?.length) {
@@ -134,17 +120,13 @@ export function StarterQuests() {
 
   return (
     <div
-      className="flex gap-3 overflow-x-auto pb-2"
+      className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-3 pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       data-testid="starter-quests-scroll"
     >
       {quests.data.map((quest) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const q = quest as any;
+        const q = quest as QuestCardQuest;
         const isLocked: boolean = Boolean(q.is_locked);
-        const unlockReason = q.unlock_reason as
-          | { type: "time"; unlocksAt: string }
-          | { type: "earning"; required: number; current: number }
-          | null;
+        const unlockReason = q.unlock_reason ?? null;
 
         const lockLabel = isLocked
           ? unlockReason?.type === "time"
@@ -154,39 +136,6 @@ export function StarterQuests() {
               : "Locked"
           : null;
 
-        if (isLocked) {
-          return (
-            <article
-              key={quest.key}
-              className="surface-card flex min-w-[160px] max-w-[160px] shrink-0 flex-col items-center gap-2 p-3 text-center opacity-60"
-              data-testid={`quest-card-${quest.key}`}
-            >
-              <span className="grid size-10 place-items-center rounded-full bg-background-alt">
-                <Lock className="size-5 text-muted-foreground" />
-              </span>
-              <p className="text-xs font-semibold">{quest.label}</p>
-              <p className="text-amount text-sm text-gold-dark">
-                {formatMoney(quest.reward_amount)}
-              </p>
-              <p className="text-[11px] text-amber-500">{lockLabel}</p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full gap-1"
-                onClick={() =>
-                  toast.info(
-                    lockLabel
-                      ? `This quest is locked. ${lockLabel}.`
-                      : "This quest is currently locked.",
-                  )
-                }
-              >
-                <Lock className="size-3.5" /> Locked
-              </Button>
-            </article>
-          );
-        }
-
         const active = sessions.data?.find(
           (s) => s.quest_key === quest.key && s.status === "started",
         );
@@ -194,99 +143,38 @@ export function StarterQuests() {
           (s) => s.quest_key === quest.key && s.status === "credited",
         );
         const isBusy = busy === quest.key;
+        const total = quest.quest_type === "shortlink" ? Math.max(1, quest.shortlink_steps.length) : 1;
+        const currentStep = Number(active?.current_step ?? 0);
+        const nextStep = credited ? total : Math.min(currentStep + 1, total);
 
-        if (quest.quest_type === "shortlink") {
-          const total = quest.shortlink_steps.length || 3;
-          const currentStep = Number(active?.current_step ?? 0);
-          const nextStep = credited ? total : Math.min(currentStep + 1, total);
-          return (
-            <article
-              key={quest.key}
-              className="surface-card flex min-w-[160px] max-w-[160px] shrink-0 flex-col items-center gap-2 p-3 text-center"
-              data-testid={`quest-card-${quest.key}`}
-            >
-              <span className="grid size-10 place-items-center rounded-full bg-background-alt">
-                <LinkIcon className="size-5 text-primary" />
-              </span>
-              <p className="text-xs font-semibold">{quest.label}</p>
-              <p className="text-amount text-sm text-gold-dark">
-                {formatMoney(quest.reward_amount)}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {credited ? `Done ${total}/${total}` : `Step ${nextStep} of ${total}`}
-              </p>
-              <Button
-                size="sm"
-                variant={credited ? "outline" : "jade"}
-                className="w-full gap-1"
-                disabled={isBusy || Boolean(credited)}
-                data-testid={`quest-open-${quest.key}`}
-                onClick={() => {
-                  if (credited) return;
-                  setBusy(quest.key);
-                  runShortlink.mutate({ questKey: quest.key, step: nextStep });
-                }}
-              >
-                {credited ? (
-                  <>
-                    <Check className="size-3.5" /> Done
-                  </>
-                ) : isBusy ? (
-                  <>
-                    <Loader2 className="size-3.5 animate-spin" /> Opening
-                  </>
-                ) : currentStep > 0 ? (
-                  <>
-                    <ExternalLink className="size-3.5" /> Continue
-                  </>
-                ) : (
-                  <>
-                    <ExternalLink className="size-3.5" /> Start
-                  </>
-                )}
-              </Button>
-            </article>
-          );
-        }
-
-        const watched = active?.ads_watched ?? (credited ? quest.ads_required : 0);
         return (
-          <article
+          <QuestCard
             key={quest.key}
-            className="surface-card flex min-w-[160px] max-w-[160px] shrink-0 flex-col items-center gap-2 p-3 text-center"
-            data-testid={`quest-card-${quest.key}`}
-          >
-            <Dial value={watched} total={quest.ads_required} />
-            <p className="text-xs font-semibold">{quest.label}</p>
-            <p className="text-amount text-sm text-gold-dark">
-              {formatMoney(quest.reward_amount)}
-            </p>
-            <Button
-              size="sm"
-              variant={credited ? "outline" : "gold"}
-              className="w-full gap-1"
-              disabled={isBusy || Boolean(credited)}
-              data-testid={`quest-watch-${quest.key}`}
-              onClick={() => {
+            quest={q}
+            active={active}
+            credited={Boolean(credited)}
+            busy={isBusy}
+            lockLabel={lockLabel}
+            onLocked={() => {
+              toast.info(
+                lockLabel
+                  ? `This quest is locked. ${lockLabel}.`
+                  : "This quest is currently locked.",
+              );
+            }}
+            onAction={() => {
+              if (isLocked || credited) return;
+              setBusy(quest.key);
+              if (quest.quest_type === "shortlink") {
+                runShortlink.mutate({ questKey: quest.key, step: nextStep });
+              } else if (quest.quest_type === "locker") {
+                runLocker.mutate(quest.key);
+              } else {
                 setBusy(quest.key);
                 runAd.mutate(quest.key);
-              }}
-            >
-              {credited ? (
-                <>
-                  <Check className="size-3.5" /> Done
-                </>
-              ) : isBusy ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" /> Ad
-                </>
-              ) : (
-                <>
-                  <Play className="size-3.5" /> Watch
-                </>
-              )}
-            </Button>
-          </article>
+              }
+            }}
+          />
         );
       })}
     </div>

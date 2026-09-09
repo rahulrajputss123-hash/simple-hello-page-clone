@@ -87,7 +87,7 @@ function HomePage() {
       <SectionBanner section="home" />
 
       <section id="tour-starter-quests">
-        <SectionHeading icon={Rocket} title="Starter Quests" />
+        <SectionHeading icon={Rocket} title="Starter Quests" subtitle="Complete simple quests and earn rewards!" />
         <StarterQuests />
       </section>
 
