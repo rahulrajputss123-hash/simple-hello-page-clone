@@ -98,6 +98,12 @@ client in `src/integrations/supabase/client.server.ts`. Deployed via Lovable/Clo
 - `StarterQuests.tsx` remains the data/mutation owner and now renders a responsive snap carousel with approximately 1.2 cards visible on mobile; loading and retry states are retained.
 - No database migration was required. The existing admin quest form already controls every requested field; icon validation now permits full image URLs.
 
+## Visual update (2026-12) — Onboarding wizard and QuestCard
+- Redesigned only `PremiumOnboarding.tsx`, onboarding presentation data/assets, `QuestCard.tsx`, and scoped premium CSS; no Home or BottomNav edits.
+- Added a consistent generated 3D illustration suite for welcome, offers, quest, watch, offerwall, referral, and ready states plus nine generated cartoon avatars.
+- Updated QuestCard to the approved 248×390px reference layout while retaining existing values, progress calculations, locked/credited presentation, and callbacks.
+- Added the explicitly approved UI actions for feature Skip, referral Copy/Share, welcome Skip for now, and final Explore App; no API or database changes were introduced.
+
 ## Feature update (2026-11) — Proof upload + Limited deals + Per-offer payout mode
 Migration: `supabase/migrations/20261115000000_offer_proof_deals_payout_mode.sql` (must be run manually by user against Supabase).
 

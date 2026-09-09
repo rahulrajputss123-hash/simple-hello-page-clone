@@ -303,4 +303,11 @@
 .premium-avatar-selected { border-color: #d4af37; background: rgba(255,255,255,.92); box-shadow: 0 0 0 2px rgba(212,175,55,.22), 0 10px 20px rgba(212,175,55,.14); }
 .premium-cta { transition: transform 220ms ease, box-shadow 220ms ease, background-color 220ms ease; }
 .premium-cta:hover { transform: translateY(-2px); box-shadow: 0 16px 28px rgba(212,175,55,.34); }
+@keyframes premium-panel-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+@keyframes premium-glint-drift { 0%, 100% { opacity: .25; transform: translate3d(0,0,0) rotate(0); } 50% { opacity: .8; transform: translate3d(8px,-10px,0) rotate(18deg); } }
+.premium-illustration-panel > img { animation: premium-panel-breathe 8s ease-in-out infinite; }
+.premium-panel-glint { position: absolute; width: 8px; height: 8px; border-radius: 9999px; background: #f4cf56; box-shadow: 0 0 18px rgba(244,207,86,.9); pointer-events: none; animation: premium-glint-drift 3.8s ease-in-out infinite; }
+.premium-panel-glint-one { right: 17%; top: 24%; }
+.premium-panel-glint-two { left: 13%; top: 42%; width: 5px; height: 5px; animation-delay: -1.7s; }
 @media (prefers-reduced-motion: reduce) { .premium-step-in, .premium-artwork-icon, .premium-artwork-coin, .premium-art-orbit { animation: none; } .premium-avatar-card, .premium-cta { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .premium-illustration-panel > img, .premium-panel-glint { animation: none; } }

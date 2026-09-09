@@ -31,6 +31,12 @@ Supabase Auth provides sessions. Existing `profiles.onboarded=false` users enter
 ## Existing Home protection
 `src/routes/_authenticated/home.tsx` was not modified for this feature.
 
+## Visual redesign contract
+- Premium onboarding keeps its existing queries, profile draft state, completion mutation, and `/home` destination. Markup now uses seven generated 3D forest-green illustration panels and nine generated cartoon character avatars.
+- Feature steps show a 1/5–5/5 counter, functional Skip control, five-dot progress, a compact content preview, and a pinned pill CTA. Referral Copy/Share and final Explore App are client-side UI actions only.
+- QuestCard keeps the same props, progress math, lock/credited conditions, and action callbacks. Presentation is 248×390px with type-matched badge/ring/info/CTA colors, circular 3D art, reward chip, progress summary, and decorative leaves.
+- Home route markup and BottomNav were not changed by this visual revision.
+
 ## Starter Quest cards
 - Home uses a single reusable `QuestCard` presentation component driven by the existing `quests` and `quest_sessions` data.
 - Ads, shortlink, and locker quests keep their existing server-verified mutations; rewards and progress are never computed as trusted client state.
