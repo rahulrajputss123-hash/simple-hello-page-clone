@@ -58,6 +58,7 @@ function ProfilePage() {
 
   return (
     <AppShell subtitle="Profile">
+      <div className="simple-fade-in">
       <section className="surface-card mt-2 flex items-center gap-3 p-4" data-testid="profile-summary-card">
         <span className={`grid size-14 place-items-center rounded-2xl bg-gradient-to-br ${avatarById(profile?.avatar_url).tone} text-2xl text-white`}>
           {avatarById(profile?.avatar_url).symbol}
@@ -167,6 +168,7 @@ function ProfilePage() {
           <DialogFooter><Button variant="outline" onClick={() => setEditing(false)} data-testid="profile-edit-cancel">Cancel</Button><Button variant="jade" disabled={saveProfile.isPending || draft.name.trim().length < 2} onClick={() => saveProfile.mutate()} data-testid="profile-edit-save">{saveProfile.isPending ? "Saving…" : "Save profile"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </AppShell>
   );
 }

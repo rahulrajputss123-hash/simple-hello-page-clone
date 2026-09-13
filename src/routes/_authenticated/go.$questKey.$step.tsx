@@ -113,7 +113,7 @@ function GoPage() {
 
         {state.kind === "success" && state.completed && (
           <>
-            <div className="text-5xl" role="img" aria-label="party">
+            <div className="success-pop text-5xl" role="img" aria-label="party">
               🎉
             </div>
             <p className="text-lg font-semibold" data-testid="go-quest-completed">

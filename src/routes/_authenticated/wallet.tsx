@@ -9,6 +9,7 @@ import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
 import { EmptyState } from "@/components/States";
+import { SuccessBurst } from "@/components/SuccessBurst";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +32,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { useCountUp } from "@/hooks/useCountUp";
 import { MIN_WITHDRAWAL, formatDateTime, formatMoney } from "@/lib/coinquest";
 import { cancelWithdrawal, createWithdrawal } from "@/lib/coinquest.functions";
 
@@ -65,6 +67,7 @@ function WalletPage() {
   const balance = Number(profile?.wallet_balance ?? 0);
   const pending = Number(profile?.held_balance ?? 0);
   const lifetime = Number(profile?.lifetime_earned ?? 0);
+  const animatedBalance = useCountUp(balance, 900);
 
   const transactions = useQuery({
     queryKey: ["transactions", session?.user.id],
@@ -120,12 +123,15 @@ function WalletPage() {
     onError: () => toast.error("Couldn't save that payout method."),
   });
 
+  const [withdrawBurst, setWithdrawBurst] = useState(0);
+
   const requestWithdrawal = useMutation({
     mutationFn: () =>
       withdraw({ data: { amount: Number(amount), payoutMethodId: methodId } }),
     onSuccess: () => {
       toast.success("Withdrawal requested — we'll review it shortly.");
       setAmount("");
+      setWithdrawBurst((v) => v + 1);
       void queryClient.invalidateQueries();
     },
     onError: (error: Error) => toast.error(error.message || "Withdrawal failed."),
@@ -145,17 +151,24 @@ function WalletPage() {
 
   return (
     <AppShell subtitle="Wallet">
-      <section className="rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
-        <p className="text-sm opacity-80">Available balance</p>
-        <p className="text-amount mt-1 text-4xl">{formatMoney(balance)}</p>
-        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-2xl bg-primary-foreground/10 px-3 py-2">
-            <p className="opacity-75">Pending</p>
-            <p className="text-amount">{formatMoney(pending)}</p>
-          </div>
-          <div className="rounded-2xl bg-primary-foreground/10 px-3 py-2">
-            <p className="opacity-75">Lifetime</p>
-            <p className="text-amount">{formatMoney(lifetime)}</p>
+      <section className="relative overflow-hidden rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-10 -top-14 size-40 rounded-full opacity-35 blur-3xl"
+          style={{ background: "radial-gradient(closest-side, var(--color-gold), transparent)" }}
+        />
+        <div className="relative">
+          <p className="text-sm opacity-80">Available balance</p>
+          <p className="text-amount mt-1 text-4xl">{formatMoney(animatedBalance)}</p>
+          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-2xl bg-primary-foreground/10 px-3 py-2">
+              <p className="opacity-75">Pending</p>
+              <p className="text-amount">{formatMoney(pending)}</p>
+            </div>
+            <div className="rounded-2xl bg-primary-foreground/10 px-3 py-2">
+              <p className="opacity-75">Lifetime</p>
+              <p className="text-amount">{formatMoney(lifetime)}</p>
+            </div>
           </div>
         </div>
       </section>
@@ -265,14 +278,17 @@ function WalletPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button
-          variant="gold"
-          className="w-full gap-2"
-          disabled={!canWithdraw || requestWithdrawal.isPending}
-          onClick={() => requestWithdrawal.mutate()}
-        >
-          <ArrowDownToLine className="size-4" /> Request withdrawal
-        </Button>
+        <div className="relative">
+          <Button
+            variant="gold"
+            className="w-full gap-2"
+            disabled={!canWithdraw || requestWithdrawal.isPending}
+            onClick={() => requestWithdrawal.mutate()}
+          >
+            <ArrowDownToLine className="size-4" /> Request withdrawal
+          </Button>
+          <SuccessBurst trigger={withdrawBurst} />
+        </div>
       </div>
 
       <SectionHeading icon={ArrowDownToLine} title="Withdrawals" />
@@ -316,8 +332,12 @@ function WalletPage() {
         />
       ) : (
         <ul className="space-y-2">
-          {transactions.data.map((tx) => (
-            <li key={tx.id} className="surface-card flex items-center justify-between p-3">
+          {transactions.data.map((tx, index) => (
+            <li
+              key={tx.id}
+              style={{ animationDelay: `${Math.min(index, 10) * 60}ms` }}
+              className="surface-card entrance-rise flex items-center justify-between p-3"
+            >
               <div className="min-w-0">
                 <p className="truncate font-semibold">{tx.description || tx.kind}</p>
                 <p className="text-xs text-muted-foreground">{formatDateTime(tx.created_at)}</p>

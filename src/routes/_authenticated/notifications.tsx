@@ -50,26 +50,28 @@ function NotificationsPage() {
 
   return (
     <AppShell subtitle="Notifications">
-      <SectionHeading size="page" icon={Bell} title="Notifications" />
-      {!notifications.data?.length ? (
-        <EmptyState
-          icon={Bell}
-          title="Nothing here yet"
-          description="Quest rewards and payout updates will show up here."
-        />
-      ) : (
-        <ul className="space-y-2">
-          {notifications.data.map((item) => (
-            <li key={item.id} className="surface-card p-3">
-              <p className="font-semibold">{item.title}</p>
-              <p className="text-sm text-muted-foreground">{item.body}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {formatDateTime(item.created_at)}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="simple-fade-in">
+        <SectionHeading size="page" icon={Bell} title="Notifications" />
+        {!notifications.data?.length ? (
+          <EmptyState
+            icon={Bell}
+            title="Nothing here yet"
+            description="Quest rewards and payout updates will show up here."
+          />
+        ) : (
+          <ul className="space-y-2">
+            {notifications.data.map((item) => (
+              <li key={item.id} className="surface-card p-3">
+                <p className="font-semibold">{item.title}</p>
+                <p className="text-sm text-muted-foreground">{item.body}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {formatDateTime(item.created_at)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </AppShell>
   );
 }

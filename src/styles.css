@@ -311,3 +311,143 @@
 .premium-panel-glint-two { left: 13%; top: 42%; width: 5px; height: 5px; animation-delay: -1.7s; }
 @media (prefers-reduced-motion: reduce) { .premium-step-in, .premium-artwork-icon, .premium-artwork-coin, .premium-art-orbit { animation: none; } .premium-avatar-card, .premium-cta { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .premium-illustration-panel > img, .premium-panel-glint { animation: none; } }
+
+
+/* ==========================================================================
+ * Per-screen background + motion polish (visual only — no layout changes).
+ * Rule of thumb: action/reward screens get subtle life (wash/orbs/motion);
+ * read/scroll/focus screens stay flat cream with entrance-only animation.
+ * Reuses existing keyframes (payout-rise, premium-art-float, premium-orbit,
+ * splash-halo-pulse, auth-fade-slide) wherever possible; a few narrowly-
+ * scoped new keyframes cover the one-shot success/confetti moments.
+ * ========================================================================== */
+
+/* Home hero wash: soft jade + gold radial blend into cream, same technique
+ * as .auth-bg::before. Self-contained (fixed height, pinned to the top),
+ * so it only needs an ancestor with `position: relative` — it never
+ * stretches to the full page height and has zero layout impact. */
+.home-hero-wash {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 420px;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 100% at 18% 0%, oklch(0.382 0.056 196.8 / 0.12), transparent 70%),
+    radial-gradient(65% 100% at 88% 0%, oklch(0.824 0.163 77.8 / 0.14), transparent 72%);
+}
+
+/* Two blurred floating orbs for the Home hero corners — reuses the existing
+ * .premium-orb sizing/blur convention, retinted with jade + gold tokens so
+ * it reads as "Home", not "Onboarding". Sit in the same fixed-height hero
+ * band as .home-hero-wash. Rendered first in DOM (before the header/main),
+ * so — exactly like the existing Cash-Out-Your-Way blurred orbs — normal
+ * paint order keeps them behind all real content with no z-index needed. */
+.home-orb { position: absolute; pointer-events: none; border-radius: 9999px; filter: blur(2px); opacity: .4; }
+.home-orb-one { width: 180px; height: 180px; right: -70px; top: -40px; background: radial-gradient(circle, oklch(0.824 0.163 77.8 / 0.35), transparent 68%); }
+.home-orb-two { width: 200px; height: 200px; left: -100px; top: 20px; background: radial-gradient(circle, oklch(0.382 0.056 196.8 / 0.28), transparent 68%); }
+
+/* Refer & Earn wash: subtle mint tint instead of jade/gold, kept distinct
+ * from Home. Standalone absolutely-positioned overlay rendered first in
+ * DOM (sibling before the page content, inside a `position: relative`
+ * shell) — zero layout impact, no z-index needed. */
+.page-mint-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(48% 40% at 12% 0%, oklch(0.784 0.163 161.4 / 0.14), transparent 72%),
+    radial-gradient(40% 34% at 92% 12%, oklch(0.824 0.163 77.8 / 0.1), transparent 72%);
+}
+
+/* Gentle float for a coin/reward icon — thin wrapper around the existing
+ * premium-art-float keyframe so Home doesn't need a new one. */
+.icon-float {
+  animation: premium-art-float 4.2s ease-in-out infinite;
+}
+
+/* Generic staggered fade-up entrance for lists/cards — thin wrapper around
+ * the existing payout-rise keyframe so it can be reused outside the
+ * Cash-Out-Your-Way section. Pair with an inline `animation-delay` for
+ * staggering (see components). */
+.entrance-rise {
+  animation: payout-rise 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Generic card hover-lift — same values as the existing .payout-card hover
+ * treatment, extracted so offer/quest cards can opt in without duplicating
+ * the Cash-Out-Your-Way class name. */
+.hover-lift {
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 300ms ease;
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Simple page-load fade-in for read/focus screens (Profile, Notifications,
+ * Support). Reuses the auth-fade-slide keyframe already defined for Auth. */
+.simple-fade-in {
+  animation: auth-fade-slide 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Gentle pulsing glow to draw the eye to the Refer "Share" button — reuses
+ * the existing splash-halo-pulse keyframe via opacity/scale on a box-shadow
+ * instead of introducing a new animation. */
+@keyframes share-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.784 0.163 161.4 / 0.45); }
+  50%      { box-shadow: 0 0 0 8px oklch(0.784 0.163 161.4 / 0); }
+}
+.share-btn-glow {
+  animation: share-glow-pulse 2.6s ease-in-out infinite;
+}
+
+/* One-shot success pulse + checkmark pop for task/quest completion. Runs
+ * once (no infinite loop) so it never competes with reading progress. */
+@keyframes success-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.success-pop {
+  animation: success-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* One-shot confetti/burst near the claim/withdraw button on a successful
+ * reward moment. Small, contained, non-looping — a handful of tinted
+ * squares bursting outward and fading, using only jade/mint/gold tokens. */
+@keyframes confetti-burst {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translate(var(--confetti-x, 24px), var(--confetti-y, -36px)) rotate(var(--confetti-r, 140deg)) scale(0.4); opacity: 0; }
+}
+.confetti-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.confetti-piece {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  animation: confetti-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-float,
+  .entrance-rise,
+  .simple-fade-in,
+  .share-btn-glow,
+  .success-pop,
+  .confetti-piece {
+    animation: none !important;
+  }
+  .hover-lift {
+    transition: none !important;
+  }
+  .hover-lift:hover {
+    transform: none !important;
+  }
+}

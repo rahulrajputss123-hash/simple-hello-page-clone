@@ -73,7 +73,7 @@ function ReferPage() {
   const referralEarnings = mine.reduce((sum, r) => sum + Number(r.bonus_amount ?? 0), 0);
 
   return (
-    <AppShell subtitle="Refer">
+    <AppShell subtitle="Refer" background="mint">
       <SectionHeading
         size="page"
         icon={Users}
@@ -82,7 +82,7 @@ function ReferPage() {
         className="mb-4"
       />
 
-      <section className="rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
+      <section className="entrance-rise rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
         <h2 className="text-xl">Invite friends, earn more</h2>
         <p className="mt-1 text-sm opacity-80">
           Earn up to {formatMoney(REFERRAL_MAX_BONUS)} per friend.
@@ -108,7 +108,7 @@ function ReferPage() {
           </Button>
           <Button
             variant="mint"
-            className="flex-1 gap-2"
+            className="share-btn-glow flex-1 gap-2"
             onClick={async () => {
               if (navigator.share) await navigator.share({ title: "CashGPT", url: link });
               else {
@@ -123,14 +123,14 @@ function ReferPage() {
       </section>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="surface-card p-4">
+        <div className="surface-card entrance-rise p-4" style={{ animationDelay: "80ms" }}>
           <span className="grid size-9 place-items-center rounded-xl bg-primary/10">
             <Users className="size-4 text-primary" />
           </span>
           <p className="text-amount mt-3 text-2xl leading-none">{mine.length}</p>
           <p className="mt-1 text-xs text-muted-foreground">Friends Invited</p>
         </div>
-        <div className="surface-card p-4">
+        <div className="surface-card entrance-rise p-4" style={{ animationDelay: "130ms" }}>
           <span className="grid size-9 place-items-center rounded-xl bg-gold/20">
             <Gift className="size-4 text-gold-dark" />
           </span>
@@ -142,7 +142,7 @@ function ReferPage() {
       </div>
 
       <SectionHeading icon={Gift} title={`How you earn ${formatMoney(REFERRAL_MAX_BONUS)}`} />
-      <ol className="surface-card space-y-1 p-4">
+      <ol className="surface-card entrance-rise space-y-1 p-4">
         {MILESTONES.map((milestone, index) => (
           <li key={milestone.key} className="relative flex gap-3 pb-4 last:pb-0">
             {index < MILESTONES.length - 1 && (

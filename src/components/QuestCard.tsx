@@ -51,6 +51,8 @@ type QuestCardProps = {
   lockLabel: string | null;
   onAction: () => void;
   onLocked: () => void;
+  /** Position in the list — drives the staggered entrance delay only. */
+  index?: number;
 };
 
 type QuestVisual = {
@@ -150,7 +152,7 @@ function ProgressRing({ value, total, visual, testId }: { value: number; total: 
   return <div className="relative grid size-[82px] shrink-0 place-items-center" data-testid={testId}><svg viewBox="0 0 76 76" className="absolute inset-0 size-full -rotate-90" aria-hidden><circle cx="38" cy="38" r={radius} fill="none" stroke={visual.ringTrack} strokeWidth="7" /><circle cx="38" cy="38" r={radius} fill="none" stroke={visual.progressColor} strokeWidth="7" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference - (circumference * percent) / 100} style={{ transition: "stroke-dashoffset 420ms cubic-bezier(.22,1,.36,1)" }} /></svg><span className="relative text-amount text-lg text-[#0b2b28]">{safeValue}/{safeTotal}</span></div>;
 }
 
-export function QuestCard({ quest, active, credited, busy, lockLabel, onAction, onLocked }: QuestCardProps) {
+export function QuestCard({ quest, active, credited, busy, lockLabel, onAction, onLocked, index = 0 }: QuestCardProps) {
   const visual = QUEST_VISUALS[quest.quest_type] ?? QUEST_VISUALS.ads;
   const locked = Boolean(quest.is_locked);
   const total = quest.quest_type === "ads" ? Math.max(1, quest.ads_required) : quest.quest_type === "shortlink" ? Math.max(1, quest.shortlink_steps.length) : 1;
@@ -165,7 +167,7 @@ export function QuestCard({ quest, active, credited, busy, lockLabel, onAction, 
   const actionTestId = quest.quest_type === "ads" ? `quest-watch-${quest.key}` : quest.quest_type === "shortlink" ? `quest-open-${quest.key}` : `quest-locker-${quest.key}`;
 
   return (
-    <article className={`surface-card group relative flex h-[390px] w-[248px] min-w-[248px] snap-start flex-col overflow-hidden !rounded-[1.65rem] !border p-4 !shadow-none transition-[transform,box-shadow,opacity] duration-200 hover:-translate-y-1 ${locked ? "border-border bg-background-alt opacity-70" : credited ? "border-[#8bd9bb] bg-[#effbf5]" : visual.cardClass}`} data-testid={`quest-card-${quest.key}`}>
+    <article style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }} className={`surface-card entrance-rise group relative flex h-[390px] w-[248px] min-w-[248px] snap-start flex-col overflow-hidden !rounded-[1.65rem] !border p-4 !shadow-none transition-[transform,box-shadow,opacity] duration-200 hover:-translate-y-1 ${locked ? "border-border bg-background-alt opacity-70" : credited ? "border-[#8bd9bb] bg-[#effbf5]" : visual.cardClass}`} data-testid={`quest-card-${quest.key}`}>
       <Leaf className="pointer-events-none absolute -bottom-3 -left-3 size-16 rotate-[28deg] opacity-20" style={{ color: visual.progressColor }} aria-hidden />
       <Leaf className="pointer-events-none absolute -bottom-4 -right-4 size-14 -rotate-[38deg] opacity-15" style={{ color: visual.progressColor }} aria-hidden />
 
@@ -191,9 +193,9 @@ export function QuestCard({ quest, active, credited, busy, lockLabel, onAction, 
         <div className="min-w-0 text-left"><span className="mb-1 grid size-7 place-items-center rounded-lg bg-white/75" style={{ color: visual.progressColor }}>{visual.progressIcon}</span><p className="sr-only" data-testid={`quest-progress-text-${quest.key}`}>{progress} / {total}</p><p className="font-display text-base leading-tight text-[#173f38]" data-testid={`quest-remaining-${quest.key}`}>{credited ? "Completed" : `${remaining} more`}</p><p className="mt-0.5 text-[10px] text-[#71817c]">to complete</p></div>
       </div>
 
-      <div className={`relative z-10 mt-3 flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-bold ${locked ? "border-border bg-muted text-muted-foreground" : credited ? "border-[#bdebd9] bg-[#dff7ed] text-[#0c7059]" : visual.infoClass}`} data-testid={`quest-detail-${quest.key}`}><span className="[&_svg]:size-4">{locked ? <LockKeyhole /> : credited ? <ShieldCheck /> : visual.progressIcon}</span><span className="min-w-0 flex-1 truncate">{summary}</span><ChevronRight className="size-4 shrink-0 opacity-70" /><span className="sr-only">{detail}</span></div>
+      <div className={`relative z-10 mt-3 flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-bold ${locked ? "border-border bg-muted text-muted-foreground" : credited ? "border-[#bdebd9] bg-[#dff7ed] text-[#0c7059]" : visual.infoClass}`} data-testid={`quest-detail-${quest.key}`}><span className="[&_svg]:size-4">{locked ? <LockKeyhole /> : credited ? <ShieldCheck className="success-pop" /> : visual.progressIcon}</span><span className="min-w-0 flex-1 truncate">{summary}</span><ChevronRight className="size-4 shrink-0 opacity-70" /><span className="sr-only">{detail}</span></div>
 
-      <Button type="button" size="lg" variant="outline" className={`relative z-10 mt-auto h-12 w-full rounded-full border-0 text-sm font-extrabold ${locked || credited ? "border border-border bg-white/70 text-muted-foreground shadow-none" : visual.buttonClass}`} disabled={busy || credited} onClick={locked ? onLocked : onAction} data-testid={actionTestId}>{busy ? <Loader2 className="size-4 animate-spin" /> : locked ? <LockKeyhole className="size-4" /> : credited ? <Check className="size-4" /> : quest.quest_type === "ads" ? <Play className="size-4 fill-current" /> : quest.quest_type === "shortlink" ? <Link2 className="size-4" /> : <Gift className="size-4" />}{ctaText}</Button>
+      <Button type="button" size="lg" variant="outline" className={`relative z-10 mt-auto h-12 w-full rounded-full border-0 text-sm font-extrabold ${locked || credited ? "border border-border bg-white/70 text-muted-foreground shadow-none" : visual.buttonClass}`} disabled={busy || credited} onClick={locked ? onLocked : onAction} data-testid={actionTestId}>{busy ? <Loader2 className="size-4 animate-spin" /> : locked ? <LockKeyhole className="size-4" /> : credited ? <Check className="success-pop size-4" /> : quest.quest_type === "ads" ? <Play className="size-4 fill-current" /> : quest.quest_type === "shortlink" ? <Link2 className="size-4" /> : <Gift className="size-4" />}{ctaText}</Button>
     </article>
   );
 }

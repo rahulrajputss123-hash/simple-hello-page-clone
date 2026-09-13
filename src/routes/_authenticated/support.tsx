@@ -87,6 +87,7 @@ function SupportPage() {
 
   return (
     <AppShell subtitle="Support">
+      <div className="simple-fade-in">
       <SectionHeading size="page" icon={LifeBuoy} title="Help centre" />
 
       <AiAssistant />
@@ -179,6 +180,7 @@ function SupportPage() {
           ))}
         </ul>
       )}
+      </div>
     </AppShell>
   );
 }

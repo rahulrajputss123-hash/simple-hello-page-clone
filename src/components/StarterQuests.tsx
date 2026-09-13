@@ -123,7 +123,7 @@ export function StarterQuests() {
       className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-3 pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       data-testid="starter-quests-scroll"
     >
-      {quests.data.map((quest) => {
+      {quests.data.map((quest, index) => {
         const q = quest as QuestCardQuest;
         const isLocked: boolean = Boolean(q.is_locked);
         const unlockReason = q.unlock_reason ?? null;
@@ -154,6 +154,7 @@ export function StarterQuests() {
             active={active}
             credited={Boolean(credited)}
             busy={isBusy}
+            index={index}
             lockLabel={lockLabel}
             onLocked={() => {
               toast.info(

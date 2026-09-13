@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ListChecks, Lock } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -56,6 +57,20 @@ function TaskPage() {
     },
     onError: (error: Error) => toast.error(error.message || "Couldn't update that task."),
   });
+
+  // One-shot completion pulse: only pop for a task the moment it transitions
+  // to "completed" in this session — never re-pop on reload/re-render for
+  // tasks that were already done.
+  const seenDoneIds = useRef<Set<string>>(new Set());
+  const [justCompletedIds, setJustCompletedIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const doneIds = new Set((userTasks.data ?? []).filter((t) => t.status === "completed").map((t) => t.task_id));
+    const newlyDone = [...doneIds].filter((id) => !seenDoneIds.current.has(id));
+    if (newlyDone.length && seenDoneIds.current.size > 0) {
+      setJustCompletedIds(new Set(newlyDone));
+    }
+    seenDoneIds.current = doneIds;
+  }, [userTasks.data]);
 
   return (
     <AppShell subtitle="Tasks">
@@ -119,7 +134,10 @@ function TaskPage() {
                     <div className="mt-3">
                       {done ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-mint-foreground">
-                          <CheckCircle2 className="size-4 text-accent" /> Completed
+                          <CheckCircle2
+                            className={`size-4 text-accent ${justCompletedIds.has(task.id) ? "success-pop" : ""}`}
+                          />{" "}
+                          Completed
                         </span>
                       ) : automated ? (
                         <span className="text-xs text-muted-foreground">

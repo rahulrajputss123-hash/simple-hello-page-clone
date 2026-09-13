@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,10 +19,12 @@ import { FeaturedOffers } from "@/components/FeaturedOffers";
 import { OfferwallSlot } from "@/components/OfferwallSlot";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { SectionBanner } from "@/components/SectionBanner";
+import { SimulatedLiveActivity } from "@/components/SimulatedLiveActivity";
 import { StarterQuests } from "@/components/StarterQuests";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { useCountUp } from "@/hooks/useCountUp";
 import { completeOnboarding } from "@/lib/coinquest.functions";
 import { getDeviceId } from "@/lib/ads";
 
@@ -83,15 +85,24 @@ function HomePage() {
     void navigate({ to: "/onboarding", replace: true });
   }, [profile, navigate, queryClient, save]);
   return (
-    <AppShell subtitle="Earn as you go">
+    <AppShell subtitle="Earn as you go" heroGlow>
+      <SimulatedLiveActivity />
       <SectionBanner section="home" />
 
-      <section id="tour-starter-quests">
+      <section
+        id="tour-starter-quests"
+        className="entrance-rise"
+        style={{ animationDelay: "40ms" }}
+      >
         <SectionHeading icon={Rocket} title="Starter Quests" subtitle="Complete simple quests and earn rewards!" />
         <StarterQuests />
       </section>
 
-      <section id="tour-featured-offers">
+      <section
+        id="tour-featured-offers"
+        className="entrance-rise"
+        style={{ animationDelay: "110ms" }}
+      >
         <SectionHeading icon={Star} title="Featured Offers" />
         <FeaturedOffers scope="home" />
         <div className="mt-3 flex justify-center">
@@ -109,24 +120,27 @@ function HomePage() {
 
       <OnboardingTour />
 
-      <SectionHeading icon={Layers} title="Offerwall" />
-      <OfferwallSlot limit={6} />
-      <div className="mt-3 flex justify-center">
-        <Link
-          to="/offerwall"
-          className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
-        >
-          View All
-        </Link>
+      <div className="entrance-rise" style={{ animationDelay: "180ms" }}>
+        <SectionHeading icon={Layers} title="Offerwall" />
+        <OfferwallSlot limit={6} />
+        <div className="mt-3 flex justify-center">
+          <Link
+            to="/offerwall"
+            className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            View All
+          </Link>
+        </div>
+        <p className="mt-3 text-center text-xs text-muted-foreground">
+          Partner networks activate in the mobile app.
+        </p>
       </div>
-      <p className="mt-3 text-center text-xs text-muted-foreground">
-        Partner networks activate in the mobile app.
-      </p>
 
       {/* Cash Out Your Way — the bold, eye-catching highlight of the page */}
       <section
         data-testid="cash-out-section"
-        className="relative mt-10 overflow-hidden rounded-[1.75rem] bg-jade-gradient p-5 shadow-lift"
+        className="entrance-rise relative mt-10 overflow-hidden rounded-[1.75rem] bg-jade-gradient p-5 shadow-lift"
+        style={{ animationDelay: "250ms" }}
       >
         <div
           aria-hidden
@@ -219,7 +233,8 @@ function HomePage() {
       {/* Need Help? — kept separately, still useful */}
       <div
         data-testid="need-help-card"
-        className="surface-card mt-4 flex items-center gap-4 p-4"
+        className="surface-card entrance-rise mt-4 flex items-center gap-4 p-4"
+        style={{ animationDelay: "300ms" }}
       >
         <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-mint/15 text-primary">
           <HelpCircle className="size-6" />
@@ -268,25 +283,7 @@ function HomePage() {
 const PAID_OUT_THIS_WEEK = 128540;
 
 function PaidOutThisWeek() {
-  const [value, setValue] = useState(0);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setValue(PAID_OUT_THIS_WEEK);
-      return;
-    }
-    const duration = 1100;
-    const start = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(Math.round(PAID_OUT_THIS_WEEK * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
+  const value = Math.round(useCountUp(PAID_OUT_THIS_WEEK, 1100));
 
   return (
     <div

@@ -8,6 +8,7 @@ import { EmptyState, ErrorState } from "@/components/States";
 import { OfferDetailsDialog, type OfferDetailsPayload } from "@/components/OfferDetailsDialog";
 import { OfferTagRow } from "@/components/OfferTagRow";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
+import { SuccessBurst } from "@/components/SuccessBurst";
 import { formatMoney } from "@/lib/coinquest";
 import { claimOffer } from "@/lib/coinquest.functions";
 import { getFeaturedFeed, trackOfferClick } from "@/lib/offers.functions";
@@ -36,6 +37,11 @@ export function FeaturedOffers({
   const [pending, setPending] = useState<OfferDetailsPayload | null>(null);
   const [broken, setBroken] = useState<Record<string, boolean>>({});
 
+  // Tracks the most recently successfully-claimed offer so a small, one-shot
+  // burst can play near that card's claim icon — never looping, never
+  // full-screen, and cleared once the burst has had a chance to play.
+  const [justClaimed, setJustClaimed] = useState<{ offerId: string; seq: number } | null>(null);
+
   const mutation = useMutation({
     mutationFn: async (input: { offerId: string; proofUrl: string | null }) =>
       claim({
@@ -44,7 +50,8 @@ export function FeaturedOffers({
           ...(input.proofUrl ? { proofUrl: input.proofUrl } : {}),
         },
       }),
-    onSuccess: async () => {
+    onSuccess: async (_result, input) => {
+      setJustClaimed((prev) => ({ offerId: input.offerId, seq: (prev?.seq ?? 0) + 1 }));
       await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
     },
     onError: (err: Error) =>
@@ -111,7 +118,7 @@ export function FeaturedOffers({
   return (
     <>
       <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
-        {offers.map((offer) => {
+        {offers.map((offer, index) => {
           const showImage = Boolean(offer.image_url) && !broken[offer.id];
           return (
             <li
@@ -125,7 +132,8 @@ export function FeaturedOffers({
                   openOffer(offer);
                 }
               }}
-              className="surface-card group relative flex cursor-pointer flex-col overflow-hidden !p-0 shadow-soft outline-none transition-all duration-200 hover:-translate-y-0.5 hover:shadow-gold focus-visible:ring-2 focus-visible:ring-primary/50 active:translate-y-0"
+              style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
+              className="surface-card entrance-rise group relative flex cursor-pointer flex-col overflow-hidden !p-0 shadow-soft outline-none transition-all duration-200 hover:-translate-y-0.5 hover:shadow-gold focus-visible:ring-2 focus-visible:ring-primary/50 active:translate-y-0"
               data-testid={`featured-offer-${offer.id}`}
             >
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-background-alt">
@@ -154,6 +162,8 @@ export function FeaturedOffers({
                   data-testid={`featured-offer-claim-${offer.id}`}
                 >
                   <ArrowUpRight className="size-3.5" />
+                  {/* Absolutely positioned parent already provides the containing block. */}
+                  {justClaimed?.offerId === offer.id && <SuccessBurst trigger={justClaimed.seq} />}
                 </span>
               </div>
 

@@ -4,6 +4,7 @@ import { Bell, Coins } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatMoney } from "@/lib/coinquest";
 import { supabase } from "@/integrations/supabase/client";
+import { useCountUp } from "@/hooks/useCountUp";
 import { useQuery } from "@tanstack/react-query";
 import { BottomNav } from "./BottomNav";
 
@@ -67,7 +68,18 @@ export function BrandLogo({
   );
 }
 
-export function AppHeader({ subtitle }: { subtitle?: string }) {
+export function AppHeader({
+  subtitle,
+  animateBalance = false,
+}: {
+  subtitle?: string;
+  /**
+   * Opt-in: gentle float on the balance coin icon + count-up on the balance
+   * figure. Reserved for Home (via `AppShell heroGlow`) so the header stays
+   * perfectly static everywhere else.
+   */
+  animateBalance?: boolean;
+}) {
   const { session, profile } = useAuth();
   const unread = useQuery({
     queryKey: ["notifications-unread", session?.user.id],
@@ -85,6 +97,9 @@ export function AppHeader({ subtitle }: { subtitle?: string }) {
   void subtitle;
 
   const available = Number(profile?.wallet_balance ?? 0) - Number(profile?.held_balance ?? 0);
+  // Hooks must run unconditionally; only the *displayed* value is switched.
+  const animatedAvailable = useCountUp(available, 900);
+  const displayedAvailable = animateBalance ? animatedAvailable : available;
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur-md">
@@ -116,8 +131,8 @@ export function AppHeader({ subtitle }: { subtitle?: string }) {
             aria-label="Open wallet"
             className="flex items-center gap-1.5 rounded-full bg-gold-gradient px-3 py-2 text-gold-foreground shadow-gold"
           >
-            <Coins className="size-4" />
-            <span className="text-amount text-sm">{formatMoney(available)}</span>
+            <Coins className={`size-4 ${animateBalance ? "icon-float" : ""}`} />
+            <span className="text-amount text-sm">{formatMoney(displayedAvailable)}</span>
           </Link>
         </div>
       </div>
@@ -129,15 +144,39 @@ export function AppShell({
   children,
   subtitle,
   hideNav = false,
+  heroGlow = false,
+  background,
 }: {
   children: React.ReactNode;
   subtitle?: string;
   hideNav?: boolean;
+  /**
+   * Opt-in soft jade + gold radial wash + two blurred orbs behind the
+   * header and first fold — reserved for screens where the user takes
+   * action or receives a reward (currently: Home). Purely decorative,
+   * absolutely positioned, zero layout impact. Off by default so every
+   * other screen stays flat cream.
+   */
+  heroGlow?: boolean;
+  /**
+   * Opt-in subtle full-page background tint for screens that get a gentle
+   * accent without the full hero treatment (currently: Refer & Earn's mint
+   * tint). Off by default.
+   */
+  background?: "mint";
 }) {
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <AppHeader {...(subtitle ? { subtitle } : {})} />
-      <main className="mx-auto w-full max-w-lg px-4 py-4">{children}</main>
+    <div className="relative min-h-screen bg-background pb-24">
+      {heroGlow && (
+        <>
+          <div aria-hidden className="home-hero-wash" />
+          <div aria-hidden className="home-orb home-orb-one" />
+          <div aria-hidden className="home-orb home-orb-two" />
+        </>
+      )}
+      {background === "mint" && <div aria-hidden className="page-mint-wash" />}
+      <AppHeader {...(subtitle ? { subtitle } : {})} animateBalance={heroGlow} />
+      <main className="relative mx-auto w-full max-w-lg px-4 py-4">{children}</main>
       {!hideNav && <BottomNav />}
     </div>
   );
