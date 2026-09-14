@@ -1,13 +1,10 @@
 import {
   CalendarDays,
-  Check,
   ChevronRight,
   Clapperboard,
   Coins,
-  ExternalLink,
   Film,
   Gift,
-  Leaf,
   Link2,
   Loader2,
   LockKeyhole,
@@ -59,56 +56,67 @@ type QuestVisual = {
   badgeIcon: ReactNode;
   progressIcon: ReactNode;
   badgeClass: string;
-  cardClass: string;
-  infoClass: string;
-  progressColor: string;
-  ringTrack: string;
-  buttonClass: string;
+  cardStyle: React.CSSProperties;
+  cardShadowClass: string;
+  glowColor: string;
+  ctaTextClass: string;
 };
 
 const QUEST_VISUALS: Record<QuestRow["quest_type"], QuestVisual> = {
   ads: {
     badge: "Easy",
     fallbackIcon: Clapperboard,
-    badgeIcon: <Zap className="size-3.5 fill-current" />,
-    progressIcon: <Film className="size-5" />,
-    badgeClass: "bg-[#2fd897] text-[#073f34]",
-    cardClass:
-      "border-[#8be5c3] bg-[radial-gradient(circle_at_50%_27%,#c8f7e2_0%,#effbf5_58%,#ffffff_100%)] shadow-[0_16px_36px_rgba(34,177,130,.16)]",
-    infoClass: "border-[#bdebd9] bg-[#dff7ed] text-[#0c7059]",
-    progressColor: "#18b982",
-    ringTrack: "#cdeee1",
-    buttonClass:
-      "bg-[linear-gradient(180deg,#18ae80,#08735f)] text-white shadow-[0_10px_22px_rgba(8,115,95,.28)] hover:brightness-110",
+    badgeIcon: <Zap className="size-3 fill-current" />,
+    progressIcon: <Film className="size-4" />,
+    badgeClass: "bg-[#0b7a50] text-white",
+    cardStyle: {
+      backgroundImage:
+        "radial-gradient(130% 65% at 50% -12%, rgba(255,255,255,.55), rgba(255,255,255,0) 55%)," +
+        "linear-gradient(168deg, #6fe0a6 0%, #34c787 42%, #12925f 100%)",
+    },
+    cardShadowClass:
+      "shadow-[inset_0_-28px_46px_-18px_rgba(4,58,38,.35),0_18px_36px_-12px_rgba(14,140,95,.4)]",
+    glowColor: "rgba(20,150,105,.45)",
+    ctaTextClass: "text-[#0b7a50]",
   },
   shortlink: {
     badge: "Challenge",
     fallbackIcon: Link2,
-    badgeIcon: <Sparkles className="size-3.5" />,
-    progressIcon: <Link2 className="size-5" />,
-    badgeClass: "bg-[#ff7b22] text-white",
-    cardClass:
-      "border-[#ffd27e] bg-[radial-gradient(circle_at_50%_27%,#ffe9ba_0%,#fff8e8_58%,#fffefb_100%)] shadow-[0_16px_36px_rgba(255,139,31,.16)]",
-    infoClass: "border-[#ffe0a0] bg-[#fff0cb] text-[#a25a00]",
-    progressColor: "#ff9718",
-    ringTrack: "#f7e6c4",
-    buttonClass:
-      "bg-[linear-gradient(180deg,#ffab24,#ff7b16)] text-white shadow-[0_10px_22px_rgba(255,123,22,.28)] hover:brightness-105",
+    badgeIcon: <Sparkles className="size-3" />,
+    progressIcon: <Link2 className="size-4" />,
+    badgeClass: "bg-[#a34c00] text-white",
+    cardStyle: {
+      backgroundImage:
+        "radial-gradient(130% 65% at 50% -12%, rgba(255,255,255,.55), rgba(255,255,255,0) 55%)," +
+        "linear-gradient(168deg, #ffc266 0%, #ff9736 42%, #e0731a 100%)",
+    },
+    cardShadowClass:
+      "shadow-[inset_0_-28px_46px_-18px_rgba(107,47,0,.35),0_18px_36px_-12px_rgba(224,115,26,.4)]",
+    glowColor: "rgba(230,125,25,.45)",
+    ctaTextClass: "text-[#a34c00]",
   },
   locker: {
     badge: "Daily",
     fallbackIcon: LockKeyhole,
-    badgeIcon: <CalendarDays className="size-3.5" />,
-    progressIcon: <Gift className="size-5" />,
-    badgeClass: "bg-[#1677d2] text-white",
-    cardClass:
-      "border-[#91c9f1] bg-[radial-gradient(circle_at_50%_27%,#cce8fb_0%,#edf7fe_58%,#ffffff_100%)] shadow-[0_16px_36px_rgba(22,119,210,.16)]",
-    infoClass: "border-[#bddcf4] bg-[#e0effb] text-[#07599d]",
-    progressColor: "#1677d2",
-    ringTrack: "#d5e7f5",
-    buttonClass:
-      "bg-[linear-gradient(180deg,#278edc,#0868b5)] text-white shadow-[0_10px_22px_rgba(8,104,181,.28)] hover:brightness-105",
+    badgeIcon: <CalendarDays className="size-3" />,
+    progressIcon: <Gift className="size-4" />,
+    badgeClass: "bg-[#0b4e90] text-white",
+    cardStyle: {
+      backgroundImage:
+        "radial-gradient(130% 65% at 50% -12%, rgba(255,255,255,.55), rgba(255,255,255,0) 55%)," +
+        "linear-gradient(168deg, #7ec2f3 0%, #3f97e1 42%, #1c68b1 100%)",
+    },
+    cardShadowClass:
+      "shadow-[inset_0_-28px_46px_-18px_rgba(7,45,86,.35),0_18px_36px_-12px_rgba(28,104,177,.4)]",
+    glowColor: "rgba(25,110,190,.45)",
+    ctaTextClass: "text-[#0b4e90]",
   },
+};
+
+const LOCKED_CARD_STYLE: React.CSSProperties = {
+  backgroundImage:
+    "radial-gradient(130% 65% at 50% -12%, rgba(255,255,255,.6), rgba(255,255,255,0) 55%)," +
+    "linear-gradient(168deg, #e6e6e6 0%, #cfcfcf 42%, #adadad 100%)",
 };
 
 const ICONS: Record<string, LucideIcon> = {
@@ -153,12 +161,20 @@ function QuestArtwork({
   const Icon = ICONS[key] ?? Fallback;
   const source = isCustomUrl && !customBroken ? trimmed : QUEST_ARTWORK[type];
 
-  if (fallbackBroken) return <Icon className="size-12" strokeWidth={1.8} aria-hidden />;
+  if (fallbackBroken) {
+    return (
+      <Icon
+        className="size-11 text-white drop-shadow-[0_8px_10px_rgba(0,0,0,.35)]"
+        strokeWidth={1.9}
+        aria-hidden
+      />
+    );
+  }
   return (
     <img
       src={source}
       alt=""
-      className="size-full scale-[1.16] rounded-full object-cover mix-blend-multiply transition-transform duration-300 group-hover:scale-[1.22]"
+      className="size-full scale-[1.2] rounded-full object-cover mix-blend-multiply drop-shadow-[0_10px_12px_rgba(0,0,0,.28)] transition-transform duration-300 group-hover:scale-[1.26]"
       onError={() =>
         isCustomUrl && !customBroken ? setCustomBroken(true) : setFallbackBroken(true)
       }
@@ -169,29 +185,34 @@ function QuestArtwork({
 function ProgressRing({
   value,
   total,
-  visual,
   testId,
 }: {
   value: number;
   total: number;
-  visual: QuestVisual;
   testId: string;
 }) {
   const safeTotal = Math.max(1, total);
   const safeValue = Math.min(Math.max(0, value), safeTotal);
-  const radius = 31;
+  const radius = 30;
   const circumference = 2 * Math.PI * radius;
   const percent = (safeValue / safeTotal) * 100;
   return (
-    <div className="relative grid size-[82px] shrink-0 place-items-center" data-testid={testId}>
-      <svg viewBox="0 0 76 76" className="absolute inset-0 size-full -rotate-90" aria-hidden>
-        <circle cx="38" cy="38" r={radius} fill="none" stroke={visual.ringTrack} strokeWidth="7" />
+    <div className="relative grid size-[68px] shrink-0 place-items-center" data-testid={testId}>
+      <svg viewBox="0 0 72 72" className="absolute inset-0 size-full -rotate-90" aria-hidden>
         <circle
-          cx="38"
-          cy="38"
+          cx="36"
+          cy="36"
           r={radius}
           fill="none"
-          stroke={visual.progressColor}
+          stroke="rgba(255,255,255,.32)"
+          strokeWidth="7"
+        />
+        <circle
+          cx="36"
+          cy="36"
+          r={radius}
+          fill="none"
+          stroke="#ffffff"
           strokeWidth="7"
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -199,7 +220,7 @@ function ProgressRing({
           style={{ transition: "stroke-dashoffset 420ms cubic-bezier(.22,1,.36,1)" }}
         />
       </svg>
-      <span className="relative text-amount text-lg text-[#0b2b28]">
+      <span className="relative text-amount text-base text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.25)]">
         {safeValue}/{safeTotal}
       </span>
     </div>
@@ -268,166 +289,144 @@ export function QuestCard({
           : quest.quest_type === "shortlink"
             ? progress > 0
               ? "Continue"
-              : "Start Quest"
-            : "Open Locker";
+              : "Start Quest!"
+            : "View Offers";
   const actionTestId =
     quest.quest_type === "ads"
       ? `quest-watch-${quest.key}`
       : quest.quest_type === "shortlink"
         ? `quest-open-${quest.key}`
         : `quest-locker-${quest.key}`;
+  const percent = Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100));
 
   return (
     <article
-      className={`surface-card group relative flex h-[390px] w-[248px] min-w-[248px] snap-start flex-col overflow-hidden !rounded-[1.65rem] !border p-4 !shadow-none transition-[transform,box-shadow,opacity] duration-200 hover:-translate-y-1 ${locked ? "border-border bg-background-alt opacity-70" : credited ? "border-[#8bd9bb] bg-[#effbf5]" : visual.cardClass}`}
+      className={`group relative flex h-[390px] w-[248px] min-w-[248px] snap-start flex-col overflow-hidden rounded-[20px] transition-[transform,box-shadow,opacity] duration-200 hover:-translate-y-1 ${locked ? "opacity-80" : ""} ${locked ? "" : visual.cardShadowClass}`}
+      style={locked ? LOCKED_CARD_STYLE : visual.cardStyle}
       data-testid={`quest-card-${quest.key}`}
     >
-      <Leaf
-        className="pointer-events-none absolute -bottom-3 -left-3 size-16 rotate-[28deg] opacity-20"
-        style={{ color: visual.progressColor }}
-        aria-hidden
-      />
-      <Leaf
-        className="pointer-events-none absolute -bottom-4 -right-4 size-14 -rotate-[38deg] opacity-15"
-        style={{ color: visual.progressColor }}
-        aria-hidden
-      />
-
-      <div className="relative z-10 flex items-start justify-between gap-2">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] shadow-sm ${locked ? "bg-muted text-muted-foreground" : visual.badgeClass}`}
-          data-testid={`quest-type-${quest.key}`}
-        >
-          {locked ? <LockKeyhole className="size-3.5" /> : visual.badgeIcon}
-          {locked ? "Locked" : visual.badge}
-        </span>
-        <span
-          className="flex items-center gap-1.5 rounded-xl border border-[#e8b62c] bg-[linear-gradient(180deg,#ffe574,#f5c842)] px-2.5 py-1.5 text-[#563900] shadow-[0_5px_12px_rgba(212,175,55,.22)]"
-          data-testid={`quest-reward-${quest.key}`}
-        >
-          <Coins className="size-4" />
-          <span className="text-right">
-            <span className="block text-amount text-sm leading-none">
-              {formatMoney(quest.reward_amount)}
-            </span>
-            <span className="mt-0.5 block text-[7px] font-black uppercase tracking-[0.1em]">
-              Reward
-            </span>
+      {/* Reward pill — tucked flush into the card's top-right corner */}
+      <div
+        className="absolute right-0 top-0 z-20 flex items-center gap-1.5 rounded-bl-2xl rounded-tr-[20px] border-b border-l border-[#e8b62c]/70 bg-[linear-gradient(180deg,#ffe574,#f5c842)] px-3.5 py-2 pl-4 text-[#563900] shadow-[0_8px_16px_rgba(0,0,0,.18)]"
+        data-testid={`quest-reward-${quest.key}`}
+      >
+        <Coins className="size-4 shrink-0" />
+        <span className="text-right leading-none">
+          <span className="block text-amount text-sm">{formatMoney(quest.reward_amount)}</span>
+          <span className="mt-0.5 block text-[7px] font-black uppercase tracking-[0.12em]">
+            Reward
           </span>
         </span>
       </div>
 
-      <div className="relative z-10 mt-2 flex flex-col items-center text-center">
-        <div
-          className="relative grid size-[104px] place-items-center"
-          data-testid={`quest-icon-${quest.key}`}
-        >
+      <div className="relative z-10 flex h-full flex-col p-4 pb-5">
+        {/* Top row: type badge */}
+        <div className="flex items-start pr-20">
           <span
-            className="absolute inset-2 rounded-full bg-white/65 shadow-[0_0_28px_rgba(255,255,255,.9)]"
-            aria-hidden
-          />
-          <span
-            className="absolute left-0 top-6 h-1 w-4 -rotate-[18deg] rounded-full opacity-65"
-            style={{ backgroundColor: visual.progressColor }}
-            aria-hidden
-          />
-          <span
-            className="absolute right-0 top-8 h-1 w-3 rotate-[20deg] rounded-full opacity-65"
-            style={{ backgroundColor: visual.progressColor }}
-            aria-hidden
-          />
-          <Sparkles className="absolute right-1 top-1 size-4 text-[#d4af37]" aria-hidden />
-          <span
-            className={`relative grid size-[90px] place-items-center overflow-hidden rounded-full ${locked ? "bg-muted text-muted-foreground" : "bg-white/45"}`}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] shadow-[0_4px_10px_rgba(0,0,0,.18)] ${locked ? "bg-black/25 text-white" : visual.badgeClass}`}
+            data-testid={`quest-type-${quest.key}`}
           >
-            {locked ? (
-              <LockKeyhole className="size-12" />
-            ) : (
-              <QuestArtwork
-                value={quest.icon}
-                type={quest.quest_type}
-                fallback={visual.fallbackIcon}
-              />
-            )}
+            {locked ? <LockKeyhole className="size-3" /> : visual.badgeIcon}
+            {locked ? "Locked" : visual.badge}
           </span>
         </div>
-        <h3
-          className="mt-1 line-clamp-1 font-display text-[22px] leading-tight text-[#0b2b28]"
-          data-testid={`quest-title-${quest.key}`}
-        >
-          {quest.label}
-        </h3>
+
+        {/* Icon + title row */}
+        <div className="mt-3 flex items-center gap-3">
+          <div className="relative grid size-16 shrink-0 place-items-center">
+            <span
+              aria-hidden
+              className="absolute inset-0 rounded-full blur-xl"
+              style={{
+                background: locked
+                  ? "radial-gradient(circle, rgba(255,255,255,.35), transparent 70%)"
+                  : `radial-gradient(circle, ${visual.glowColor}, transparent 70%)`,
+              }}
+            />
+            <span
+              aria-hidden
+              className="absolute bottom-0 h-3 w-10 rounded-full bg-black/25 blur-md"
+            />
+            <div
+              className="relative grid size-14 place-items-center overflow-hidden rounded-full"
+              data-testid={`quest-icon-${quest.key}`}
+            >
+              {locked ? (
+                <LockKeyhole className="size-11 text-white/80" strokeWidth={1.9} />
+              ) : (
+                <QuestArtwork
+                  value={quest.icon}
+                  type={quest.quest_type}
+                  fallback={visual.fallbackIcon}
+                />
+              )}
+            </div>
+          </div>
+          <h3
+            className="min-w-0 flex-1 truncate font-display text-xl leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.2)]"
+            data-testid={`quest-title-${quest.key}`}
+          >
+            {quest.label}
+          </h3>
+        </div>
+
+        {/* Description */}
         <p
-          className="mx-auto mt-1.5 line-clamp-2 max-w-[205px] text-xs leading-relaxed text-[#687c77]"
+          className="mt-2 line-clamp-2 text-left text-xs leading-relaxed text-white/85"
           data-testid={`quest-description-${quest.key}`}
         >
           {description}
         </p>
-      </div>
 
-      <div className="relative z-10 mt-3 flex items-center justify-center gap-4">
-        <ProgressRing
-          value={progress}
-          total={total}
-          visual={visual}
-          testId={`quest-progress-${quest.key}`}
-        />
-        <div className="min-w-0 text-left">
-          <span
-            className="mb-1 grid size-7 place-items-center rounded-lg bg-white/75"
-            style={{ color: visual.progressColor }}
-          >
-            {visual.progressIcon}
-          </span>
-          <p className="sr-only" data-testid={`quest-progress-text-${quest.key}`}>
-            {progress} / {total}
-          </p>
-          <p
-            className="font-display text-base leading-tight text-[#173f38]"
-            data-testid={`quest-remaining-${quest.key}`}
-          >
-            {credited ? "Completed" : `${remaining} more`}
-          </p>
-          <p className="mt-0.5 text-[10px] text-[#71817c]">to complete</p>
+        {/* Progress row */}
+        <div className="mt-3 flex items-center gap-3">
+          <ProgressRing value={progress} total={total} testId={`quest-progress-${quest.key}`} />
+          <div className="min-w-0 flex-1">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/30">
+              <div
+                className="h-full rounded-full bg-white transition-[width] duration-300"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+            <p className="sr-only" data-testid={`quest-progress-text-${quest.key}`}>
+              {progress} / {total}
+            </p>
+            <p
+              className="mt-1.5 text-[11px] font-bold text-white/90"
+              data-testid={`quest-remaining-${quest.key}`}
+            >
+              {credited ? "Completed" : `${remaining} more to complete`}
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div
-        className={`relative z-10 mt-3 flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-bold ${locked ? "border-border bg-muted text-muted-foreground" : credited ? "border-[#bdebd9] bg-[#dff7ed] text-[#0c7059]" : visual.infoClass}`}
-        data-testid={`quest-detail-${quest.key}`}
-      >
-        <span className="[&_svg]:size-4">
-          {locked ? <LockKeyhole /> : credited ? <ShieldCheck /> : visual.progressIcon}
-        </span>
-        <span className="min-w-0 flex-1 truncate">{summary}</span>
-        <ChevronRight className="size-4 shrink-0 opacity-70" />
-        <span className="sr-only">{detail}</span>
-      </div>
+        {/* Info pill */}
+        <div
+          className="mt-3 flex h-10 items-center gap-2 rounded-full bg-white/20 px-3 text-xs font-bold text-white ring-1 ring-inset ring-white/25"
+          data-testid={`quest-detail-${quest.key}`}
+        >
+          <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-white/25 [&_svg]:size-3.5">
+            {locked ? <LockKeyhole /> : credited ? <ShieldCheck /> : visual.progressIcon}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{summary}</span>
+          <ChevronRight className="size-4 shrink-0 opacity-80" />
+          <span className="sr-only">{detail}</span>
+        </div>
 
-      <Button
-        type="button"
-        size="lg"
-        variant="outline"
-        className={`relative z-10 mt-auto h-12 w-full rounded-full border-0 text-sm font-extrabold ${locked || credited ? "border border-border bg-white/70 text-muted-foreground shadow-none" : visual.buttonClass}`}
-        disabled={busy || credited}
-        onClick={locked ? onLocked : onAction}
-        data-testid={actionTestId}
-      >
-        {busy ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : locked ? (
-          <LockKeyhole className="size-4" />
-        ) : credited ? (
-          <Check className="size-4" />
-        ) : quest.quest_type === "ads" ? (
-          <Play className="size-4 fill-current" />
-        ) : quest.quest_type === "shortlink" ? (
-          <Link2 className="size-4" />
-        ) : (
-          <Gift className="size-4" />
-        )}
-        {ctaText}
-      </Button>
+        {/* Main CTA */}
+        <Button
+          type="button"
+          size="lg"
+          variant="outline"
+          className={`relative z-10 mt-3 h-12 w-full rounded-full border-0 bg-white/95 text-sm font-extrabold shadow-[0_6px_0_rgba(0,0,0,.1),0_10px_18px_rgba(0,0,0,.18)] hover:brightness-105 ${locked || credited ? "text-muted-foreground" : visual.ctaTextClass}`}
+          disabled={busy || credited}
+          onClick={locked ? onLocked : onAction}
+          data-testid={actionTestId}
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+          {ctaText}
+        </Button>
+      </div>
     </article>
   );
 }
