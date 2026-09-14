@@ -17,7 +17,6 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { FeaturedOffers } from "@/components/FeaturedOffers";
 import { OfferwallSlot } from "@/components/OfferwallSlot";
-import { OnboardingTour } from "@/components/OnboardingTour";
 import { SectionBanner } from "@/components/SectionBanner";
 import { StarterQuests } from "@/components/StarterQuests";
 import { SectionHeading } from "@/components/SectionHeading";
@@ -163,8 +162,6 @@ function HomePage() {
           </Link>
         </div>
       </section>
-
-      <OnboardingTour />
 
       <SectionHeading icon={Layers} iconSrc="/icons/icon-offerwall.png" title="Offerwall" />
       <OfferwallSlot limit={6} />
