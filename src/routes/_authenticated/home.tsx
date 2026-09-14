@@ -29,6 +29,47 @@ import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
 
 const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
 
+/** Counts up from 0 to `target` once the attached element first scrolls into view. */
+function useCountUpOnVisible(target: number, duration = 1400) {
+  const ref = useRef<HTMLElement | null>(null);
+  const [value, setValue] = useState(0);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || startedRef.current) return;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      startedRef.current = true;
+      setValue(target);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry || !entry.isIntersecting || startedRef.current) return;
+        startedRef.current = true;
+        observer.disconnect();
+
+        const start = performance.now();
+        const tick = (now: number) => {
+          const progress = Math.min(1, (now - start) / duration);
+          const eased = 1 - (1 - progress) ** 3;
+          setValue(Math.round(target * eased));
+          if (progress < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      },
+      { threshold: 0.4 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [target, duration]);
+
+  return { ref, value };
+}
+
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
     meta: [
@@ -50,6 +91,7 @@ function HomePage() {
   const queryClient = useQueryClient();
   const save = useServerFn(completeOnboarding);
   const autoOnboarded = useRef(false);
+  const communityStat = useCountUpOnVisible(50000);
 
   useEffect(() => {
     if (!profile || profile.onboarded) return;
@@ -159,6 +201,7 @@ function HomePage() {
       </div>
 
       <section
+        ref={communityStat.ref}
         data-testid="live-community-section"
         className="surface-card premium-step-in relative overflow-hidden p-5"
       >
@@ -176,8 +219,11 @@ function HomePage() {
 
         <div className="relative mt-3 flex items-end justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-amount font-display text-3xl leading-none text-foreground">
-              50,000+
+            <p
+              className="text-amount font-display text-3xl leading-none text-foreground"
+              data-testid="live-community-stat"
+            >
+              {communityStat.value.toLocaleString()}+
             </p>
             <p className="mt-1 text-xs text-muted-foreground">Users earning with us</p>
             <div className="mt-2.5 flex items-center gap-1.5">
