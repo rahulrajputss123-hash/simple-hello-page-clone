@@ -26,7 +26,12 @@ export const Route = createFileRoute("/_authenticated/offerwall")({
 function OfferwallPage() {
   return (
     <AppShell subtitle="Offerwall">
-      <SectionHeading size="page" icon={Layers} title="Offerwall" />
+      <SectionHeading
+        size="page"
+        icon={Layers}
+        iconSrc="/icons/icon-offerwall.png"
+        title="Offerwall"
+      />
       <SectionBanner section="offerwall" />
       <OfferwallSlot />
       <p className="mt-3 text-center text-xs text-muted-foreground">

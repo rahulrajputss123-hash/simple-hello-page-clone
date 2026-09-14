@@ -1,4 +1,9 @@
-import type { NormalizedOffer, OfferProvider, OfferProviderAdapter, OfferCategory } from "../provider-types";
+import type {
+  NormalizedOffer,
+  OfferProvider,
+  OfferProviderAdapter,
+  OfferCategory,
+} from "../provider-types";
 
 /**
  * AdBlueMedia multi-offer feed adapter.
@@ -29,7 +34,8 @@ function num(value: unknown): number {
 function config(provider: OfferProvider) {
   const cfg = (provider.sync_config ?? {}) as Record<string, unknown>;
   return {
-    feedUrl: typeof cfg["feed_url"] === "string" && cfg["feed_url"] ? cfg["feed_url"] : DEFAULT_FEED_URL,
+    feedUrl:
+      typeof cfg["feed_url"] === "string" && cfg["feed_url"] ? cfg["feed_url"] : DEFAULT_FEED_URL,
     userId: String(cfg["user_id"] ?? "788820"),
     s1: typeof cfg["s1"] === "string" ? cfg["s1"] : "",
     s2: typeof cfg["s2"] === "string" ? cfg["s2"] : "",
@@ -77,7 +83,7 @@ export const adblueMediaAdapter: OfferProviderAdapter = {
     const list: FeedOffer[] = Array.isArray(parsed)
       ? (parsed as FeedOffer[])
       : Array.isArray((parsed as { offers?: FeedOffer[] })?.offers)
-        ? ((parsed as { offers: FeedOffer[] }).offers)
+        ? (parsed as { offers: FeedOffer[] }).offers
         : [];
 
     if (!list.length) throw new Error("AdBlueMedia feed returned no offers.");
@@ -123,7 +129,7 @@ const ADBLUEMEDIA_CATEGORY_MAP: Record<string, OfferCategory | undefined> = {
   "1": "App Install",
   "2": "Survey",
   "3": "Trial",
-  "4": "Trial",       // Sign-up / registration
+  "4": "Trial", // Sign-up / registration
   "5": "Deals",
   "6": "Games",
   "7": "Link Locker",

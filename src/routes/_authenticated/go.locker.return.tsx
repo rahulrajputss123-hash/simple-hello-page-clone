@@ -35,9 +35,7 @@ export const Route = createFileRoute("/_authenticated/go/locker/return")({
 });
 
 type State =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "success"; reward: number };
+  { kind: "loading" } | { kind: "error"; message: string } | { kind: "success"; reward: number };
 
 function LockerReturnPage() {
   const { questKey } = useSearch({ from: "/_authenticated/go/locker/return" });
@@ -63,14 +61,16 @@ function LockerReturnPage() {
       } catch (err) {
         if (cancelled) return;
         const message =
-          err instanceof Error ? err.message : "Could not verify your locker completion. Please try again.";
+          err instanceof Error
+            ? err.message
+            : "Could not verify your locker completion. Please try again.";
         setState({ kind: "error", message });
       }
     })();
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questKey]);
 
   const goHome = () => void navigate({ to: "/home" });

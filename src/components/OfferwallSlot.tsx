@@ -18,10 +18,10 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
     return `https://revtoo.com/offerwall/${appId}/${encodeURIComponent(userId)}`;
   }
   if (slug === "offerwallme") {
-  return `https://offerwall.me/offerwall/${appId}/${encodeURIComponent(userId)}`;
+    return `https://offerwall.me/offerwall/${appId}/${encodeURIComponent(userId)}`;
   }
   if (slug === "cpxresearch") {
-  return `https://offers.cpx-research.com/index.php?app_id=${appId}&ext_user_id=${encodeURIComponent(userId)}`;
+    return `https://offers.cpx-research.com/index.php?app_id=${appId}&ext_user_id=${encodeURIComponent(userId)}`;
   }
   return null;
 }

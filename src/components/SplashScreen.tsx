@@ -47,10 +47,7 @@ export function SplashScreen({ loading }: { loading: boolean }) {
 
       <div className="relative flex flex-col items-center gap-6">
         <div className="splash-logo-wrap relative">
-          <span
-            aria-hidden
-            className="splash-halo absolute inset-0 -z-10 rounded-[36%] blur-2xl"
-          />
+          <span aria-hidden className="splash-halo absolute inset-0 -z-10 rounded-[36%] blur-2xl" />
           <BrandLogo variant="light" className="h-auto w-[220px] drop-shadow-lg" />
         </div>
 

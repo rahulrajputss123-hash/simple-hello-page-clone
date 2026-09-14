@@ -23,7 +23,10 @@ export const Route = createFileRoute("/_authenticated/task")({
       { title: "Tasks — CashGPT" },
       { name: "description", content: "Step-by-step tasks that pay into your CashGPT wallet." },
       { property: "og:title", content: "Tasks — CashGPT" },
-      { property: "og:description", content: "Step-by-step tasks that pay into your CashGPT wallet." },
+      {
+        property: "og:description",
+        content: "Step-by-step tasks that pay into your CashGPT wallet.",
+      },
     ],
   }),
   component: TaskPage,
@@ -62,6 +65,7 @@ function TaskPage() {
       <SectionHeading
         size="page"
         icon={ListChecks}
+        iconSrc="/icons/icon-your-task.png"
         title="Your tasks"
         subtitle="Work through the list to unlock rewards."
         className="mb-4"
@@ -110,7 +114,10 @@ function TaskPage() {
                     <p className="text-xs text-muted-foreground">{task.description}</p>
                     {(automated || task.steps_total > 1) && (
                       <div className="mt-2">
-                        <Progress value={Math.min(100, (progress / target) * 100)} className="h-2" />
+                        <Progress
+                          value={Math.min(100, (progress / target) * 100)}
+                          className="h-2"
+                        />
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           {progress} of {target} {automated ? "completed" : "steps"}
                         </p>

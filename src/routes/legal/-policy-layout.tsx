@@ -90,9 +90,7 @@ export function PolicyLayout({
 
       <div className="relative mx-auto w-full max-w-2xl px-4 pb-16 pt-4">
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gold-dark">
-            Legal
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-gold-dark">Legal</p>
           <h1 className="font-display text-3xl leading-tight text-primary">{title}</h1>
           {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         </header>
@@ -170,9 +168,7 @@ export function PolicyLayout({
                   {idx + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-display text-lg leading-tight text-primary">
-                    {s.title}
-                  </h2>
+                  <h2 className="font-display text-lg leading-tight text-primary">{s.title}</h2>
                   <div className="policy-body mt-3 space-y-3 text-sm leading-[1.65] text-foreground/85">
                     {s.body}
                   </div>
@@ -240,8 +236,6 @@ export function Callout({
       ? "border-gold/40 bg-gold/10 text-gold-dark"
       : "border-primary/30 bg-primary/5 text-primary";
   return (
-    <div className={`rounded-xl border ${cls} p-3 text-[13px] leading-relaxed`}>
-      {children}
-    </div>
+    <div className={`rounded-xl border ${cls} p-3 text-[13px] leading-relaxed`}>{children}</div>
   );
 }

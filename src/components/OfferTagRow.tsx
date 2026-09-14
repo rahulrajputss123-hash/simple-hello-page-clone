@@ -7,36 +7,34 @@ import { Flame, Star, TrendingUp, Zap, Tag } from "lucide-react";
  */
 export type OfferTag = "Hot" | "Trending" | "Easy" | "Popular";
 
-const CONFIG: Record<
-  "Deal" | OfferTag,
-  { icon: typeof Flame; label: string; className: string }
-> = {
-  Deal: {
-    icon: Tag,
-    label: "Deal",
-    className: "bg-gold-gradient text-gold-foreground shadow-gold",
-  },
-  Hot: {
-    icon: Flame,
-    label: "Hot",
-    className: "bg-red-500/95 text-white shadow-sm",
-  },
-  Trending: {
-    icon: TrendingUp,
-    label: "Trending",
-    className: "bg-primary/95 text-primary-foreground shadow-sm",
-  },
-  Easy: {
-    icon: Zap,
-    label: "Easy",
-    className: "bg-mint-gradient text-primary shadow-sm",
-  },
-  Popular: {
-    icon: Star,
-    label: "Popular",
-    className: "bg-gold/95 text-gold-foreground shadow-sm",
-  },
-};
+const CONFIG: Record<"Deal" | OfferTag, { icon: typeof Flame; label: string; className: string }> =
+  {
+    Deal: {
+      icon: Tag,
+      label: "Deal",
+      className: "bg-gold-gradient text-gold-foreground shadow-gold",
+    },
+    Hot: {
+      icon: Flame,
+      label: "Hot",
+      className: "bg-red-500/95 text-white shadow-sm",
+    },
+    Trending: {
+      icon: TrendingUp,
+      label: "Trending",
+      className: "bg-primary/95 text-primary-foreground shadow-sm",
+    },
+    Easy: {
+      icon: Zap,
+      label: "Easy",
+      className: "bg-mint-gradient text-primary shadow-sm",
+    },
+    Popular: {
+      icon: Star,
+      label: "Popular",
+      className: "bg-gold/95 text-gold-foreground shadow-sm",
+    },
+  };
 
 export function OfferTagRow({
   tags,

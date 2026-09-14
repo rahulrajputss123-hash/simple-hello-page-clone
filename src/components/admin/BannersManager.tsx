@@ -299,9 +299,7 @@ export function BannersManager() {
                   {b.is_active ? "Active" : "Inactive"}
                 </span>
               </div>
-              {b.description && (
-                <p className="text-xs text-muted-foreground">{b.description}</p>
-              )}
+              {b.description && <p className="text-xs text-muted-foreground">{b.description}</p>}
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={() => openEdit(b)}>
                   <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
@@ -320,8 +318,8 @@ export function BannersManager() {
         <div>
           <p className="text-sm font-semibold">Smart banners</p>
           <p className="text-xs text-muted-foreground">
-            Auto-generated live from user &amp; app data (no content editing). Switch one off to stop
-            it appearing anywhere.
+            Auto-generated live from user &amp; app data (no content editing). Switch one off to
+            stop it appearing anywhere.
           </p>
         </div>
         <ul className="space-y-2" data-testid="admin-smart-banners-list">
@@ -329,10 +327,7 @@ export function BannersManager() {
             const setting = smartSettings.data?.find((s) => s.template_key === t.key);
             const enabled = setting ? setting.enabled : true;
             return (
-              <li
-                key={t.key}
-                className="surface-card flex items-center justify-between gap-3 p-3"
-              >
+              <li key={t.key} className="surface-card flex items-center justify-between gap-3 p-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{t.name}</p>
                   <p className="text-xs text-muted-foreground">
@@ -352,9 +347,7 @@ export function BannersManager() {
                   <Switch
                     checked={enabled}
                     disabled={smartToggle.isPending}
-                    onCheckedChange={(v) =>
-                      smartToggle.mutate({ templateKey: t.key, enabled: v })
-                    }
+                    onCheckedChange={(v) => smartToggle.mutate({ templateKey: t.key, enabled: v })}
                     data-testid={`smart-banner-toggle-${t.key}`}
                   />
                 </div>
@@ -376,9 +369,7 @@ export function BannersManager() {
                   <select
                     className="h-9 w-full rounded-xl border border-input bg-background px-2 text-sm"
                     value={form.section}
-                    onChange={(e) =>
-                      setForm({ ...form, section: e.target.value as BannerSection })
-                    }
+                    onChange={(e) => setForm({ ...form, section: e.target.value as BannerSection })}
                     data-testid="banner-form-section"
                   >
                     {SECTIONS.map(([key, label]) => (
@@ -459,9 +450,7 @@ export function BannersManager() {
                   <select
                     className="h-9 w-full rounded-xl border border-input bg-background px-2 text-sm"
                     value={form.ctaKind}
-                    onChange={(e) =>
-                      setForm({ ...form, ctaKind: e.target.value as BannerCtaKind })
-                    }
+                    onChange={(e) => setForm({ ...form, ctaKind: e.target.value as BannerCtaKind })}
                     data-testid="banner-form-cta-kind"
                   >
                     {CTA_KINDS.map(([key, label]) => (

@@ -29,7 +29,16 @@ export type ManualOfferInput = {
   payoutMode?: "manual" | "manual_proof" | "auto_postback" | undefined;
   postbackSecretRef?: string | null | undefined;
   postbackIpAllowlist?: string[] | undefined;
-  category?: "App Install" | "Trial" | "Deals" | "Survey" | "Games" | "Link Locker" | "Shortlink" | null | undefined;
+  category?:
+    | "App Install"
+    | "Trial"
+    | "Deals"
+    | "Survey"
+    | "Games"
+    | "Link Locker"
+    | "Shortlink"
+    | null
+    | undefined;
   tags?: ("Hot" | "Trending" | "Easy" | "Popular")[] | undefined;
 };
 
@@ -45,7 +54,9 @@ export async function adminDashboardImpl() {
   ] = await Promise.all([
     supabaseAdmin
       .from("profiles")
-      .select("id, wallet_balance, held_balance, lifetime_earned, lifetime_withdrawn, is_flagged, updated_at, created_at")
+      .select(
+        "id, wallet_balance, held_balance, lifetime_earned, lifetime_withdrawn, is_flagged, updated_at, created_at",
+      )
       .limit(5000),
     supabaseAdmin.from("withdrawal_requests").select("amount, status").limit(5000),
     supabaseAdmin.from("offer_claims").select("status, reward_amount, offer_id").limit(5000),
@@ -68,7 +79,10 @@ export async function adminDashboardImpl() {
 
   let networkRevenue = 0;
   for (const claim of networkClaims.data ?? []) {
-    const offer = claim.offers as unknown as { source: string; network_payout: number | null } | null;
+    const offer = claim.offers as unknown as {
+      source: string;
+      network_payout: number | null;
+    } | null;
     if (offer?.source === "network" && offer.network_payout != null) {
       networkRevenue += Number(offer.network_payout) - Number(claim.reward_amount);
     }
@@ -228,11 +242,7 @@ export async function deleteManualOfferImpl(id: string) {
   if (existing.data.source !== "manual") {
     throw new Error("Network offers can't be deleted — deactivate them instead.");
   }
-  const claims = await supabaseAdmin
-    .from("offer_claims")
-    .select("id")
-    .eq("offer_id", id)
-    .limit(1);
+  const claims = await supabaseAdmin.from("offer_claims").select("id").eq("offer_id", id).limit(1);
   if (claims.data?.length) {
     // Preserve claim history: deactivate instead of hard delete.
     const { error } = await supabaseAdmin.from("offers").update({ is_active: false }).eq("id", id);

@@ -31,7 +31,9 @@ export async function signProofUrl(path: string, expiresInSeconds = 300): Promis
   if (!path) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const storage = (supabaseAdmin as any).storage;
-  const { data, error } = await storage.from("offer-proofs").createSignedUrl(path, expiresInSeconds);
+  const { data, error } = await storage
+    .from("offer-proofs")
+    .createSignedUrl(path, expiresInSeconds);
   if (error || !data?.signedUrl) return null;
   return data.signedUrl as string;
 }

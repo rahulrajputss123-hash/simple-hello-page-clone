@@ -1,4 +1,9 @@
-import type { NormalizedOffer, OfferFetchContext, OfferProviderAdapter, OfferCategory } from "../provider-types";
+import type {
+  NormalizedOffer,
+  OfferFetchContext,
+  OfferProviderAdapter,
+  OfferCategory,
+} from "../provider-types";
 
 /**
  * Revtoo CPA offer feed adapter.
@@ -67,8 +72,10 @@ function parsePayout(value: unknown): number | null {
 function mapCategory(raw: string | undefined): OfferCategory | null {
   if (!raw) return null;
   switch (raw.toLowerCase()) {
-    case "survey": return "Survey";
-    default: return null;
+    case "survey":
+      return "Survey";
+    default:
+      return null;
   }
 }
 

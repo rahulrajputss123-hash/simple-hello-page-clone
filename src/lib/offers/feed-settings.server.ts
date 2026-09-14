@@ -73,7 +73,8 @@ export function readNetworkFeedConfig(
   const cfg = (syncConfig ?? {}) as Record<string, unknown>;
   const hardCap = NETWORK_HARD_CAP[slug] ?? GLOBAL_HARD_CAP;
   const rawMax = Number(cfg["max_offers"]);
-  const maxOffers = Number.isFinite(rawMax) && rawMax > 0 ? Math.min(Math.floor(rawMax), hardCap) : hardCap;
+  const maxOffers =
+    Number.isFinite(rawMax) && rawMax > 0 ? Math.min(Math.floor(rawMax), hardCap) : hardCap;
   const rawWeight = Number(cfg["weight"]);
   const weight = Number.isFinite(rawWeight) && rawWeight > 0 ? rawWeight : 1;
   return { maxOffers, weight };

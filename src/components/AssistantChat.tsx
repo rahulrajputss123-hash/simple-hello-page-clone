@@ -118,16 +118,10 @@ export function AiAssistant() {
     mutationFn: (payload: { message: string; history: { role: Role; content: string }[] }) =>
       callAssistant({ data: payload }),
     onSuccess: (result: { reply: string }) => {
-      setMessages((prev) => [
-        ...prev,
-        { id: newId(), role: "assistant", content: result.reply },
-      ]);
+      setMessages((prev) => [...prev, { id: newId(), role: "assistant", content: result.reply }]);
     },
     onError: () => {
-      setMessages((prev) => [
-        ...prev,
-        { id: newId(), role: "assistant", content: FALLBACK_REPLY },
-      ]);
+      setMessages((prev) => [...prev, { id: newId(), role: "assistant", content: FALLBACK_REPLY }]);
     },
   });
 
@@ -156,7 +150,7 @@ export function AiAssistant() {
           id: newId(),
           role: "assistant",
           content:
-            "I've created a support ticket from our chat 🎫 A human will follow up — you can track it under \"Your tickets\" in the Support tab.",
+            'I\'ve created a support ticket from our chat 🎫 A human will follow up — you can track it under "Your tickets" in the Support tab.',
         },
       ]);
       void queryClient.invalidateQueries({ queryKey: ["tickets"] });
@@ -210,12 +204,7 @@ export function AiAssistant() {
             Instant answers about coins, offers, payouts &amp; more.
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="jade"
-          onClick={openChat}
-          data-testid="ai-assistant-open-btn"
-        >
+        <Button size="sm" variant="jade" onClick={openChat} data-testid="ai-assistant-open-btn">
           Chat now
         </Button>
       </div>

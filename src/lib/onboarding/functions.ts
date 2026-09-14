@@ -154,7 +154,9 @@ export const deletePremiumOnboardingStep = createServerFn({ method: "POST" })
 
 export const reorderPremiumOnboardingSteps = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ orderedIds: z.array(z.string().uuid()).min(1).max(50) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ orderedIds: z.array(z.string().uuid()).min(1).max(50) }).parse(input),
+  )
   .handler(async ({ data, context }) => {
     const { assertAdmin } = await import("../coinquest.server");
     await assertAdmin(context.supabase, context.userId);

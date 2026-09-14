@@ -137,10 +137,7 @@ export type SdkOfferwallAdapter = {
     identity: { userRef: string },
   ) => JsonObject;
   /** Normalize an inbound postback into our common conversion shape. */
-  parsePostback?: (
-    provider: SdkOfferwallProvider,
-    payload: JsonObject,
-  ) => NormalizedSdkConversion;
+  parsePostback?: (provider: SdkOfferwallProvider, payload: JsonObject) => NormalizedSdkConversion;
   /** Verify signature / caller authenticity for a postback. */
   verifyPostback?: (
     provider: SdkOfferwallProvider,

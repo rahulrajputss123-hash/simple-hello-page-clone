@@ -87,11 +87,16 @@ function SupportPage() {
 
   return (
     <AppShell subtitle="Support">
-      <SectionHeading size="page" icon={LifeBuoy} title="Help centre" />
+      <SectionHeading
+        size="page"
+        icon={LifeBuoy}
+        iconSrc="/icons/icon-support.png"
+        title="Help centre"
+      />
 
       <AiAssistant />
 
-      <SectionHeading icon={Lightbulb} title="Tips" />
+      <SectionHeading icon={Lightbulb} iconSrc="/icons/icon-tips.png" title="Tips" />
       <div className="surface-card flex items-center justify-between gap-3 p-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold">Replay the app tour</p>
@@ -111,7 +116,7 @@ function SupportPage() {
         </Button>
       </div>
 
-      <SectionHeading icon={HelpCircle} title="FAQ" />
+      <SectionHeading icon={HelpCircle} iconSrc="/icons/icon-faq.png" title="FAQ" />
       <div className="surface-card px-4">
         <Accordion type="single" collapsible>
           {(faq.data ?? []).map((item) => (
@@ -125,7 +130,7 @@ function SupportPage() {
         </Accordion>
       </div>
 
-      <SectionHeading icon={Mail} title="Contact us" />
+      <SectionHeading icon={Mail} iconSrc="/icons/icon-contact-us.png" title="Contact us" />
       <form
         className="surface-card space-y-3 p-4"
         onSubmit={(event) => {
@@ -154,7 +159,7 @@ function SupportPage() {
         </Button>
       </form>
 
-      <SectionHeading icon={Ticket} title="Your tickets" />
+      <SectionHeading icon={Ticket} iconSrc="/icons/icon-your-tickets.png" title="Your tickets" />
       {!tickets.data?.length ? (
         <EmptyState
           icon={LifeBuoy}
@@ -171,9 +176,13 @@ function SupportPage() {
                   {ticket.status}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(ticket.created_at)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {formatDateTime(ticket.created_at)}
+              </p>
               {ticket.admin_response && (
-                <p className="mt-2 rounded-xl bg-background-alt p-2 text-sm">{ticket.admin_response}</p>
+                <p className="mt-2 rounded-xl bg-background-alt p-2 text-sm">
+                  {ticket.admin_response}
+                </p>
               )}
             </li>
           ))}

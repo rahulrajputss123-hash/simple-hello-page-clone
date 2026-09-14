@@ -28,6 +28,7 @@ function OffersPage() {
       <SectionHeading
         size="page"
         icon={Tag}
+        iconSrc="/icons/icon-offers.png"
         title="Offers"
         subtitle="Complete partner offers for bigger payouts."
       />
@@ -36,6 +37,7 @@ function OffersPage() {
 
       <SectionHeading
         icon={Star}
+        iconSrc="/icons/icon-featured-offers.png"
         title="Featured Offers"
         className="!mt-4"
         action={<OfferFilterButton value={filter} onChange={setFilter} />}
@@ -45,7 +47,7 @@ function OffersPage() {
         <ViewAllLink to="/featured" testid="offers-view-all-featured" />
       </div>
 
-      <SectionHeading icon={Layers} title="Offerwall" />
+      <SectionHeading icon={Layers} iconSrc="/icons/icon-offerwall.png" title="Offerwall" />
       <OfferwallSlot limit={6} />
       <div className="mt-3 flex justify-center">
         <ViewAllLink to="/offerwall" testid="offers-view-all-offerwall" />

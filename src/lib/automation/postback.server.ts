@@ -3,7 +3,12 @@ import { createHmac, timingSafeEqual, createHash } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 import { creditWallet, payReferralMilestone } from "../coinquest.server";
-import { convertSdkCurrency, type Json, type JsonObject, type SdkOfferwallProvider } from "../sdk-offerwall/types";
+import {
+  convertSdkCurrency,
+  type Json,
+  type JsonObject,
+  type SdkOfferwallProvider,
+} from "../sdk-offerwall/types";
 import { getSdkAdapter } from "../sdk-offerwall/registry.server";
 import { logAutomation } from "./logs.server";
 
@@ -53,7 +58,8 @@ function expectedSignature(
     const reward = req.params[provider.reward_param] ?? "";
     return createHash("md5").update(`${subId}${transId}${reward}${secret}`).digest("hex");
   }
-  const base = req.rawBody && req.rawBody.length > 0 ? req.rawBody : signatureBase(provider, req.params);
+  const base =
+    req.rawBody && req.rawBody.length > 0 ? req.rawBody : signatureBase(provider, req.params);
   return createHmac("sha256", secret).update(base).digest("hex");
 }
 
@@ -155,25 +161,23 @@ async function recordRejection(
     status: "rejected" | "duplicate";
   },
 ): Promise<PostbackResult> {
-  await supabaseAdmin
-    .from("sdk_offerwall_conversions")
-    .upsert(
-      {
-        provider_id: provider.id,
-        user_id: fields.userId,
-        provider_transaction_id: fields.transactionId || `unknown-${Date.now()}`,
-        provider_user_ref: fields.userRef || null,
-        currency_amount: fields.currencyAmount,
-        reward_amount: 0,
-        status: fields.status,
-        reject_reason: fields.reason,
-        signature_valid: fields.signatureValid,
-        source_ip: req.sourceIp,
-        raw_payload: req.params as never,
-        processed_at: new Date().toISOString(),
-      },
-      { onConflict: "provider_id,provider_transaction_id", ignoreDuplicates: true },
-    );
+  await supabaseAdmin.from("sdk_offerwall_conversions").upsert(
+    {
+      provider_id: provider.id,
+      user_id: fields.userId,
+      provider_transaction_id: fields.transactionId || `unknown-${Date.now()}`,
+      provider_user_ref: fields.userRef || null,
+      currency_amount: fields.currencyAmount,
+      reward_amount: 0,
+      status: fields.status,
+      reject_reason: fields.reason,
+      signature_valid: fields.signatureValid,
+      source_ip: req.sourceIp,
+      raw_payload: req.params as never,
+      processed_at: new Date().toISOString(),
+    },
+    { onConflict: "provider_id,provider_transaction_id", ignoreDuplicates: true },
+  );
   await logAutomation({
     eventType: "sdk_postback",
     status: fields.status === "duplicate" ? "warning" : "error",
@@ -295,10 +299,7 @@ export async function processSdkPostback(req: PostbackRequest): Promise<Postback
     .eq("provider_id", provider.id)
     .gte("received_at", windowStart);
   if (provider.dedupe_strategy === "payload_hash") {
-    const hash = createHash("sha256")
-      .update(JSON.stringify(req.params))
-      .digest("hex")
-      .slice(0, 32);
+    const hash = createHash("sha256").update(JSON.stringify(req.params)).digest("hex").slice(0, 32);
     dupeQuery = dupeQuery.eq("provider_transaction_id", `${parsed.providerTransactionId}#${hash}`);
   } else {
     dupeQuery = dupeQuery.eq("provider_transaction_id", parsed.providerTransactionId);

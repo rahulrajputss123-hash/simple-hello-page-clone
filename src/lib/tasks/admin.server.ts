@@ -30,7 +30,8 @@ export async function listAdminTasksImpl(filters: {
   let query = supabaseAdmin.from("tasks").select("*").order("sort_order").order("created_at");
   if (filters.status === "active") query = query.eq("is_active", true);
   if (filters.status === "inactive") query = query.eq("is_active", false);
-  if (filters.taskType && filters.taskType !== "all") query = query.eq("task_type", filters.taskType);
+  if (filters.taskType && filters.taskType !== "all")
+    query = query.eq("task_type", filters.taskType);
 
   const tasks = await query;
   if (tasks.error) throw new Error("Could not load tasks.");
@@ -69,8 +70,7 @@ export async function upsertAdminTaskImpl(input: AdminTaskInput) {
     is_active: input.isActive,
     is_featured: input.isFeatured,
     // offerwall_earning-specific fields; null for all other task types.
-    earning_target:
-      input.taskType === "offerwall_earning" ? (input.earningTarget ?? null) : null,
+    earning_target: input.taskType === "offerwall_earning" ? (input.earningTarget ?? null) : null,
     earning_provider_id:
       input.taskType === "offerwall_earning" ? (input.earningProviderId ?? null) : null,
   };

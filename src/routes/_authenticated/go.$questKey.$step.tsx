@@ -77,8 +77,7 @@ function GoPage() {
       }
       goHome();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Could not open the next step.";
+      const message = err instanceof Error ? err.message : "Could not open the next step.";
       setState({ kind: "error", message });
     } finally {
       setOpeningNext(false);

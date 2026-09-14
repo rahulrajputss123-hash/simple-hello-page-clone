@@ -46,11 +46,7 @@ function signatureMatches(expected: string, provided: string): boolean {
 export async function processOfferPostback(
   req: OfferPostbackRequest,
 ): Promise<OfferPostbackResult> {
-  const offer = await supabaseAdmin
-    .from("offers")
-    .select("*")
-    .eq("id", req.offerId)
-    .maybeSingle();
+  const offer = await supabaseAdmin.from("offers").select("*").eq("id", req.offerId).maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const o = offer.data as any;
   if (!o) return log("unknown_offer", req, null, null, null);
@@ -88,11 +84,7 @@ export async function processOfferPostback(
 
   // ---- Resolve user --------------------------------------------------------
   if (!userRef) return log("missing_user", req, req.offerId, null, null);
-  const profile = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("id", userRef)
-    .maybeSingle();
+  const profile = await supabaseAdmin.from("profiles").select("id").eq("id", userRef).maybeSingle();
   const userId = profile.data?.id ?? null;
   if (!userId) return log("user_not_found", req, req.offerId, userRef, null);
 

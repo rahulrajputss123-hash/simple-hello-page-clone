@@ -108,7 +108,12 @@ export async function ensureProfileImpl(input: {
       })
       .select("*")
       .single();
-    await notify(referrerId, "New referral joined", "A friend signed up with your code.", "referral");
+    await notify(
+      referrerId,
+      "New referral joined",
+      "A friend signed up with your code.",
+      "referral",
+    );
     if (referral.data) {
       await creditReferralMilestone(referral.data.id, "signup", "Referral: friend signed up");
       const { recordTaskEvent } = await import("./tasks/engine.server");
@@ -241,8 +246,7 @@ export async function payReferralMilestone(
   if (!referral.data) return;
 
   const expired =
-    Date.now() - new Date(referral.data.created_at).getTime() >
-    REFERRAL_WINDOW_DAYS * 86_400_000;
+    Date.now() - new Date(referral.data.created_at).getTime() > REFERRAL_WINDOW_DAYS * 86_400_000;
 
   // Past the 1-year window the referral pays nothing and already-credited
   // milestones are reversed from the referrer's balance.
@@ -349,7 +353,12 @@ export async function touchStreakImpl(userId: string) {
 
   if (streak > 0 && streak % STREAK_GOAL === 0) {
     await creditWallet(userId, STREAK_BONUS, "streak", `${STREAK_GOAL}-day streak bonus`, "bonus");
-    await notify(userId, "Streak bonus", `You earned $${STREAK_BONUS.toFixed(2)} for your streak.`, "bonus");
+    await notify(
+      userId,
+      "Streak bonus",
+      `You earned $${STREAK_BONUS.toFixed(2)} for your streak.`,
+      "bonus",
+    );
     return { streak, credited: true };
   }
   return { streak, credited: false };
@@ -443,12 +452,7 @@ export async function reportAdImpl(userId: string, sessionId: string) {
 
   if (done) {
     const reward = Number(session.data.reward_amount);
-    await creditWallet(
-      userId,
-      reward,
-      "quest",
-      `Starter quest — ${session.data.ads_required} ads`,
-    );
+    await creditWallet(userId, reward, "quest", `Starter quest — ${session.data.ads_required} ads`);
     await supabaseAdmin
       .from("quest_sessions")
       .update({ status: "credited", credited_at: new Date().toISOString() })
@@ -499,16 +503,17 @@ export async function completeTaskImpl(userId: string, taskId: string) {
   if (completed) {
     const reward = Number(task.data.reward);
     await creditWallet(userId, reward, "task", task.data.title);
-    await notify(userId, "Task completed", `${task.data.title} — $${reward.toFixed(2)} added.`, "task");
+    await notify(
+      userId,
+      "Task completed",
+      `${task.data.title} — $${reward.toFixed(2)} added.`,
+      "task",
+    );
   }
   return { progress, completed };
 }
 
-export async function claimOfferImpl(
-  userId: string,
-  offerId: string,
-  proofUrl: string | null,
-) {
+export async function claimOfferImpl(userId: string, offerId: string, proofUrl: string | null) {
   const offer = await supabaseAdmin.from("offers").select("*").eq("id", offerId).single();
   if (offer.error || !offer.data.is_active) throw new Error("Offer unavailable.");
 
@@ -573,11 +578,7 @@ export async function claimOfferImpl(
   return created.data;
 }
 
-export async function createWithdrawalImpl(
-  userId: string,
-  amount: number,
-  payoutMethodId: string,
-) {
+export async function createWithdrawalImpl(userId: string, amount: number, payoutMethodId: string) {
   if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL) {
     throw new Error(`Minimum withdrawal is $${MIN_WITHDRAWAL.toFixed(2)}.`);
   }
@@ -629,7 +630,12 @@ export async function createWithdrawalImpl(
     reference_id: created.data.id,
   });
 
-  await notify(userId, "Withdrawal submitted", `$${amount.toFixed(2)} is pending review.`, "wallet");
+  await notify(
+    userId,
+    "Withdrawal submitted",
+    `$${amount.toFixed(2)} is pending review.`,
+    "wallet",
+  );
   return created.data;
 }
 
@@ -640,7 +646,8 @@ export async function cancelWithdrawalImpl(userId: string, id: string) {
     .eq("id", id)
     .eq("user_id", userId)
     .single();
-  if (req.error || req.data.status !== "pending") throw new Error("This request can't be cancelled.");
+  if (req.error || req.data.status !== "pending")
+    throw new Error("This request can't be cancelled.");
 
   await supabaseAdmin.from("withdrawal_requests").update({ status: "cancelled" }).eq("id", id);
   const profile = await supabaseAdmin
@@ -679,10 +686,7 @@ export async function adminUpdateWithdrawalImpl(id: string, status: string, note
   if (req.data.status !== "pending" && req.data.status !== "approved") {
     throw new Error("This request has already been settled.");
   }
-  await supabaseAdmin
-    .from("withdrawal_requests")
-    .update({ status, admin_note: note })
-    .eq("id", id);
+  await supabaseAdmin.from("withdrawal_requests").update({ status, admin_note: note }).eq("id", id);
 
   const profile = await supabaseAdmin
     .from("profiles")
@@ -834,7 +838,12 @@ export async function adminAdjustWalletImpl(userId: string, amount: number, reas
     kind: amount >= 0 ? "bonus" : "adjustment",
     status: "completed",
   });
-  await notify(userId, "Wallet adjusted", `${reason} (${amount >= 0 ? "+" : "−"}$${Math.abs(amount).toFixed(2)})`, "wallet");
+  await notify(
+    userId,
+    "Wallet adjusted",
+    `${reason} (${amount >= 0 ? "+" : "−"}$${Math.abs(amount).toFixed(2)})`,
+    "wallet",
+  );
   return { ok: true };
 }
 
@@ -862,10 +871,7 @@ export async function adminOverviewImpl() {
       )
       .order("created_at", { ascending: false })
       .limit(200),
-    supabaseAdmin
-      .from("wallet_transactions")
-      .select("amount, kind")
-      .limit(2000),
+    supabaseAdmin.from("wallet_transactions").select("amount, kind").limit(2000),
   ]);
 
   const profiles = users.data ?? [];

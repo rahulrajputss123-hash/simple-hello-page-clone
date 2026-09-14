@@ -1,10 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-import type {
-  PublicSdkOfferwallProvider,
-  SdkOfferwallProvider,
-  SdkProviderInput,
-} from "./types";
+import type { PublicSdkOfferwallProvider, SdkOfferwallProvider, SdkProviderInput } from "./types";
 import { getSdkAdapter, listSdkAdapterSlugs } from "./registry.server";
 
 const COLUMNS = "*";
@@ -161,9 +157,9 @@ export async function updateSdkProviderControlsImpl(input: {
   status?: string | undefined;
 }) {
   const patch: Record<string, unknown> = {};
-  if (input.enabled !== undefined) patch['enabled'] = input.enabled;
-  if (input.displayOrder !== undefined) patch['display_order'] = input.displayOrder;
-  if (input.status !== undefined) patch['status'] = input.status;
+  if (input.enabled !== undefined) patch["enabled"] = input.enabled;
+  if (input.displayOrder !== undefined) patch["display_order"] = input.displayOrder;
+  if (input.status !== undefined) patch["status"] = input.status;
   if (Object.keys(patch).length === 0) return { ok: true };
   const { error } = await supabaseAdmin
     .from("sdk_offerwall_providers")
@@ -191,9 +187,8 @@ export async function requestOfferwallLogoUploadUrlImpl(userId: string, filename
   if (error || !data) {
     throw new Error(error?.message ?? "Could not create upload URL.");
   }
-  const publicUrl = supabaseAdmin.storage
-    .from("offerwall-assets")
-    .getPublicUrl(path).data.publicUrl as string;
+  const publicUrl = supabaseAdmin.storage.from("offerwall-assets").getPublicUrl(path).data
+    .publicUrl as string;
   return {
     path,
     uploadUrl: data.signedUrl ?? (data as Record<string, string>).signed_url ?? "",

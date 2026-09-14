@@ -40,7 +40,13 @@ export function ErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-export function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
+export function SectionTitle({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="mb-3 mt-6 flex items-end justify-between gap-3">
       <h2 className="text-lg">{children}</h2>

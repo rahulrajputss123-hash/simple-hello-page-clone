@@ -34,9 +34,7 @@ export const automationStats = createServerFn({ method: "POST" })
 
 export const retryConversion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ conversionId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ conversionId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);

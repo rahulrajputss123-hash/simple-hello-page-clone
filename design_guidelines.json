@@ -59,10 +59,26 @@
       "subtitle": "Pick an exclusive CashGPT 3D avatar",
       "description": "Choose from fixed premium avatars to represent your profile across leaderboards and offer payouts.",
       "avatars": [
-        { "id": "avatar_1", "name": "Cyber Concierge", "url": "https://images.unsplash.com/photo-1740252117013-4fb21771e7ca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHw0fHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85" },
-        { "id": "avatar_2", "name": "Gold Executive", "url": "https://images.unsplash.com/photo-1740252117027-4275d3f84385?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwzfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85" },
-        { "id": "avatar_3", "name": "Jade Explorer", "url": "https://images.unsplash.com/photo-1740252117070-7aa2955b25f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwyfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85" },
-        { "id": "avatar_4", "name": "Vanguard Titan", "url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwxfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85" }
+        {
+          "id": "avatar_1",
+          "name": "Cyber Concierge",
+          "url": "https://images.unsplash.com/photo-1740252117013-4fb21771e7ca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHw0fHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85"
+        },
+        {
+          "id": "avatar_2",
+          "name": "Gold Executive",
+          "url": "https://images.unsplash.com/photo-1740252117027-4275d3f84385?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwzfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85"
+        },
+        {
+          "id": "avatar_3",
+          "name": "Jade Explorer",
+          "url": "https://images.unsplash.com/photo-1740252117070-7aa2955b25f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwyfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85"
+        },
+        {
+          "id": "avatar_4",
+          "name": "Vanguard Titan",
+          "url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwxfHwzZCUyMGF2YXRhciUyMHBvcnRyYWl0JTIwY2hhcmFjdGVyfGVufDB8fHx8MTc4ODg4NDE0Mnww&ixlib=rb-4.1.0&q=85"
+        }
       ],
       "action_button": "Confirm Avatar"
     },

@@ -2,19 +2,39 @@
   "summary": "Frontend-only E2E test of the Featured Offers redesign (CashGPT, TanStack Start on port 3000 preview URL) using the QA login qa.assistant@cashgpt.test. PRIMARY BUG IS FIXED: after login, /home, /offers and /featured all render data-testid='featured-offers-list' with cards (3 / 3 / 21 respectively) and the 'No offers available right now' empty state never appears. Loading skeleton (featured-offers-loading) was observed on first load of all three routes. On /featured 18 of 21 cards render real <img> banners (network icon URLs from banners.hangmyads.com and cdn.affise.com, all with naturalWidth>0, i.e. successfully loaded, no broken-image); the 3 manual offers show the Gift icon on the jade gradient. No 'In review'/'Approved'/'Rejected' text found anywhere in the list on any route, and 0 buttons with text 'Claim' inside cards. Every card keeps data-testid='featured-offer-<id>' and the corner chevron carries data-testid='featured-offer-claim-<id>'. offer-tag-row pills render (3/3 on home, 17/21 on featured, overlaid on the banner). Clicking a manual card, clicking a network (image) card, and keyboard Enter on a focused card all open data-testid='offer-details-dialog' with title, gold payout ($4.50) and footer CTA 'I Understand, Continue' (offer-details-continue); offer-details-cancel closes it. Dialog panel is fully opaque once the open animation settles.",
   "backend_issues": {
     "critical": [
-      {"endpoint": "supabase REST GET /rest/v1/offers?select=id,reward_amount,is_active&is_active=eq.true&limit=200 (browser/anon client)", "issue": "500 {\"code\":\"42P17\",\"message\":\"infinite recursion detected in policy for relation \\\"offers\\\"\"} — an RLS policy on offers is self-referential. Featured Offers is unaffected (server fn uses service role), but any client-side offers query fails.", "priority": "HIGH"}
+      {
+        "endpoint": "supabase REST GET /rest/v1/offers?select=id,reward_amount,is_active&is_active=eq.true&limit=200 (browser/anon client)",
+        "issue": "500 {\"code\":\"42P17\",\"message\":\"infinite recursion detected in policy for relation \\\"offers\\\"\"} — an RLS policy on offers is self-referential. Featured Offers is unaffected (server fn uses service role), but any client-side offers query fails.",
+        "priority": "HIGH"
+      }
     ],
     "minor": [
-      {"endpoint": "supabase REST GET /rest/v1/user_tasks?select=progress,target,status (browser client)", "issue": "400 {\"code\":\"42703\",\"message\":\"column user_tasks.target does not exist\"} — client selects a non-existent column, so that widget's data silently fails (same class of bug as the fixed offers.image_url one)."}
+      {
+        "endpoint": "supabase REST GET /rest/v1/user_tasks?select=progress,target,status (browser client)",
+        "issue": "400 {\"code\":\"42703\",\"message\":\"column user_tasks.target does not exist\"} — client selects a non-existent column, so that widget's data silently fails (same class of bug as the fixed offers.image_url one)."
+      }
     ]
   },
   "frontend_issues": {
     "ui_bugs": [],
     "integration_issues": [
-      {"flow": "Home page card click (first visit / new user)", "issue": "The OnboardingTour overlay (data-testid='tour-overlay', z-[200], full-screen masked rect) covers the Featured Offers grid and intercepts pointer events, so cards are not clickable until the tour is skipped/completed. Real UX impact is expected-by-design (tour), but note automation must dismiss it; consider making the mask pointer-events-none outside the tooltip.", "affected_selectors": ["[data-testid=\"tour-overlay\"]", "[data-testid=\"featured-offers-list\"] > li"]}
+      {
+        "flow": "Home page card click (first visit / new user)",
+        "issue": "The OnboardingTour overlay (data-testid='tour-overlay', z-[200], full-screen masked rect) covers the Featured Offers grid and intercepts pointer events, so cards are not clickable until the tour is skipped/completed. Real UX impact is expected-by-design (tour), but note automation must dismiss it; consider making the mask pointer-events-none outside the tooltip.",
+        "affected_selectors": [
+          "[data-testid=\"tour-overlay\"]",
+          "[data-testid=\"featured-offers-list\"] > li"
+        ]
+      }
     ],
     "design_issues": [
-      {"screen": "Featured Offers card grid (390px mobile)", "issues": ["3-col grid at 390px makes title/description heavily truncated ('Coin Master...', 'CTConnect ...') — many network offers are indistinguishable because the first ~10 chars are identical; consider showing more title or a 2-col layout on small screens.", "Two tag pills (HOT + EASY) stack on the banner top-left and partially cover the image/placeholder icon on the small cards."]}
+      {
+        "screen": "Featured Offers card grid (390px mobile)",
+        "issues": [
+          "3-col grid at 390px makes title/description heavily truncated ('Coin Master...', 'CTConnect ...') — many network offers are indistinguishable because the first ~10 chars are identical; consider showing more title or a 2-col layout on small screens.",
+          "Two tag pills (HOT + EASY) stack on the banner top-left and partially cover the image/placeholder icon on the small cards."
+        ]
+      }
     ]
   },
   "test_report_links": [],
@@ -29,7 +49,10 @@
     "assembleFeaturedImpl casts rows with `as never` in several upserts, which disables type checking of the offers schema — this is exactly how the nonexistent-column bug slipped in."
   ],
   "updated_files": [],
-  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "100% of the 6 requested Featured Offers acceptance checks passed"},
+  "success_rate": {
+    "backend": "not tested (frontend-only request)",
+    "frontend": "100% of the 6 requested Featured Offers acceptance checks passed"
+  },
   "seed_data_creation": "none",
   "should_call_test_agent_after_fix": false,
   "should_main_agent_self_test": true,

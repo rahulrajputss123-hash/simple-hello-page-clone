@@ -3,26 +3,47 @@
   "backend_issues": {
     "critical": [],
     "minor": [
-      {"endpoint": "supabase REST GET /rest/v1/user_tasks?select=progress,target,status (SectionBanner client query)", "issue": "STILL OPEN from iteration 5: 400 {\"code\":\"42703\",\"message\":\"column user_tasks.target does not exist\"} — the tasks-progress smart-banner signal silently returns nothing and logs a console error on every Home/Tasks load."}
+      {
+        "endpoint": "supabase REST GET /rest/v1/user_tasks?select=progress,target,status (SectionBanner client query)",
+        "issue": "STILL OPEN from iteration 5: 400 {\"code\":\"42703\",\"message\":\"column user_tasks.target does not exist\"} — the tasks-progress smart-banner signal silently returns nothing and logs a console error on every Home/Tasks load."
+      }
     ]
   },
   "frontend_issues": {
     "ui_bugs": [],
     "integration_issues": [
-      {"flow": "First-visit card click", "issue": "OnboardingTour overlay (tour-overlay) still intercepts clicks over the offers grid until 'Skip' is pressed (pre-existing, by design; automation must dismiss it).", "affected_selectors": ["[data-testid=\"tour-overlay\"]"]}
+      {
+        "flow": "First-visit card click",
+        "issue": "OnboardingTour overlay (tour-overlay) still intercepts clicks over the offers grid until 'Skip' is pressed (pre-existing, by design; automation must dismiss it).",
+        "affected_selectors": ["[data-testid=\"tour-overlay\"]"]
+      }
     ],
     "design_issues": [
-      {"screen": "Featured Offers grid (390px)", "issues": ["Pre-existing: 3-column grid truncates titles heavily (many 'CTConnect ...' cards look identical).", "Pre-existing: HOT/EASY tag pills overlay the banner top-left and partly cover artwork/placeholder icon."]}
+      {
+        "screen": "Featured Offers grid (390px)",
+        "issues": [
+          "Pre-existing: 3-column grid truncates titles heavily (many 'CTConnect ...' cards look identical).",
+          "Pre-existing: HOT/EASY tag pills overlay the banner top-left and partly cover artwork/placeholder icon."
+        ]
+      }
     ]
   },
-  "test_report_links": ["/app/backend/tests/test_offers_rls_image_url.py", "/app/test_reports/pytest/pytest_results_iter6.xml"],
-  "action_items": ["Fix the client-side user_tasks select (column 'target' does not exist) — only remaining failing request in the logged-in app."],
+  "test_report_links": [
+    "/app/backend/tests/test_offers_rls_image_url.py",
+    "/app/test_reports/pytest/pytest_results_iter6.xml"
+  ],
+  "action_items": [
+    "Fix the client-side user_tasks select (column 'target' does not exist) — only remaining failing request in the logged-in app."
+  ],
   "critical_code_review_comments": [
     "SectionBanner offers/user_tasks/offerwall queries swallow the PostgREST error (`const { data } = await ...` with no error check) — that is why the 42P17 500 and the 42703 400 were invisible in the UI. Surface or log `error` so schema/RLS regressions fail loudly.",
     "data-testid='featured-offer-claim-<id>' now labels a pure chevron affordance (no claim action); consider renaming to featured-offer-open-<id> to avoid misleading future tests."
   ],
   "updated_files": ["/app/backend/tests/test_offers_rls_image_url.py"],
-  "success_rate": {"backend": "100% (7/7 Supabase REST tests)", "frontend": "100% of requested checks (BUG1, BUG2, 5 regression checks, smoke)"},
+  "success_rate": {
+    "backend": "100% (7/7 Supabase REST tests)",
+    "frontend": "100% of requested checks (BUG1, BUG2, 5 regression checks, smoke)"
+  },
   "seed_data_creation": "none",
   "should_call_test_agent_after_fix": false,
   "should_main_agent_self_test": true,

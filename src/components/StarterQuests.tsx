@@ -143,7 +143,8 @@ export function StarterQuests() {
           (s) => s.quest_key === quest.key && s.status === "credited",
         );
         const isBusy = busy === quest.key;
-        const total = quest.quest_type === "shortlink" ? Math.max(1, quest.shortlink_steps.length) : 1;
+        const total =
+          quest.quest_type === "shortlink" ? Math.max(1, quest.shortlink_steps.length) : 1;
         const currentStep = Number(active?.current_step ?? 0);
         const nextStep = credited ? total : Math.min(currentStep + 1, total);
 

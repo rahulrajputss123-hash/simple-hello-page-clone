@@ -8,6 +8,7 @@ import { Sparkles } from "lucide-react";
  */
 export function SectionHeading({
   icon: Icon,
+  iconSrc,
   title,
   subtitle,
   action,
@@ -15,6 +16,7 @@ export function SectionHeading({
   className = "",
 }: {
   icon: LucideIcon;
+  iconSrc?: string;
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
@@ -33,14 +35,24 @@ export function SectionHeading({
       className={`flex items-center justify-between gap-3 ${isPage ? "mt-2 mb-3" : "mt-6 mb-3"} ${className}`}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <span
-          aria-hidden
-          className={`relative grid shrink-0 place-items-center rounded-full bg-mint/15 text-primary shadow-soft ring-1 ring-inset ring-mint/30 ${
-            isPage ? "size-11" : "size-10"
-          }`}
-        >
-          <Icon className={isPage ? "size-5" : "size-[1.15rem]"} strokeWidth={2.25} />
-        </span>
+        {iconSrc ? (
+          <img
+            src={iconSrc}
+            alt=""
+            aria-hidden
+            data-testid={`section-heading-${slug}-icon`}
+            className={`shrink-0 object-contain ${isPage ? "size-12" : "size-11"}`}
+          />
+        ) : (
+          <span
+            aria-hidden
+            className={`relative grid shrink-0 place-items-center rounded-full bg-mint/15 text-primary shadow-soft ring-1 ring-inset ring-mint/30 ${
+              isPage ? "size-11" : "size-10"
+            }`}
+          >
+            <Icon className={isPage ? "size-5" : "size-[1.15rem]"} strokeWidth={2.25} />
+          </span>
+        )}
 
         <div className="min-w-0">
           <span className="inline-flex items-center gap-1.5">

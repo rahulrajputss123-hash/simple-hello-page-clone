@@ -28,25 +28,131 @@ export type AvatarOption = {
 };
 
 export const AVATAR_OPTIONS: AvatarOption[] = [
-  { id: "nova", name: "Fox", shortName: "FX", symbol: "🦊", tone: "from-[#8de8c4] to-[#47b98e]", imageUrl: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/944c37567aeea379108d7c6fb10f2c83460b177efedc0481eb5720c976450eea.jpeg" },
-  { id: "atlas", name: "Panda", shortName: "PA", symbol: "🐼", tone: "from-[#ffd6be] to-[#f39f72]", imageUrl: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/a4b3444acdcd07fbee55aae208c65c7685afc43e0d5da4d9c200e35eb4ac0a8e.jpeg" },
-  { id: "luna", name: "Robot", shortName: "RO", symbol: "🤖", tone: "from-[#d9ccff] to-[#9f83df]", imageUrl: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/d0264866bd68cc4659e63d65500b6a8c7324990934fa555bedda5f142ab0a73d.jpeg" },
-  { id: "orbit", name: "Frog", shortName: "FR", symbol: "🐸", tone: "from-[#bfe7ff] to-[#6db7e4]", imageUrl: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/d76742a69b856996fa75f1fff206a078278f60b0d343b17395ba5c2670f351e8.jpeg" },
-  { id: "sage", name: "Cat", shortName: "CA", symbol: "🐱", tone: "from-[#f3bdc8] to-[#d67b92]", imageUrl: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/323ca8f9fe262cf3fee65ecebecb632f8b11eaecb44225ec39a3642e769b3684.jpeg" },
-  { id: "ember", name: "Owl", shortName: "OW", symbol: "🦉", tone: "from-[#b8eed7] to-[#6bc39d]", imageUrl: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/78b724c548930c78c9d21a0c93a4ac00eea14a6ad4eea00ddc54fd3a7873d759.jpeg" },
-  { id: "halo", name: "Lion", shortName: "LI", symbol: "🦁", tone: "from-[#ffdb83] to-[#e7a52e]", imageUrl: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/d6d89221ad7bf9594c1474759ab123aa6f110072f737708b1e9abc6699416488.jpeg" },
-  { id: "zenith", name: "Astronaut", shortName: "AS", symbol: "🚀", tone: "from-[#b9dcff] to-[#6fa4d5]", imageUrl: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/d59dfb96ce198b5fce46027799a5c98bf70d6077faa535b3ec40e361c4023659.jpeg" },
-  { id: "rio", name: "Bunny", shortName: "BU", symbol: "🐰", tone: "from-[#d9c6f5] to-[#aa86d8]", imageUrl: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/a0c63f91e8607d54e1e479f0279d3456b2cc1f9eb3021fd291a1beb3e426b566.jpeg" },
+  {
+    id: "sunny",
+    name: "Sunny",
+    shortName: "SU",
+    symbol: "😎",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/a87f30d649d4962d13bedd995408f334cb5bfce72833b31b229b7150e2bc75c2.jpeg",
+  },
+  {
+    id: "star",
+    name: "Star",
+    shortName: "ST",
+    symbol: "🧢",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/86eb504d33769ac6a43997cf9d5a3bc24f2f177b2a8c37d1eae46679b458193b.jpeg",
+  },
+  {
+    id: "shadow",
+    name: "Shadow",
+    shortName: "SH",
+    symbol: "🫥",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/c410b4cea50088d47dcbcf084770a47d6d860238d489bdbc30aad1115f3b522b.jpeg",
+  },
+  {
+    id: "beat",
+    name: "Beat",
+    shortName: "BE",
+    symbol: "🐯",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/231f6577abb92a9b039144ec86385b61583dd2e8816fdad4bd712dce3be99cf4.jpeg",
+  },
+  {
+    id: "rusty",
+    name: "Rusty",
+    shortName: "RU",
+    symbol: "🦊",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/118080fac6a15c9dbd20497943607bfcba8178d06e9bab67aab48b3acfd02402.jpeg",
+  },
+  {
+    id: "chief",
+    name: "Chief",
+    shortName: "CH",
+    symbol: "🐻",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/d3c8dfcce5cb63af7daccab19bda5e936d086a00f19599d68abfc7c74427400e.jpeg",
+  },
+  {
+    id: "bamboo",
+    name: "Bamboo",
+    shortName: "BA",
+    symbol: "🐼",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/0f0016d97129112dc59361d5eef05bab9fc5d9708c9ec2fa602f19761ef28eae.jpeg",
+  },
+  {
+    id: "ribbit",
+    name: "Ribbit",
+    shortName: "RI",
+    symbol: "🐸",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/7ac7627103f02d4a5e32253d0506ab81004e940aa2e3f0c676cc823cad69730a.jpeg",
+  },
+  {
+    id: "byte",
+    name: "Byte",
+    shortName: "BY",
+    symbol: "🤖",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/69ccb6b1fa7c622eb4e595c9d099a902b4eafe7482af8b386fde3aefc383e12c.jpeg",
+  },
+  {
+    id: "midnight",
+    name: "Midnight",
+    shortName: "MI",
+    symbol: "🐺",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/47670ade4f9809b30ab8b96ab0b23ad3486efc4be814affb30930d3d6d3d41fa.jpeg",
+  },
+  {
+    id: "denim",
+    name: "Denim",
+    shortName: "DE",
+    symbol: "🐱",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/c41c99b7df4d8e34b9123cec1eb1f859645324bff8340a985638173941f26fca.jpeg",
+  },
+  {
+    id: "shiba",
+    name: "Shiba",
+    shortName: "SB",
+    symbol: "🐕",
+    tone: "from-[#f3ead9] to-[#e7d9bd]",
+    imageUrl:
+      "https://static.prod-images.emergentagent.com/jobs/c6d9e5e1-b9d3-4103-8af7-1f4fa4f53897/images/6d7565bcab4d8eb0e9bc7b9b8fc0331e181b720d32b36e36db1e2d9b71a04cdf.jpeg",
+  },
 ];
 
 export const ONBOARDING_ARTWORK: Record<string, string> = {
-  welcome: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/3b3357ff30b9994fcb2b932187704e97212b6436b43b71f272e289f8ab54dbef.jpeg",
-  features_offers: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/8cb5716e3bc5550a4198fd21b7ca7911a8f49f10846ac972f50e98428fdb7876.jpeg",
-  quest: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/4eb18eae0bfd34070ecebffa2cfb8cc7849768f0f68d94139e4490094a2a4212.jpeg",
-  watch_earn: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/096e79a603f8b428971cc798c9ff4048d2ca743ba87c785647511eb4c480e497.jpeg",
-  offerwall: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/0cb23a00dd5dde5d4d05045b12a660a0e5a6ded3ab53f58eafac7d4d444dfa7e.jpeg",
-  refer_earn: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/453964c7d40a6c9199480d0829e3a9c0a778a52c85fe4ab988bb81b723e1f4e0.jpeg",
-  youre_ready: "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/cea1dbfc90024f31ab6ff5adc1243e78fecc2b3bb2162ef81732b1aeb1917bec.jpeg",
+  welcome:
+    "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/3b3357ff30b9994fcb2b932187704e97212b6436b43b71f272e289f8ab54dbef.jpeg",
+  features_offers:
+    "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/8cb5716e3bc5550a4198fd21b7ca7911a8f49f10846ac972f50e98428fdb7876.jpeg",
+  quest:
+    "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/4eb18eae0bfd34070ecebffa2cfb8cc7849768f0f68d94139e4490094a2a4212.jpeg",
+  watch_earn:
+    "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/096e79a603f8b428971cc798c9ff4048d2ca743ba87c785647511eb4c480e497.jpeg",
+  offerwall:
+    "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/0cb23a00dd5dde5d4d05045b12a660a0e5a6ded3ab53f58eafac7d4d444dfa7e.jpeg",
+  refer_earn:
+    "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/453964c7d40a6c9199480d0829e3a9c0a778a52c85fe4ab988bb81b723e1f4e0.jpeg",
+  youre_ready:
+    "https://static.prod-images.emergentagent.com/jobs/da400b88-d0e2-43e8-b289-cca9ab2cc76c/images/cea1dbfc90024f31ab6ff5adc1243e78fecc2b3bb2162ef81732b1aeb1917bec.jpeg",
 };
 
 export const DEFAULT_PREMIUM_STEPS: PremiumOnboardingStep[] = [
@@ -55,7 +161,8 @@ export const DEFAULT_PREMIUM_STEPS: PremiumOnboardingStep[] = [
     step_key: "welcome",
     title: "Welcome to CashGPT",
     subtitle: "4 ways to earn. One app.",
-    description: "Meet your new earning suite for quests, offers, videos, and referral rewards — all in one calm, guided start.",
+    description:
+      "Meet your new earning suite for quests, offers, videos, and referral rewards — all in one calm, guided start.",
     step_type: "welcome",
     cta_text: "Let's Get Started",
     enabled: true,
@@ -70,7 +177,8 @@ export const DEFAULT_PREMIUM_STEPS: PremiumOnboardingStep[] = [
     step_key: "choose_avatar",
     title: "Choose your avatar",
     subtitle: "Make your profile feel like yours",
-    description: "Pick a fixed CashGPT persona to represent you across your profile and rewards journey.",
+    description:
+      "Pick a fixed CashGPT persona to represent you across your profile and rewards journey.",
     step_type: "avatar",
     cta_text: "Next →",
     enabled: true,
@@ -100,7 +208,8 @@ export const DEFAULT_PREMIUM_STEPS: PremiumOnboardingStep[] = [
     step_key: "features_offers",
     title: "Deal Offers",
     subtitle: "Find special deals and high-paying offers.",
-    description: "Explore tasks, app installs, surveys, and deals. This quick look is educational — live offers stay in the main app.",
+    description:
+      "Explore tasks, app installs, surveys, and deals. This quick look is educational — live offers stay in the main app.",
     step_type: "showcase",
     cta_text: "Next →",
     enabled: true,
@@ -115,7 +224,8 @@ export const DEFAULT_PREMIUM_STEPS: PremiumOnboardingStep[] = [
     step_key: "quest",
     title: "Quest",
     subtitle: "Unlock more ways to earn",
-    description: "Daily quests turn small actions into satisfying progress, with lockers, shortlinks, and special challenges.",
+    description:
+      "Daily quests turn small actions into satisfying progress, with lockers, shortlinks, and special challenges.",
     step_type: "showcase",
     cta_text: "Next →",
     enabled: true,
@@ -130,7 +240,8 @@ export const DEFAULT_PREMIUM_STEPS: PremiumOnboardingStep[] = [
     step_key: "watch_earn",
     title: "Watch & Earn",
     subtitle: "Watch available ads and complete earning goals",
-    description: "Short videos and clear goals make it easy to build a rhythm. Real earning sessions begin from Home.",
+    description:
+      "Short videos and clear goals make it easy to build a rhythm. Real earning sessions begin from Home.",
     step_type: "showcase",
     cta_text: "Next →",
     enabled: true,
@@ -145,7 +256,8 @@ export const DEFAULT_PREMIUM_STEPS: PremiumOnboardingStep[] = [
     step_key: "offerwall",
     title: "Offerwall",
     subtitle: "Explore more earning opportunities",
-    description: "Browse app, survey, game, and partner opportunities when you are ready to go deeper.",
+    description:
+      "Browse app, survey, game, and partner opportunities when you are ready to go deeper.",
     step_type: "showcase",
     cta_text: "Next →",
     enabled: true,
@@ -160,7 +272,8 @@ export const DEFAULT_PREMIUM_STEPS: PremiumOnboardingStep[] = [
     step_key: "refer_earn",
     title: "Refer & Earn",
     subtitle: "Invite friends and grow together",
-    description: "Share your referral link, help a friend get started, and earn referral rewards from their activity.",
+    description:
+      "Share your referral link, help a friend get started, and earn referral rewards from their activity.",
     step_type: "showcase",
     cta_text: "Finish →",
     enabled: true,

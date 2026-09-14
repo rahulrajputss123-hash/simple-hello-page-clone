@@ -23,13 +23,7 @@ export type OfferProvider = {
 };
 
 export type OfferCategory =
-  | "App Install"
-  | "Trial"
-  | "Deals"
-  | "Survey"
-  | "Games"
-  | "Link Locker"
-  | "Shortlink";
+  "App Install" | "Trial" | "Deals" | "Survey" | "Games" | "Link Locker" | "Shortlink";
 
 export const OFFER_CATEGORIES: OfferCategory[] = [
   "App Install",

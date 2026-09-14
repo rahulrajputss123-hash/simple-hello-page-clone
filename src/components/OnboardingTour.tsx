@@ -5,10 +5,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import {
-  listOnboardingSteps,
-  markOnboardingSeen,
-} from "@/lib/onboarding/functions";
+import { listOnboardingSteps, markOnboardingSeen } from "@/lib/onboarding/functions";
 import type { OnboardingStepRow } from "@/lib/onboarding/server";
 
 const OVERLAY_PADDING = 8;
@@ -63,13 +60,7 @@ export function OnboardingTour() {
   };
 
   if (!active) return null;
-  return (
-    <TourOverlay
-      steps={steps}
-      onFinish={handleDone(() => undefined)}
-      testidPrefix="tour"
-    />
-  );
+  return <TourOverlay steps={steps} onFinish={handleDone(() => undefined)} testidPrefix="tour" />;
 }
 
 /**
@@ -168,12 +159,9 @@ function TourOverlay({
   let tooltipTop = 16;
   let tooltipLeft = 16;
   if (rect) {
-    const belowSpace =
-      viewportH - (rect.top - window.scrollY + rect.height) - 20;
+    const belowSpace = viewportH - (rect.top - window.scrollY + rect.height) - 20;
     const preferBelow = belowSpace > 200;
-    tooltipTop = preferBelow
-      ? rect.top + rect.height + 12
-      : Math.max(16, rect.top - 12 - 160);
+    tooltipTop = preferBelow ? rect.top + rect.height + 12 : Math.max(16, rect.top - 12 - 160);
     tooltipLeft = Math.max(
       16,
       Math.min(rect.left + rect.width / 2 - tooltipWidth / 2, viewportW - tooltipWidth - 16),

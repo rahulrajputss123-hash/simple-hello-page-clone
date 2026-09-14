@@ -15,9 +15,7 @@ export async function requestProofUploadUrlImpl(
   const path = `${userId}/${offerId}/${Date.now()}-${safeName}`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const storage = (supabaseAdmin as any).storage;
-  const { data, error } = await storage
-    .from("offer-proofs")
-    .createSignedUploadUrl(path);
+  const { data, error } = await storage.from("offer-proofs").createSignedUploadUrl(path);
   if (error || !data) {
     throw new Error(error?.message ?? "Could not create upload URL.");
   }

@@ -65,9 +65,7 @@ async function fetchLifetimeEarned(userId: string): Promise<number> {
  * computed server-side in UTC. Locked quests are INCLUDED so the client can render
  * a locked state instead of hiding them.
  */
-export async function listActiveQuestsImpl(
-  userId?: string,
-): Promise<(QuestRow & LockState)[]> {
+export async function listActiveQuestsImpl(userId?: string): Promise<(QuestRow & LockState)[]> {
   const { data, error } = await db
     .from("quests")
     .select("*")
@@ -129,7 +127,9 @@ export async function upsertQuestImpl(input: QuestFormInput) {
   if (input.questType === "locker") {
     const url = input.lockerUrl?.trim() ?? "";
     if (!url || !/^https?:\/\/.+/.test(url)) {
-      throw new Error("A locker quest requires a valid locker URL (must start with http:// or https://).");
+      throw new Error(
+        "A locker quest requires a valid locker URL (must start with http:// or https://).",
+      );
     }
   }
   if (input.lockType === "time" && !input.unlockAt) {
@@ -302,7 +302,8 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (!session.data) throw new Error("No active locker session found. Please start the quest again.");
+  if (!session.data)
+    throw new Error("No active locker session found. Please start the quest again.");
 
   // Mark verified.
   await db
@@ -353,7 +354,12 @@ export async function startShortlinkStepImpl(userId: string, questKey: string, s
     .eq("id", session.data.id);
 
   const url = quest.shortlink_steps[step - 1]?.url ?? null;
-  return { sessionId: session.data.id as string, step: nextStep, url, minSeconds: quest.min_seconds_per_step };
+  return {
+    sessionId: session.data.id as string,
+    step: nextStep,
+    url,
+    minSeconds: quest.min_seconds_per_step,
+  };
 }
 
 export async function completeShortlinkStepImpl(userId: string, questKey: string, step: number) {
@@ -389,7 +395,12 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
   if (isFinal) {
     await db
       .from("quest_sessions")
-      .update({ current_step: step, step_issued_at: null, status: "verified", verified_at: new Date().toISOString() })
+      .update({
+        current_step: step,
+        step_issued_at: null,
+        status: "verified",
+        verified_at: new Date().toISOString(),
+      })
       .eq("id", session.data.id);
     const reward = Number(quest.reward_amount);
     await creditWallet(userId, reward, "quest", `Shortlink quest — ${quest.label}`);

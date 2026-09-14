@@ -69,7 +69,8 @@ const emptyForm = {
   postbackSecretRef: "",
   postbackIpAllowlist: "",
   // Category + tags
-  category: "" as "" | "App Install" | "Trial" | "Deals" | "Survey" | "Games" | "Link Locker" | "Shortlink",
+  category: "" as
+    "" | "App Install" | "Trial" | "Deals" | "Survey" | "Games" | "Link Locker" | "Shortlink",
   tags: [] as ("Hot" | "Trending" | "Easy" | "Popular")[],
 };
 
@@ -215,33 +216,25 @@ export function OffersManager() {
       isFeatured: offer.is_featured,
       sortOrder: String(offer.sort_order ?? 0),
       adminPriority: String(offer.admin_priority ?? 0),
-      isLimitedDeal: Boolean(
-        (offer as { is_limited_deal?: boolean }).is_limited_deal,
-      ),
+      isLimitedDeal: Boolean((offer as { is_limited_deal?: boolean }).is_limited_deal),
       dealGroupId: (offer as { deal_group_id?: string | null }).deal_group_id ?? "",
       actualCost:
         (offer as { actual_cost?: number | null }).actual_cost != null
           ? String((offer as { actual_cost?: number }).actual_cost)
           : "",
-      payoutPercentage: String(
-        (offer as { payout_percentage?: number }).payout_percentage ?? 110,
-      ),
+      payoutPercentage: String((offer as { payout_percentage?: number }).payout_percentage ?? 110),
       maxPayoutCap:
         (offer as { max_payout_cap?: number | null }).max_payout_cap != null
           ? String((offer as { max_payout_cap?: number }).max_payout_cap)
           : "",
       payoutMode:
         ((offer as { payout_mode?: string }).payout_mode as
-          | "manual"
-          | "manual_proof"
-          | "auto_postback"
-          | undefined) ?? "manual",
+          "manual" | "manual_proof" | "auto_postback" | undefined) ?? "manual",
       postbackSecretRef:
         (offer as { postback_secret_ref?: string | null }).postback_secret_ref ?? "",
-      postbackIpAllowlist:
-        ((offer as { postback_ip_allowlist?: string[] }).postback_ip_allowlist ?? []).join(
-          ", ",
-        ),
+      postbackIpAllowlist: (
+        (offer as { postback_ip_allowlist?: string[] }).postback_ip_allowlist ?? []
+      ).join(", "),
       category:
         ((offer as { category?: string | null }).category as
           | ""
@@ -272,7 +265,12 @@ export function OffersManager() {
             {key}
           </Button>
         ))}
-        <Button size="sm" variant="gold" className="ml-auto" onClick={() => setForm({ ...emptyForm })}>
+        <Button
+          size="sm"
+          variant="gold"
+          className="ml-auto"
+          onClick={() => setForm({ ...emptyForm })}
+        >
           <Plus className="mr-1 h-4 w-4" /> New manual offer
         </Button>
       </div>
@@ -424,16 +422,13 @@ export function OffersManager() {
                         className="h-8 rounded-lg border border-input bg-background px-2 text-xs"
                         data-testid={`network-offer-payout-mode-${offer.id}`}
                         value={
-                          ((offer as { payout_mode?: string }).payout_mode as string) ??
-                          "manual"
+                          ((offer as { payout_mode?: string }).payout_mode as string) ?? "manual"
                         }
                         onChange={(event) =>
                           controlsAction.mutate({
                             id: offer.id,
                             payoutMode: event.target.value as
-                              | "manual"
-                              | "manual_proof"
-                              | "auto_postback",
+                              "manual" | "manual_proof" | "auto_postback",
                           })
                         }
                       >
@@ -447,11 +442,7 @@ export function OffersManager() {
                       <Button size="sm" variant="outline" onClick={() => openEdit(offer)}>
                         <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setPendingDelete(offer)}
-                      >
+                      <Button size="sm" variant="outline" onClick={() => setPendingDelete(offer)}>
                         <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
                       </Button>
                     </>
@@ -562,9 +553,9 @@ export function OffersManager() {
                     })}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Once you save any tag choice (including clearing all), this offer's
-                    tags become admin-managed and will no longer be auto-computed.
-                    The "Deal" badge is always driven by the Limited Deal toggle above.
+                    Once you save any tag choice (including clearing all), this offer's tags become
+                    admin-managed and will no longer be auto-computed. The "Deal" badge is always
+                    driven by the Limited Deal toggle above.
                   </p>
                 </div>
               </div>
@@ -586,9 +577,7 @@ export function OffersManager() {
                         placeholder="e.g. hosting-2026"
                         data-testid="offer-form-deal-group"
                         value={form.dealGroupId}
-                        onChange={(event) =>
-                          setForm({ ...form, dealGroupId: event.target.value })
-                        }
+                        onChange={(event) => setForm({ ...form, dealGroupId: event.target.value })}
                       />
                     </Field>
                     <div className="grid grid-cols-3 gap-3">
@@ -597,9 +586,7 @@ export function OffersManager() {
                           inputMode="decimal"
                           data-testid="offer-form-actual-cost"
                           value={form.actualCost}
-                          onChange={(event) =>
-                            setForm({ ...form, actualCost: event.target.value })
-                          }
+                          onChange={(event) => setForm({ ...form, actualCost: event.target.value })}
                         />
                       </Field>
                       <Field label="Payout %">
@@ -690,7 +677,8 @@ export function OffersManager() {
                     <p className="text-[11px] text-muted-foreground">
                       Postback URL:{" "}
                       <code className="rounded bg-background-alt px-1">
-                        {typeof window !== "undefined" ? window.location.origin : ""}/api/public/offer-postback/{form.id ?? "{offerId}"}
+                        {typeof window !== "undefined" ? window.location.origin : ""}
+                        /api/public/offer-postback/{form.id ?? "{offerId}"}
                       </code>{" "}
                       · signature = HMAC-SHA256(secret, "txn:uid:amount")
                     </p>

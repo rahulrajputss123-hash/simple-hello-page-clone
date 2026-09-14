@@ -6,11 +6,7 @@ import { toast } from "sonner";
 import { SectionTitle, EmptyState } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatMoney } from "@/lib/coinquest";
-import {
-  automationStats,
-  listAutomationLogs,
-  retryConversion,
-} from "@/lib/automation.functions";
+import { automationStats, listAutomationLogs, retryConversion } from "@/lib/automation.functions";
 import { listSdkConversions } from "@/lib/sdk-offerwall.functions";
 
 type StatusFilter = "all" | "info" | "success" | "warning" | "error";
@@ -34,8 +30,7 @@ export function AutomationPanel() {
   const stats = useQuery({ queryKey: ["automation-stats"], queryFn: () => fetchStats({}) });
   const logs = useQuery({
     queryKey: ["automation-logs", status],
-    queryFn: () =>
-      fetchLogs({ data: status === "all" ? { limit: 50 } : { status, limit: 50 } }),
+    queryFn: () => fetchLogs({ data: status === "all" ? { limit: 50 } : { status, limit: 50 } }),
   });
   const conversions = useQuery({
     queryKey: ["automation-conversions"],

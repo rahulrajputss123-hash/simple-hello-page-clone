@@ -5,13 +5,7 @@ const db = supabaseAdmin as unknown as { from: (t: string) => any; storage: any 
 
 export type BannerSection = "home" | "offers" | "tasks" | "offerwall";
 export type BannerCtaKind =
-  | "none"
-  | "offers"
-  | "tasks"
-  | "offerwall"
-  | "offer"
-  | "offerwall_provider"
-  | "url";
+  "none" | "offers" | "tasks" | "offerwall" | "offer" | "offerwall_provider" | "url";
 
 export type BannerRow = {
   id: string;
@@ -202,11 +196,12 @@ export type SmartBannerSetting = { template_key: string; enabled: boolean };
  * template is treated as enabled by default.
  */
 export async function listSmartBannerSettingsImpl(): Promise<SmartBannerSetting[]> {
-  const { data, error } = await db
-    .from("smart_banner_settings")
-    .select("template_key, enabled");
+  const { data, error } = await db.from("smart_banner_settings").select("template_key, enabled");
   if (error) {
-    console.warn("[banners] smart_banner_settings unavailable (treating all as enabled):", error.message);
+    console.warn(
+      "[banners] smart_banner_settings unavailable (treating all as enabled):",
+      error.message,
+    );
     return [];
   }
   return data ?? [];

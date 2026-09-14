@@ -25,6 +25,9 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { completeOnboarding } from "@/lib/coinquest.functions";
 import { getDeviceId } from "@/lib/ads";
+import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
+
+const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -32,7 +35,10 @@ export const Route = createFileRoute("/_authenticated/home")({
       { title: "Home — CashGPT" },
       { name: "description", content: "Your daily quests, featured offers and streak bonus." },
       { property: "og:title", content: "Home — CashGPT" },
-      { property: "og:description", content: "Your daily quests, featured offers and streak bonus." },
+      {
+        property: "og:description",
+        content: "Your daily quests, featured offers and streak bonus.",
+      },
     ],
   }),
   component: HomePage,
@@ -87,12 +93,21 @@ function HomePage() {
       <SectionBanner section="home" />
 
       <section id="tour-starter-quests">
-        <SectionHeading icon={Rocket} title="Starter Quests" subtitle="Complete simple quests and earn rewards!" />
+        <SectionHeading
+          icon={Rocket}
+          iconSrc="/icons/icon-starter-quest.png"
+          title="Starter Quests"
+          subtitle="Complete simple quests and earn rewards!"
+        />
         <StarterQuests />
       </section>
 
       <section id="tour-featured-offers">
-        <SectionHeading icon={Star} title="Featured Offers" />
+        <SectionHeading
+          icon={Star}
+          iconSrc="/icons/icon-featured-offers.png"
+          title="Featured Offers"
+        />
         <FeaturedOffers scope="home" />
         <div className="mt-3 flex justify-center">
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -109,7 +124,7 @@ function HomePage() {
 
       <OnboardingTour />
 
-      <SectionHeading icon={Layers} title="Offerwall" />
+      <SectionHeading icon={Layers} iconSrc="/icons/icon-offerwall.png" title="Offerwall" />
       <OfferwallSlot limit={6} />
       <div className="mt-3 flex justify-center">
         <Link
@@ -119,9 +134,83 @@ function HomePage() {
           View All
         </Link>
       </div>
-      <p className="mt-3 text-center text-xs text-muted-foreground">
-        Partner networks activate in the mobile app.
-      </p>
+      {/* Soft curved gradient-fade divider — not a flat line */}
+      <div aria-hidden className="relative mt-5 h-6 overflow-hidden">
+        <svg
+          viewBox="0 0 400 24"
+          preserveAspectRatio="none"
+          className="absolute inset-0 h-full w-full"
+        >
+          <defs>
+            <linearGradient id="live-community-divider" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="var(--color-mint)" stopOpacity="0" />
+              <stop offset="50%" stopColor="var(--color-gold)" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="var(--color-mint)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0 16 C100 0 300 0 400 16"
+            stroke="url(#live-community-divider)"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
+
+      <section
+        data-testid="live-community-section"
+        className="surface-card premium-step-in relative overflow-hidden p-5"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-mint/10 blur-2xl"
+        />
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-mint/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary ring-1 ring-inset ring-mint/25">
+          <span className="relative grid size-1.5 place-items-center">
+            <span className="payout-live-dot absolute inset-0 rounded-full bg-primary" />
+            <span className="size-1.5 rounded-full bg-primary" />
+          </span>
+          Live Community
+        </span>
+
+        <div className="relative mt-3 flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-amount font-display text-3xl leading-none text-foreground">
+              50,000+
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Users earning with us</p>
+            <div className="mt-2.5 flex items-center gap-1.5">
+              <span className="flex items-center gap-0.5 text-gold-dark" aria-hidden>
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Star key={index} className="size-3.5 fill-current" />
+                ))}
+              </span>
+              <span className="text-sm font-semibold text-foreground">4.9/5</span>
+              <span className="text-xs text-muted-foreground">from 18,400+ reviews</span>
+            </div>
+          </div>
+
+          <div
+            className="flex shrink-0 -space-x-3"
+            aria-hidden
+            data-testid="live-community-avatars"
+          >
+            {COMMUNITY_AVATARS.map((avatar, index) => (
+              <img
+                key={avatar.id}
+                src={avatar.imageUrl}
+                alt=""
+                style={{ zIndex: COMMUNITY_AVATARS.length - index }}
+                className="size-11 rounded-full border-2 border-card object-cover shadow-soft"
+              />
+            ))}
+            <span className="grid size-11 place-items-center rounded-full border-2 border-card bg-background-alt text-sm font-bold text-primary shadow-soft">
+              +
+            </span>
+          </div>
+        </div>
+      </section>
 
       {/* Cash Out Your Way — the bold, eye-catching highlight of the page */}
       <section
@@ -217,10 +306,7 @@ function HomePage() {
       </section>
 
       {/* Need Help? — kept separately, still useful */}
-      <div
-        data-testid="need-help-card"
-        className="surface-card mt-4 flex items-center gap-4 p-4"
-      >
+      <div data-testid="need-help-card" className="surface-card mt-4 flex items-center gap-4 p-4">
         <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-mint/15 text-primary">
           <HelpCircle className="size-6" />
         </span>
@@ -249,10 +335,7 @@ function HomePage() {
         >
           Payout Policy
         </Link>
-        <Link
-          to={"/legal/referral-terms" as any}
-          className="hover:text-foreground hover:underline"
-        >
+        <Link to={"/legal/referral-terms" as any} className="hover:text-foreground hover:underline">
           Referral Terms
         </Link>
         {/* eslint-enable @typescript-eslint/no-explicit-any */}
@@ -262,7 +345,6 @@ function HomePage() {
   );
 }
 
-
 // Subtle "paid out this week" trust strip. The figure is a display-only
 // placeholder (MOCKED) — wire to a real aggregate when the endpoint exists.
 const PAID_OUT_THIS_WEEK = 128540;
@@ -271,7 +353,10 @@ function PaidOutThisWeek() {
   const [value, setValue] = useState(0);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
       setValue(PAID_OUT_THIS_WEEK);
       return;
     }

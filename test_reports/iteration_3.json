@@ -3,12 +3,21 @@
   "backend_issues": {
     "critical": [],
     "minor": [
-      {"endpoint": "src/components/admin/OffersManager.tsx (updateOfferControls client caller)", "issue": "Server-side write path for category/tags on network offers now exists, but the admin UI still cannot reach it: controlsAction's mutationFn input type has no category/tags, and the network-offer row only renders reward/payout-mode controls (category+tags editor lives solely in the manual-offer dialog, and openEdit/Edit button is rendered only for source !== 'network'). So the *_manual flags still cannot be set for network offers from the UI — only via a direct server-fn/API call. Original HIGH concern (a) is resolved at the API layer only."},
-      {"endpoint": "src/lib/offers/sync.server.ts toRow()", "issue": "toRow never emits a `tags` key, so `delete row['tags']` when tags_manual is true is a permanent no-op. Harmless today (sync never overwrites tags) but the tags_manual branch is dead code and could mislead future changes; consider a comment or removal."},
-      {"endpoint": "src/lib/offers/sync.server.ts pagination loop", "issue": "Unbounded `for (let from = 0; ; from += PAGE_SIZE)` has no hard iteration ceiling. Correct given PostgREST returns a short final page, but a defensive max-pages guard would prevent an infinite loop if the backend ever returns a full page repeatedly."}
+      {
+        "endpoint": "src/components/admin/OffersManager.tsx (updateOfferControls client caller)",
+        "issue": "Server-side write path for category/tags on network offers now exists, but the admin UI still cannot reach it: controlsAction's mutationFn input type has no category/tags, and the network-offer row only renders reward/payout-mode controls (category+tags editor lives solely in the manual-offer dialog, and openEdit/Edit button is rendered only for source !== 'network'). So the *_manual flags still cannot be set for network offers from the UI — only via a direct server-fn/API call. Original HIGH concern (a) is resolved at the API layer only."
+      },
+      {
+        "endpoint": "src/lib/offers/sync.server.ts toRow()",
+        "issue": "toRow never emits a `tags` key, so `delete row['tags']` when tags_manual is true is a permanent no-op. Harmless today (sync never overwrites tags) but the tags_manual branch is dead code and could mislead future changes; consider a comment or removal."
+      },
+      {
+        "endpoint": "src/lib/offers/sync.server.ts pagination loop",
+        "issue": "Unbounded `for (let from = 0; ; from += PAGE_SIZE)` has no hard iteration ceiling. Correct given PostgREST returns a short final page, but a defensive max-pages guard would prevent an infinite loop if the backend ever returns a full page repeatedly."
+      }
     ]
   },
-  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
   "test_report_links": [
     "/app/tests/test_offer_manual_override_static.py",
     "/app/test_reports/pytest/pytest_results_iter3.xml"
@@ -26,7 +35,10 @@
     "Grep across /app/src and /app/supabase: the only remaining mentions of preserve_offer_admin_overrides / preserve_manual_offer_overrides are the DROP statements plus explanatory comments inside migrations 20261125000000 and 20261126000000."
   ],
   "updated_files": ["/app/tests/test_offer_manual_override_static.py"],
-  "success_rate": {"backend": "100% (22/22 static assertions; 7/7 review bullets)", "frontend": "not tested (backend-only request)"},
+  "success_rate": {
+    "backend": "100% (22/22 static assertions; 7/7 review bullets)",
+    "frontend": "not tested (backend-only request)"
+  },
   "seed_data_creation": "none (no live DB in sandbox)",
   "should_call_test_agent_after_fix": false,
   "should_main_agent_self_test": true,

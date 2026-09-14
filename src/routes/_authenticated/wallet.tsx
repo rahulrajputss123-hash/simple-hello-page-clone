@@ -121,8 +121,7 @@ function WalletPage() {
   });
 
   const requestWithdrawal = useMutation({
-    mutationFn: () =>
-      withdraw({ data: { amount: Number(amount), payoutMethodId: methodId } }),
+    mutationFn: () => withdraw({ data: { amount: Number(amount), payoutMethodId: methodId } }),
     onSuccess: () => {
       toast.success("Withdrawal requested — we'll review it shortly.");
       setAmount("");
@@ -170,9 +169,9 @@ function WalletPage() {
         </div>
       </div>
 
-
       <SectionHeading
         icon={Wallet}
+        iconSrc="/icons/icon-wallet.png"
         title="Withdraw"
         action={
           <Dialog open={methodOpen} onOpenChange={setMethodOpen}>
@@ -288,14 +287,20 @@ function WalletPage() {
             <li key={request.id} className="surface-card flex items-center justify-between p-3">
               <div>
                 <p className="text-amount">{formatMoney(request.amount)}</p>
-                <p className="text-xs text-muted-foreground">{formatDateTime(request.created_at)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatDateTime(request.created_at)}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
                   {request.status}
                 </span>
                 {request.status === "pending" && (
-                  <Button size="sm" variant="ghost" onClick={() => cancelRequest.mutate(request.id)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => cancelRequest.mutate(request.id)}
+                  >
                     Cancel
                   </Button>
                 )}

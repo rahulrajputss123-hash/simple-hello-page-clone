@@ -1,4 +1,9 @@
-import type { NormalizedOffer, OfferProvider, OfferProviderAdapter, OfferCategory } from "../provider-types";
+import type {
+  NormalizedOffer,
+  OfferProvider,
+  OfferProviderAdapter,
+  OfferCategory,
+} from "../provider-types";
 
 /**
  * Affike offerwall feed adapter.
@@ -57,7 +62,10 @@ export const affikeAdapter: OfferProviderAdapter = {
     return null;
   },
 
-  async fetchOffers(provider: OfferProvider, context?: import("../provider-types").OfferFetchContext) {
+  async fetchOffers(
+    provider: OfferProvider,
+    context?: import("../provider-types").OfferFetchContext,
+  ) {
     const cfg = (provider.sync_config ?? {}) as Record<string, unknown>;
     const apiKey = typeof cfg["api_key"] === "string" ? (cfg["api_key"] as string) : "";
     if (!apiKey) throw new Error("Affike sync_config.api_key is not configured.");

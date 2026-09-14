@@ -1,13 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  ArrowDown,
-  ArrowUp,
-  Eye,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -342,9 +335,7 @@ export function OnboardingManager() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete "{pendingDelete?.title}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              New users will no longer see this step.
-            </AlertDialogDescription>
+            <AlertDialogDescription>New users will no longer see this step.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

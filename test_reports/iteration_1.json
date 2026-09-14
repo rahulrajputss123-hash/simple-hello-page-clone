@@ -3,12 +3,21 @@
   "backend_issues": {
     "critical": [],
     "minor": [
-      {"endpoint": "/api/cron/refresh-offer-feed", "issue": "Unbounded country fan-out: refreshAllFeedsImpl refreshes every country ever present in offer_feed_cache. Each new visitor country permanently adds a row, so cron cost/external API calls grow linearly forever with no pruning of stale/low-traffic countries (e.g. rows older than N days)."},
-      {"endpoint": "getOrRefreshProviderCountry (on-demand cache miss)", "issue": "No de-dup/lock around the synchronous on-cache-miss fetch. Concurrent first requests for the same (provider,country) will each hit the AdBlueMedia API and each upsert - thundering herd on cold cache / expiry boundary."},
-      {"endpoint": "offer_feed_cache (data)", "issue": "Informational: US and DE cache rows contain the IDENTICAL 10 offer ids, because AdBlueMedia's feed endpoint takes no country param (documented in feed-cache.server.ts:96-98). So per-country caching is currently structural only - the feed is not actually geo-filtered for this network. Confirm this matches product intent, or pass the country through as a GEO/ip param if the network supports it."}
+      {
+        "endpoint": "/api/cron/refresh-offer-feed",
+        "issue": "Unbounded country fan-out: refreshAllFeedsImpl refreshes every country ever present in offer_feed_cache. Each new visitor country permanently adds a row, so cron cost/external API calls grow linearly forever with no pruning of stale/low-traffic countries (e.g. rows older than N days)."
+      },
+      {
+        "endpoint": "getOrRefreshProviderCountry (on-demand cache miss)",
+        "issue": "No de-dup/lock around the synchronous on-cache-miss fetch. Concurrent first requests for the same (provider,country) will each hit the AdBlueMedia API and each upsert - thundering herd on cold cache / expiry boundary."
+      },
+      {
+        "endpoint": "offer_feed_cache (data)",
+        "issue": "Informational: US and DE cache rows contain the IDENTICAL 10 offer ids, because AdBlueMedia's feed endpoint takes no country param (documented in feed-cache.server.ts:96-98). So per-country caching is currently structural only - the feed is not actually geo-filtered for this network. Confirm this matches product intent, or pass the country through as a GEO/ip param if the network supports it."
+      }
     ]
   },
-  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
   "test_report_links": [
     "/app/backend/tests/test_offer_feed.py",
     "/app/backend/tests/conftest.py",
@@ -26,11 +35,11 @@
     "feed-settings.server.ts:76 - max_offers is clamped to the hard cap at READ time as well as write time (good, defence in depth). Verified: reads never exceed 10 for adbluemedia.",
     "refresh-offer-feed.ts:19-28 - secret comparison uses `===` (non constant-time). Low risk for a cron secret, but a timing-safe compare would be cheap. Also the route returns 500 with the raw error message on failure; consider not leaking internal error text publicly."
   ],
-  "updated_files": [
-    "/app/backend/tests/conftest.py",
-    "/app/backend/tests/test_offer_feed.py"
-  ],
-  "success_rate": {"backend": "100% (28/28 pytest)", "frontend": "not tested (backend-only request)"},
+  "updated_files": ["/app/backend/tests/conftest.py", "/app/backend/tests/test_offer_feed.py"],
+  "success_rate": {
+    "backend": "100% (28/28 pytest)",
+    "frontend": "not tested (backend-only request)"
+  },
   "seed_data_creation": "No new seed data. Cron runs upserted/refreshed the existing 10 AdBlueMedia network offers for countries US and DE (DE row pre-existed from the developer's E2E script). The CHECK-constraint test PATCHes offer_feed_settings with invalid values which are rejected by Postgres, and it re-asserts the row is unchanged (5h / default_country) afterwards.",
   "should_call_test_agent_after_fix": false,
   "should_main_agent_self_test": true,

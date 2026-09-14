@@ -74,8 +74,12 @@ export function OfferFeedAutomationPanel() {
   });
 
   const networkMutation = useMutation({
-    mutationFn: (input: { providerId: string; enabled: boolean; maxOffers: number; weight: number }) =>
-      saveNetwork({ data: input }),
+    mutationFn: (input: {
+      providerId: string;
+      enabled: boolean;
+      maxOffers: number;
+      weight: number;
+    }) => saveNetwork({ data: input }),
     onSuccess: () => {
       toast.success("Network settings saved.");
       invalidate();
@@ -208,7 +212,9 @@ export function OfferFeedAutomationPanel() {
                 </div>
                 <span
                   className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    expired ? "bg-background-alt text-muted-foreground" : "bg-background-alt text-primary"
+                    expired
+                      ? "bg-background-alt text-muted-foreground"
+                      : "bg-background-alt text-primary"
                   }`}
                 >
                   {expired ? "expired" : "fresh"}
@@ -241,7 +247,12 @@ function NetworkRow({
   refreshing,
 }: {
   provider: ProviderRow;
-  onSave: (input: { providerId: string; enabled: boolean; maxOffers: number; weight: number }) => void;
+  onSave: (input: {
+    providerId: string;
+    enabled: boolean;
+    maxOffers: number;
+    weight: number;
+  }) => void;
   onRefresh: () => void;
   saving: boolean;
   refreshing: boolean;

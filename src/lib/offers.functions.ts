@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-
 /** User: log a click event for an offer (called when Continue is tapped in the pre-redirect popup). */
 export const trackOfferClick = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -53,9 +52,7 @@ export const upsertOfferProvider = createServerFn({ method: "POST" })
 
 export const syncOfferProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ providerId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ providerId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
@@ -129,7 +126,10 @@ export const saveManualOffer = createServerFn({ method: "POST" })
           .enum(["App Install", "Trial", "Deals", "Survey", "Games", "Link Locker", "Shortlink"])
           .nullable()
           .optional(),
-        tags: z.array(z.enum(["Hot", "Trending", "Easy", "Popular"])).max(4).default([]),
+        tags: z
+          .array(z.enum(["Hot", "Trending", "Easy", "Popular"]))
+          .max(4)
+          .default([]),
       })
       .parse(input),
   )
@@ -259,7 +259,10 @@ export const updateOfferControls = createServerFn({ method: "POST" })
           .enum(["App Install", "Trial", "Deals", "Survey", "Games", "Link Locker", "Shortlink"])
           .nullable()
           .optional(),
-        tags: z.array(z.enum(["Hot", "Trending", "Easy", "Popular"])).max(4).optional(),
+        tags: z
+          .array(z.enum(["Hot", "Trending", "Easy", "Popular"]))
+          .max(4)
+          .optional(),
       })
       .parse(input),
   )

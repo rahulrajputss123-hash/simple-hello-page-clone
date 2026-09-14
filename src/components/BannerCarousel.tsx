@@ -32,7 +32,10 @@ export function BannerCarousel({
   if (count === 0) return null;
 
   return (
-    <section aria-roledescription="carousel" className="relative overflow-hidden rounded-3xl shadow-lift">
+    <section
+      aria-roledescription="carousel"
+      className="relative overflow-hidden rounded-3xl shadow-lift"
+    >
       <div
         className="flex transition-transform duration-500 ease-out"
         style={{ transform: `translateX(-${index * 100}%)` }}
@@ -55,7 +58,11 @@ export function BannerCarousel({
             className={`w-full shrink-0 bg-jade-gradient p-5 text-primary-foreground ${b.className ?? ""}`}
             style={
               b.image
-                ? { backgroundImage: `url(${b.image})`, backgroundSize: "cover", backgroundPosition: "center" }
+                ? {
+                    backgroundImage: `url(${b.image})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }
                 : undefined
             }
           >

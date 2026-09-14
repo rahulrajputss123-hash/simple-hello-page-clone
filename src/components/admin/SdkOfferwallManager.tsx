@@ -166,8 +166,12 @@ export function SdkOfferwallManager() {
   });
 
   const controlMutation = useMutation({
-    mutationFn: (input: { id: string; enabled?: boolean; status?: string; displayOrder?: number }) =>
-      setControls({ data: input }),
+    mutationFn: (input: {
+      id: string;
+      enabled?: boolean;
+      status?: string;
+      displayOrder?: number;
+    }) => setControls({ data: input }),
     onSuccess: refresh,
     onError,
   });
@@ -193,8 +197,8 @@ export function SdkOfferwallManager() {
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Provider-agnostic SDK offerwall configuration. Separate from the Offer Feed networks. No
-        SDK is integrated yet — enabled providers show as configured slots in the app.
+        Provider-agnostic SDK offerwall configuration. Separate from the Offer Feed networks. No SDK
+        is integrated yet — enabled providers show as configured slots in the app.
       </p>
 
       {form && (
@@ -214,7 +218,10 @@ export function SdkOfferwallManager() {
                 <Input
                   value={form.logoUrl ?? ""}
                   placeholder="https://… or upload"
-                  onChange={(e) => { setUploadError(null); patch({ logoUrl: e.target.value }); }}
+                  onChange={(e) => {
+                    setUploadError(null);
+                    patch({ logoUrl: e.target.value });
+                  }}
                 />
                 <input
                   ref={fileRef}
@@ -236,9 +243,7 @@ export function SdkOfferwallManager() {
                   {uploading ? "…" : <Upload className="size-4" />}
                 </Button>
               </div>
-              {uploadError && (
-                <p className="mt-1 text-xs text-destructive">{uploadError}</p>
-              )}
+              {uploadError && <p className="mt-1 text-xs text-destructive">{uploadError}</p>}
             </Field>
             <Field label="Display order">
               <Input
@@ -456,7 +461,9 @@ export function SdkOfferwallManager() {
 
           {/* Lock condition */}
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
-            <p className="mb-2 text-xs font-semibold text-amber-700 dark:text-amber-300">🔒 Lock condition</p>
+            <p className="mb-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
+              🔒 Lock condition
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Lock type">
                 <Select
@@ -471,16 +478,10 @@ export function SdkOfferwallManager() {
                 <Field label="Unlock at (UTC)">
                   <Input
                     type="datetime-local"
-                    value={
-                      form.unlockAt
-                        ? new Date(form.unlockAt).toISOString().slice(0, 16)
-                        : ""
-                    }
+                    value={form.unlockAt ? new Date(form.unlockAt).toISOString().slice(0, 16) : ""}
                     onChange={(e) =>
                       patch({
-                        unlockAt: e.target.value
-                          ? new Date(e.target.value).toISOString()
-                          : null,
+                        unlockAt: e.target.value ? new Date(e.target.value).toISOString() : null,
                       })
                     }
                   />
@@ -548,11 +549,12 @@ export function SdkOfferwallManager() {
                   {(provider as any).lock_type !== "none" && (
                     <p className="text-xs text-amber-600">
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      🔒 {(provider as any).lock_type === "time"
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        ? `Until ${new Date(String((provider as any).unlock_at)).toLocaleDateString()}`
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        : `Earn $${Number((provider as any).required_lifetime_earned).toFixed(2)}`}
+                      🔒{" "}
+                      {(provider as any).lock_type === "time"
+                        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          `Until ${new Date(String((provider as any).unlock_at)).toLocaleDateString()}`
+                        : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          `Earn $${Number((provider as any).required_lifetime_earned).toFixed(2)}`}
                     </p>
                   )}
                 </div>
@@ -613,14 +615,15 @@ export function SdkOfferwallManager() {
                       notes: provider.notes,
                       metadata: provider.metadata,
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      lockType: ((provider as any).lock_type ?? "none") as "none" | "time" | "earning",
+                      lockType: ((provider as any).lock_type ?? "none") as
+                        "none" | "time" | "earning",
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      unlockAt: (provider as any).unlock_at as string | null ?? null,
+                      unlockAt: ((provider as any).unlock_at as string | null) ?? null,
                       requiredLifetimeEarned:
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         (provider as any).required_lifetime_earned != null
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          ? Number((provider as any).required_lifetime_earned)
+                          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            Number((provider as any).required_lifetime_earned)
                           : null,
                     })
                   }

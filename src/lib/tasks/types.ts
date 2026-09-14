@@ -74,7 +74,12 @@ export function periodKey(frequency: TaskFrequency, at: Date = new Date()): stri
 
 /** Inclusive lower bound of the window progress is counted over. */
 export function periodStart(
-  input: { frequency: TaskFrequency; task_type: TaskType; window_days: number | null; starts_at: string | null },
+  input: {
+    frequency: TaskFrequency;
+    task_type: TaskType;
+    window_days: number | null;
+    starts_at: string | null;
+  },
   at: Date = new Date(),
 ): Date {
   if (input.task_type === "referral_daily") {
@@ -83,7 +88,9 @@ export function periodStart(
   if (input.task_type === "referral_window" && input.window_days) {
     return new Date(at.getTime() - input.window_days * 86_400_000);
   }
-  if (input.frequency === "daily") return new Date(`${at.toISOString().slice(0, 10)}T00:00:00.000Z`);
-  if (input.frequency === "weekly") return new Date(`${periodKey("weekly", at).slice(1)}T00:00:00.000Z`);
+  if (input.frequency === "daily")
+    return new Date(`${at.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  if (input.frequency === "weekly")
+    return new Date(`${periodKey("weekly", at).slice(1)}T00:00:00.000Z`);
   return input.starts_at ? new Date(input.starts_at) : new Date(0);
 }

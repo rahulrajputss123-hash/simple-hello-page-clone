@@ -88,9 +88,7 @@ export async function syncProviderImpl(providerId: string): Promise<SyncResult> 
       const rows = page ?? [];
       for (const row of rows) {
         manualFlags.set(row.external_offer_id, {
-          categoryManual: Boolean(
-            (row as { category_manual?: boolean }).category_manual,
-          ),
+          categoryManual: Boolean((row as { category_manual?: boolean }).category_manual),
           tagsManual: Boolean((row as { tags_manual?: boolean }).tags_manual),
         });
       }
@@ -98,10 +96,7 @@ export async function syncProviderImpl(providerId: string): Promise<SyncResult> 
     }
 
     const rows = offers.map((o) => {
-      const row = toRow(provider as unknown as OfferProvider, o, seenAt) as Record<
-        string,
-        unknown
-      >;
+      const row = toRow(provider as unknown as OfferProvider, o, seenAt) as Record<string, unknown>;
       const flags = manualFlags.get(o.externalOfferId);
       if (flags?.categoryManual) delete row["category"];
       if (flags?.tagsManual) delete row["tags"];
@@ -148,10 +143,7 @@ export async function syncProviderImpl(providerId: string): Promise<SyncResult> 
 }
 
 export async function listProvidersImpl() {
-  const { data, error } = await supabaseAdmin
-    .from("offer_providers")
-    .select("*")
-    .order("name");
+  const { data, error } = await supabaseAdmin.from("offer_providers").select("*").order("name");
   if (error) throw error;
   return data;
 }

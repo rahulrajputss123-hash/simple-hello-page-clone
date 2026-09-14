@@ -9,8 +9,7 @@
  */
 
 export type LockReason =
-  | { type: 'time'; unlocksAt: string }
-  | { type: 'earning'; required: number; current: number };
+  { type: "time"; unlocksAt: string } | { type: "earning"; required: number; current: number };
 
 export type LockState = {
   is_locked: boolean;
@@ -35,22 +34,22 @@ export function computeLockState(
 ): LockState {
   const now = nowIso ? new Date(nowIso) : new Date();
 
-  if (lockType === 'time' && unlockAt) {
+  if (lockType === "time" && unlockAt) {
     const unlockDate = new Date(unlockAt);
     if (now < unlockDate) {
       return {
         is_locked: true,
-        unlock_reason: { type: 'time', unlocksAt: unlockAt },
+        unlock_reason: { type: "time", unlocksAt: unlockAt },
       };
     }
   }
 
-  if (lockType === 'earning' && requiredLifetimeEarned != null) {
+  if (lockType === "earning" && requiredLifetimeEarned != null) {
     if (lifetimeEarned < requiredLifetimeEarned) {
       return {
         is_locked: true,
         unlock_reason: {
-          type: 'earning',
+          type: "earning",
           required: requiredLifetimeEarned,
           current: lifetimeEarned,
         },
@@ -68,12 +67,10 @@ export function computeLockState(
 export function assertNotLocked(lockState: LockState, label: string): void {
   if (!lockState.is_locked) return;
   const r = lockState.unlock_reason;
-  if (r?.type === 'time') {
-    throw new Error(
-      `"${label}" is locked until ${new Date(r.unlocksAt).toUTCString()}.`,
-    );
+  if (r?.type === "time") {
+    throw new Error(`"${label}" is locked until ${new Date(r.unlocksAt).toUTCString()}.`);
   }
-  if (r?.type === 'earning') {
+  if (r?.type === "earning") {
     const needed = (r.required - r.current).toFixed(2);
     throw new Error(
       `"${label}" requires $${r.required.toFixed(2)} lifetime earned. You need $${needed} more.`,
@@ -88,7 +85,7 @@ export function assertNotLocked(lockState: LockState, label: string): void {
  */
 export function formatTimeLockReason(unlocksAt: string): string {
   const ms = new Date(unlocksAt).getTime() - Date.now();
-  if (ms <= 0) return 'Unlocking…';
+  if (ms <= 0) return "Unlocking…";
   const totalMinutes = Math.ceil(ms / 60_000);
   const days = Math.floor(totalMinutes / 1440);
   const hours = Math.floor((totalMinutes % 1440) / 60);

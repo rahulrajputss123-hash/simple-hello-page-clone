@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Edit3, FileText, LogOut, Settings, Shield, Wallet } from "lucide-react";
+import { ChevronRight, Edit3, FileText, Settings, Shield, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -8,7 +8,13 @@ import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,14 +42,31 @@ function ProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ name: profile?.name ?? "", avatar: profile?.avatar_url ?? "nova", gender: ((profile as { gender?: string } | null)?.gender ?? ""), dob: (profile as { date_of_birth?: string | null } | null)?.date_of_birth ?? "" });
+  const [draft, setDraft] = useState({
+    name: profile?.name ?? "",
+    avatar: profile?.avatar_url ?? "nova",
+    gender: (profile as { gender?: string } | null)?.gender ?? "",
+    dob: (profile as { date_of_birth?: string | null } | null)?.date_of_birth ?? "",
+  });
 
   const saveProfile = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("profiles").update({ name: draft.name.trim(), avatar_url: draft.avatar, gender: draft.gender || null, date_of_birth: draft.dob || null } as never).eq("id", session!.user.id);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          name: draft.name.trim(),
+          avatar_url: draft.avatar,
+          gender: draft.gender || null,
+          date_of_birth: draft.dob || null,
+        } as never)
+        .eq("id", session!.user.id);
       if (error) throw error;
     },
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ["profile"] }); setEditing(false); toast.success("Profile updated."); },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
+      setEditing(false);
+      toast.success("Profile updated.");
+    },
     onError: () => toast.error("Couldn't update your profile."),
   });
 
@@ -58,9 +81,19 @@ function ProfilePage() {
 
   return (
     <AppShell subtitle="Profile">
-      <section className="surface-card mt-2 flex items-center gap-3 p-4" data-testid="profile-summary-card">
-        <span className={`grid size-14 place-items-center rounded-2xl bg-gradient-to-br ${avatarById(profile?.avatar_url).tone} text-2xl text-white`}>
-          {avatarById(profile?.avatar_url).symbol}
+      <section
+        className="surface-card mt-2 flex items-center gap-3 p-4"
+        data-testid="profile-summary-card"
+      >
+        <span
+          className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl"
+          data-testid="profile-avatar-preview"
+        >
+          <img
+            src={avatarById(profile?.avatar_url).imageUrl}
+            alt=""
+            className="size-full object-cover"
+          />
         </span>
         <div className="min-w-0">
           <p className="truncate text-lg font-semibold">{profile?.name ?? "CashGPT user"}</p>
@@ -73,7 +106,23 @@ function ProfilePage() {
             </p>
           )}
         </div>
-        <Button size="sm" variant="outline" className="ml-auto gap-1.5" onClick={() => { setDraft({ name: profile?.name ?? "", avatar: profile?.avatar_url ?? "nova", gender: (profile as { gender?: string } | null)?.gender ?? "", dob: (profile as { date_of_birth?: string | null } | null)?.date_of_birth ?? "" }); setEditing(true); }} data-testid="profile-edit-button"><Edit3 className="size-3.5" /> Edit</Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="ml-auto gap-1.5"
+          onClick={() => {
+            setDraft({
+              name: profile?.name ?? "",
+              avatar: profile?.avatar_url ?? "nova",
+              gender: (profile as { gender?: string } | null)?.gender ?? "",
+              dob: (profile as { date_of_birth?: string | null } | null)?.date_of_birth ?? "",
+            });
+            setEditing(true);
+          }}
+          data-testid="profile-edit-button"
+        >
+          <Edit3 className="size-3.5" /> Edit
+        </Button>
       </section>
 
       <div className="mt-3 grid grid-cols-2 gap-3">
@@ -87,7 +136,7 @@ function ProfilePage() {
         </div>
       </div>
 
-      <SectionHeading icon={Settings} title="Settings" />
+      <SectionHeading icon={Settings} iconSrc="/icons/icon-profile.png" title="Settings" />
       <div className="surface-card divide-y divide-border">
         <div className="flex items-center justify-between p-4">
           <div>
@@ -153,18 +202,90 @@ function ProfilePage() {
           navigate({ to: "/auth", replace: true });
         }}
       >
-        <LogOut className="size-4" /> Sign out
+        <img src="/icons/icon-logout.png" alt="" aria-hidden className="size-6 object-contain" />{" "}
+        Sign out
       </Button>
 
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent className="max-h-[88vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit profile</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Edit profile</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
-            <div><Label>Avatar</Label><div className="mt-2 grid grid-cols-5 gap-2">{AVATAR_OPTIONS.map((avatar) => <button type="button" key={avatar.id} onClick={() => setDraft({ ...draft, avatar: avatar.id })} className={`relative grid aspect-square place-items-center rounded-xl bg-gradient-to-br ${avatar.tone} text-lg text-white ${draft.avatar === avatar.id ? "ring-2 ring-gold ring-offset-2" : ""}`} data-testid={`profile-avatar-${avatar.id}`}>{avatar.symbol}</button>)}</div></div>
-            <div className="space-y-1.5"><Label htmlFor="profile-display-name">Display name</Label><Input id="profile-display-name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} data-testid="profile-display-name-input" /></div>
-            <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label htmlFor="profile-gender">Gender</Label><select id="profile-gender" value={draft.gender} onChange={(event) => setDraft({ ...draft, gender: event.target.value })} className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm" data-testid="profile-gender-input"><option value="">Prefer not to say</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option></select></div><div className="space-y-1.5"><Label htmlFor="profile-dob">Date of birth</Label><Input id="profile-dob" type="date" value={draft.dob} onChange={(event) => setDraft({ ...draft, dob: event.target.value })} data-testid="profile-dob-input" /></div></div>
+            <div>
+              <Label>Avatar</Label>
+              <div className="mt-2 grid grid-cols-4 gap-2">
+                {AVATAR_OPTIONS.map((avatar) => (
+                  <button
+                    type="button"
+                    key={avatar.id}
+                    onClick={() => setDraft({ ...draft, avatar: avatar.id })}
+                    className={`relative aspect-square overflow-hidden rounded-xl ${draft.avatar === avatar.id ? "ring-2 ring-gold ring-offset-2" : ""}`}
+                    data-testid={`profile-avatar-${avatar.id}`}
+                  >
+                    <img
+                      src={avatar.imageUrl}
+                      alt={avatar.name}
+                      className="size-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-display-name">Display name</Label>
+              <Input
+                id="profile-display-name"
+                value={draft.name}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                data-testid="profile-display-name-input"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-gender">Gender</Label>
+                <select
+                  id="profile-gender"
+                  value={draft.gender}
+                  onChange={(event) => setDraft({ ...draft, gender: event.target.value })}
+                  className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                  data-testid="profile-gender-input"
+                >
+                  <option value="">Prefer not to say</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="non_binary">Non-binary</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-dob">Date of birth</Label>
+                <Input
+                  id="profile-dob"
+                  type="date"
+                  value={draft.dob}
+                  onChange={(event) => setDraft({ ...draft, dob: event.target.value })}
+                  data-testid="profile-dob-input"
+                />
+              </div>
+            </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setEditing(false)} data-testid="profile-edit-cancel">Cancel</Button><Button variant="jade" disabled={saveProfile.isPending || draft.name.trim().length < 2} onClick={() => saveProfile.mutate()} data-testid="profile-edit-save">{saveProfile.isPending ? "Saving…" : "Save profile"}</Button></DialogFooter>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditing(false)}
+              data-testid="profile-edit-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="jade"
+              disabled={saveProfile.isPending || draft.name.trim().length < 2}
+              onClick={() => saveProfile.mutate()}
+              data-testid="profile-edit-save"
+            >
+              {saveProfile.isPending ? "Saving…" : "Save profile"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppShell>

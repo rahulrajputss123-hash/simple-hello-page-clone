@@ -56,8 +56,7 @@ export function OfferDetailsDialog({
   isSubmitting?: boolean;
 }) {
   const notAllowed = (offer?.not_allowed ?? "").trim() || DEFAULT_NOT_ALLOWED;
-  const proofRequired =
-    Boolean(offer?.is_limited_deal) || offer?.payout_mode === "manual_proof";
+  const proofRequired = Boolean(offer?.is_limited_deal) || offer?.payout_mode === "manual_proof";
   const autoPostback = offer?.payout_mode === "auto_postback";
 
   const [proofPath, setProofPath] = useState<string | null>(null);
@@ -115,10 +114,7 @@ export function OfferDetailsDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent
-        className="max-h-[90vh] overflow-y-auto"
-        data-testid="offer-details-dialog"
-      >
+      <DialogContent className="max-h-[90vh] overflow-y-auto" data-testid="offer-details-dialog">
         <DialogHeader>
           <div className="flex items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-background-alt">
@@ -243,14 +239,18 @@ export function OfferDetailsDialog({
           >
             <Info className="size-4 shrink-0" />
             <span>
-              Complete the offer on the partner page — your wallet will be credited
-              automatically when the network confirms it. No manual submission needed.
+              Complete the offer on the partner page — your wallet will be credited automatically
+              when the network confirms it. No manual submission needed.
             </span>
           </section>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="offer-details-cancel">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="offer-details-cancel"
+          >
             Cancel
           </Button>
           <Button
@@ -259,11 +259,7 @@ export function OfferDetailsDialog({
             disabled={isSubmitting || !offer || !canContinue}
             data-testid="offer-details-continue"
           >
-            {autoPostback
-              ? "Open Offer"
-              : isSubmitting
-                ? "Opening…"
-                : "I Understand, Continue"}
+            {autoPostback ? "Open Offer" : isSubmitting ? "Opening…" : "I Understand, Continue"}
             <ArrowUpRight className="ml-1 size-3.5" />
           </Button>
         </DialogFooter>

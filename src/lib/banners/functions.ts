@@ -51,10 +51,9 @@ export const saveBanner = createServerFn({ method: "POST" })
         startsAt: z.string().datetime().nullable().optional(),
         endsAt: z.string().datetime().nullable().optional(),
       })
-      .refine(
-        (d) => d.title.length > 0 || Boolean(d.imageUrl),
-        { message: "A banner needs either an image or a title." },
-      )
+      .refine((d) => d.title.length > 0 || Boolean(d.imageUrl), {
+        message: "A banner needs either an image or a title.",
+      })
       .parse(input),
   )
   .handler(async ({ data, context }) => {

@@ -26,11 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  deleteQuest,
-  listAdminQuests,
-  saveQuest,
-} from "@/lib/quests.functions";
+import { deleteQuest, listAdminQuests, saveQuest } from "@/lib/quests.functions";
 import type { QuestRow, ShortlinkStep } from "@/lib/quests.server";
 import { formatMoney } from "@/lib/coinquest";
 
@@ -231,11 +227,12 @@ export function QuestsManager() {
                   {(quest as any).lock_type !== "none" && (
                     <p className="text-xs text-amber-600">
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      🔒 {(quest as any).lock_type === "time"
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        ? `Until ${new Date(String((quest as any).unlock_at)).toLocaleDateString()}`
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        : `Earn $${Number((quest as any).required_lifetime_earned).toFixed(2)}`}
+                      🔒{" "}
+                      {(quest as any).lock_type === "time"
+                        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          `Until ${new Date(String((quest as any).unlock_at)).toLocaleDateString()}`
+                        : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          `Earn $${Number((quest as any).required_lifetime_earned).toFixed(2)}`}
                     </p>
                   )}
                 </div>
@@ -253,11 +250,7 @@ export function QuestsManager() {
                 <Button size="sm" variant="outline" onClick={() => openEdit(quest)}>
                   <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPendingDelete(quest)}
-                >
+                <Button size="sm" variant="outline" onClick={() => setPendingDelete(quest)}>
                   <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
                 </Button>
               </div>
@@ -314,7 +307,11 @@ export function QuestsManager() {
                       onClick={() => setForm({ ...form, questType: type })}
                       className="capitalize"
                     >
-                      {type === "ads" ? "Ads" : type === "shortlink" ? "Shortlink Chain" : "Content Locker"}
+                      {type === "ads"
+                        ? "Ads"
+                        : type === "shortlink"
+                          ? "Shortlink Chain"
+                          : "Content Locker"}
                     </Button>
                   ))}
                 </div>
@@ -338,7 +335,9 @@ export function QuestsManager() {
                     />
                   </Field>
                   <div className="rounded-xl border border-dashed border-primary/40 bg-background-alt p-3 text-xs">
-                    <p className="font-semibold">Set this as AdBlueMedia's "Redirect URL" (once, in their dashboard):</p>
+                    <p className="font-semibold">
+                      Set this as AdBlueMedia's "Redirect URL" (once, in their dashboard):
+                    </p>
                     <p className="mt-1 break-all font-mono">
                       {origin}/go/locker/return?questKey={form.key || "{key}"}
                     </p>
@@ -425,7 +424,9 @@ export function QuestsManager() {
 
               {/* Lock condition */}
               <div className="space-y-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-3 dark:border-amber-700 dark:bg-amber-950/20">
-                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">🔒 Lock condition</p>
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                  🔒 Lock condition
+                </p>
                 <Field label="Lock type">
                   <div className="flex gap-2">
                     {(["none", "time", "earning"] as const).map((t) => (
@@ -435,7 +436,12 @@ export function QuestsManager() {
                         type="button"
                         variant={form.lockType === t ? "jade" : "outline"}
                         onClick={() =>
-                          setForm({ ...form, lockType: t, unlockAt: "", requiredLifetimeEarned: "" })
+                          setForm({
+                            ...form,
+                            lockType: t,
+                            unlockAt: "",
+                            requiredLifetimeEarned: "",
+                          })
                         }
                       >
                         {t === "none" ? "No lock" : t === "time" ? "Until date" : "Until earned"}
@@ -500,8 +506,8 @@ export function QuestsManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{pendingDelete?.label}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              If users already have sessions for this quest, it is deactivated instead of deleted
-              so history is preserved.
+              If users already have sessions for this quest, it is deactivated instead of deleted so
+              history is preserved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

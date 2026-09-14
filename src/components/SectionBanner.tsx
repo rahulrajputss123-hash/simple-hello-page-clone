@@ -11,8 +11,7 @@ import type { BannerSection, EligibleBanner } from "@/lib/banners/server";
 import { buildSmartBanners, type SmartBanner } from "@/lib/banners/smart";
 
 type UnifiedBanner =
-  | { kind: "custom"; data: EligibleBanner }
-  | { kind: "smart"; data: SmartBanner };
+  { kind: "custom"; data: EligibleBanner } | { kind: "smart"; data: SmartBanner };
 
 const ROTATION_INTERVAL_MS = 6000;
 const LAST_SHOWN_STORAGE_PREFIX = "cashgpt.banner_last:";
@@ -87,9 +86,7 @@ export function SectionBanner({ section }: { section: BannerSection }) {
     queryKey: ["banner-tasks-progress", session?.user.id],
     enabled: Boolean(session) && (section === "home" || section === "tasks"),
     queryFn: async () => {
-      const { data } = await supabase
-        .from("user_tasks")
-        .select("progress, target, status");
+      const { data } = await supabase.from("user_tasks").select("progress, target, status");
       const rows = data ?? [];
       const inProgress = rows.filter((r) => r.status !== "completed").length;
       const nearComplete = rows.filter(
@@ -135,9 +132,7 @@ export function SectionBanner({ section }: { section: BannerSection }) {
   const smartEligible: SmartBanner[] = useMemo(() => {
     if (section === "home") return [];
     const disabled = new Set(
-      (smartSettingsQuery.data ?? [])
-        .filter((s) => !s.enabled)
-        .map((s) => s.template_key),
+      (smartSettingsQuery.data ?? []).filter((s) => !s.enabled).map((s) => s.template_key),
     );
     return smart.filter((b) => !disabled.has(b.id));
   }, [section, smart, smartSettingsQuery.data]);
@@ -228,7 +223,11 @@ function CustomBannerCard({ b }: { b: EligibleBanner }) {
   const pureImage = hasImage && !hasText;
 
   const bg = hasImage
-    ? { backgroundImage: `url(${b.image_url})`, backgroundSize: "cover", backgroundPosition: "center" }
+    ? {
+        backgroundImage: `url(${b.image_url})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
     : undefined;
 
   // No-image (text-only) banners keep content-driven height via padding.
@@ -241,11 +240,7 @@ function CustomBannerCard({ b }: { b: EligibleBanner }) {
     : `surface-card relative overflow-hidden p-5 text-center shadow-lift bg-jade-gradient text-primary-foreground`;
 
   return (
-    <article
-      className={outerClass}
-      style={bg}
-      data-testid={`banner-custom-${b.id}`}
-    >
+    <article className={outerClass} style={bg} data-testid={`banner-custom-${b.id}`}>
       {/* Gradient overlay: only when image + text coexist (contrast needed). */}
       {hasImage && hasText && (
         <span
@@ -261,9 +256,7 @@ function CustomBannerCard({ b }: { b: EligibleBanner }) {
             hasImage ? "text-primary-foreground" : ""
           }`}
         >
-          {b.title && (
-            <h3 className="font-display text-xl leading-tight">{b.title}</h3>
-          )}
+          {b.title && <h3 className="font-display text-xl leading-tight">{b.title}</h3>}
           {b.description && (
             <p className="max-w-xs text-sm leading-snug opacity-90">{b.description}</p>
           )}

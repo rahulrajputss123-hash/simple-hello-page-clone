@@ -77,11 +77,7 @@ export async function saveOnboardingStepImpl(input: OnboardingStepInput) {
     if (error) throw new Error(error.message ?? "Could not save step.");
     return data;
   }
-  const { data, error } = await db
-    .from("onboarding_steps")
-    .insert(row)
-    .select("id")
-    .single();
+  const { data, error } = await db.from("onboarding_steps").insert(row).select("id").single();
   if (error) throw new Error(error.message ?? "Could not create step.");
   return data;
 }
@@ -142,7 +138,12 @@ export async function savePremiumStepImpl(input: PremiumOnboardingStepInput, cli
     icon: input.icon ?? null,
   };
   if (input.id) {
-    const { data, error } = await client.from("onboarding_steps").update(row).eq("id", input.id).select("*").single();
+    const { data, error } = await client
+      .from("onboarding_steps")
+      .update(row)
+      .eq("id", input.id)
+      .select("*")
+      .single();
     if (error) throw new Error(error.message ?? "Could not save premium step.");
     return data;
   }
@@ -152,14 +153,22 @@ export async function savePremiumStepImpl(input: PremiumOnboardingStepInput, cli
 }
 
 export async function deletePremiumStepImpl(id: string, client = db) {
-  const { error } = await client.from("onboarding_steps").delete().eq("id", id).eq("experience", "premium");
+  const { error } = await client
+    .from("onboarding_steps")
+    .delete()
+    .eq("id", id)
+    .eq("experience", "premium");
   if (error) throw new Error(error.message ?? "Could not delete premium step.");
   return { ok: true };
 }
 
 export async function reorderPremiumStepsImpl(orderedIds: string[], client = db) {
   for (let i = 0; i < orderedIds.length; i += 1) {
-    const { error } = await client.from("onboarding_steps").update({ display_order: i + 1 }).eq("id", orderedIds[i]).eq("experience", "premium");
+    const { error } = await client
+      .from("onboarding_steps")
+      .update({ display_order: i + 1 })
+      .eq("id", orderedIds[i])
+      .eq("experience", "premium");
     if (error) throw new Error(error.message ?? "Could not reorder premium steps.");
   }
   return { ok: true };
@@ -167,7 +176,12 @@ export async function reorderPremiumStepsImpl(orderedIds: string[], client = db)
 
 export async function completePremiumOnboardingImpl(
   userId: string,
-  values: { name: string; avatarId: string; gender?: string | undefined; dateOfBirth?: string | undefined },
+  values: {
+    name: string;
+    avatarId: string;
+    gender?: string | undefined;
+    dateOfBirth?: string | undefined;
+  },
   client = db,
 ) {
   const patch = {
@@ -183,7 +197,12 @@ export async function completePremiumOnboardingImpl(
 
   // The core profile schema predates the optional premium fields. Keep first-run
   // completion resilient until the additive migration is applied in Supabase.
-  const fallback = await client.from("profiles").update({ name: values.name.trim(), onboarded: true }).eq("id", userId).select("*").single();
+  const fallback = await client
+    .from("profiles")
+    .update({ name: values.name.trim(), onboarded: true })
+    .eq("id", userId)
+    .select("*")
+    .single();
   if (fallback.error) throw new Error("Could not save your profile. Please try again.");
   return fallback.data;
 }

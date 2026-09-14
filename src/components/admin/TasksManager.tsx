@@ -207,8 +207,8 @@ export function TasksManager() {
                   <p className="text-xs text-muted-foreground">
                     {TASK_TYPE_LABELS[t.task_type] ?? t.task_type} ·{" "}
                     {TASK_FREQUENCY_LABELS[t.frequency] ?? t.frequency} · target {t.target}
-                    {t.window_days ? ` in ${t.window_days}d` : ""} · {formatMoney(Number(task.reward))}{" "}
-                    · order {task.sort_order}
+                    {t.window_days ? ` in ${t.window_days}d` : ""} ·{" "}
+                    {formatMoney(Number(task.reward))} · order {task.sort_order}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {task.stats.participants} in progress · {task.stats.completed} completed ·{" "}
@@ -434,8 +434,8 @@ export function TasksManager() {
                   <p className="text-xs text-muted-foreground">
                     Task completes when the user earns the target amount from SDK offerwall
                     conversions
-                    {form.earningProviderId ? " from the selected provider" : " combined"}.
-                    The bonus reward is paid on top of what they already earned from the offerwall.
+                    {form.earningProviderId ? " from the selected provider" : " combined"}. The
+                    bonus reward is paid on top of what they already earned from the offerwall.
                   </p>
                 </div>
               )}

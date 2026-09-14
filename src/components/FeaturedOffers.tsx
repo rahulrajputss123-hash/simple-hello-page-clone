@@ -47,8 +47,7 @@ export function FeaturedOffers({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
     },
-    onError: (err: Error) =>
-      toast.error(err.message || "Could not submit that claim. Try again."),
+    onError: (err: Error) => toast.error(err.message || "Could not submit that claim. Try again."),
   });
 
   if (isLoading) {
@@ -63,14 +62,16 @@ export function FeaturedOffers({
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
   const rawOffers = data?.offers ?? [];
   const offers =
-    filter && filter !== "All"
-      ? rawOffers.filter((o) => offerMatchesFilter(filter, o))
-      : rawOffers;
+    filter && filter !== "All" ? rawOffers.filter((o) => offerMatchesFilter(filter, o)) : rawOffers;
   if (!offers.length) {
     return (
       <EmptyState
         icon={Gift}
-        title={filter && filter !== "All" ? `No ${filter} offers right now` : "No offers available right now"}
+        title={
+          filter && filter !== "All"
+            ? `No ${filter} offers right now`
+            : "No offers available right now"
+        }
         description="Check back soon — new partner offers land every day."
       />
     );

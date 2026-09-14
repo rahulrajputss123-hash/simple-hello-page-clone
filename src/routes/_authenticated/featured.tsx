@@ -9,7 +9,10 @@ export const Route = createFileRoute("/_authenticated/featured")({
   head: () => ({
     meta: [
       { title: "Featured Offers — CashGPT" },
-      { name: "description", content: "Browse every featured partner offer and claim your rewards." },
+      {
+        name: "description",
+        content: "Browse every featured partner offer and claim your rewards.",
+      },
       { property: "og:title", content: "Featured Offers — CashGPT" },
       {
         property: "og:description",
@@ -25,7 +28,12 @@ export const Route = createFileRoute("/_authenticated/featured")({
 function FeaturedPage() {
   return (
     <AppShell subtitle="Featured offers">
-      <SectionHeading size="page" icon={Star} title="Featured Offers" />
+      <SectionHeading
+        size="page"
+        icon={Star}
+        iconSrc="/icons/icon-featured-offers.png"
+        title="Featured Offers"
+      />
       <FeaturedOffers scope="all" />
     </AppShell>
   );

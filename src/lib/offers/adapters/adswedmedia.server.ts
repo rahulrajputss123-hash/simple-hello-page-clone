@@ -75,7 +75,9 @@ export const adswedMediaAdapter: OfferProviderAdapter = {
     const siteKey = process.env["ADSWEDMEDIA_SITE_KEY"];
     const siteSecret = process.env["ADSWEDMEDIA_SITE_SECRET"];
     if (!siteKey || !siteSecret) {
-      throw new Error("ADSWEDMEDIA_SITE_KEY and ADSWEDMEDIA_SITE_SECRET must be configured on the server.");
+      throw new Error(
+        "ADSWEDMEDIA_SITE_KEY and ADSWEDMEDIA_SITE_SECRET must be configured on the server.",
+      );
     }
 
     enforceRateLimit();
@@ -133,7 +135,10 @@ export const adswedMediaAdapter: OfferProviderAdapter = {
         // where the site key env exists). The per-user "USER_ID_HERE" placeholder
         // is substituted at click time in click-url.ts.
         clickUrl: clickUrl.split("PUBLIC-KEY").join(siteKey),
-        networkPayout: typeof item.payout === "number" ? item.payout : Number.parseFloat(String(item.payout ?? "")) || 0,
+        networkPayout:
+          typeof item.payout === "number"
+            ? item.payout
+            : Number.parseFloat(String(item.payout ?? "")) || 0,
         countries: normalizeList(item.countries),
         devices: normalizeList(item.devices),
         category: (categories[0] ?? null) as OfferCategory | null,

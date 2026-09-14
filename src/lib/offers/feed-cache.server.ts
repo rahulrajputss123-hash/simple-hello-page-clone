@@ -223,14 +223,20 @@ export async function assembleFeaturedImpl(
 
   const providers = await enabledProviders();
   const hasImageUrl = await offersHasImageUrl();
-  const weightByProviderId = new Map(providers.map((p) => [p.id, readNetworkFeedConfig(p.slug, p.sync_config).weight]));
+  const weightByProviderId = new Map(
+    providers.map((p) => [p.id, readNetworkFeedConfig(p.slug, p.sync_config).weight]),
+  );
   const slugByProviderId = new Map(providers.map((p) => [p.id, p.slug]));
 
   // Gather network offer ids per provider for this country (refresh on miss/expiry).
   const collected = new Map<string, number>(); // offerId -> highest provider weight
   for (const provider of providers) {
     let list = await getOrRefreshProviderCountry(provider, country, settings, ip);
-    if (list.length === 0 && settings.fallbackBehavior === "default_country" && country !== settings.defaultCountry) {
+    if (
+      list.length === 0 &&
+      settings.fallbackBehavior === "default_country" &&
+      country !== settings.defaultCountry
+    ) {
       list = await getOrRefreshProviderCountry(provider, settings.defaultCountry, settings, ip);
     }
     const weight = weightByProviderId.get(provider.id) ?? 1;
@@ -272,7 +278,8 @@ export async function assembleFeaturedImpl(
         actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
         payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
         max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
-        payout_mode: ((o as { payout_mode?: string }).payout_mode ?? "manual") as FeaturedOffer["payout_mode"],
+        payout_mode: ((o as { payout_mode?: string }).payout_mode ??
+          "manual") as FeaturedOffer["payout_mode"],
         category: (o as { category?: string | null }).category ?? null,
         tags: normalizeStoredTags((o as { tags?: string[] }).tags),
         _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),
@@ -325,7 +332,8 @@ export async function assembleFeaturedImpl(
       actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
       payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
       max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
-      payout_mode: ((o as { payout_mode?: string }).payout_mode ?? "manual") as FeaturedOffer["payout_mode"],
+      payout_mode: ((o as { payout_mode?: string }).payout_mode ??
+        "manual") as FeaturedOffer["payout_mode"],
       category: (o as { category?: string | null }).category ?? null,
       tags: normalizeStoredTags((o as { tags?: string[] }).tags),
       _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),

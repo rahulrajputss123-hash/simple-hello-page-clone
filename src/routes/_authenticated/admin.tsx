@@ -42,7 +42,10 @@ export const Route = createFileRoute("/_authenticated/admin")({
       { title: "Admin — CashGPT" },
       { name: "description", content: "Review withdrawals, offer claims, tickets and users." },
       { property: "og:title", content: "Admin — CashGPT" },
-      { property: "og:description", content: "Review withdrawals, offer claims, tickets and users." },
+      {
+        property: "og:description",
+        content: "Review withdrawals, offer claims, tickets and users.",
+      },
     ],
   }),
   component: AdminPage,
@@ -251,7 +254,10 @@ function AdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 <Stat label="Total users" value={String(dashboard.data.users.total)} />
                 <Stat label="Active (30d)" value={String(dashboard.data.users.active)} />
-                <Stat label="Total earned" value={formatMoney(dashboard.data.money.lifetimeEarned)} />
+                <Stat
+                  label="Total earned"
+                  value={formatMoney(dashboard.data.money.lifetimeEarned)}
+                />
                 <Stat
                   label="Total withdrawn"
                   value={formatMoney(dashboard.data.money.lifetimeWithdrawn)}
@@ -266,10 +272,7 @@ function AdminPage() {
                   label="Wallet liability"
                   value={formatMoney(dashboard.data.money.walletLiability)}
                 />
-                <Stat
-                  label="Offer completions"
-                  value={String(dashboard.data.offers.completions)}
-                />
+                <Stat label="Offer completions" value={String(dashboard.data.offers.completions)} />
                 <Stat
                   label="Network revenue"
                   value={formatMoney(dashboard.data.money.networkRevenue)}
@@ -338,15 +341,23 @@ function AdminPage() {
         </>
       )}
 
-      {data.isLoading && tab !== "dashboard" && tab !== "offers" && tab !== "tasks" && tab !== "quests" && tab !== "banners" && tab !== "onboarding" && (
-        <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
-      )}
+      {data.isLoading &&
+        tab !== "dashboard" &&
+        tab !== "offers" &&
+        tab !== "tasks" &&
+        tab !== "quests" &&
+        tab !== "banners" &&
+        tab !== "onboarding" && <p className="mt-6 text-sm text-muted-foreground">Loading…</p>}
 
       {tab === "withdrawals" && (
         <>
           <SectionTitle>Withdrawal requests</SectionTitle>
           {!data.data?.withdrawals.length ? (
-            <EmptyState icon={LifeBuoy} title="No withdrawals yet" description="Requests appear here for manual review." />
+            <EmptyState
+              icon={LifeBuoy}
+              title="No withdrawals yet"
+              description="Requests appear here for manual review."
+            />
           ) : (
             <ul className="space-y-2">
               {data.data.withdrawals.map((request) => (
@@ -415,7 +426,11 @@ function AdminPage() {
         <>
           <SectionTitle>Offer claims</SectionTitle>
           {!data.data?.claims.length ? (
-            <EmptyState icon={LifeBuoy} title="No offer claims" description="User offer submissions land here." />
+            <EmptyState
+              icon={LifeBuoy}
+              title="No offer claims"
+              description="User offer submissions land here."
+            />
           ) : (
             <ul className="space-y-2">
               {data.data.claims.map((claim) => (
@@ -431,9 +446,7 @@ function AdminPage() {
                     {formatMoney(claim.reward_amount)} · {formatDateTime(claim.created_at)}
                   </p>
                   {(claim as { proof_url?: string | null }).proof_url && (
-                    <ClaimProofPreview
-                      path={(claim as { proof_url: string }).proof_url}
-                    />
+                    <ClaimProofPreview path={(claim as { proof_url: string }).proof_url} />
                   )}
                   {claim.status === "pending" && (
                     <div className="mt-2 flex gap-2">
@@ -466,7 +479,11 @@ function AdminPage() {
         <>
           <SectionTitle>Support tickets</SectionTitle>
           {!data.data?.tickets.length ? (
-            <EmptyState icon={LifeBuoy} title="No tickets" description="User messages appear here." />
+            <EmptyState
+              icon={LifeBuoy}
+              title="No tickets"
+              description="User messages appear here."
+            />
           ) : (
             <ul className="space-y-2">
               {data.data.tickets.map((ticket) => (
@@ -531,14 +548,16 @@ function AdminPage() {
                   {user.email} · {user.referral_code}
                 </p>
                 <p className="mt-1 text-xs">
-                  Balance {formatMoney(user.wallet_balance)} · Held {formatMoney(user.held_balance)} ·
-                  Earned {formatMoney(user.lifetime_earned)}
+                  Balance {formatMoney(user.wallet_balance)} · Held {formatMoney(user.held_balance)}{" "}
+                  · Earned {formatMoney(user.lifetime_earned)}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => flagAction.mutate({ userId: user.id, flagged: !user.is_flagged })}
+                    onClick={() =>
+                      flagAction.mutate({ userId: user.id, flagged: !user.is_flagged })
+                    }
                   >
                     {user.is_flagged ? "Unflag" : "Flag"}
                   </Button>

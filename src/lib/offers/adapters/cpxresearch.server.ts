@@ -134,8 +134,13 @@ export const cpxResearchAdapter: OfferProviderAdapter = {
   // Conforms to the adapter contract, but is LIVE/per-user only: the country-wide
   // cron sync (no user id) must never import CPX surveys, so we return [] there.
   async fetchOffers(_provider: OfferProvider, context?: OfferFetchContext) {
-    const ctx = context as (OfferFetchContext & { userId?: string; userAgent?: string }) | undefined;
+    const ctx = context as
+      (OfferFetchContext & { userId?: string; userAgent?: string }) | undefined;
     if (!ctx?.userId) return [];
-    return fetchCpxSurveys({ userId: ctx.userId, ip: ctx.ip ?? null, userAgent: ctx.userAgent ?? null });
+    return fetchCpxSurveys({
+      userId: ctx.userId,
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
   },
 };

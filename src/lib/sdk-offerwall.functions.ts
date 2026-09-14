@@ -18,7 +18,10 @@ const providerSchema = z.object({
   logoUrl: z.string().trim().max(500).nullable().optional(),
   enabled: z.boolean().default(false),
   displayOrder: z.number().int().min(0).max(999).default(0),
-  platforms: z.array(z.enum(["android", "ios", "web"])).max(3).default(["android"]),
+  platforms: z
+    .array(z.enum(["android", "ios", "web"]))
+    .max(3)
+    .default(["android"]),
   integrationType: z
     .enum(["placeholder", "native_sdk", "web_sdk", "hybrid", "api"])
     .default("placeholder"),

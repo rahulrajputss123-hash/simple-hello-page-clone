@@ -89,7 +89,11 @@ export function AppHeader({ subtitle }: { subtitle?: string }) {
   return (
     <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-lg items-center justify-between gap-3 px-4 py-3">
-        <Link to="/profile" aria-label="Open profile and settings" className="flex items-center gap-2">
+        <Link
+          to="/profile"
+          aria-label="Open profile and settings"
+          className="flex items-center gap-2"
+        >
           <BrandMark />
           <span className="block leading-tight">
             <span className="block text-xs text-muted-foreground">Hello</span>

@@ -16,7 +16,10 @@ export const Route = createFileRoute("/auth")({
       { title: "Sign in — CashGPT" },
       { name: "description", content: "Sign in or create your CashGPT account to start earning." },
       { property: "og:title", content: "Sign in — CashGPT" },
-      { property: "og:description", content: "Sign in or create your CashGPT account to start earning." },
+      {
+        property: "og:description",
+        content: "Sign in or create your CashGPT account to start earning.",
+      },
     ],
   }),
   component: AuthPage,

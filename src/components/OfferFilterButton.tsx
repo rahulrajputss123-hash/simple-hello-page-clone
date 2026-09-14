@@ -1,13 +1,7 @@
 import { Check, ListFilter } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 /**
  * Offer-type filter bottom sheet. Used only on the Offers page.
@@ -15,14 +9,7 @@ import {
  */
 
 export type OfferFilter =
-  | "All"
-  | "App Install"
-  | "Trial"
-  | "Deals"
-  | "Survey"
-  | "Games"
-  | "Link Locker"
-  | "Shortlink";
+  "All" | "App Install" | "Trial" | "Deals" | "Survey" | "Games" | "Link Locker" | "Shortlink";
 
 const FILTERS: OfferFilter[] = [
   "All",
@@ -53,9 +40,7 @@ export function OfferFilterButton({
           data-testid="offer-filter-btn"
         >
           <ListFilter className="size-4 text-primary" />
-          <span className="text-xs font-semibold">
-            {value === "All" ? "Filter" : value}
-          </span>
+          <span className="text-xs font-semibold">{value === "All" ? "Filter" : value}</span>
         </Button>
       </SheetTrigger>
       <SheetContent side="bottom" className="rounded-t-2xl" data-testid="offer-filter-sheet">

@@ -36,9 +36,7 @@ export const ONBOARDING_TARGETS: OnboardingTarget[] = [
   },
 ];
 
-export const ONBOARDING_TARGET_IDS: readonly string[] = ONBOARDING_TARGETS.map(
-  (t) => t.id,
-);
+export const ONBOARDING_TARGET_IDS: readonly string[] = ONBOARDING_TARGETS.map((t) => t.id);
 
 export function isValidTargetId(id: string): boolean {
   return (ONBOARDING_TARGET_IDS as readonly string[]).includes(id);
