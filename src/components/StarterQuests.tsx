@@ -93,9 +93,9 @@ export function StarterQuests() {
 
   if (quests.isLoading || sessions.isLoading) {
     return (
-      <div className="flex gap-3 overflow-hidden pb-2" data-testid="quests-loading">
+      <div className="flex gap-4 overflow-hidden pb-2" data-testid="quests-loading">
         {[0, 1].map((item) => (
-          <Skeleton key={item} className="h-[338px] w-[214px] min-w-[214px] rounded-[1.35rem]" />
+          <Skeleton key={item} className="h-[390px] w-[248px] min-w-[248px] rounded-[20px]" />
         ))}
       </div>
     );
@@ -120,7 +120,7 @@ export function StarterQuests() {
 
   return (
     <div
-      className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-3 pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-3 pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       data-testid="starter-quests-scroll"
     >
       {quests.data.map((quest) => {
