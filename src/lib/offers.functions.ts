@@ -290,16 +290,14 @@ export const adminSignProofUrl = createServerFn({ method: "POST" })
 /** User: request a signed upload URL for a proof file (path scoped to their uid). */
 export const requestProofUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
+  // The filename is only length-capped here: requestProofUploadUrlImpl sanitises
+  // it to [A-Za-z0-9._-]. The previous strict regex rejected the default screenshot
+  // filenames real users upload (spaces, colons) before the sanitiser ever ran.
   .inputValidator((input: unknown) =>
     z
       .object({
         offerId: z.string().uuid(),
-        filename: z
-          .string()
-          .trim()
-          .min(1)
-          .max(120)
-          .regex(/^[A-Za-z0-9._-]+$/, "Bad filename"),
+        filename: z.string().trim().min(1).max(120),
       })
       .parse(input),
   )

@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listAdminSdkProviders } from "@/lib/sdk-offerwall.functions";
-import { Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/States";
@@ -32,6 +32,7 @@ import { formatMoney } from "@/lib/coinquest";
 import {
   deleteAdminTask,
   listAdminTasks,
+  requestTaskImageUploadUrl,
   saveAdminTask,
   setAdminTaskActive,
 } from "@/lib/tasks.functions";
@@ -87,6 +88,44 @@ export function TasksManager() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [form, setForm] = useState<FormState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AdminTask | null>(null);
+
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const requestUpload = useServerFn(requestTaskImageUploadUrl);
+
+  /** Uploads to the task-assets bucket, then patches the resulting public URL into the form. */
+  const handleImageFile = async (file: File) => {
+    if (file.size > 3 * 1024 * 1024) {
+      setUploadError("File must be under 3 MB.");
+      return;
+    }
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const { uploadUrl, token, publicUrl } = await requestUpload({
+        data: { filename: file.name.slice(0, 120) },
+      });
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: file,
+      });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      setForm((current) => (current ? { ...current, imageUrl: publicUrl } : current));
+      toast.success("Image uploaded.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed.";
+      setUploadError(msg);
+      toast.error(msg);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const tasks = useQuery({
     queryKey: ["admin-tasks", status, typeFilter],
@@ -290,10 +329,37 @@ export function TasksManager() {
                 </div>
                 <div>
                   <Label>Image URL</Label>
-                  <Input
-                    value={form.imageUrl}
-                    onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={form.imageUrl}
+                      placeholder="https://… or upload"
+                      onChange={(e) => {
+                        setUploadError(null);
+                        setForm({ ...form, imageUrl: e.target.value });
+                      }}
+                    />
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void handleImageFile(f);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      disabled={uploading}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      {uploading ? "…" : <Upload className="size-4" />}
+                    </Button>
+                  </div>
+                  {uploadError && <p className="mt-1 text-xs text-destructive">{uploadError}</p>}
                 </div>
                 <div>
                   <Label>Task type</Label>

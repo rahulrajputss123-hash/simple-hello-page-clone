@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { EmptyState, ErrorState } from "@/components/States";
 import { OfferDetailsDialog, type OfferDetailsPayload } from "@/components/OfferDetailsDialog";
 import { OfferTagRow } from "@/components/OfferTagRow";
+import { SuccessBurst } from "@/components/SuccessBurst";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
 import { formatMoney } from "@/lib/coinquest";
 import { claimOffer } from "@/lib/coinquest.functions";
@@ -35,6 +36,8 @@ export function FeaturedOffers({
   const claim = useServerFn(claimOffer);
   const [pending, setPending] = useState<OfferDetailsPayload | null>(null);
   const [broken, setBroken] = useState<Record<string, boolean>>({});
+  /** Offer id to play the one-shot reward burst over. Display-only. */
+  const [burstOfferId, setBurstOfferId] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (input: { offerId: string; proofUrl: string | null }) =>
@@ -44,7 +47,9 @@ export function FeaturedOffers({
           ...(input.proofUrl ? { proofUrl: input.proofUrl } : {}),
         },
       }),
-    onSuccess: async () => {
+    onSuccess: async (_result, input) => {
+      setBurstOfferId(input.offerId);
+      window.setTimeout(() => setBurstOfferId(null), 900);
       await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
     },
     onError: (err: Error) => toast.error(err.message || "Could not submit that claim. Try again."),
@@ -111,7 +116,7 @@ export function FeaturedOffers({
 
   return (
     <>
-      <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
+      <ul className="stagger-children grid grid-cols-3 gap-3" data-testid="featured-offers-list">
         {offers.map((offer) => {
           const showImage = Boolean(offer.image_url) && !broken[offer.id];
           return (
@@ -167,6 +172,8 @@ export function FeaturedOffers({
                   {formatMoney(offer.reward_amount)}
                 </span>
               </div>
+
+              {burstOfferId === offer.id && <SuccessBurst />}
             </li>
           );
         })}

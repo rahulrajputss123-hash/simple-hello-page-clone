@@ -49,7 +49,7 @@ export function OfferwallSlot({ limit }: { limit?: number }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="stagger-children grid grid-cols-2 gap-3">
       {providers.data.map((provider) => {
         const url =
           provider.integrationType === "web_sdk" && provider.appId && session?.user.id
@@ -59,7 +59,7 @@ export function OfferwallSlot({ limit }: { limit?: number }) {
         return (
           <article
             key={provider.id}
-            className="surface-card flex flex-col overflow-hidden !p-0 shadow-soft transition-shadow duration-200 hover:shadow-gold"
+            className="surface-card flex flex-col overflow-hidden !p-0 shadow-soft transition-all duration-200 hover:-translate-y-1 hover:shadow-gold"
           >
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-background-alt">
               {provider.logoUrl && !broken[provider.id] ? (

@@ -106,7 +106,7 @@ function LockerReturnPage() {
             <div className="text-5xl" role="img" aria-label="party">
               🎉
             </div>
-            <CheckCircle2 className="size-10 text-primary" />
+            <CheckCircle2 className="success-pop size-10 text-primary" />
             <p className="text-lg font-semibold" data-testid="locker-quest-completed">
               Quest completed!
             </p>

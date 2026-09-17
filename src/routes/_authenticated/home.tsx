@@ -18,6 +18,7 @@ import { AppShell } from "@/components/AppShell";
 import { FeaturedOffers } from "@/components/FeaturedOffers";
 import { OfferwallSlot } from "@/components/OfferwallSlot";
 import { SectionBanner } from "@/components/SectionBanner";
+import { SimulatedLiveActivity } from "@/components/SimulatedLiveActivity";
 import { StarterQuests } from "@/components/StarterQuests";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
@@ -130,10 +131,16 @@ function HomePage() {
     void navigate({ to: "/onboarding", replace: true });
   }, [profile, navigate, queryClient, save]);
   return (
-    <AppShell subtitle="Earn as you go">
+    <AppShell subtitle="Earn as you go" bgClass="home-page-bg">
+      {/* Decorative hero orbs — reuse the onboarding orb base, Home-specific tint/position. */}
+      <div aria-hidden className="premium-orb home-orb home-orb-jade" />
+      <div aria-hidden className="premium-orb home-orb home-orb-gold" />
+
+      <SimulatedLiveActivity />
+
       <SectionBanner section="home" />
 
-      <section id="tour-starter-quests">
+      <section id="tour-starter-quests" className="rise-in">
         <SectionHeading
           icon={Rocket}
           iconSrc="/icons/icon-starter-quest.png"
@@ -143,7 +150,7 @@ function HomePage() {
         <StarterQuests />
       </section>
 
-      <section id="tour-featured-offers">
+      <section id="tour-featured-offers" className="rise-in" style={{ animationDelay: "70ms" }}>
         <SectionHeading
           icon={Star}
           iconSrc="/icons/icon-featured-offers.png"

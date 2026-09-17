@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/offers")({
 function OffersPage() {
   const [filter, setFilter] = useState<OfferFilter>("All");
   return (
-    <AppShell subtitle="Offers">
+    <AppShell subtitle="Offers" mainClass="page-fade-in">
       <SectionHeading
         size="page"
         icon={Tag}

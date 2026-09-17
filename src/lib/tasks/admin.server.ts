@@ -103,3 +103,27 @@ export async function deleteAdminTaskImpl(id: string) {
   if (res.error) throw new Error("Could not delete that task.");
   return { ok: true, deactivatedInstead: false };
 }
+
+/** Signed upload URL to the public task-assets bucket for admin task images.
+ *  Identical logic to requestOfferwallLogoUploadUrlImpl — only the bucket name differs.
+ *  The filename is sanitised here rather than rejected, so real-world names
+ *  (spaces, parentheses, unicode) upload cleanly instead of failing validation.
+ */
+export async function requestTaskImageUploadUrlImpl(userId: string, filename: string) {
+  const safe = filename.replace(/[^A-Za-z0-9._-]/g, "_");
+  const path = `${userId}/${Date.now()}-${safe}`;
+  const { data, error } = await supabaseAdmin.storage
+    .from("task-assets")
+    .createSignedUploadUrl(path);
+  if (error || !data) {
+    throw new Error(error?.message ?? "Could not create upload URL.");
+  }
+  const publicUrl = supabaseAdmin.storage.from("task-assets").getPublicUrl(path).data
+    .publicUrl as string;
+  return {
+    path,
+    uploadUrl: data.signedUrl ?? (data as Record<string, string>)["signed_url"] ?? "",
+    token: data.token ?? "",
+    publicUrl,
+  };
+}

@@ -49,7 +49,7 @@ function NotificationsPage() {
   }, [session, notifications.data, queryClient]);
 
   return (
-    <AppShell subtitle="Notifications">
+    <AppShell subtitle="Notifications" mainClass="page-fade-in">
       <SectionHeading size="page" icon={Bell} title="Notifications" />
       {!notifications.data?.length ? (
         <EmptyState

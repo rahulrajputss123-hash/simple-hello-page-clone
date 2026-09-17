@@ -9,6 +9,8 @@ import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
 import { EmptyState } from "@/components/States";
+import { SuccessBurst } from "@/components/SuccessBurst";
+import { useCountUp } from "@/hooks/useCountUp";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -61,10 +63,14 @@ function WalletPage() {
   const [amount, setAmount] = useState("");
   const [methodId, setMethodId] = useState<string>("");
   const [methodOpen, setMethodOpen] = useState(false);
+  /** Bumped on a successful withdrawal to replay the one-shot burst. Display-only. */
+  const [burstKey, setBurstKey] = useState(0);
 
   const balance = Number(profile?.wallet_balance ?? 0);
   const pending = Number(profile?.held_balance ?? 0);
   const lifetime = Number(profile?.lifetime_earned ?? 0);
+  // Display-only count-up for the headline balance.
+  const shownBalance = useCountUp(balance);
 
   const transactions = useQuery({
     queryKey: ["transactions", session?.user.id],
@@ -125,6 +131,8 @@ function WalletPage() {
     onSuccess: () => {
       toast.success("Withdrawal requested — we'll review it shortly.");
       setAmount("");
+      setBurstKey((key) => key + 1);
+      window.setTimeout(() => setBurstKey(0), 900);
       void queryClient.invalidateQueries();
     },
     onError: (error: Error) => toast.error(error.message || "Withdrawal failed."),
@@ -143,10 +151,10 @@ function WalletPage() {
     Number(amount) >= MIN_WITHDRAWAL && Number(amount) <= balance - pending && Boolean(methodId);
 
   return (
-    <AppShell subtitle="Wallet">
-      <section className="rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
+    <AppShell subtitle="Wallet" mainClass="page-fade-in">
+      <section className="wallet-balance-glow rounded-3xl bg-jade-gradient p-5 text-primary-foreground">
         <p className="text-sm opacity-80">Available balance</p>
-        <p className="text-amount mt-1 text-4xl">{formatMoney(balance)}</p>
+        <p className="text-amount mt-1 text-4xl">{formatMoney(shownBalance)}</p>
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-2xl bg-primary-foreground/10 px-3 py-2">
             <p className="opacity-75">Pending</p>
@@ -238,7 +246,7 @@ function WalletPage() {
         }
       />
 
-      <div className="surface-card space-y-3 p-4">
+      <div className="surface-card relative space-y-3 p-4">
         <div className="space-y-1.5">
           <Label htmlFor="amount">Amount (min {formatMoney(MIN_WITHDRAWAL)})</Label>
           <Input
@@ -272,6 +280,7 @@ function WalletPage() {
         >
           <ArrowDownToLine className="size-4" /> Request withdrawal
         </Button>
+        {burstKey > 0 && <SuccessBurst key={burstKey} />}
       </div>
 
       <SectionHeading icon={ArrowDownToLine} title="Withdrawals" />
@@ -320,7 +329,7 @@ function WalletPage() {
           description="Watch an ad or finish a task to see your first credit here."
         />
       ) : (
-        <ul className="space-y-2">
+        <ul className="stagger-fade-children space-y-2">
           {transactions.data.map((tx) => (
             <li key={tx.id} className="surface-card flex items-center justify-between p-3">
               <div className="min-w-0">

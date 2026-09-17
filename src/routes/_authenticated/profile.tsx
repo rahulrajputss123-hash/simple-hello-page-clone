@@ -80,7 +80,7 @@ function ProfilePage() {
   });
 
   return (
-    <AppShell subtitle="Profile">
+    <AppShell subtitle="Profile" mainClass="page-fade-in">
       <section
         className="surface-card mt-2 flex items-center gap-3 p-4"
         data-testid="profile-summary-card"

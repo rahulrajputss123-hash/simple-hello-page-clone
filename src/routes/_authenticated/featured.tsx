@@ -27,7 +27,7 @@ export const Route = createFileRoute("/_authenticated/featured")({
 
 function FeaturedPage() {
   return (
-    <AppShell subtitle="Featured offers">
+    <AppShell subtitle="Featured offers" mainClass="page-fade-in">
       <SectionHeading
         size="page"
         icon={Star}

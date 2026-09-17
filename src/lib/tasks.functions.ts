@@ -74,6 +74,26 @@ export const deleteAdminTask = createServerFn({ method: "POST" })
     return deleteAdminTaskImpl(data.id);
   });
 
+/**
+ * Signed upload URL for admin task images (task-assets bucket).
+ *
+ * Mirrors requestOfferwallLogoUploadUrl, except the filename is only length-capped
+ * here and sanitised server-side — the old strict `^[A-Za-z0-9._-]+$` regex rejected
+ * ordinary filenames containing spaces or parentheses before they ever reached the
+ * sanitiser.
+ */
+export const requestTaskImageUploadUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ filename: z.string().trim().min(1).max(120) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    const { requestTaskImageUploadUrlImpl } = await import("./tasks/admin.server");
+    return requestTaskImageUploadUrlImpl(context.userId, data.filename);
+  });
+
 /** Refreshes the signed-in user's automated task progress from real activity. */
 export const refreshMyTasks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

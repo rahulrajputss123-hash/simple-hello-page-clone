@@ -86,7 +86,7 @@ function SupportPage() {
   });
 
   return (
-    <AppShell subtitle="Support">
+    <AppShell subtitle="Support" mainClass="page-fade-in">
       <SectionHeading
         size="page"
         icon={LifeBuoy}

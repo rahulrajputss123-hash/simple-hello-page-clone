@@ -112,7 +112,7 @@ function GoPage() {
 
         {state.kind === "success" && state.completed && (
           <>
-            <div className="text-5xl" role="img" aria-label="party">
+            <div className="success-pop text-5xl" role="img" aria-label="party">
               🎉
             </div>
             <p className="text-lg font-semibold" data-testid="go-quest-completed">
@@ -129,7 +129,7 @@ function GoPage() {
 
         {state.kind === "success" && !state.completed && (
           <>
-            <CheckCircle2 className="size-10 text-primary" />
+            <CheckCircle2 className="success-pop size-10 text-primary" />
             <p className="text-lg font-semibold">Step {stepNum} done</p>
             <p className="text-sm text-muted-foreground">
               Continue to step {state.nextStep} to keep going.

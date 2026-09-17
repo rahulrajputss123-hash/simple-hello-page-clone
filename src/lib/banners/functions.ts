@@ -103,17 +103,11 @@ export const setSmartBannerEnabled = createServerFn({ method: "POST" })
 
 export const requestBannerUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
+  // The filename is only length-capped here: requestBannerUploadUrlImpl sanitises
+  // it to [A-Za-z0-9._-]. The previous strict regex rejected ordinary filenames
+  // containing spaces or parentheses before the sanitiser ever ran.
   .inputValidator((input: unknown) =>
-    z
-      .object({
-        filename: z
-          .string()
-          .trim()
-          .min(1)
-          .max(120)
-          .regex(/^[A-Za-z0-9._-]+$/, "Bad filename"),
-      })
-      .parse(input),
+    z.object({ filename: z.string().trim().min(1).max(120) }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { assertAdmin } = await import("../coinquest.server");

@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/offerwall")({
 
 function OfferwallPage() {
   return (
-    <AppShell subtitle="Offerwall">
+    <AppShell subtitle="Offerwall" mainClass="page-fade-in">
       <SectionHeading
         size="page"
         icon={Layers}

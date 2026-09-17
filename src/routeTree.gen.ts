@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as PreviewLiveActivityRouteImport } from './routes/preview-live-activity'
+import { Route as PreviewQuestCardsRouteImport } from './routes/preview-quest-cards'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedFeaturedRouteImport } from './routes/_authenticated/featured'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
@@ -46,6 +48,16 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewLiveActivityRoute = PreviewLiveActivityRouteImport.update({
+  id: '/preview-live-activity',
+  path: '/preview-live-activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewQuestCardsRoute = PreviewQuestCardsRouteImport.update({
+  id: '/preview-quest-cards',
+  path: '/preview-quest-cards',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -161,6 +173,8 @@ const ApiPublicOfferwallSlugRoute = ApiPublicOfferwallSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/preview-live-activity': typeof PreviewLiveActivityRoute
+  '/preview-quest-cards': typeof PreviewQuestCardsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -186,6 +200,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/preview-live-activity': typeof PreviewLiveActivityRoute
+  '/preview-quest-cards': typeof PreviewQuestCardsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -213,6 +229,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/preview-live-activity': typeof PreviewLiveActivityRoute
+  '/preview-quest-cards': typeof PreviewQuestCardsRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/featured': typeof AuthenticatedFeaturedRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
@@ -240,6 +258,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/preview-live-activity'
+    | '/preview-quest-cards'
     | '/admin'
     | '/featured'
     | '/home'
@@ -265,6 +285,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/preview-live-activity'
+    | '/preview-quest-cards'
     | '/admin'
     | '/featured'
     | '/home'
@@ -291,6 +313,8 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/preview-live-activity'
+    | '/preview-quest-cards'
     | '/_authenticated/admin'
     | '/_authenticated/featured'
     | '/_authenticated/home'
@@ -318,6 +342,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  PreviewLiveActivityRoute: typeof PreviewLiveActivityRoute
+  PreviewQuestCardsRoute: typeof PreviewQuestCardsRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
   LegalReferralTermsRoute: typeof LegalReferralTermsRoute
   LegalTermsRoute: typeof LegalTermsRoute
@@ -348,6 +374,20 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview-live-activity': {
+      id: '/preview-live-activity'
+      path: '/preview-live-activity'
+      fullPath: '/preview-live-activity'
+      preLoaderRoute: typeof PreviewLiveActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview-quest-cards': {
+      id: '/preview-quest-cards'
+      path: '/preview-quest-cards'
+      fullPath: '/preview-quest-cards'
+      preLoaderRoute: typeof PreviewQuestCardsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -541,6 +581,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  PreviewLiveActivityRoute: PreviewLiveActivityRoute,
+  PreviewQuestCardsRoute: PreviewQuestCardsRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
   LegalReferralTermsRoute: LegalReferralTermsRoute,
   LegalTermsRoute: LegalTermsRoute,
