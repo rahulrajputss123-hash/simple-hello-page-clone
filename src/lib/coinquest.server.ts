@@ -1,13 +1,16 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  formatMoney,
   MAX_ADS_PER_HOUR,
   MIN_SECONDS_PER_AD,
   MIN_WITHDRAWAL,
-  REFERRAL_MILESTONE_BONUS,
+  REFERRAL_MAX_BONUS,
   REFERRAL_WINDOW_DAYS,
   STREAK_BONUS,
   STREAK_GOAL,
 } from "./coinquest";
+import { buildPayoutSnapshot, payoutMethodSpec } from "./payout-methods";
+import { deriveReferralProgress, REFERRAL_MILESTONE_COUNT } from "./referral-progress";
 
 function code(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -164,8 +167,13 @@ const MILESTONE_COLUMN = {
 } as const;
 
 /**
- * Credits one $1 referral milestone. Idempotent: the milestone timestamp column
- * acts as the guard so the same milestone can never pay twice.
+ * Records one referral milestone.
+ *
+ * Deliberately pays nothing: milestones are tracked individually but the reward
+ * stays PENDING/LOCKED until all three are complete, at which point
+ * releaseReferralReward pays the full REFERRAL_MAX_BONUS once. Idempotent — the
+ * milestone timestamp column is claimed with a conditional update, so the same
+ * milestone can never be recorded (or notified) twice.
  */
 async function creditReferralMilestone(
   referralId: string,
@@ -179,9 +187,66 @@ async function creditReferralMilestone(
     .eq("id", referralId)
     .maybeSingle();
   if (!referral.data) return;
-  if (referral.data[column]) return; // already credited
 
-  const bonus = REFERRAL_MILESTONE_BONUS;
+  if (!referral.data[column]) {
+    const patch: {
+      signup_credited_at?: string;
+      earning_credited_at?: string;
+      withdrawal_credited_at?: string;
+    } = {};
+    patch[column] = new Date().toISOString();
+
+    const claimed = await supabaseAdmin
+      .from("referrals")
+      .update(patch)
+      .eq("id", referralId)
+      .is(column, null)
+      .select("*");
+    if (!claimed.data?.length) return; // another run already recorded it
+
+    const progress = deriveReferralProgress(claimed.data[0]!);
+    if (!progress.allComplete) {
+      await notify(
+        referral.data.referrer_id,
+        "Referral milestone reached",
+        `${description} — ${formatMoney(progress.pendingAmount)} pending, unlocks at ${progress.total}/${progress.total}.`,
+        "referral",
+      );
+    }
+  }
+
+  // Re-checked on every call: an earlier run may have recorded the final
+  // milestone but failed before the payout, so this is the retry path too.
+  await releaseReferralReward(referralId);
+}
+
+/**
+ * Releases the full referral reward into the referrer's MAIN wallet, once, after
+ * all three milestones are complete and inside the 365-day window.
+ *
+ * Idempotency: `reward_released_at` is claimed with a conditional update BEFORE
+ * any money moves, so duplicate events, retries and concurrent callers can only
+ * ever produce a single credit. The referrer row is read first so a read failure
+ * aborts before the claim is burned.
+ */
+async function releaseReferralReward(referralId: string) {
+  const referral = await supabaseAdmin
+    .from("referrals")
+    .select("*")
+    .eq("id", referralId)
+    .maybeSingle();
+  if (!referral.data) return;
+  if (referral.data.reward_released_at) return; // already released
+
+  const progress = deriveReferralProgress(referral.data);
+  if (!progress.allComplete) return; // still pending
+  if (progress.expired) return; // outside the window — nothing is released
+
+  // Legacy rows credited under the old per-milestone model already hold part of
+  // the reward, so only top up to the maximum: never double-pay, never claw back.
+  const alreadyPaid = Math.max(0, Number(referral.data.bonus_amount ?? 0));
+  const payout = Math.max(0, REFERRAL_MAX_BONUS - alreadyPaid);
+
   const referrer = await supabaseAdmin
     .from("profiles")
     .select("wallet_balance, lifetime_earned")
@@ -189,45 +254,40 @@ async function creditReferralMilestone(
     .single();
   if (referrer.error) return;
 
-  const patch: {
-    bonus_amount: number;
-    status: string;
-    signup_credited_at?: string;
-    earning_credited_at?: string;
-    withdrawal_credited_at?: string;
-  } = {
-    bonus_amount: Number(referral.data.bonus_amount ?? 0) + bonus,
-    status: milestone === "withdrawal" ? "completed" : "credited",
-  };
-  patch[column] = new Date().toISOString();
-
   const claimed = await supabaseAdmin
     .from("referrals")
-    .update(patch)
+    .update({
+      reward_released_at: new Date().toISOString(),
+      bonus_amount: REFERRAL_MAX_BONUS,
+      status: "completed",
+    })
     .eq("id", referralId)
-    .is(column, null)
+    .is("reward_released_at", null)
     .select("id");
-  if (!claimed.data?.length) return; // another run already credited it
+  if (!claimed.data?.length) return; // another run won the release
+
+  if (payout <= 0) return; // legacy row was already paid in full
 
   await supabaseAdmin
     .from("profiles")
     .update({
-      wallet_balance: Number(referrer.data.wallet_balance) + bonus,
-      lifetime_earned: Number(referrer.data.lifetime_earned) + bonus,
+      wallet_balance: Number(referrer.data.wallet_balance) + payout,
+      lifetime_earned: Number(referrer.data.lifetime_earned) + payout,
     })
     .eq("id", referral.data.referrer_id);
   await supabaseAdmin.from("wallet_transactions").insert({
     user_id: referral.data.referrer_id,
     source: "referral",
-    description,
-    amount: bonus,
+    description: `Referral reward — friend completed all ${REFERRAL_MILESTONE_COUNT} milestones`,
+    amount: payout,
     kind: "bonus",
     status: "completed",
+    reference_id: referralId,
   });
   await notify(
     referral.data.referrer_id,
-    "Referral bonus earned",
-    `${description} — $${bonus.toFixed(2)} added.`,
+    "Referral reward unlocked",
+    `${formatMoney(payout)} has been added to your wallet.`,
     "referral",
   );
 }
@@ -245,12 +305,22 @@ export async function payReferralMilestone(
     .maybeSingle();
   if (!referral.data) return;
 
+  // Already settled in full — nothing further to record or pay.
+  if (referral.data.reward_released_at) return;
+
   const expired =
     Date.now() - new Date(referral.data.created_at).getTime() > REFERRAL_WINDOW_DAYS * 86_400_000;
 
   // Past the 1-year window the referral pays nothing and already-credited
   // milestones are reversed from the referrer's balance.
   if (expired) {
+    // Mark the state so the Referral screen can show it, whichever event fired.
+    if (referral.data.status !== "expired") {
+      await supabaseAdmin
+        .from("referrals")
+        .update({ status: "expired" })
+        .eq("id", referral.data.id);
+    }
     if (milestone !== "withdrawal") return;
     const credited = Number(referral.data.bonus_amount ?? 0);
     if (credited <= 0) return;
@@ -592,13 +662,19 @@ export async function createWithdrawalImpl(userId: string, amount: number, payou
   const available = Number(profile.data.wallet_balance) - Number(profile.data.held_balance);
   if (amount > available) throw new Error("That's more than your available balance.");
 
+  // Selected with "*" so the method can be snapshotted onto the request below.
   const method = await supabaseAdmin
     .from("payout_methods")
-    .select("id")
+    .select("*")
     .eq("id", payoutMethodId)
     .eq("user_id", userId)
     .maybeSingle();
   if (!method.data) throw new Error("Choose a valid payout method.");
+
+  const methodSpec = payoutMethodSpec(method.data.method_type);
+  if (!methodSpec?.available) {
+    throw new Error(`${methodSpec?.label ?? "That payout method"} is not available yet.`);
+  }
 
   const openRequest = await supabaseAdmin
     .from("withdrawal_requests")
@@ -608,9 +684,17 @@ export async function createWithdrawalImpl(userId: string, amount: number, payou
     .maybeSingle();
   if (openRequest.data) throw new Error("You already have a withdrawal awaiting review.");
 
+  // method_type and the masked snapshot are captured here so the request stays
+  // auditable even if the payout method is later edited or deleted.
   const created = await supabaseAdmin
     .from("withdrawal_requests")
-    .insert({ user_id: userId, amount, payout_method_id: payoutMethodId })
+    .insert({
+      user_id: userId,
+      amount,
+      payout_method_id: payoutMethodId,
+      method_type: method.data.method_type,
+      payout_details_snapshot: buildPayoutSnapshot(method.data),
+    })
     .select("*")
     .single();
   if (created.error) throw new Error("Could not submit that withdrawal.");
@@ -680,13 +764,24 @@ export async function assertAdmin(supabase: RoleRpcClient, userId: string) {
   if (data !== true) throw new Error("Forbidden");
 }
 
-export async function adminUpdateWithdrawalImpl(id: string, status: string, note: string | null) {
+export async function adminUpdateWithdrawalImpl(
+  id: string,
+  status: string,
+  note: string | null,
+  referenceId: string | null = null,
+) {
   const req = await supabaseAdmin.from("withdrawal_requests").select("*").eq("id", id).single();
   if (req.error) throw new Error("Request not found.");
   if (req.data.status !== "pending" && req.data.status !== "approved") {
     throw new Error("This request has already been settled.");
   }
-  await supabaseAdmin.from("withdrawal_requests").update({ status, admin_note: note }).eq("id", id);
+  const patch: { status: string; admin_note: string | null; reference_id?: string } = {
+    status,
+    admin_note: note,
+  };
+  // Fulfilment reference is optional and only overwritten when provided.
+  if (referenceId) patch.reference_id = referenceId;
+  await supabaseAdmin.from("withdrawal_requests").update(patch).eq("id", id);
 
   const profile = await supabaseAdmin
     .from("profiles")

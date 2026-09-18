@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowDownToLine, Plus, Receipt, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowDownToLine, Check, Plus, Receipt, ShieldCheck, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
 
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
@@ -23,17 +22,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { MIN_WITHDRAWAL, formatDateTime, formatMoney } from "@/lib/coinquest";
+import {
+  maskPayoutMethod,
+  PAYOUT_METHODS,
+  payoutMethodLabel,
+  payoutMethodSpec,
+  type PayoutFieldName,
+  type PayoutMethodType,
+} from "@/lib/payout-methods";
 import { cancelWithdrawal, createWithdrawal } from "@/lib/coinquest.functions";
 
 export const Route = createFileRoute("/_authenticated/wallet")({
@@ -48,12 +48,12 @@ export const Route = createFileRoute("/_authenticated/wallet")({
   component: WalletPage,
 });
 
-const methodSchema = z.object({
-  type: z.enum(["upi", "paypal", "bank"]),
-  label: z.string().trim().min(2, "Add a short label").max(60),
-  holderName: z.string().trim().min(2, "Enter the account holder name").max(80),
-  details: z.string().trim().min(4, "Enter valid payout details").max(200),
-});
+/** Loose email check for the gift-card / PayPal fields. */
+function isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+type DraftFields = Partial<Record<PayoutFieldName, string>>;
 
 function WalletPage() {
   const { session, profile } = useAuth();
@@ -65,6 +65,10 @@ function WalletPage() {
   const [methodOpen, setMethodOpen] = useState(false);
   /** Bumped on a successful withdrawal to replay the one-shot burst. Display-only. */
   const [burstKey, setBurstKey] = useState(0);
+  // Add-payout-method draft state.
+  const [draftType, setDraftType] = useState<PayoutMethodType>("upi");
+  const [draftLabel, setDraftLabel] = useState("");
+  const [draftFields, setDraftFields] = useState<DraftFields>({});
 
   const balance = Number(profile?.wallet_balance ?? 0);
   const pending = Number(profile?.held_balance ?? 0);
@@ -107,20 +111,29 @@ function WalletPage() {
   });
 
   const addMethod = useMutation({
-    mutationFn: async (values: z.infer<typeof methodSchema>) => {
+    mutationFn: async (values: { type: PayoutMethodType; label: string; fields: DraftFields }) => {
+      const trimmed = (name: PayoutFieldName) => values.fields[name]?.trim() || null;
       const { error } = await supabase.from("payout_methods").insert({
         user_id: session!.user.id,
         method_type: values.type,
-        label: values.label,
-        holder_name: values.holderName,
-        upi_id: values.type === "upi" ? values.details : null,
-        account_number: values.type === "upi" ? null : values.details,
+        label: values.label.trim() || payoutMethodLabel(values.type),
+        holder_name: trimmed("holder_name"),
+        upi_id: trimmed("upi_id"),
+        paypal_email: trimmed("paypal_email"),
+        account_number: trimmed("account_number"),
+        country_bank_code: trimmed("country_bank_code"),
+        bank_name: trimmed("bank_name"),
+        country: trimmed("country"),
+        gift_card_recipient_email: trimmed("gift_card_recipient_email"),
+        wallet_address: trimmed("wallet_address"),
       });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Payout method saved.");
       setMethodOpen(false);
+      setDraftFields({});
+      setDraftLabel("");
       void queryClient.invalidateQueries({ queryKey: ["payout-methods"] });
     },
     onError: () => toast.error("Couldn't save that payout method."),
@@ -194,49 +207,120 @@ function WalletPage() {
                 <DialogDescription>Where should we send your money?</DialogDescription>
               </DialogHeader>
               <form
-                className="space-y-3"
+                className="space-y-4"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  const form = new FormData(event.currentTarget);
-                  const parsed = methodSchema.safeParse({
-                    type: String(form.get("type")),
-                    label: String(form.get("label")),
-                    holderName: String(form.get("holderName")),
-                    details: String(form.get("details")),
-                  });
-                  if (!parsed.success) {
-                    toast.error(parsed.error.issues[0]?.message ?? "Check your details.");
+                  const spec = payoutMethodSpec(draftType);
+                  if (!spec?.available) {
+                    toast.error("Choose an available payout method.");
                     return;
                   }
-                  addMethod.mutate(parsed.data);
+                  const missing = spec.fields.find((f) => !(draftFields[f.name] ?? "").trim());
+                  if (missing) {
+                    toast.error(`${missing.label} is required.`);
+                    return;
+                  }
+                  const emailField = spec.fields.find(
+                    (f) => f.inputType === "email" && !isEmail(draftFields[f.name] ?? ""),
+                  );
+                  if (emailField) {
+                    toast.error(`Enter a valid ${emailField.label.toLowerCase()}.`);
+                    return;
+                  }
+                  addMethod.mutate({ type: spec.type, label: draftLabel, fields: draftFields });
                 }}
               >
-                <div className="space-y-1.5">
-                  <Label htmlFor="type">Type</Label>
-                  <select
-                    id="type"
-                    name="type"
-                    className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
-                  >
-                    <option value="upi">UPI</option>
-                    <option value="paypal">PayPal</option>
-                    <option value="bank">Bank transfer</option>
-                  </select>
+                {/* Card-based method picker (replaces the old dropdown). */}
+                <div className="space-y-2">
+                  <Label>Payout method</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PAYOUT_METHODS.map((spec) => {
+                      const selected = draftType === spec.type;
+                      return (
+                        <button
+                          key={spec.type}
+                          type="button"
+                          aria-pressed={selected}
+                          aria-disabled={!spec.available}
+                          data-testid={`payout-method-${spec.type}`}
+                          onClick={() => {
+                            if (!spec.available) {
+                              toast.info(spec.comingSoonMessage ?? `${spec.label} is coming soon.`);
+                              return;
+                            }
+                            setDraftType(spec.type);
+                            setDraftFields({});
+                          }}
+                          className={`relative flex items-start gap-2 rounded-2xl border p-2.5 text-left transition-all ${
+                            !spec.available
+                              ? "cursor-not-allowed border-border bg-background-alt opacity-70"
+                              : selected
+                                ? "border-primary bg-primary/5 shadow-soft"
+                                : "border-border bg-card hover:border-primary/40"
+                          }`}
+                        >
+                          <span
+                            aria-hidden
+                            className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${spec.iconClass}`}
+                          >
+                            {spec.monogram}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[13px] font-semibold leading-tight">
+                              {spec.label}
+                            </span>
+                            <span className="mt-0.5 block text-[10px] leading-tight text-muted-foreground">
+                              {spec.tagline}
+                            </span>
+                          </span>
+                          {selected && spec.available && (
+                            <Check
+                              className="absolute right-2 top-2 size-3.5 text-primary"
+                              aria-hidden
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+
                 <div className="space-y-1.5">
                   <Label htmlFor="label">Label</Label>
-                  <Input id="label" name="label" maxLength={60} placeholder="My UPI" />
+                  <Input
+                    id="label"
+                    value={draftLabel}
+                    onChange={(e) => setDraftLabel(e.target.value)}
+                    maxLength={60}
+                    placeholder="e.g. My main account"
+                  />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="holderName">Account holder</Label>
-                  <Input id="holderName" name="holderName" maxLength={80} placeholder="Full name" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="details">UPI ID / account number</Label>
-                  <Input id="details" name="details" maxLength={200} placeholder="name@bank" />
-                </div>
+
+                {/* Type-specific fields. */}
+                {(payoutMethodSpec(draftType)?.fields ?? []).map((field) => (
+                  <div key={field.name} className="space-y-1.5">
+                    <Label htmlFor={`field-${field.name}`}>{field.label}</Label>
+                    <Input
+                      id={`field-${field.name}`}
+                      type={field.inputType ?? "text"}
+                      maxLength={field.maxLength}
+                      placeholder={field.placeholder}
+                      value={draftFields[field.name] ?? ""}
+                      onChange={(e) =>
+                        setDraftFields((current) => ({ ...current, [field.name]: e.target.value }))
+                      }
+                      data-testid={`payout-field-${field.name}`}
+                    />
+                  </div>
+                ))}
+
                 <DialogFooter>
-                  <Button type="submit" variant="jade" disabled={addMethod.isPending}>
+                  <Button
+                    type="submit"
+                    variant="jade"
+                    disabled={addMethod.isPending}
+                    data-testid="payout-save-method"
+                  >
                     Save method
                   </Button>
                 </DialogFooter>
@@ -246,7 +330,7 @@ function WalletPage() {
         }
       />
 
-      <div className="surface-card relative space-y-3 p-4">
+      <div className="surface-card relative space-y-4 p-4">
         <div className="space-y-1.5">
           <Label htmlFor="amount">Amount (min {formatMoney(MIN_WITHDRAWAL)})</Label>
           <Input
@@ -257,29 +341,68 @@ function WalletPage() {
             placeholder="5.00"
           />
         </div>
-        <div className="space-y-1.5">
-          <Label>Payout method</Label>
-          <Select value={methodId} onValueChange={setMethodId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Choose a method" />
-            </SelectTrigger>
-            <SelectContent>
-              {(methods.data ?? []).map((method) => (
-                <SelectItem key={method.id} value={method.id}>
-                  {method.label} · {method.method_type.toUpperCase()}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+
+        {/* Saved methods first — pick one without re-entering details. */}
+        {(methods.data ?? []).length > 0 && (
+          <div className="space-y-1.5">
+            <Label>Saved payout methods</Label>
+            <ul className="grid gap-2" data-testid="wallet-saved-methods">
+              {(methods.data ?? []).map((method) => {
+                const spec = payoutMethodSpec(method.method_type);
+                const selected = methodId === method.id;
+                return (
+                  <li key={method.id}>
+                    <button
+                      type="button"
+                      onClick={() => setMethodId(method.id)}
+                      aria-pressed={selected}
+                      data-testid={`wallet-saved-method-${method.id}`}
+                      className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-all ${
+                        selected
+                          ? "border-primary bg-primary/5 shadow-soft"
+                          : "border-border bg-card hover:border-primary/40"
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`grid size-9 shrink-0 place-items-center rounded-full text-sm font-bold ${
+                          spec?.iconClass ?? "bg-background-alt text-muted-foreground"
+                        }`}
+                      >
+                        {spec?.monogram ?? "?"}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">
+                          {method.label || payoutMethodLabel(method.method_type)}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {payoutMethodLabel(method.method_type)} ·{" "}
+                          {maskPayoutMethod(method) || "No details"}
+                        </span>
+                      </span>
+                      {selected && <Check className="size-4 shrink-0 text-primary" aria-hidden />}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         <Button
           variant="gold"
           className="w-full gap-2"
           disabled={!canWithdraw || requestWithdrawal.isPending}
           onClick={() => requestWithdrawal.mutate()}
+          data-testid="wallet-request-withdrawal"
         >
           <ArrowDownToLine className="size-4" /> Request withdrawal
         </Button>
+        {!methods.data?.length && (
+          <p className="text-center text-xs text-muted-foreground">
+            Add a payout method above to withdraw.
+          </p>
+        )}
         {burstKey > 0 && <SuccessBurst key={burstKey} />}
       </div>
 

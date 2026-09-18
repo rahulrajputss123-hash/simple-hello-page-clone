@@ -114,13 +114,19 @@ export const adminUpdateWithdrawal = createServerFn({ method: "POST" })
         id: z.string().uuid(),
         status: z.enum(["approved", "rejected"]),
         note: z.string().trim().max(300).nullable().optional(),
+        referenceId: z.string().trim().max(200).nullable().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { assertAdmin, adminUpdateWithdrawalImpl } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
-    return adminUpdateWithdrawalImpl(data.id, data.status, data.note ?? null);
+    return adminUpdateWithdrawalImpl(
+      data.id,
+      data.status,
+      data.note ?? null,
+      data.referenceId ?? null,
+    );
   });
 
 export const adminUpdateOfferClaim = createServerFn({ method: "POST" })

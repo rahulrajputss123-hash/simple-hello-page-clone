@@ -361,39 +361,57 @@ export type Database = {
       payout_methods: {
         Row: {
           account_number: string | null;
+          bank_name: string | null;
+          country: string | null;
+          country_bank_code: string | null;
           created_at: string;
+          gift_card_recipient_email: string | null;
           holder_name: string | null;
           id: string;
           ifsc: string | null;
           is_default: boolean;
           label: string;
           method_type: string;
+          paypal_email: string | null;
           upi_id: string | null;
           user_id: string;
+          wallet_address: string | null;
         };
         Insert: {
           account_number?: string | null;
+          bank_name?: string | null;
+          country?: string | null;
+          country_bank_code?: string | null;
           created_at?: string;
+          gift_card_recipient_email?: string | null;
           holder_name?: string | null;
           id?: string;
           ifsc?: string | null;
           is_default?: boolean;
           label?: string;
           method_type?: string;
+          paypal_email?: string | null;
           upi_id?: string | null;
           user_id: string;
+          wallet_address?: string | null;
         };
         Update: {
           account_number?: string | null;
+          bank_name?: string | null;
+          country?: string | null;
+          country_bank_code?: string | null;
           created_at?: string;
+          gift_card_recipient_email?: string | null;
           holder_name?: string | null;
           id?: string;
           ifsc?: string | null;
           is_default?: boolean;
           label?: string;
           method_type?: string;
+          paypal_email?: string | null;
           upi_id?: string | null;
           user_id?: string;
+          wallet_address?: string | null;
         };
         Relationships: [];
       };
@@ -520,6 +538,7 @@ export type Database = {
           id: string;
           referred_id: string;
           referrer_id: string;
+          reward_released_at: string | null;
           signup_credited_at: string | null;
           status: string;
           withdrawal_credited_at: string | null;
@@ -532,6 +551,7 @@ export type Database = {
           id?: string;
           referred_id: string;
           referrer_id: string;
+          reward_released_at?: string | null;
           signup_credited_at?: string | null;
           status?: string;
           withdrawal_credited_at?: string | null;
@@ -544,6 +564,7 @@ export type Database = {
           id?: string;
           referred_id?: string;
           referrer_id?: string;
+          reward_released_at?: string | null;
           signup_credited_at?: string | null;
           status?: string;
           withdrawal_credited_at?: string | null;
@@ -986,7 +1007,10 @@ export type Database = {
           amount: number;
           created_at: string;
           id: string;
+          method_type: string;
+          payout_details_snapshot: Json | null;
           payout_method_id: string | null;
+          reference_id: string | null;
           status: string;
           updated_at: string;
           user_id: string;
@@ -996,7 +1020,10 @@ export type Database = {
           amount: number;
           created_at?: string;
           id?: string;
+          method_type: string;
+          payout_details_snapshot?: Json | null;
           payout_method_id?: string | null;
+          reference_id?: string | null;
           status?: string;
           updated_at?: string;
           user_id: string;
@@ -1006,7 +1033,10 @@ export type Database = {
           amount?: number;
           created_at?: string;
           id?: string;
+          method_type?: string;
+          payout_details_snapshot?: Json | null;
           payout_method_id?: string | null;
+          reference_id?: string | null;
           status?: string;
           updated_at?: string;
           user_id?: string;

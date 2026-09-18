@@ -19,6 +19,7 @@ import {
   adminUpdateOfferClaim,
   adminUpdateWithdrawal,
 } from "@/lib/coinquest.functions";
+import { payoutMethodLabel } from "@/lib/payout-methods";
 import { OffersManager } from "@/components/admin/OffersManager";
 import { PremiumOnboardingManager } from "@/components/admin/PremiumOnboardingManager";
 import { QuestsManager } from "@/components/admin/QuestsManager";
@@ -50,6 +51,27 @@ export const Route = createFileRoute("/_authenticated/admin")({
   }),
   component: AdminPage,
 });
+
+/**
+ * Renders the masked payout snapshot stored on a withdrawal request. The
+ * snapshot is written masked-safe at request time, so nothing here can reveal a
+ * full account number, email or wallet address.
+ */
+function payoutSnapshotLines(snapshot: unknown): string[] {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return [];
+  const record = snapshot as Record<string, unknown>;
+  const pick = (key: string) => {
+    const value = record[key];
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  };
+  return [
+    pick("masked"),
+    pick("holder_name"),
+    pick("bank_name"),
+    pick("country_bank_code"),
+    pick("country"),
+  ].filter((line): line is string => Boolean(line));
+}
 
 type TabKey =
   | "dashboard"
@@ -83,6 +105,8 @@ function AdminPage() {
 
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [notes, setNotes] = useState<Record<string, string>>({});
+  /** Admin-entered fulfilment reference, keyed by withdrawal id. */
+  const [references, setReferences] = useState<Record<string, string>>({});
 
   const data = useQuery({
     queryKey: ["admin-overview"],
@@ -94,8 +118,20 @@ function AdminPage() {
   const onError = (error: Error) => toast.error(error.message);
 
   const withdrawalAction = useMutation({
-    mutationFn: (input: { id: string; status: "approved" | "rejected"; note?: string }) =>
-      updateWithdrawal({ data: { id: input.id, status: input.status, note: input.note ?? null } }),
+    mutationFn: (input: {
+      id: string;
+      status: "approved" | "rejected";
+      note?: string;
+      referenceId?: string;
+    }) =>
+      updateWithdrawal({
+        data: {
+          id: input.id,
+          status: input.status,
+          note: input.note ?? null,
+          referenceId: input.referenceId?.trim() ? input.referenceId.trim() : null,
+        },
+      }),
     onSuccess: () => {
       toast.success("Withdrawal updated.");
       refresh();
@@ -201,6 +237,9 @@ function AdminPage() {
 
   const note = (id: string) => notes[id] ?? "";
   const setNote = (id: string, value: string) => setNotes((prev) => ({ ...prev, [id]: value }));
+  const reference = (id: string) => references[id] ?? "";
+  const setReference = (id: string, value: string) =>
+    setReferences((prev) => ({ ...prev, [id]: value }));
 
   return (
     <AppShell subtitle="Admin">
@@ -372,6 +411,22 @@ function AdminPage() {
                     {request.user?.name || request.user?.email || "Unknown user"} ·{" "}
                     {formatDateTime(request.created_at)}
                   </p>
+
+                  {/* Method + masked payout snapshot captured at request time. */}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                      {payoutMethodLabel(request.method_type)}
+                    </span>
+                    {payoutSnapshotLines(request.payout_details_snapshot).map((line) => (
+                      <span
+                        key={line}
+                        className="rounded-full bg-background-alt px-2 py-0.5 text-muted-foreground"
+                      >
+                        {line}
+                      </span>
+                    ))}
+                  </div>
+
                   {request.status === "pending" && (
                     <div className="mt-2 space-y-2">
                       <Input
@@ -379,6 +434,13 @@ function AdminPage() {
                         value={note(request.id)}
                         onChange={(event) => setNote(request.id, event.target.value)}
                         maxLength={300}
+                      />
+                      <Input
+                        placeholder="Fulfilment reference (payout id / gift-card order / BTC txid)"
+                        value={reference(request.id)}
+                        onChange={(event) => setReference(request.id, event.target.value)}
+                        maxLength={200}
+                        data-testid={`admin-withdrawal-reference-${request.id}`}
                       />
                       <div className="flex gap-2">
                         <Button
@@ -390,6 +452,7 @@ function AdminPage() {
                               id: request.id,
                               status: "approved",
                               note: note(request.id),
+                              referenceId: reference(request.id),
                             })
                           }
                         >
@@ -414,6 +477,11 @@ function AdminPage() {
                   )}
                   {request.admin_note && (
                     <p className="mt-2 text-xs text-muted-foreground">Note: {request.admin_note}</p>
+                  )}
+                  {request.reference_id && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Ref: <span className="font-mono">{request.reference_id}</span>
+                    </p>
                   )}
                 </li>
               ))}

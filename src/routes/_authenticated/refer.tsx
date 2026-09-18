@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, Copy, FileText, Gift, Share2, Users } from "lucide-react";
+import { Check, Copy, FileText, Gift, Info, Lock, Share2, Users, Wallet } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 
@@ -16,6 +16,11 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/coinquest";
+import {
+  deriveReferralProgress,
+  sumReferralTotals,
+  type ReferralRewardState,
+} from "@/lib/referral-progress";
 
 export const Route = createFileRoute("/_authenticated/refer")({
   head: () => ({
@@ -40,7 +45,7 @@ const MILESTONES = [
     emoji: "🎉",
     short: "Signup",
     label: "Friend signs up",
-    detail: "Credited when they successfully sign up with your code",
+    detail: "Counted when they successfully sign up with your code",
   },
   {
     key: "earning_credited_at",
@@ -54,7 +59,7 @@ const MILESTONES = [
     emoji: "💸",
     short: "First withdrawal",
     label: "Friend completes their first withdrawal",
-    detail: "Earned when they successfully complete their first withdrawal",
+    detail: "Counted when their first withdrawal is approved — this releases the reward",
   },
 ] as const;
 
@@ -71,6 +76,71 @@ function TelegramIcon(props: React.SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
       <path d="M21.7 3.3 2.9 10.9c-1.05.42-1.03 1.02-.2 1.29l4.6 1.43 10.6-6.68c.5-.3.96-.15.58.18L9.8 15.4l-.34 4.65c.38 0 .55-.16.76-.36l2-1.94 4.16 3.08c.76.42 1.3.2 1.5-.7l2.7-12.8c.3-1.13-.42-1.64-1.1-1.03Z" />
     </svg>
+  );
+}
+
+const REWARD_STATE_STYLE: Record<ReferralRewardState, { label: string; className: string }> = {
+  in_progress: {
+    label: "Pending",
+    className: "bg-gold/20 text-gold-dark",
+  },
+  unlocked: {
+    label: "Unlocked",
+    className: "bg-mint/25 text-primary",
+  },
+  credited: {
+    label: "Credited",
+    className: "bg-mint/25 text-primary",
+  },
+  expired: {
+    label: "Expired",
+    className: "bg-muted text-muted-foreground",
+  },
+};
+
+/**
+ * Privacy-safe friend label. Mirrors the existing approach on this screen, which
+ * derives a badge from the referral id — a referrer cannot read the friend's
+ * profile (RLS is self-only) and nothing here loosens that.
+ */
+function friendLabel(referralId: string): string {
+  return `Friend #${String(referralId).replace(/-/g, "").slice(0, 4).toUpperCase()}`;
+}
+
+/** Per-referral reward line: how much is locked, and what unlocks it. */
+function ReferralRewardLine({ referral }: { referral: ReferralRow }) {
+  const progress = deriveReferralProgress(referral);
+  const badge = REWARD_STATE_STYLE[progress.state];
+  const amount =
+    progress.state === "credited"
+      ? progress.creditedAmount
+      : progress.state === "expired"
+        ? 0
+        : progress.pendingAmount;
+
+  return (
+    <div
+      className="flex items-center justify-between gap-2"
+      data-testid={`refer-reward-state-${referral.id}`}
+    >
+      <p className="text-xs text-muted-foreground">
+        Progress{" "}
+        <span className="font-semibold text-foreground [font-variant-numeric:tabular-nums]">
+          {progress.completed}/{progress.total}
+        </span>
+        {progress.state === "in_progress" && progress.daysRemaining <= 30 ? (
+          <span className="text-destructive"> · {progress.daysRemaining}d left</span>
+        ) : null}
+      </p>
+      <span className="flex items-center gap-1.5">
+        <span className="text-amount text-sm text-foreground">{formatMoney(amount)}</span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badge.className}`}
+        >
+          {badge.label}
+        </span>
+      </span>
+    </div>
   );
 }
 
@@ -143,7 +213,10 @@ function ReferPage() {
   });
 
   const mine = referrals.data?.filter((r) => r.referrer_id === session?.user.id) ?? [];
-  const referralEarnings = mine.reduce((sum, r) => sum + Number(r.bonus_amount ?? 0), 0);
+  // Pending vs credited both come from the shared derivation the server uses to
+  // decide the release, so the screen can never disagree with the wallet.
+  const totals = sumReferralTotals(mine);
+  const referralEarnings = totals.credited;
   const potentialEarnings = mine.length * REFERRAL_MAX_BONUS;
   const shareMessage = "Join me on CashGPT and start earning!";
 
@@ -260,7 +333,7 @@ function ReferPage() {
             <p className="text-amount mt-3 text-2xl leading-none text-gold-dark">
               {formatMoney(referralEarnings)}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">Referral Earnings</p>
+            <p className="mt-1 text-xs text-muted-foreground">Credited to Wallet</p>
             {potentialEarnings > 0 && (
               <>
                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-background-alt">
@@ -278,6 +351,50 @@ function ReferPage() {
               </>
             )}
           </div>
+        </div>
+
+        <SectionHeading icon={Wallet} iconSrc="/icons/icon-wallet.png" title="Referral Earnings" />
+        <div className="surface-card p-4" data-testid="refer-earnings-summary">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-gold/10 p-3" data-testid="refer-earnings-pending">
+              <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gold-dark">
+                <Lock className="size-3" /> Pending
+              </p>
+              <p className="text-amount mt-1 text-xl leading-none text-gold-dark">
+                {formatMoney(totals.pending)}
+              </p>
+              <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
+                Locked — not in your wallet yet
+              </p>
+            </div>
+            <div className="rounded-2xl bg-mint/15 p-3" data-testid="refer-earnings-credited">
+              <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                <Check className="size-3" /> Credited
+              </p>
+              <p className="text-amount mt-1 text-xl leading-none text-primary">
+                {formatMoney(totals.credited)}
+              </p>
+              <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
+                Released to your main wallet
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+            <p className="text-xs font-semibold">Total referral earnings</p>
+            <p className="text-amount text-base" data-testid="refer-earnings-total">
+              {formatMoney(totals.total)}
+            </p>
+          </div>
+
+          <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              Pending referral earnings are <strong>not</strong> part of your wallet balance and
+              can&apos;t be withdrawn yet. The full {formatMoney(REFERRAL_MAX_BONUS)} for a friend
+              is released to your main wallet only once that friend completes all 3 milestones.
+            </span>
+          </p>
         </div>
 
         <SectionHeading
@@ -367,15 +484,27 @@ function ReferPage() {
           <ul className="space-y-2">
             {mine.map((referral) => (
               <li key={referral.id} className="surface-card space-y-3 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    Joined {formatDate(referral.created_at)}
-                  </p>
-                  <span className="text-amount text-gold-dark">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      aria-hidden
+                      className="grid size-8 shrink-0 place-items-center rounded-full bg-jade-gradient text-xs font-bold text-primary-foreground"
+                    >
+                      {String(referral.id).slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{friendLabel(referral.id)}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Joined {formatDate(referral.created_at)}
+                      </p>
+                    </span>
+                  </span>
+                  <span className="text-amount shrink-0 text-gold-dark">
                     {formatMoney(referral.bonus_amount)} / {formatMoney(REFERRAL_MAX_BONUS)}
                   </span>
                 </div>
                 <MilestoneStepper referral={referral} />
+                <ReferralRewardLine referral={referral} />
               </li>
             ))}
           </ul>
@@ -393,14 +522,17 @@ function ReferPage() {
           <div className="mt-2 space-y-2 text-xs text-muted-foreground">
             <p>
               Each referred friend can earn you up to {formatMoney(REFERRAL_MAX_BONUS)} in total —{" "}
-              {formatMoney(REFERRAL_MILESTONE_BONUS)} per milestone, credited once per referral.
+              {formatMoney(REFERRAL_MILESTONE_BONUS)} per milestone, counted once per referral.
             </p>
             <p>
-              Complete all 3 milestones within 1 year of your friend's signup to keep the referral
-              rewards. If your referred friend does not complete their first withdrawal within 1
-              year of their signup, the first two {formatMoney(REFERRAL_MILESTONE_BONUS)} referral
-              rewards credited for that referral will be reversed/removed from the referrer's
-              balance.
+              Milestones unlock referral earnings as <strong>pending</strong>. Pending referral
+              earnings are not part of your wallet balance and cannot be withdrawn. The full{" "}
+              {formatMoney(REFERRAL_MAX_BONUS)} is released into your main wallet only once that
+              friend has completed all 3 milestones.
+            </p>
+            <p>
+              All 3 milestones must be completed within 1 year of your friend's signup. If they are
+              not, that referral expires and its pending earnings are not released.
             </p>
             <p>
               Self-referrals, duplicate accounts and fraudulent activity void all referral rewards.
