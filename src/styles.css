@@ -785,9 +785,16 @@
   .success-burst-dot,
   .home-orb,
   .live-activity-card,
+  .splash-logo-wrap,
+  .splash-halo,
+  .splash-dot,
   .stagger-children > *,
   .stagger-fade-children > * {
     animation: none;
+  }
+  /* Keep the loader legible when its bounce is disabled. */
+  .splash-dot {
+    opacity: 1;
   }
   .home-page-bg .app-header-coin {
     animation: none;

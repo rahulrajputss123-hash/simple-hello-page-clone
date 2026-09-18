@@ -93,7 +93,7 @@ function PreviewQuestCards() {
           credited={false}
           busy={false}
           lockLabel={null}
-          onAction={() => {}}
+          onOpenDetails={() => {}}
           onLocked={() => {}}
         />
         <QuestCard
@@ -102,7 +102,7 @@ function PreviewQuestCards() {
           credited={false}
           busy={false}
           lockLabel={null}
-          onAction={() => {}}
+          onOpenDetails={() => {}}
           onLocked={() => {}}
         />
         <QuestCard
@@ -111,7 +111,7 @@ function PreviewQuestCards() {
           credited={false}
           busy={false}
           lockLabel={null}
-          onAction={() => {}}
+          onOpenDetails={() => {}}
           onLocked={() => {}}
         />
         <QuestCard
@@ -120,7 +120,7 @@ function PreviewQuestCards() {
           credited={false}
           busy={false}
           lockLabel="Unlocks in 1 day"
-          onAction={() => {}}
+          onOpenDetails={() => {}}
           onLocked={() => {}}
         />
         <QuestCard
@@ -129,7 +129,7 @@ function PreviewQuestCards() {
           credited={true}
           busy={false}
           lockLabel={null}
-          onAction={() => {}}
+          onOpenDetails={() => {}}
           onLocked={() => {}}
         />
       </div>

@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as PreviewLiveActivityRouteImport } from './routes/preview-live-activity'
 import { Route as PreviewQuestCardsRouteImport } from './routes/preview-quest-cards'
+import { Route as PreviewSplashRouteImport } from './routes/preview-splash'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedFeaturedRouteImport } from './routes/_authenticated/featured'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
@@ -58,6 +59,11 @@ const PreviewLiveActivityRoute = PreviewLiveActivityRouteImport.update({
 const PreviewQuestCardsRoute = PreviewQuestCardsRouteImport.update({
   id: '/preview-quest-cards',
   path: '/preview-quest-cards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewSplashRoute = PreviewSplashRouteImport.update({
+  id: '/preview-splash',
+  path: '/preview-splash',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/preview-live-activity': typeof PreviewLiveActivityRoute
   '/preview-quest-cards': typeof PreviewQuestCardsRoute
+  '/preview-splash': typeof PreviewSplashRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -202,6 +209,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/preview-live-activity': typeof PreviewLiveActivityRoute
   '/preview-quest-cards': typeof PreviewQuestCardsRoute
+  '/preview-splash': typeof PreviewSplashRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -231,6 +239,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/preview-live-activity': typeof PreviewLiveActivityRoute
   '/preview-quest-cards': typeof PreviewQuestCardsRoute
+  '/preview-splash': typeof PreviewSplashRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/featured': typeof AuthenticatedFeaturedRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
@@ -260,6 +269,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/preview-live-activity'
     | '/preview-quest-cards'
+    | '/preview-splash'
     | '/admin'
     | '/featured'
     | '/home'
@@ -287,6 +297,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/preview-live-activity'
     | '/preview-quest-cards'
+    | '/preview-splash'
     | '/admin'
     | '/featured'
     | '/home'
@@ -315,6 +326,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/preview-live-activity'
     | '/preview-quest-cards'
+    | '/preview-splash'
     | '/_authenticated/admin'
     | '/_authenticated/featured'
     | '/_authenticated/home'
@@ -344,6 +356,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   PreviewLiveActivityRoute: typeof PreviewLiveActivityRoute
   PreviewQuestCardsRoute: typeof PreviewQuestCardsRoute
+  PreviewSplashRoute: typeof PreviewSplashRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
   LegalReferralTermsRoute: typeof LegalReferralTermsRoute
   LegalTermsRoute: typeof LegalTermsRoute
@@ -388,6 +401,13 @@ declare module '@tanstack/react-router' {
       path: '/preview-quest-cards'
       fullPath: '/preview-quest-cards'
       preLoaderRoute: typeof PreviewQuestCardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview-splash': {
+      id: '/preview-splash'
+      path: '/preview-splash'
+      fullPath: '/preview-splash'
+      preLoaderRoute: typeof PreviewSplashRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -583,6 +603,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   PreviewLiveActivityRoute: PreviewLiveActivityRoute,
   PreviewQuestCardsRoute: PreviewQuestCardsRoute,
+  PreviewSplashRoute: PreviewSplashRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
   LegalReferralTermsRoute: LegalReferralTermsRoute,
   LegalTermsRoute: LegalTermsRoute,

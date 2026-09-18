@@ -1,32 +1,18 @@
-import {
-  Check,
-  Clapperboard,
-  Link2,
-  Loader2,
-  Lock,
-  LockKeyhole,
-  ShieldCheck,
-  type LucideIcon,
-} from "lucide-react";
+import { Check, Loader2, LockKeyhole } from "lucide-react";
 
 import { formatMoney } from "@/lib/coinquest";
-import type { QuestRow } from "@/lib/quests.server";
+import {
+  CREDITED_ACCENT,
+  deriveQuestView,
+  LOCKED_ACCENT,
+  QUEST_ACCENTS,
+  type QuestCardQuest,
+  type QuestSessionView,
+} from "@/lib/quest-view";
 
-export type QuestSessionView = {
-  id: string;
-  quest_key: string;
-  status: string;
-  ads_watched: number;
-  current_step?: number;
-};
-
-export type QuestCardQuest = QuestRow & {
-  is_locked?: boolean;
-  unlock_reason?:
-    | { type: "time"; unlocksAt: string }
-    | { type: "earning"; required: number; current: number }
-    | null;
-};
+// Re-exported so existing importers of these types keep working. Type-only, so
+// this does not reintroduce a non-component runtime export.
+export type { QuestCardQuest, QuestSessionView } from "@/lib/quest-view";
 
 type QuestCardProps = {
   quest: QuestCardQuest;
@@ -34,7 +20,12 @@ type QuestCardProps = {
   credited: boolean;
   busy: boolean;
   lockLabel: string | null;
-  onAction: () => void;
+  /**
+   * Opens the quest details dialog. The card never starts the quest itself —
+   * the external URL / ad is only triggered from the dialog's Continue button,
+   * mirroring how Featured Offers gate on OfferDetailsDialog.
+   */
+  onOpenDetails: () => void;
   onLocked: () => void;
 };
 
@@ -50,75 +41,6 @@ const INK_SOFT = "#5F726F"; // secondary text
 const INK_FAINT = "#94A4A1"; // tertiary / meta text
 const HAIRLINE = "#EBE6DD";
 const TRACK = "#EDF0EF";
-
-/**
- * A quest category accent. Colour is deliberately confined to the icon tile,
- * the badge and the progress fill — never a full-card gradient, which is what
- * made the earlier revision read as candy.
- */
-type QuestAccent = {
-  label: string;
-  icon: LucideIcon;
-  /** Faint wash behind the card header. */
-  wash: string;
-  badgeBg: string;
-  badgeInk: string;
-  tile: string;
-  tileShadow: string;
-  bar: string;
-};
-
-const ACCENTS: Record<QuestRow["quest_type"], QuestAccent> = {
-  ads: {
-    label: "Easy",
-    icon: Clapperboard,
-    wash: "rgba(16,163,113,0.10)",
-    badgeBg: "rgba(16,163,113,0.12)",
-    badgeInk: "#0A6B4A",
-    tile: "linear-gradient(145deg, #34D399 0%, #059669 100%)",
-    tileShadow: "rgba(5,150,105,0.32)",
-    bar: "linear-gradient(90deg, #34D399, #059669)",
-  },
-  shortlink: {
-    label: "Challenge",
-    icon: Link2,
-    wash: "rgba(217,119,6,0.10)",
-    badgeBg: "rgba(217,119,6,0.13)",
-    badgeInk: "#92400E",
-    tile: "linear-gradient(145deg, #FBBF24 0%, #D97706 100%)",
-    tileShadow: "rgba(217,119,6,0.32)",
-    bar: "linear-gradient(90deg, #FBBF24, #D97706)",
-  },
-  locker: {
-    label: "Daily",
-    // Padlock (not a gift) — this is a content-locker quest. The blue accent is
-    // kept because colour signals the category, not the glyph.
-    icon: Lock,
-    wash: "rgba(2,132,199,0.10)",
-    badgeBg: "rgba(2,132,199,0.12)",
-    badgeInk: "#075985",
-    tile: "linear-gradient(145deg, #38BDF8 0%, #0369A1 100%)",
-    tileShadow: "rgba(3,105,161,0.32)",
-    bar: "linear-gradient(90deg, #38BDF8, #0369A1)",
-  },
-};
-
-const LOCKED_ACCENT: QuestAccent = {
-  label: "Locked",
-  icon: LockKeyhole,
-  wash: "rgba(100,116,139,0.07)",
-  badgeBg: "rgba(100,116,139,0.11)",
-  badgeInk: "#52616F",
-  tile: "linear-gradient(145deg, #CBD5E1 0%, #94A3B8 100%)",
-  tileShadow: "rgba(100,116,139,0.26)",
-  bar: "linear-gradient(90deg, #CBD5E1, #94A3B8)",
-};
-
-const CREDITED_ACCENT: QuestAccent = {
-  ...ACCENTS.ads,
-  label: "Completed",
-  icon: ShieldCheck,
-};
 
 /** Small flat gold coin. Restrained on purpose — no fake specular highlight. */
 function CoinMark({ size = 14 }: { size?: number }) {
@@ -142,37 +64,23 @@ export function QuestCard({
   credited,
   busy,
   lockLabel,
-  onAction,
+  onOpenDetails,
   onLocked,
 }: QuestCardProps) {
   const locked = Boolean(quest.is_locked);
-  const accent = locked ? LOCKED_ACCENT : credited ? CREDITED_ACCENT : ACCENTS[quest.quest_type];
+  const accent = locked
+    ? LOCKED_ACCENT
+    : credited
+      ? CREDITED_ACCENT
+      : QUEST_ACCENTS[quest.quest_type];
   const TileIcon = accent.icon;
 
-  const total =
-    quest.quest_type === "ads"
-      ? Math.max(1, quest.ads_required)
-      : quest.quest_type === "shortlink"
-        ? Math.max(1, quest.shortlink_steps.length)
-        : 1;
-  const current = credited
-    ? total
-    : quest.quest_type === "ads"
-      ? Number(active?.ads_watched ?? 0)
-      : quest.quest_type === "shortlink"
-        ? Number(active?.current_step ?? 0)
-        : 0;
-  const progress = Math.min(Math.max(0, current), total);
-  const remaining = Math.max(0, total - progress);
-  const nextStep = Math.min(progress + 1, total);
-  const progressPercent = Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100));
+  const { total, progress, remaining, nextStep, progressPercent, description } = deriveQuestView(
+    quest,
+    active,
+    credited,
+  );
 
-  const description =
-    quest.quest_type === "ads"
-      ? `Watch ${total} ${total === 1 ? "video ad" : "video ads"} and get rewarded!`
-      : quest.quest_type === "shortlink"
-        ? `Visit ${total === 1 ? "the short link" : `${total} short links`} and get rewarded!`
-        : "Complete the locker challenge and unlock your reward!";
   const detail = locked
     ? (lockLabel ?? "This quest is currently locked")
     : credited
@@ -354,7 +262,7 @@ export function QuestCard({
                   }
           }
           disabled={busy || credited}
-          onClick={locked ? onLocked : onAction}
+          onClick={locked ? onLocked : onOpenDetails}
           data-testid={actionTestId}
         >
           {busy ? (

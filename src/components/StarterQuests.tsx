@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { QuestCard, type QuestCardQuest, type QuestSessionView } from "@/components/QuestCard";
+import { QuestDetailsDialog } from "@/components/QuestDetailsDialog";
 import { ErrorState } from "@/components/States";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +18,8 @@ export function StarterQuests() {
   const { session } = useAuth();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
+  /** Quest awaiting confirmation in the details dialog. Nothing external runs until Continue. */
+  const [pendingQuest, setPendingQuest] = useState<QuestCardQuest | null>(null);
   const start = useServerFn(startQuest);
   const report = useServerFn(reportAdWatched);
   const fetchQuests = useServerFn(listActiveQuests);
@@ -91,6 +94,41 @@ export function StarterQuests() {
     onSettled: () => setBusy(null),
   });
 
+  /**
+   * Session-derived runtime bits for a quest, so the card and handleContinue
+   * always agree on which step comes next.
+   */
+  const questRuntime = (q: QuestCardQuest) => {
+    const active = sessions.data?.find((s) => s.quest_key === q.key && s.status === "started");
+    const credited =
+      sessions.data?.some((s) => s.quest_key === q.key && s.status === "credited") ?? false;
+    const total = q.quest_type === "shortlink" ? Math.max(1, q.shortlink_steps.length) : 1;
+    const currentStep = Number(active?.current_step ?? 0);
+    const nextStep = credited ? total : Math.min(currentStep + 1, total);
+    return { active, credited, nextStep };
+  };
+
+  /**
+   * Dispatches the real quest action. Only reachable from the details dialog's
+   * Continue button — the card itself no longer triggers anything external.
+   */
+  const handleContinue = () => {
+    const q = pendingQuest;
+    if (!q) return;
+    const { credited, nextStep } = questRuntime(q);
+    if (Boolean(q.is_locked) || credited) return;
+
+    setBusy(q.key);
+    if (q.quest_type === "shortlink") {
+      runShortlink.mutate({ questKey: q.key, step: nextStep });
+    } else if (q.quest_type === "locker") {
+      runLocker.mutate(q.key);
+    } else {
+      runAd.mutate(q.key);
+    }
+    setPendingQuest(null);
+  };
+
   if (quests.isLoading || sessions.isLoading) {
     return (
       <div className="flex gap-4 overflow-hidden pb-2" data-testid="quests-loading">
@@ -118,66 +156,60 @@ export function StarterQuests() {
     );
   }
 
+  const pendingRuntime = pendingQuest ? questRuntime(pendingQuest) : null;
+
   return (
-    <div
-      className="stagger-children flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-3 pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      data-testid="starter-quests-scroll"
-    >
-      {quests.data.map((quest) => {
-        const q = quest as QuestCardQuest;
-        const isLocked: boolean = Boolean(q.is_locked);
-        const unlockReason = q.unlock_reason ?? null;
+    <>
+      <div
+        className="stagger-children flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-3 pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        data-testid="starter-quests-scroll"
+      >
+        {quests.data.map((quest) => {
+          const q = quest as QuestCardQuest;
+          const isLocked: boolean = Boolean(q.is_locked);
+          const unlockReason = q.unlock_reason ?? null;
 
-        const lockLabel = isLocked
-          ? unlockReason?.type === "time"
-            ? formatTimeLockReason(unlockReason.unlocksAt)
-            : unlockReason?.type === "earning"
-              ? formatEarningLockReason(unlockReason.required, unlockReason.current)
-              : "Locked"
-          : null;
+          const lockLabel = isLocked
+            ? unlockReason?.type === "time"
+              ? formatTimeLockReason(unlockReason.unlocksAt)
+              : unlockReason?.type === "earning"
+                ? formatEarningLockReason(unlockReason.required, unlockReason.current)
+                : "Locked"
+            : null;
 
-        const active = sessions.data?.find(
-          (s) => s.quest_key === quest.key && s.status === "started",
-        );
-        const credited = sessions.data?.some(
-          (s) => s.quest_key === quest.key && s.status === "credited",
-        );
-        const isBusy = busy === quest.key;
-        const total =
-          quest.quest_type === "shortlink" ? Math.max(1, quest.shortlink_steps.length) : 1;
-        const currentStep = Number(active?.current_step ?? 0);
-        const nextStep = credited ? total : Math.min(currentStep + 1, total);
+          const { active, credited } = questRuntime(q);
+          const isBusy = busy === quest.key;
 
-        return (
-          <QuestCard
-            key={quest.key}
-            quest={q}
-            active={active}
-            credited={Boolean(credited)}
-            busy={isBusy}
-            lockLabel={lockLabel}
-            onLocked={() => {
-              toast.info(
-                lockLabel
-                  ? `This quest is locked. ${lockLabel}.`
-                  : "This quest is currently locked.",
-              );
-            }}
-            onAction={() => {
-              if (isLocked || credited) return;
-              setBusy(quest.key);
-              if (quest.quest_type === "shortlink") {
-                runShortlink.mutate({ questKey: quest.key, step: nextStep });
-              } else if (quest.quest_type === "locker") {
-                runLocker.mutate(quest.key);
-              } else {
-                setBusy(quest.key);
-                runAd.mutate(quest.key);
-              }
-            }}
-          />
-        );
-      })}
-    </div>
+          return (
+            <QuestCard
+              key={quest.key}
+              quest={q}
+              active={active}
+              credited={Boolean(credited)}
+              busy={isBusy}
+              lockLabel={lockLabel}
+              onLocked={() => {
+                toast.info(
+                  lockLabel
+                    ? `This quest is locked. ${lockLabel}.`
+                    : "This quest is currently locked.",
+                );
+              }}
+              onOpenDetails={() => setPendingQuest(q)}
+            />
+          );
+        })}
+      </div>
+
+      <QuestDetailsDialog
+        quest={pendingQuest}
+        {...(pendingRuntime?.active ? { active: pendingRuntime.active } : {})}
+        credited={pendingRuntime?.credited ?? false}
+        open={Boolean(pendingQuest)}
+        onOpenChange={(open) => !open && setPendingQuest(null)}
+        onContinue={handleContinue}
+        isSubmitting={Boolean(pendingQuest) && busy === pendingQuest?.key}
+      />
+    </>
   );
 }

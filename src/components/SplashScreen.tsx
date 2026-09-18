@@ -46,9 +46,29 @@ export function SplashScreen({ loading }: { loading: boolean }) {
       />
 
       <div className="relative flex flex-col items-center gap-6">
+        {/*
+         * logo-horizontal-light.png ships fully opaque (no alpha) with a baked-in
+         * cream background, so it is a solid rectangle rather than a floating
+         * wordmark. Against the jade glow above that rectangle's edge showed as a
+         * cream seam, and `drop-shadow` traced its outline instead of the artwork.
+         * Fix: clip it to rounded corners, carry the shadow on the wrapper so the
+         * shadow follows the rounded shape, and back it with the same cream so no
+         * subpixel gap can show through. `block` kills the inline-image baseline gap.
+         */}
         <div className="splash-logo-wrap relative">
-          <span aria-hidden className="splash-halo absolute inset-0 -z-10 rounded-[36%] blur-2xl" />
-          <BrandLogo variant="light" className="h-auto w-[220px] drop-shadow-lg" />
+          <span
+            aria-hidden
+            className="splash-halo absolute -inset-5 -z-10 rounded-[40%] blur-2xl"
+          />
+          <div
+            className="relative overflow-hidden rounded-[20px]"
+            style={{
+              backgroundColor: "#FEF8EB",
+              boxShadow: "0 18px 40px -18px rgba(11,43,40,0.30)",
+            }}
+          >
+            <BrandLogo variant="light" className="block h-auto w-[220px]" />
+          </div>
         </div>
 
         <div className="splash-dots flex items-center gap-2" aria-label="Loading">

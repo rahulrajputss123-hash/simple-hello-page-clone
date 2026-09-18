@@ -204,7 +204,7 @@ function TaskPage() {
                         aria-hidden
                         loading="lazy"
                         onError={() => setBrokenImages((b) => ({ ...b, [task.id]: true }))}
-                        className="size-full object-contain p-1.5"
+                        className="size-full object-cover"
                       />
                     ) : (
                       <TaskIcon className="size-5 text-primary" strokeWidth={2} aria-hidden />
