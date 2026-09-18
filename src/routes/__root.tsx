@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { ViewedOfferProvider } from "@/lib/viewed-offer";
 import { SplashScreen } from "@/components/SplashScreen";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -130,10 +131,13 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <SplashGate>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </SplashGate>
+        {/* Lets the Support-tab AI assistant know which offer the user opened. */}
+        <ViewedOfferProvider>
+          <SplashGate>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </SplashGate>
+        </ViewedOfferProvider>
         <Toaster position="top-center" />
       </AuthProvider>
     </QueryClientProvider>

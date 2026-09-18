@@ -1,6 +1,16 @@
-import { useRef, useState } from "react";
-import { AlertTriangle, ArrowUpRight, Gift, Info, ListChecks, Upload, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Gift,
+  Info,
+  ListChecks,
+  Sparkles,
+  Upload,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatMoney } from "@/lib/coinquest";
 import { requestProofUploadUrl } from "@/lib/offers.functions";
+import { useViewedOffer } from "@/lib/viewed-offer";
 
 /**
  * Pre-redirect confirmation dialog. When the offer's payout mode is
@@ -64,6 +75,14 @@ export function OfferDetailsDialog({
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const requestUpload = useServerFn(requestProofUploadUrl);
+  const navigate = useNavigate();
+  const { setViewedOffer } = useViewedOffer();
+
+  // Publish the open offer so the Support-tab assistant can answer questions
+  // about it. Only the id/title are shared; the server loads the real data.
+  useEffect(() => {
+    if (open && offer) setViewedOffer({ id: offer.id, title: offer.title });
+  }, [open, offer, setViewedOffer]);
 
   const reset = () => {
     setProofPath(null);
@@ -244,6 +263,21 @@ export function OfferDetailsDialog({
             </span>
           </section>
         )}
+
+        {/* Entry point to the AI assistant, which lives on the Support tab. The
+            open offer is already published to context, so it arrives with it. */}
+        <button
+          type="button"
+          onClick={() => {
+            onOpenChange(false);
+            void navigate({ to: "/support" });
+          }}
+          data-testid="offer-details-ask-assistant"
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+        >
+          <Sparkles className="size-3.5" />
+          Ask the assistant about this offer
+        </button>
 
         <DialogFooter>
           <Button

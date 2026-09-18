@@ -9,6 +9,7 @@ import { sendAssistantMessage } from "@/lib/assistant.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { useViewedOffer } from "@/lib/viewed-offer";
 
 const FALLBACK_REPLY =
   "Sorry — I couldn't reach the assistant just now. Please try again or open a support ticket below and a human will follow up.";
@@ -21,6 +22,14 @@ const QUICK_REPLIES = [
   { label: "Minimum withdrawal?", question: "What is the minimum withdrawal?" },
   { label: "Payout time?", question: "How long do payouts take?" },
   { label: "KYC & verification", question: "Why do I need KYC and how does verification work?" },
+];
+
+/** Shown instead of the general prompts while an offer is in context. */
+const OFFER_QUICK_REPLIES = [
+  { label: "How do I complete this?", question: "How do I complete this offer?" },
+  { label: "What's the conversion flow?", question: "What is the conversion flow for this offer?" },
+  { label: "Do I need proof?", question: "Do I need to upload proof for this offer?" },
+  { label: "When do I get paid?", question: "When will I get paid for this offer?" },
 ];
 
 const OPENED_KEY = "cashgpt.assistant.opened";
@@ -61,6 +70,7 @@ export function AssistantMascot({ className = "" }: { className?: string }) {
 export function AiAssistant() {
   const { session } = useAuth();
   const queryClient = useQueryClient();
+  const { viewedOffer, clearViewedOffer } = useViewedOffer();
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -115,8 +125,11 @@ export function AiAssistant() {
   }, [open]);
 
   const chat = useMutation({
-    mutationFn: (payload: { message: string; history: { role: Role; content: string }[] }) =>
-      callAssistant({ data: payload }),
+    mutationFn: (payload: {
+      message: string;
+      history: { role: Role; content: string }[];
+      offerId?: string | null;
+    }) => callAssistant({ data: payload }),
     onSuccess: (result: { reply: string }) => {
       setMessages((prev) => [...prev, { id: newId(), role: "assistant", content: result.reply }]);
     },
@@ -184,7 +197,12 @@ export function AiAssistant() {
 
     setMessages((prev) => [...prev, { id: newId(), role: "user", content: trimmed }]);
     setInput("");
-    chat.mutate({ message: trimmed, history });
+    // Only the offer id travels; the server loads the real offer data itself.
+    chat.mutate({
+      message: trimmed,
+      history,
+      ...(viewedOffer ? { offerId: viewedOffer.id } : {}),
+    });
   }
 
   const hasUserMessage = messages.some((m) => m.role === "user");
@@ -281,6 +299,29 @@ export function AiAssistant() {
             </button>
           </div>
 
+          {/* Offer context chip — makes it explicit (and dismissible) that
+              answers are scoped to the offer the user just opened. */}
+          {viewedOffer && (
+            <div
+              className="flex items-center gap-2 border-b border-border bg-primary/5 px-3 py-2"
+              data-testid="ai-assistant-offer-context"
+            >
+              <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
+              <p className="min-w-0 flex-1 truncate text-[11px] text-primary">
+                Answering about: <strong className="font-semibold">{viewedOffer.title}</strong>
+              </p>
+              <button
+                type="button"
+                onClick={clearViewedOffer}
+                aria-label="Stop answering about this offer"
+                data-testid="ai-assistant-offer-context-clear"
+                className="grid size-5 shrink-0 place-items-center rounded-full text-primary/70 transition-colors hover:text-primary"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          )}
+
           {/* Messages */}
           <div
             ref={scrollRef}
@@ -323,10 +364,10 @@ export function AiAssistant() {
               </div>
             )}
 
-            {/* Quick replies */}
+            {/* Quick replies — offer-specific ones when an offer is in context. */}
             {showQuickReplies && (
               <div className="flex flex-wrap gap-2 pt-1" data-testid="ai-assistant-quick-replies">
-                {QUICK_REPLIES.map((qr) => (
+                {(viewedOffer ? OFFER_QUICK_REPLIES : QUICK_REPLIES).map((qr) => (
                   <button
                     key={qr.label}
                     type="button"

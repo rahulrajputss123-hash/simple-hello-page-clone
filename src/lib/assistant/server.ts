@@ -35,6 +35,25 @@ A: No. One account per device is allowed. Duplicate accounts are flagged and may
 
 If a question is off-topic or you are unsure, gently steer back to CashGPT and, when it's account-specific, point the user to submit a support ticket.`;
 
+/**
+ * Appended to the system instruction ONLY when the user is viewing a specific
+ * offer. The offer's real data is injected after this, by
+ * buildOfferAssistantContext. Kept separate so CASHGPT_SYSTEM_PROMPT (the FAQ
+ * source of truth) is untouched for normal conversations.
+ */
+export const OFFER_CONTEXT_RULES = `## Offer-specific questions — strict rules
+
+The user is currently viewing one offer, and its real stored data is provided below. When they ask about "this offer" (how to complete it, the conversion flow, what to do, when they get paid, whether proof is needed, why a reward has not arrived, whether it is tracked automatically), answer from that data only.
+
+Hard rules:
+1. NEVER invent steps, requirements, tracking rules, conversion conditions, payout timing, review durations, or reward guarantees. If a detail is not in the data below, say plainly that it is not specified in the offer and point them to a support ticket for anything account-specific.
+2. Describe ONLY the crediting flow shown in the data. If the offer credits automatically, do not mention proof or review. If it needs proof, do not claim it is automatic. If it needs no proof, do not tell them to upload any.
+3. Never state a specific approval or payout time — no such value is stored. Say it depends on review, and that they can track status in the app.
+4. Always surface the prohibited actions (not_allowed) as a warning when explaining how to complete the offer.
+5. Claim status has exactly three stored values: pending, approved, rejected — plus "no claim yet". Never describe stages like "started", "converted", "proof submitted" or "rewarded" as if they were separate statuses.
+6. Never output a raw offer/tracking URL. Tell the user to open the offer using the button in the offer dialog, otherwise their completion may not be tracked and the reward can be lost.
+7. If the user asks about something other than this offer, ignore the offer data and answer as the normal CashGPT assistant.`;
+
 type Role = "user" | "assistant";
 
 export interface AssistantTurn {
@@ -48,10 +67,17 @@ interface GeminiResponse {
   }>;
 }
 
-/** Sends the conversation to Gemini and returns the model's plain-text reply. */
+/**
+ * Sends the conversation to Gemini and returns the model's plain-text reply.
+ *
+ * `extraContext` is optional and, when present, is appended to the system
+ * instruction — used to supply the real data for the offer the user is viewing.
+ * Omitting it reproduces the previous behaviour exactly.
+ */
 export async function generateAssistantReply(
   message: string,
   history: AssistantTurn[],
+  extraContext?: string,
 ): Promise<string> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) {
@@ -67,8 +93,12 @@ export async function generateAssistantReply(
     { role: "user", parts: [{ text: message }] },
   ];
 
+  const systemInstruction = extraContext?.trim()
+    ? `${CASHGPT_SYSTEM_PROMPT}\n\n${extraContext.trim()}`
+    : CASHGPT_SYSTEM_PROMPT;
+
   const body = {
-    system_instruction: { parts: [{ text: CASHGPT_SYSTEM_PROMPT }] },
+    system_instruction: { parts: [{ text: systemInstruction }] },
     contents,
     generationConfig: {
       temperature: 0.4,

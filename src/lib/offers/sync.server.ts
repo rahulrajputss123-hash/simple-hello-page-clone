@@ -87,6 +87,9 @@ export async function syncProviderImpl(providerId: string): Promise<SyncResult> 
       if (pageError) throw pageError;
       const rows = page ?? [];
       for (const row of rows) {
+        // external_offer_id is nullable (manual offers have none). Those can
+        // never match a feed offer, so they are skipped rather than keyed null.
+        if (!row.external_offer_id) continue;
         manualFlags.set(row.external_offer_id, {
           categoryManual: Boolean((row as { category_manual?: boolean }).category_manual),
           tagsManual: Boolean((row as { tags_manual?: boolean }).tags_manual),
