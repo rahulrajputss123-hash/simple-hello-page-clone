@@ -808,6 +808,31 @@
   }
 }
 
+/* ==========================================================================
+ * Home section heading ribbon
+ *
+ * The jade pill that carries the section title. The fill comes from the shared
+ * bg-jade-gradient utility; this adds only the depth and the darker "fold"
+ * where the ribbon passes behind the icon, so it reads as one continuous
+ * ribbon rather than a rectangle parked next to an icon.
+ * ========================================================================== */
+.section-ribbon {
+  box-shadow:
+    0 6px 16px -8px oklch(0.33 0.048 197.2 / 0.5),
+    inset 0 1px 0 oklch(1 0 0 / 0.14);
+}
+.section-ribbon::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2.5rem;
+  border-radius: 9999px 0 0 9999px;
+  background: linear-gradient(90deg, oklch(0.24 0.035 197.2 / 0.5), transparent);
+  pointer-events: none;
+}
+
 /* Refer & Earn page: mint-tinted ambient background + pulsing share glow */
 .refer-page-bg {
   position: relative;

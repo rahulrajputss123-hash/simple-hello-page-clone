@@ -142,6 +142,7 @@ function HomePage() {
 
       <section id="tour-starter-quests" className="rise-in">
         <SectionHeading
+          variant="ribbon"
           icon={Rocket}
           iconSrc="/icons/icon-starter-quest.png"
           title="Starter Quests"
@@ -152,6 +153,7 @@ function HomePage() {
 
       <section id="tour-featured-offers" className="rise-in" style={{ animationDelay: "70ms" }}>
         <SectionHeading
+          variant="ribbon"
           icon={Star}
           iconSrc="/icons/icon-featured-offers.png"
           title="Featured Offers"
@@ -170,7 +172,12 @@ function HomePage() {
         </div>
       </section>
 
-      <SectionHeading icon={Layers} iconSrc="/icons/icon-offerwall.png" title="Offerwall" />
+      <SectionHeading
+        variant="ribbon"
+        icon={Layers}
+        iconSrc="/icons/icon-offerwall.png"
+        title="Offerwall"
+      />
       <OfferwallSlot limit={6} />
       <div className="mt-3 flex justify-center">
         <Link
