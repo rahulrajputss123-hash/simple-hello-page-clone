@@ -88,6 +88,7 @@ function SupportPage() {
   return (
     <AppShell subtitle="Support" mainClass="page-fade-in">
       <SectionHeading
+        variant="ribbon"
         size="page"
         icon={LifeBuoy}
         iconSrc="/icons/icon-support.png"
@@ -96,7 +97,12 @@ function SupportPage() {
 
       <AiAssistant />
 
-      <SectionHeading icon={Lightbulb} iconSrc="/icons/icon-tips.png" title="Tips" />
+      <SectionHeading
+        variant="ribbon"
+        icon={Lightbulb}
+        iconSrc="/icons/icon-tips.png"
+        title="Tips"
+      />
       <div className="surface-card flex items-center justify-between gap-3 p-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold">Replay the app tour</p>
@@ -116,7 +122,12 @@ function SupportPage() {
         </Button>
       </div>
 
-      <SectionHeading icon={HelpCircle} iconSrc="/icons/icon-faq.png" title="FAQ" />
+      <SectionHeading
+        variant="ribbon"
+        icon={HelpCircle}
+        iconSrc="/icons/icon-faq.png"
+        title="FAQ"
+      />
       <div className="surface-card px-4">
         <Accordion type="single" collapsible>
           {(faq.data ?? []).map((item) => (
@@ -130,7 +141,12 @@ function SupportPage() {
         </Accordion>
       </div>
 
-      <SectionHeading icon={Mail} iconSrc="/icons/icon-contact-us.png" title="Contact us" />
+      <SectionHeading
+        variant="ribbon"
+        icon={Mail}
+        iconSrc="/icons/icon-contact-us.png"
+        title="Contact us"
+      />
       <form
         className="surface-card space-y-3 p-4"
         onSubmit={(event) => {
@@ -159,7 +175,12 @@ function SupportPage() {
         </Button>
       </form>
 
-      <SectionHeading icon={Ticket} iconSrc="/icons/icon-your-tickets.png" title="Your tickets" />
+      <SectionHeading
+        variant="ribbon"
+        icon={Ticket}
+        iconSrc="/icons/icon-your-tickets.png"
+        title="Your tickets"
+      />
       {!tickets.data?.length ? (
         <EmptyState
           icon={LifeBuoy}

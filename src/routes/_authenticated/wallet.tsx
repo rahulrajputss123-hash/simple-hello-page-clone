@@ -191,6 +191,7 @@ function WalletPage() {
       </div>
 
       <SectionHeading
+        variant="ribbon"
         icon={Wallet}
         iconSrc="/icons/icon-wallet.png"
         title="Withdraw"
@@ -406,7 +407,7 @@ function WalletPage() {
         {burstKey > 0 && <SuccessBurst key={burstKey} />}
       </div>
 
-      <SectionHeading icon={ArrowDownToLine} title="Withdrawals" />
+      <SectionHeading variant="ribbon" icon={ArrowDownToLine} title="Withdrawals" />
       {!withdrawals.data?.length ? (
         <EmptyState
           icon={ArrowDownToLine}
@@ -442,7 +443,7 @@ function WalletPage() {
         </ul>
       )}
 
-      <SectionHeading icon={Receipt} title="Transactions" />
+      <SectionHeading variant="ribbon" icon={Receipt} title="Transactions" />
       {transactions.isLoading ? (
         <Skeleton className="h-24 w-full rounded-2xl" />
       ) : !transactions.data?.length ? (

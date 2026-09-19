@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as PreviewLiveActivityRouteImport } from './routes/preview-live-activity'
 import { Route as PreviewQuestCardsRouteImport } from './routes/preview-quest-cards'
+import { Route as PreviewSectionHeadingRouteImport } from './routes/preview-section-heading'
 import { Route as PreviewSplashRouteImport } from './routes/preview-splash'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedFeaturedRouteImport } from './routes/_authenticated/featured'
@@ -59,6 +60,11 @@ const PreviewLiveActivityRoute = PreviewLiveActivityRouteImport.update({
 const PreviewQuestCardsRoute = PreviewQuestCardsRouteImport.update({
   id: '/preview-quest-cards',
   path: '/preview-quest-cards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewSectionHeadingRoute = PreviewSectionHeadingRouteImport.update({
+  id: '/preview-section-heading',
+  path: '/preview-section-heading',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PreviewSplashRoute = PreviewSplashRouteImport.update({
@@ -181,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/preview-live-activity': typeof PreviewLiveActivityRoute
   '/preview-quest-cards': typeof PreviewQuestCardsRoute
+  '/preview-section-heading': typeof PreviewSectionHeadingRoute
   '/preview-splash': typeof PreviewSplashRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/preview-live-activity': typeof PreviewLiveActivityRoute
   '/preview-quest-cards': typeof PreviewQuestCardsRoute
+  '/preview-section-heading': typeof PreviewSectionHeadingRoute
   '/preview-splash': typeof PreviewSplashRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
@@ -239,6 +247,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/preview-live-activity': typeof PreviewLiveActivityRoute
   '/preview-quest-cards': typeof PreviewQuestCardsRoute
+  '/preview-section-heading': typeof PreviewSectionHeadingRoute
   '/preview-splash': typeof PreviewSplashRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/featured': typeof AuthenticatedFeaturedRoute
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/preview-live-activity'
     | '/preview-quest-cards'
+    | '/preview-section-heading'
     | '/preview-splash'
     | '/admin'
     | '/featured'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/preview-live-activity'
     | '/preview-quest-cards'
+    | '/preview-section-heading'
     | '/preview-splash'
     | '/admin'
     | '/featured'
@@ -326,6 +337,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/preview-live-activity'
     | '/preview-quest-cards'
+    | '/preview-section-heading'
     | '/preview-splash'
     | '/_authenticated/admin'
     | '/_authenticated/featured'
@@ -356,6 +368,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   PreviewLiveActivityRoute: typeof PreviewLiveActivityRoute
   PreviewQuestCardsRoute: typeof PreviewQuestCardsRoute
+  PreviewSectionHeadingRoute: typeof PreviewSectionHeadingRoute
   PreviewSplashRoute: typeof PreviewSplashRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
   LegalReferralTermsRoute: typeof LegalReferralTermsRoute
@@ -401,6 +414,13 @@ declare module '@tanstack/react-router' {
       path: '/preview-quest-cards'
       fullPath: '/preview-quest-cards'
       preLoaderRoute: typeof PreviewQuestCardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview-section-heading': {
+      id: '/preview-section-heading'
+      path: '/preview-section-heading'
+      fullPath: '/preview-section-heading'
+      preLoaderRoute: typeof PreviewSectionHeadingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/preview-splash': {
@@ -603,6 +623,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   PreviewLiveActivityRoute: PreviewLiveActivityRoute,
   PreviewQuestCardsRoute: PreviewQuestCardsRoute,
+  PreviewSectionHeadingRoute: PreviewSectionHeadingRoute,
   PreviewSplashRoute: PreviewSplashRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
   LegalReferralTermsRoute: LegalReferralTermsRoute,

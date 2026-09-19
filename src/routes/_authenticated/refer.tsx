@@ -224,6 +224,7 @@ function ReferPage() {
     <AppShell subtitle="Refer">
       <div className="refer-page-bg">
         <SectionHeading
+          variant="ribbon"
           size="page"
           icon={Users}
           iconSrc="/icons/icon-referral.png"
@@ -353,7 +354,12 @@ function ReferPage() {
           </div>
         </div>
 
-        <SectionHeading icon={Wallet} iconSrc="/icons/icon-wallet.png" title="Referral Earnings" />
+        <SectionHeading
+          variant="ribbon"
+          icon={Wallet}
+          iconSrc="/icons/icon-wallet.png"
+          title="Referral Earnings"
+        />
         <div className="surface-card p-4" data-testid="refer-earnings-summary">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-gold/10 p-3" data-testid="refer-earnings-pending">
@@ -398,6 +404,7 @@ function ReferPage() {
         </div>
 
         <SectionHeading
+          variant="ribbon"
           icon={Gift}
           iconSrc="/icons/icon-how-you-earn.png"
           title={`How you earn ${formatMoney(REFERRAL_MAX_BONUS)}`}
@@ -426,6 +433,7 @@ function ReferPage() {
         </ol>
 
         <SectionHeading
+          variant="ribbon"
           icon={Users}
           iconSrc="/icons/icon-your-referrals.png"
           title="Your referrals"
@@ -511,6 +519,7 @@ function ReferPage() {
         )}
 
         <SectionHeading
+          variant="ribbon"
           icon={FileText}
           iconSrc="/icons/icon-terms-conditions.png"
           title="Terms & conditions"

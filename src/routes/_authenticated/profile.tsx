@@ -136,7 +136,12 @@ function ProfilePage() {
         </div>
       </div>
 
-      <SectionHeading icon={Settings} iconSrc="/icons/icon-profile.png" title="Settings" />
+      <SectionHeading
+        variant="ribbon"
+        icon={Settings}
+        iconSrc="/icons/icon-profile.png"
+        title="Settings"
+      />
       <div className="surface-card divide-y divide-border">
         <div className="flex items-center justify-between p-4">
           <div>

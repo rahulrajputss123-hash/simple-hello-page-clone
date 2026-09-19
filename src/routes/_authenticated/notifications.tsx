@@ -50,7 +50,7 @@ function NotificationsPage() {
 
   return (
     <AppShell subtitle="Notifications" mainClass="page-fade-in">
-      <SectionHeading size="page" icon={Bell} title="Notifications" />
+      <SectionHeading variant="ribbon" size="page" icon={Bell} title="Notifications" />
       {!notifications.data?.length ? (
         <EmptyState
           icon={Bell}

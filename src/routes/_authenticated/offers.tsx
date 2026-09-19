@@ -26,6 +26,7 @@ function OffersPage() {
   return (
     <AppShell subtitle="Offers" mainClass="page-fade-in">
       <SectionHeading
+        variant="ribbon"
         size="page"
         icon={Tag}
         iconSrc="/icons/icon-offers.png"
@@ -36,6 +37,7 @@ function OffersPage() {
       <SectionBanner section="offers" />
 
       <SectionHeading
+        variant="ribbon"
         icon={Star}
         iconSrc="/icons/icon-featured-offers.png"
         title="Featured Offers"
@@ -47,7 +49,12 @@ function OffersPage() {
         <ViewAllLink to="/featured" testid="offers-view-all-featured" />
       </div>
 
-      <SectionHeading icon={Layers} iconSrc="/icons/icon-offerwall.png" title="Offerwall" />
+      <SectionHeading
+        variant="ribbon"
+        icon={Layers}
+        iconSrc="/icons/icon-offerwall.png"
+        title="Offerwall"
+      />
       <OfferwallSlot limit={6} />
       <div className="mt-3 flex justify-center">
         <ViewAllLink to="/offerwall" testid="offers-view-all-offerwall" />

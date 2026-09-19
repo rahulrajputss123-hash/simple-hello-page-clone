@@ -29,6 +29,7 @@ function FeaturedPage() {
   return (
     <AppShell subtitle="Featured offers" mainClass="page-fade-in">
       <SectionHeading
+        variant="ribbon"
         size="page"
         icon={Star}
         iconSrc="/icons/icon-featured-offers.png"

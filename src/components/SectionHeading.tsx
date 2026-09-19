@@ -10,9 +10,13 @@ import { Sparkles } from "lucide-react";
  * Layered mint leaf accent that finishes the ribbon's right tip. Purely
  * decorative; sized in the flex row so it can never overflow a narrow screen.
  */
-function RibbonLeaves() {
+function RibbonLeaves({ isPage }: { isPage: boolean }) {
   return (
-    <svg viewBox="0 0 30 24" className="h-5 w-[1.6rem] shrink-0" aria-hidden>
+    <svg
+      viewBox="0 0 30 24"
+      className={`shrink-0 ${isPage ? "h-6 w-[1.9rem]" : "h-5 w-[1.6rem]"}`}
+      aria-hidden
+    >
       <path d="M2 13C8 3 18 1.5 27 4.5C21 13 10.5 16.5 2 13Z" fill="var(--mint)" opacity="0.95" />
       <path
         d="M4.5 19.5C9.5 13 17 12 23 14C18 20 10 22.5 4.5 19.5Z"
@@ -54,47 +58,74 @@ export function SectionHeading({
     .replace(/(^-|-$)/g, "");
 
   if (variant === "ribbon") {
+    // size="page" gets the same ribbon one step larger, so a page title still
+    // outranks the section headings sitting beneath it.
+    const bubbleSize = isPage ? "size-14" : "size-12";
+    const bubbleImgSize = isPage ? "size-12" : "size-10";
+    const bubbleIconSize = isPage ? "size-[1.6rem]" : "size-[1.35rem]";
+    const ribbonTuck = isPage ? "-ml-6" : "-ml-5";
+    const ribbonPad = isPage ? "py-2.5 pl-8 pr-6" : "py-2 pl-7 pr-5";
+    const titleSize = isPage ? "text-[17px]" : "text-[15px]";
+    const leafTuck = isPage ? "-ml-2.5" : "-ml-2";
+    // Lines the subtitle up with the title inside the ribbon:
+    // page  = 56px bubble - 24px tuck + 32px ribbon padding = 64px (pl-16)
+    // block = 48px bubble - 20px tuck + 28px ribbon padding = 56px (pl-14)
+    const subtitleIndent = isPage ? "pl-16" : "pl-14";
+
     return (
       <div
         data-testid={`section-heading-${slug}`}
         className={`${isPage ? "mb-3 mt-2" : "mb-3 mt-6"} ${className}`}
       >
-        <div className="flex items-center justify-between gap-3">
+        {/* flex-wrap plus a basis on the heading group lets a trailing action
+            drop onto its own line on very narrow phones instead of squeezing
+            the ribbon title down to a couple of characters. With no action the
+            group has no basis, so single-child rows are unaffected. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           {/* min-w-0 lets the ribbon truncate instead of pushing the row wider. */}
-          <div className="flex min-w-0 items-center">
+          <div
+            className={`flex min-w-0 items-center ${action ? "flex-1 basis-[13.5rem]" : ""}`.trim()}
+          >
             {/* Icon bubble sits above the ribbon so the ribbon reads as
                 emerging from underneath it. */}
             <span
               aria-hidden
               data-testid={`section-heading-${slug}-icon`}
-              className="relative z-20 grid size-12 shrink-0 place-items-center rounded-full bg-card shadow-soft ring-1 ring-inset ring-mint/35"
+              className={`relative z-20 grid ${bubbleSize} shrink-0 place-items-center rounded-full bg-card shadow-soft ring-1 ring-inset ring-mint/35`}
             >
               {iconSrc ? (
-                <img src={iconSrc} alt="" className="size-10 object-contain" />
+                <img src={iconSrc} alt="" className={`${bubbleImgSize} object-contain`} />
               ) : (
-                <Icon className="size-[1.35rem] text-primary" strokeWidth={2.25} />
+                <Icon className={`${bubbleIconSize} text-primary`} strokeWidth={2.25} />
               )}
             </span>
 
             {/* Ribbon — negative margin tucks its rounded left end behind the icon. */}
-            <span className="section-ribbon relative z-10 -ml-5 inline-flex min-w-0 items-center overflow-hidden rounded-full bg-jade-gradient py-2 pl-7 pr-5">
-              <h2 className="truncate font-display text-[15px] uppercase leading-none tracking-[0.03em] text-primary-foreground">
+            <span
+              className={`section-ribbon relative z-10 ${ribbonTuck} inline-flex min-w-0 items-center overflow-hidden rounded-full bg-jade-gradient ${ribbonPad}`}
+            >
+              <h2
+                className={`truncate font-display ${titleSize} uppercase leading-none tracking-[0.03em] text-primary-foreground`}
+              >
                 {title}
               </h2>
             </span>
 
-            <span className="-ml-2 shrink-0">
-              <RibbonLeaves />
+            <span className={`${leafTuck} shrink-0`}>
+              <RibbonLeaves isPage={isPage} />
             </span>
           </div>
 
-          {action ? <div className="shrink-0">{action}</div> : null}
+          {/* ms-auto keeps the action right-aligned both inline and once wrapped. */}
+          {action ? <div className="ms-auto shrink-0">{action}</div> : null}
         </div>
 
-        {/* Subtitle sits outside the ribbon, indented to line up with the title
-            (icon 48px - 20px overlap + 28px ribbon padding = 56px). */}
+        {/* Subtitle sits outside the ribbon and wraps freely rather than
+            truncating, so long copy stays readable. */}
         {subtitle ? (
-          <p className="mt-2 pl-14 text-xs leading-snug text-muted-foreground">{subtitle}</p>
+          <p className={`mt-2 ${subtitleIndent} text-xs leading-snug text-muted-foreground`}>
+            {subtitle}
+          </p>
         ) : null}
       </div>
     );

@@ -27,6 +27,7 @@ function OfferwallPage() {
   return (
     <AppShell subtitle="Offerwall" mainClass="page-fade-in">
       <SectionHeading
+        variant="ribbon"
         size="page"
         icon={Layers}
         iconSrc="/icons/icon-offerwall.png"

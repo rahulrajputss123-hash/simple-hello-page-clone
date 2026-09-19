@@ -155,6 +155,7 @@ function TaskPage() {
   return (
     <AppShell subtitle="Tasks" mainClass="page-fade-in">
       <SectionHeading
+        variant="ribbon"
         size="page"
         icon={ListChecks}
         iconSrc="/icons/icon-your-task.png"
