@@ -143,6 +143,111 @@ function describeClaim(state: OfferClaimState, claim: ClaimRow | null): string {
 }
 
 /**
+ * Title words too common to identify an offer on their own — matching on these
+ * would attach the wrong offer's data to an unrelated question.
+ */
+const GENERIC_TITLE_WORDS = new Set([
+  "offer",
+  "offers",
+  "cash",
+  "cashback",
+  "money",
+  "reward",
+  "rewards",
+  "bonus",
+  "free",
+  "play",
+  "game",
+  "games",
+  "gaming",
+  "mobile",
+  "desktop",
+  "android",
+  "iphone",
+  "geos",
+  "survey",
+  "surveys",
+  "install",
+  "signup",
+  "register",
+  "download",
+  "video",
+  "editor",
+  "browser",
+  "prizes",
+  "prize",
+  "deal",
+  "deals",
+  "trial",
+  "with",
+  "your",
+  "from",
+  "only",
+  "best",
+  "life",
+  "all",
+  "get",
+  "and",
+  "the",
+  "for",
+  "web",
+]);
+
+/**
+ * Resolves an offer from a plain chat message that names it, e.g. "how does
+ * HostingTom work?". Used only when no offer is in context, so the assistant can
+ * answer path (b) — asking by name — with the same real data as path (a).
+ *
+ * Deliberately conservative: it matches only distinctive title words of 6+
+ * characters, and refuses to guess when two different offers tie. Attaching the
+ * wrong offer's data would be worse than answering generically.
+ */
+export async function resolveOfferIdFromMessage(message: string): Promise<string | null> {
+  const haystack = ` ${message.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
+
+  const result = await supabaseAdmin.from("offers").select("id, title").eq("is_active", true);
+  if (!result.data?.length) return null;
+
+  let bestId: string | null = null;
+  let bestScore = 0;
+  let ambiguous = false;
+
+  for (const row of result.data as Array<{ id: string; title: string }>) {
+    const words = new Set(row.title.toLowerCase().match(/[a-z0-9]+/g) ?? []);
+
+    // Qualifying requires at least one distinctive word (6+ chars, not generic)
+    // — that is what makes the match about *this* offer rather than a coincidence.
+    let hasDistinctiveMatch = false;
+    // Scoring then sums every matched word of 4+ chars, generic ones included,
+    // so extra words the user typed can break a tie between offers that share a
+    // brand name (e.g. two "PixelPointTV" offers separated by "gaming").
+    let score = 0;
+
+    for (const word of words) {
+      if (word.length < 4) continue;
+      if (!haystack.includes(` ${word} `)) continue;
+      score += word.length;
+      if (word.length >= 6 && !GENERIC_TITLE_WORDS.has(word)) hasDistinctiveMatch = true;
+    }
+
+    if (!hasDistinctiveMatch) continue;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = row.id;
+      ambiguous = false;
+    } else if (score === bestScore && row.id !== bestId) {
+      ambiguous = true;
+    }
+  }
+
+  // Refuse to guess between two equally good matches — attaching the wrong
+  // offer's data is worse than answering without offer context.
+  if (ambiguous || !bestId) return null;
+  return bestId;
+}
+
+/**
  * Loads the real data for one offer plus this user's own claim, and formats it
  * for the assistant's system instruction. Returns null when the offer does not
  * exist, so the assistant simply behaves as the normal FAQ helper.
@@ -197,17 +302,23 @@ export async function buildOfferAssistantContext(
     );
   }
   if (!offer.is_active) facts.push("This offer is currently INACTIVE / no longer available.");
-  const description = text(offer.description);
-  if (description) facts.push(`Description: ${description}`);
-  const requirements = text(offer.requirements);
-  if (requirements) facts.push(`Requirements (how to complete): ${requirements}`);
-  const notAllowed = text(offer.not_allowed);
-  if (notAllowed) facts.push(`Prohibited actions (not_allowed): ${notAllowed}`);
-  const countries = list(offer.countries);
-  if (countries) facts.push(`Available countries: ${countries}`);
-  const devices = list(offer.devices);
-  if (devices) facts.push(`Supported devices: ${devices}`);
-  if (offer.expires_at) facts.push(`Expires at: ${offer.expires_at}`);
+
+  // Fields the user is most likely to ask about are stated even when empty.
+  // Most network-synced offers ship with blank requirements/not_allowed, and
+  // silently omitting them left the model unable to tell "absent" from "not
+  // mentioned" — so it filled the gap with plausible-sounding boilerplate.
+  // NOT ON FILE is an explicit instruction to say so instead.
+  const NOT_ON_FILE = "NOT ON FILE — say plainly that this is not listed for this offer.";
+  facts.push(`Description: ${text(offer.description) ?? NOT_ON_FILE}`);
+  facts.push(`Requirements (how to complete): ${text(offer.requirements) ?? NOT_ON_FILE}`);
+  facts.push(`Prohibited actions (not_allowed): ${text(offer.not_allowed) ?? NOT_ON_FILE}`);
+  facts.push(
+    `Available countries: ${list(offer.countries) ?? "not restricted by country on file (no list stored)"}`,
+  );
+  facts.push(
+    `Supported devices: ${list(offer.devices) ?? "no device restriction stored for this offer"}`,
+  );
+  facts.push(`Expires at: ${offer.expires_at ?? "no expiry date on file"}`);
   const category = text(offer.category);
   if (category) facts.push(`Category: ${category}`);
   const tags = list(offer.tags);

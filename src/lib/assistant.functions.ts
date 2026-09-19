@@ -32,15 +32,34 @@ export const sendAssistantMessage = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => chatInput.parse(input))
   .handler(async ({ data, context }) => {
     const { generateAssistantReply, OFFER_CONTEXT_RULES } = await import("./assistant/server");
+    const { buildOfferAssistantContext, resolveOfferIdFromMessage } =
+      await import("./assistant/offer-context.server");
+
+    // Path (a) the offer is in context from its dialog; path (b) the user named
+    // it in a normal message. The in-context offer always wins, because that is
+    // what the "Answering about:" chip promises.
+    let offerId = data.offerId ?? null;
+    if (!offerId) {
+      offerId = await resolveOfferIdFromMessage(data.message);
+      if (offerId) console.info(`[assistant] resolved offer ${offerId} from the message text`);
+    }
 
     let extraContext: string | undefined;
-    if (data.offerId) {
-      const { buildOfferAssistantContext } = await import("./assistant/offer-context.server");
+    if (offerId) {
       // Scoped to the caller's own user id, so the claim status can only ever be
       // their own. A missing/unknown offer just yields no context.
-      const offerContext = await buildOfferAssistantContext(data.offerId, context.userId);
+      const offerContext = await buildOfferAssistantContext(offerId, context.userId);
       if (offerContext) {
         extraContext = `${OFFER_CONTEXT_RULES}\n\n${offerContext.promptBlock}`;
+        console.info(
+          `[assistant] offer context attached: ${offerContext.offerId} (${offerContext.conversionMode}), ${extraContext.length} chars`,
+        );
+      } else {
+        // The only silent way to lose offer-awareness: a valid uuid that has no
+        // row in `offers`. Logged so it can never look like a model problem.
+        console.warn(
+          `[assistant] offerId ${offerId} returned no context (no matching offers row) — answering without offer data`,
+        );
       }
     }
 

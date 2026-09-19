@@ -70,7 +70,8 @@ export function AssistantMascot({ className = "" }: { className?: string }) {
 export function AiAssistant() {
   const { session } = useAuth();
   const queryClient = useQueryClient();
-  const { viewedOffer, clearViewedOffer } = useViewedOffer();
+  const { viewedOffer, clearViewedOffer, assistantOpenRequested, consumeAssistantOpen } =
+    useViewedOffer();
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -123,6 +124,20 @@ export function AiAssistant() {
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  // An offer's "Ask the assistant" button raises this before navigating here,
+  // so the panel opens on arrival instead of waiting for a second tap.
+  useEffect(() => {
+    if (!assistantOpenRequested) return;
+    consumeAssistantOpen();
+    setOpen(true);
+    setShowNudge(false);
+    try {
+      window.localStorage.setItem(OPENED_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }, [assistantOpenRequested, consumeAssistantOpen]);
 
   const chat = useMutation({
     mutationFn: (payload: {

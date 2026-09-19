@@ -46,6 +46,7 @@ export const OFFER_CONTEXT_RULES = `## Offer-specific questions — strict rules
 The user is currently viewing one offer, and its real stored data is provided below. When they ask about "this offer" (how to complete it, the conversion flow, what to do, when they get paid, whether proof is needed, why a reward has not arrived, whether it is tracked automatically), answer from that data only.
 
 Hard rules:
+0. Any field marked "NOT ON FILE" is genuinely empty for this offer. Say so plainly and specifically — for example "this offer doesn't have any requirements listed on file" or "no prohibited actions are listed for this offer". NEVER paper over a NOT ON FILE field with general advice like "it depends on the offer page", "follow the instructions shown", or "usually you just complete the action". Vague filler that sounds like an answer is worse than admitting the field is empty. You may still describe the crediting flow, which is always known.
 1. NEVER invent steps, requirements, tracking rules, conversion conditions, payout timing, review durations, or reward guarantees. If a detail is not in the data below, say plainly that it is not specified in the offer and point them to a support ticket for anything account-specific.
 2. Describe ONLY the crediting flow shown in the data. If the offer credits automatically, do not mention proof or review. If it needs proof, do not claim it is automatic. If it needs no proof, do not tell them to upload any.
 3. Never state a specific approval or payout time — no such value is stored. Say it depends on review, and that they can track status in the app.
@@ -64,7 +65,9 @@ export interface AssistantTurn {
 interface GeminiResponse {
   candidates?: Array<{
     content?: { parts?: Array<{ text?: string }> };
+    finishReason?: string;
   }>;
+  usageMetadata?: Record<string, unknown>;
 }
 
 /**
@@ -102,27 +105,63 @@ export async function generateAssistantReply(
     contents,
     generationConfig: {
       temperature: 0.4,
-      maxOutputTokens: 1024,
+      // gemini-3.x is a thinking model and maxOutputTokens is the budget for
+      // thinking tokens AND the reply combined. Measured on a real offer
+      // question: thoughtsTokenCount ran 825-918 against the old 1024 ceiling,
+      // leaving ~100 tokens for the answer and intermittently tripping
+      // finishReason=MAX_TOKENS (truncated or empty reply). Capping the
+      // thinking level drops it to ~230 and the headroom below makes a starved
+      // answer impossible. Longer system instructions (an offer context adds
+      // ~2.9k chars) made the model think harder, so offer questions were hit
+      // far more often than plain FAQ ones.
+      maxOutputTokens: 4096,
+      thinkingConfig: { thinkingLevel: "low" },
     },
   };
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  // The model is capacity-constrained and returns a transient 503
+  // ("experiencing high demand") often enough to surface as the client's
+  // "couldn't reach the assistant" fallback. Retry those with backoff.
+  const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+  const MAX_ATTEMPTS = 3;
 
-  let response: Response;
-  try {
-    response = await fetch(GEMINI_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeout);
+  let response: Response | undefined;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      response = await fetch(GEMINI_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      // Timeout / network failure — retry unless this was the last attempt.
+      if (attempt === MAX_ATTEMPTS) {
+        console.error(`[assistant] Gemini request failed after ${attempt} attempts:`, err);
+        throw new Error("assistant_upstream_error");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+      continue;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!RETRY_STATUSES.has(response.status)) break;
+
+    const detail = await response.text().catch(() => "");
+    console.warn(
+      `[assistant] Gemini ${response.status} on attempt ${attempt}/${MAX_ATTEMPTS}: ${detail.slice(0, 200)}`,
+    );
+    if (attempt === MAX_ATTEMPTS) throw new Error("assistant_upstream_error");
+    await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
   }
+
+  if (!response) throw new Error("assistant_upstream_error");
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
@@ -131,13 +170,26 @@ export async function generateAssistantReply(
   }
 
   const data = (await response.json()) as GeminiResponse;
-  const text = data.candidates?.[0]?.content?.parts
+  const candidate = data.candidates?.[0];
+  const text = candidate?.content?.parts
     ?.map((part) => part.text ?? "")
     .join("")
     .trim();
 
+  // Surfaced because a silently truncated reply is what made offer answers look
+  // vague rather than broken. thoughtsTokenCount is the figure to watch.
+  if (candidate?.finishReason && candidate.finishReason !== "STOP") {
+    console.warn(
+      `[assistant] finishReason=${candidate.finishReason} usage=${JSON.stringify(
+        data.usageMetadata ?? {},
+      )} — reply may be truncated`,
+    );
+  }
+
   if (!text) {
-    console.error("[assistant] Gemini returned an empty reply");
+    console.error(
+      `[assistant] Gemini returned an empty reply (finishReason=${candidate?.finishReason}, usage=${JSON.stringify(data.usageMetadata ?? {})})`,
+    );
     throw new Error("assistant_empty_reply");
   }
 

@@ -76,7 +76,7 @@ export function OfferDetailsDialog({
   const inputRef = useRef<HTMLInputElement>(null);
   const requestUpload = useServerFn(requestProofUploadUrl);
   const navigate = useNavigate();
-  const { setViewedOffer } = useViewedOffer();
+  const { setViewedOffer, requestAssistantOpen } = useViewedOffer();
 
   // Publish the open offer so the Support-tab assistant can answer questions
   // about it. Only the id/title are shared; the server loads the real data.
@@ -269,6 +269,9 @@ export function OfferDetailsDialog({
         <button
           type="button"
           onClick={() => {
+            // Ask the Support-tab chat to open itself as soon as it mounts, so
+            // this is a single tap instead of "navigate, then find the bubble".
+            requestAssistantOpen();
             onOpenChange(false);
             void navigate({ to: "/support" });
           }}
