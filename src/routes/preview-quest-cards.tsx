@@ -25,7 +25,7 @@ function baseQuest(overrides: Partial<QuestCardQuest>): QuestCardQuest {
     reward_amount: 1,
     shortlink_steps: [],
     min_seconds_per_step: 15,
-    locker_url: null,
+    locker_urls: [],
     is_active: true,
     sort_order: 0,
     lock_type: "none",
@@ -61,7 +61,7 @@ function PreviewQuestCards() {
     label: "Complete Locker",
     quest_type: "locker",
     reward_amount: 1.5,
-    locker_url: "https://example.com/locker",
+    locker_urls: ["https://example.com/locker-1", "https://example.com/locker-2"],
   });
   const lockedQuest = baseQuest({
     key: "starter_locked",

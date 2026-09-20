@@ -120,14 +120,14 @@ export function deriveQuestView(
       ? Math.max(1, quest.ads_required)
       : quest.quest_type === "shortlink"
         ? Math.max(1, quest.shortlink_steps.length)
-        : 1;
+        : // locker: one step per configured locker, same as shortlink.
+          Math.max(1, quest.locker_urls.length);
   const current = credited
     ? total
     : quest.quest_type === "ads"
       ? Number(active?.ads_watched ?? 0)
-      : quest.quest_type === "shortlink"
-        ? Number(active?.current_step ?? 0)
-        : 0;
+      : // Both shortlink and locker chains track progress in current_step.
+        Number(active?.current_step ?? 0);
   const progress = Math.min(Math.max(0, current), total);
   return {
     total,
@@ -140,6 +140,8 @@ export function deriveQuestView(
         ? `Watch ${total} ${total === 1 ? "video ad" : "video ads"} and get rewarded!`
         : quest.quest_type === "shortlink"
           ? `Visit ${total === 1 ? "the short link" : `${total} short links`} and get rewarded!`
-          : "Complete the locker challenge and unlock your reward!",
+          : total === 1
+            ? "Complete the locker challenge and unlock your reward!"
+            : `Complete ${total} locker challenges and unlock your reward!`,
   };
 }

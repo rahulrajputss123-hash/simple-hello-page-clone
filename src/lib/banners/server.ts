@@ -219,10 +219,21 @@ export async function setSmartBannerEnabledImpl(templateKey: string, enabled: bo
   return { ok: true };
 }
 
-/** Signed upload URL to the public banner-assets bucket for admin uploads. */
-export async function requestBannerUploadUrlImpl(userId: string, filename: string) {
+/**
+ * Signed upload URL to the public banner-assets bucket for admin uploads.
+ *
+ * `folder` namespaces the upload so more than one admin form can share this
+ * bucket (banners write to the bucket root, offer artwork to `offers/`).
+ * Omitting it preserves the original banner paths exactly.
+ */
+export async function requestBannerUploadUrlImpl(
+  userId: string,
+  filename: string,
+  folder?: string,
+) {
   const safe = filename.replace(/[^A-Za-z0-9._-]/g, "_");
-  const path = `${userId}/${Date.now()}-${safe}`;
+  const prefix = folder ? `${folder.replace(/[^a-z0-9-]/gi, "")}/` : "";
+  const path = `${prefix}${userId}/${Date.now()}-${safe}`;
   const { data, error } = await db.storage.from("banner-assets").createSignedUploadUrl(path);
   if (error || !data) {
     throw new Error(error?.message ?? "Could not create upload URL.");

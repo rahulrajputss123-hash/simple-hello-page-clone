@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/States";
@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { requestBannerUploadUrl } from "@/lib/banners/functions";
 import { formatDateTime, formatMoney } from "@/lib/coinquest";
 import {
   deleteManualOffer,
@@ -91,6 +92,9 @@ export function OffersManager() {
   const [country, setCountry] = useState("");
   const [form, setForm] = useState<FormState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AdminOffer | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const requestUpload = useServerFn(requestBannerUploadUrl);
 
   const providers = useQuery({
     queryKey: ["offer-providers"],
@@ -117,6 +121,42 @@ export function OffersManager() {
     void queryClient.invalidateQueries({ queryKey: ["offers"] });
   };
   const onError = (error: Error) => toast.error(error.message);
+
+  /**
+   * Uploads offer artwork and writes the resulting public URL into the `icon`
+   * field. Same flow as the Banners form: signed URL -> PUT -> set the field.
+   * The field stays a plain text input, so pasting an external URL or an icon
+   * name still works.
+   */
+  const handleFile = async (file: File) => {
+    if (!form) return;
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error("Image must be under 3 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { uploadUrl, token, publicUrl } = await requestUpload({
+        data: { filename: file.name.slice(0, 120), target: "offers" },
+      });
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: file,
+      });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      setForm({ ...form, icon: publicUrl });
+      toast.success("Image uploaded.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const controlsAction = useMutation({
     mutationFn: (input: {
@@ -686,10 +726,35 @@ export function OffersManager() {
                 )}
               </div>
               <Field label="Image URL or icon name">
-                <Input
-                  value={form.icon}
-                  onChange={(event) => setForm({ ...form, icon: event.target.value })}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={form.icon}
+                    placeholder="https://… or upload, or an icon name"
+                    onChange={(event) => setForm({ ...form, icon: event.target.value })}
+                    data-testid="offer-form-image-url"
+                  />
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void handleFile(file);
+                    }}
+                    data-testid="offer-form-image-file"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={uploading}
+                    onClick={() => fileRef.current?.click()}
+                    data-testid="offer-form-image-upload"
+                  >
+                    {uploading ? "…" : <Upload className="size-4" />}
+                  </Button>
+                </div>
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="User reward ($)">

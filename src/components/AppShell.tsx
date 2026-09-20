@@ -4,6 +4,7 @@ import { Bell, Coins } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useCountUp } from "@/hooks/useCountUp";
 import { formatMoney } from "@/lib/coinquest";
+import { avatarById } from "@/lib/onboarding/premium";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { BottomNav } from "./BottomNav";
@@ -97,7 +98,22 @@ export function AppHeader({ subtitle }: { subtitle?: string }) {
           aria-label="Open profile and settings"
           className="flex items-center gap-2"
         >
-          <BrandMark />
+          {/* The user's chosen avatar, inside the existing profile link. Uses the
+              same avatarById helper as the profile screen, which falls back to
+              the first avatar option when avatar_url is null. */}
+          <span
+            aria-hidden
+            data-testid="app-header-avatar"
+            className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-card shadow-soft ring-1 ring-border"
+          >
+            <img
+              src={avatarById(profile?.avatar_url).imageUrl}
+              alt=""
+              className="size-full object-cover"
+              loading="eager"
+              decoding="async"
+            />
+          </span>
           <span className="block leading-tight">
             <span className="block text-xs text-muted-foreground">Hello</span>
             <span className="block font-display text-lg leading-tight">{firstName}</span>

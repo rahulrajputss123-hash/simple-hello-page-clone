@@ -22,7 +22,9 @@ const questFormSchema = z.object({
   rewardAmount: z.number().min(0).max(10000).default(0),
   shortlinkSteps: z.array(shortlinkStepSchema).max(3).default([]),
   minSecondsPerStep: z.number().int().min(1).max(600).default(15),
-  lockerUrl: z.string().trim().url().max(2000).nullable().optional(),
+  // 1-3 ordered lockers, completed sequentially. Sent only for locker quests,
+  // so min(1) does not reject an ads/shortlink save.
+  lockerUrls: z.array(z.string().trim().url().max(2000)).min(1).max(3).optional(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(9999).default(0),
   lockType: z.enum(["none", "time", "earning"]).default("none"),

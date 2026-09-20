@@ -84,7 +84,12 @@ export function StarterQuests() {
     onSuccess: (result) => {
       if (result.lockerUrl) {
         window.open(result.lockerUrl, "_blank", "noopener,noreferrer");
-        toast.info("Complete the partner challenge, then return to CashGPT.");
+        // Multi-locker quests tell the user where they are in the chain.
+        toast.info(
+          result.total > 1
+            ? `Locker ${result.step} of ${result.total} — complete it, then return to CashGPT.`
+            : "Complete the partner challenge, then return to CashGPT.",
+        );
       } else {
         toast.error("This locker has no URL configured.");
       }

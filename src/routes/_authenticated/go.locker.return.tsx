@@ -35,7 +35,11 @@ export const Route = createFileRoute("/_authenticated/go/locker/return")({
 });
 
 type State =
-  { kind: "loading" } | { kind: "error"; message: string } | { kind: "success"; reward: number };
+  | { kind: "loading" }
+  | { kind: "error"; message: string }
+  /** One locker in a multi-locker chain finished; the next one is opening. */
+  | { kind: "advancing"; step: number; total: number }
+  | { kind: "success"; reward: number };
 
 function LockerReturnPage() {
   const { questKey } = useSearch({ from: "/_authenticated/go/locker/return" });
@@ -53,6 +57,27 @@ function LockerReturnPage() {
       try {
         const result = await complete({ data: { questKey } });
         if (cancelled) return;
+
+        // Multi-locker chain: more lockers to go. Show a brief hand-off and
+        // send the browser into the next locker, the same way a shortlink step
+        // advances to its next URL.
+        if (!result.completed && result.nextUrl) {
+          setState({ kind: "advancing", step: result.step, total: result.total });
+          setTimeout(() => {
+            if (!cancelled) window.location.href = result.nextUrl as string;
+          }, 1200);
+          return;
+        }
+
+        // Chain finished (or a single-locker quest) — reward is credited.
+        if (!result.completed) {
+          setState({
+            kind: "error",
+            message: "That locker is done, but the next one is not configured. Contact support.",
+          });
+          return;
+        }
+
         setState({ kind: "success", reward: result.reward });
         // Auto-redirect to home after 3 seconds.
         setTimeout(() => {
@@ -85,6 +110,19 @@ function LockerReturnPage() {
           <>
             <Loader2 className="size-10 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">Verifying your completion…</p>
+          </>
+        )}
+
+        {state.kind === "advancing" && (
+          <>
+            <CheckCircle2 className="success-pop size-10 text-primary" />
+            <p className="text-lg font-semibold" data-testid="locker-step-advancing">
+              Locker {state.step} of {state.total} done — opening the next one…
+            </p>
+            <Loader2 className="size-6 animate-spin text-primary" />
+            <p className="text-xs text-muted-foreground">
+              Your reward is credited once all {state.total} lockers are complete.
+            </p>
           </>
         )}
 

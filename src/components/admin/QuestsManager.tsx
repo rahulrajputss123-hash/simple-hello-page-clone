@@ -40,7 +40,9 @@ type FormState = {
   rewardAmount: string;
   shortlinkSteps: ShortlinkStep[];
   minSecondsPerStep: string;
-  lockerUrl: string;
+  /** 1-3 locker URLs, completed in order. Unlike shortlink's fixed 3, the
+   *  admin chooses how many rows exist. */
+  lockerUrls: string[];
   isActive: boolean;
   sortOrder: string;
   lockType: "none" | "time" | "earning";
@@ -61,7 +63,7 @@ const emptyForm = (): FormState => ({
     { network: "", url: "" },
   ],
   minSecondsPerStep: "15",
-  lockerUrl: "",
+  lockerUrls: [""],
   isActive: true,
   sortOrder: "0",
   lockType: "none",
@@ -107,7 +109,11 @@ export function QuestsManager() {
                 }))
               : [],
           minSecondsPerStep: Number(state.minSecondsPerStep) || 15,
-          lockerUrl: state.questType === "locker" ? state.lockerUrl.trim() || null : null,
+          // Sent only for locker quests — the schema requires at least one URL
+          // when the field is present.
+          ...(state.questType === "locker"
+            ? { lockerUrls: state.lockerUrls.map((url) => url.trim()).filter(Boolean) }
+            : {}),
           isActive: state.isActive,
           sortOrder: Number(state.sortOrder) || 0,
           lockType: state.lockType,
@@ -162,7 +168,9 @@ export function QuestsManager() {
           ]
       ).slice(0, 3),
       minSecondsPerStep: String(quest.min_seconds_per_step ?? 15),
-      lockerUrl: quest.locker_url ?? "",
+      // A backfilled single-locker quest opens as one row; always keep >= 1 row
+      // so the form is never empty.
+      lockerUrls: quest.locker_urls?.length ? [...quest.locker_urls].slice(0, 3) : [""],
       isActive: quest.is_active,
       sortOrder: String(quest.sort_order ?? 0),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -180,7 +188,10 @@ export function QuestsManager() {
     (form.questType === "ads"
       ? Number(form.adsRequired) > 0
       : form.questType === "locker"
-        ? form.lockerUrl.trim().length > 0
+        ? (() => {
+            const urls = form.lockerUrls.map((url) => url.trim()).filter(Boolean);
+            return urls.length >= 1 && urls.length <= 3;
+          })()
         : form.shortlinkSteps.every((s) => s.network.trim() && s.url.trim()));
 
   const origin = typeof window !== "undefined" ? window.location.origin : "https://yourapp.com";
@@ -220,7 +231,11 @@ export function QuestsManager() {
                     {quest.key} · {quest.quest_type}
                     {quest.quest_type === "ads"
                       ? ` · ${quest.ads_required} ads`
-                      : ` · ${quest.shortlink_steps.length} shortlinks`}
+                      : quest.quest_type === "locker"
+                        ? ` · ${quest.locker_urls.length} ${
+                            quest.locker_urls.length === 1 ? "locker" : "lockers"
+                          }`
+                        : ` · ${quest.shortlink_steps.length} shortlinks`}
                     · reward {formatMoney(quest.reward_amount)} · sort {quest.sort_order}
                   </p>
                   {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -327,13 +342,59 @@ export function QuestsManager() {
                 </Field>
               ) : form.questType === "locker" ? (
                 <div className="space-y-2">
-                  <Field label={'Locker URL (AdBlueMedia "Get Link" output URL)'}>
-                    <Input
-                      value={form.lockerUrl}
-                      placeholder="https://adbluemedia.com/locker/…"
-                      onChange={(event) => setForm({ ...form, lockerUrl: event.target.value })}
-                    />
-                  </Field>
+                  <p className="text-xs text-muted-foreground">
+                    Lockers are completed in order. The reward is credited only after the last one.
+                    1 to 3 allowed.
+                  </p>
+                  {form.lockerUrls.map((url, index) => (
+                    <div key={index} className="flex items-end gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Field
+                          label={`Locker ${index + 1} URL (AdBlueMedia "Get Link" output URL)`}
+                        >
+                          <Input
+                            value={url}
+                            placeholder="https://adbluemedia.com/locker/…"
+                            onChange={(event) => {
+                              const next = [...form.lockerUrls];
+                              next[index] = event.target.value;
+                              setForm({ ...form, lockerUrls: next });
+                            }}
+                            data-testid={`quest-form-locker-url-${index}`}
+                          />
+                        </Field>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        // Minimum of 1 locker — the last row cannot be removed.
+                        disabled={form.lockerUrls.length <= 1}
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            lockerUrls: form.lockerUrls.filter((_, i) => i !== index),
+                          })
+                        }
+                        aria-label={`Remove locker ${index + 1}`}
+                        data-testid={`quest-form-locker-remove-${index}`}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {/* Maximum of 3 lockers. */}
+                  {form.lockerUrls.length < 3 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setForm({ ...form, lockerUrls: [...form.lockerUrls, ""] })}
+                      data-testid="quest-form-locker-add"
+                    >
+                      <Plus className="mr-1 size-4" /> Add locker ({form.lockerUrls.length}/3)
+                    </Button>
+                  )}
                   <div className="rounded-xl border border-dashed border-primary/40 bg-background-alt p-3 text-xs">
                     <p className="font-semibold">
                       Set this as AdBlueMedia's "Redirect URL" (once, in their dashboard):
