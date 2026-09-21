@@ -11,8 +11,14 @@ import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
  * from the existing GEO-filtered featured feed), purely to render social proof.
  */
 
-/** The minimum shape this simulation needs from a real, GEO-filtered offer. */
-export type ActivityOffer = {
+/**
+ * The minimum shape this simulation needs from one real activity source.
+ *
+ * The pool is built from exactly two sources, both already loaded by Home:
+ * GEO-filtered featured/regular offers, and active quests. Offerwall data is
+ * deliberately NOT a source.
+ */
+export type ActivityItem = {
   id: string;
   title: string;
   reward_amount: number;
@@ -25,20 +31,39 @@ export type SimulatedActivity = {
   username: string;
   /** null for roughly a third of activities, so some render without an avatar. */
   avatarUrl: string | null;
+  /** Id of the source offer OR quest this activity was built from. */
   offerId: string;
+  /** Title of the offer, or the quest's label. */
   offerTitle: string;
   offerImageUrl: string | null;
   rewardAmount: number;
 };
 
-/** Delay between one activity disappearing and the next appearing. */
-const GAP_MIN_MS = 8_000;
-const GAP_MAX_MS = 25_000;
-/** How long a single activity stays on screen. */
-const SHOW_MIN_MS = 4_000;
-const SHOW_MAX_MS = 7_000;
+/**
+ * Cadence between replacements. The visible activity is never cleared in
+ * between — the next one replaces it directly, so there is no blank gap.
+ */
+const ROTATE_MIN_MS = 6_000;
+const ROTATE_MAX_MS = 12_000;
+/** Short delay before the first activity appears, then it stays for good. */
+const FIRST_SHOW_MS = 1_200;
 /** Share of activities that render with an avatar. */
 const AVATAR_CHANCE = 0.65;
+
+/**
+ * Hard ceiling. A payout of exactly $50.00 is allowed; anything above it must
+ * never appear in the feed.
+ */
+const MAX_REWARD = 50;
+
+/**
+ * Weighted tier probabilities — low payouts dominate the stream and high ones
+ * are rare, so the feed never looks like a list of the biggest offers.
+ * Roughly 65 / 27 / 8 percent.
+ */
+const TIER_WEIGHTS = { low: 0.65, mid: 0.27, high: 0.08 } as const;
+
+type ActivityTiers = { low: ActivityItem[]; mid: ActivityItem[]; high: ActivityItem[] };
 
 /**
  * Anonymised dummy usernames (152 unique). These are invented placeholders — no
@@ -211,18 +236,69 @@ function pickOne<T>(list: readonly T[]): T | null {
 }
 
 /**
- * Builds one activity from a real offer + a dummy username, retrying a few times
- * so the same username+offer pair never appears twice in a row.
+ * Splits the pool into payout tiers by rank, not by fixed dollar thresholds, so
+ * the tiering adapts to whatever payouts actually exist: the cheapest ~60% are
+ * "low", the next ~30% "mid", the dearest ~10% "high". Ranking by position keeps
+ * every tier non-empty for any pool size, which fixed cut-offs would not.
+ *
+ * Anything above MAX_REWARD is dropped here and can never be selected.
+ */
+function buildTiers(items: readonly ActivityItem[]): ActivityTiers | null {
+  const eligible = items.filter(
+    (item) =>
+      Number.isFinite(item.reward_amount) &&
+      item.reward_amount > 0 &&
+      item.reward_amount <= MAX_REWARD,
+  );
+  if (!eligible.length) return null;
+
+  const sorted = [...eligible].sort((a, b) => a.reward_amount - b.reward_amount);
+  const count = sorted.length;
+  const lowEnd = Math.max(1, Math.round(count * 0.6));
+  const midEnd = Math.max(lowEnd, Math.round(count * 0.9));
+
+  return {
+    low: sorted.slice(0, lowEnd),
+    mid: sorted.slice(lowEnd, midEnd),
+    high: sorted.slice(midEnd),
+  };
+}
+
+/**
+ * Weighted pick across the tiers. Empty tiers are skipped and their weight is
+ * renormalised over the rest, so a small pool still behaves sensibly.
+ */
+function pickWeighted(tiers: ActivityTiers): ActivityItem | null {
+  const buckets = [
+    { items: tiers.low, weight: TIER_WEIGHTS.low },
+    { items: tiers.mid, weight: TIER_WEIGHTS.mid },
+    { items: tiers.high, weight: TIER_WEIGHTS.high },
+  ].filter((bucket) => bucket.items.length > 0);
+  if (!buckets.length) return null;
+
+  const total = buckets.reduce((sum, bucket) => sum + bucket.weight, 0);
+  let roll = Math.random() * total;
+  for (const bucket of buckets) {
+    roll -= bucket.weight;
+    if (roll <= 0) return pickOne(bucket.items);
+  }
+  return pickOne(buckets[buckets.length - 1]!.items);
+}
+
+/**
+ * Builds one activity from a real offer/quest + a dummy username, retrying a few
+ * times so the same username+source pair never appears twice in a row.
  */
 function buildActivity(
-  offers: readonly ActivityOffer[],
+  items: readonly ActivityItem[],
   lastCombo: string | null,
 ): SimulatedActivity | null {
-  if (!offers.length) return null;
+  const tiers = buildTiers(items);
+  if (!tiers) return null;
 
   for (let attempt = 0; attempt < 8; attempt++) {
     const username = pickOne(DUMMY_USERNAMES);
-    const offer = pickOne(offers);
+    const offer = pickWeighted(tiers);
     if (!username || !offer) return null;
 
     const combo = `${username}|${offer.id}`;
@@ -244,61 +320,51 @@ function buildActivity(
 }
 
 /**
- * Drives the appear/disappear cycle. Returns the activity to render, or null
- * while in the gap between activities.
+ * Drives a CONTINUOUS feed: once the first activity is shown it stays visible
+ * and is replaced in place by the next one. The hook never returns to null
+ * after the first activity, so the UI has no blank state to render.
  *
- * @param offers Real GEO-filtered offers. The cycle stays idle until non-empty.
+ * @param items Real offers + active quests. Stays idle until non-empty.
  */
-export function useSimulatedActivityFeed(
-  offers: readonly ActivityOffer[],
-): SimulatedActivity | null {
+export function useSimulatedActivityFeed(items: readonly ActivityItem[]): SimulatedActivity | null {
   const [current, setCurrent] = useState<SimulatedActivity | null>(null);
 
-  // Read offers through a ref so the feed picks up a refreshed list without
+  // Read the pool through a ref so a refreshed list is picked up without
   // tearing down and restarting the timer chain.
-  const offersRef = useRef(offers);
-  offersRef.current = offers;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   const lastComboRef = useRef<string | null>(null);
-  const hasOffers = offers.length > 0;
+  const hasItems = items.length > 0;
 
   useEffect(() => {
-    if (!hasOffers) return;
+    if (!hasItems) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const scheduleNext = () => {
-      timer = setTimeout(show, randInt(GAP_MIN_MS, GAP_MAX_MS));
-    };
-
-    const show = () => {
+    const rotate = () => {
       if (cancelled) return;
-      const next = buildActivity(offersRef.current, lastComboRef.current);
-      if (!next) {
-        scheduleNext();
-        return;
+      const next = buildActivity(itemsRef.current, lastComboRef.current);
+      // If nothing is currently eligible (e.g. every payout is above the cap),
+      // keep whatever is already on screen rather than blanking, and try again
+      // on the next tick.
+      if (next) {
+        lastComboRef.current = `${next.username}|${next.offerId}`;
+        setCurrent(next);
       }
-      lastComboRef.current = `${next.username}|${next.offerId}`;
-      setCurrent(next);
-      timer = setTimeout(hide, randInt(SHOW_MIN_MS, SHOW_MAX_MS));
+      timer = setTimeout(rotate, randInt(ROTATE_MIN_MS, ROTATE_MAX_MS));
     };
 
-    const hide = () => {
-      if (cancelled) return;
-      setCurrent(null);
-      scheduleNext();
-    };
-
-    // First activity waits the same randomised gap as every later one.
-    scheduleNext();
+    timer = setTimeout(rotate, FIRST_SHOW_MS);
 
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
-      setCurrent(null);
+      // Deliberately NOT clearing `current`: if the pool briefly empties the
+      // last activity stays on screen instead of flashing to blank.
     };
-  }, [hasOffers]);
+  }, [hasItems]);
 
   return current;
 }

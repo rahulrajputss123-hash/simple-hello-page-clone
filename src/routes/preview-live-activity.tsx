@@ -1,10 +1,9 @@
 /**
  * TEMPORARY preview route for reviewing the Simulated Live Activity strip.
  *
- * Exists only so the card can be inspected without signing in and without
- * waiting out the random 8-25s appearance delay. It seeds the real
- * ["featured-feed","home"] cache key with sample offers so the live component
- * behaves exactly as it does on Home.
+ * Exists only so the card can be inspected without signing in. It seeds the
+ * real ["featured-feed","home"] cache key with sample offers so the live
+ * component behaves exactly as it does on Home.
  *
  * SAFE TO DELETE — remove this file before committing.
  */
@@ -21,16 +20,41 @@ export const Route = createFileRoute("/preview-live-activity")({
   component: PreviewLiveActivity,
 });
 
-/** Stand-in offers shaped like FeaturedOffer, only for this preview page. */
+/**
+ * Stand-in offers shaped like FeaturedOffer, only for this preview page.
+ * Spread across payout tiers so the weighted selection is observable, and two
+ * entries above the $50.00 cap that must NEVER appear in the strip.
+ */
 const SAMPLE_OFFERS = [
+  { id: "sample-1", title: "Survey Junkie — Paid Surveys", reward_amount: 0.35, image_url: null },
+  { id: "sample-2", title: "Temu — Install & Explore", reward_amount: 0.8, image_url: null },
+  { id: "sample-3", title: "Coin Master — Reach Level 5", reward_amount: 1.25, image_url: null },
+  { id: "sample-4", title: "Shop & Save App", reward_amount: 2.4, image_url: null },
+  { id: "sample-5", title: "CapCut — Video Editor", reward_amount: 4.5, image_url: null },
+  { id: "sample-6", title: "HostingTom — 110% Cashback", reward_amount: 10, image_url: null },
+  { id: "sample-7", title: "At the cap — $50.00 (allowed)", reward_amount: 50, image_url: null },
   {
-    id: "sample-1",
-    title: "Survey Junkie — Paid Surveys",
-    reward_amount: 1.25,
+    id: "over-cap-1",
+    title: "OVER CAP $50.01 — must never show",
+    reward_amount: 50.01,
     image_url: null,
   },
-  { id: "sample-2", title: "Temu — Install & Explore", reward_amount: 2.4, image_url: null },
-  { id: "sample-3", title: "Coin Master — Reach Level 5", reward_amount: 0.85, image_url: null },
+  {
+    id: "over-cap-2",
+    title: "OVER CAP $250 — must never show",
+    reward_amount: 250,
+    image_url: null,
+  },
+];
+
+/**
+ * Stand-in active quests, seeding the same ["quests-active"] cache key Home
+ * fills — the feed's second (and only other) source.
+ */
+const SAMPLE_QUESTS = [
+  { id: "quest-1", label: "Watch 5 Ads", reward_amount: 0.5, icon: "gift" },
+  { id: "quest-2", label: "Shortlink Chain", reward_amount: 1, icon: "gift" },
+  { id: "quest-3", label: "Complete Locker", reward_amount: 1.5, icon: "gift" },
 ];
 
 const VARIANTS: SimulatedActivity[] = [
@@ -66,12 +90,14 @@ const VARIANTS: SimulatedActivity[] = [
 function PreviewLiveActivity() {
   const queryClient = useQueryClient();
 
-  // Seed the same cache key the Home page uses, so the live component finds offers.
+  // Seed the same two cache keys the Home page fills, so the live component
+  // finds both of its sources.
   useEffect(() => {
     queryClient.setQueryData(["featured-feed", "home"], {
       country: "IN",
       offers: SAMPLE_OFFERS,
     });
+    queryClient.setQueryData(["quests-active"], SAMPLE_QUESTS);
   }, [queryClient]);
 
   return (
@@ -93,7 +119,12 @@ function PreviewLiveActivity() {
 
       <h2 className="mt-8 text-sm font-semibold">Live behaviour (real timings)</h2>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        Appears after 8–25s, stays 4–7s, then collapses. Leave this open to watch the cycle.
+        First activity appears after ~1.2s, then each one is replaced in place every 6–12s. It never
+        disappears in between — leave this open to watch the stream.
+      </p>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Pool = 7 offers + 3 quests. Low payouts should dominate; $10 and $50 should be rare. The two
+        &quot;OVER CAP&quot; entries must never appear.
       </p>
       <div className="mt-1 rounded-xl border border-dashed border-border p-2">
         <SimulatedLiveActivity />

@@ -4,11 +4,12 @@ import { useMemo } from "react";
 
 import {
   useSimulatedActivityFeed,
-  type ActivityOffer,
+  type ActivityItem,
   type SimulatedActivity,
 } from "@/hooks/useSimulatedActivityFeed";
 import { formatMoney } from "@/lib/coinquest";
 import type { FeaturedFeedResult } from "@/lib/offers/feed-cache.server";
+import type { QuestRow } from "@/lib/quests.server";
 
 /**
  * Presentational activity row. Kept separate from the timing/data wiring so it can
@@ -76,13 +77,26 @@ export function LiveActivityCard({ activity }: { activity: SimulatedActivity }) 
   );
 }
 
+/** A quest icon doubles as an image URL when it is one; otherwise there is none. */
+function questImageUrl(icon: string | null | undefined): string | null {
+  const value = (icon ?? "").trim();
+  return /^https?:\/\//i.test(value) ? value : null;
+}
+
 /**
  * Compact simulated "live activity" strip for the Home page.
  *
- * Offers come from the cache entry that <FeaturedOffers scope="home" /> already
- * fills on this page — `skipToken` means this observer only *reads* that cache and
- * never issues its own request, so GEO filtering, active/expiry filtering and
- * per-user hiding are all inherited from the existing feed with no duplication.
+ * The pool is built from exactly TWO sources, both already loaded by this page:
+ *   1. Featured/regular offers — the cache entry <FeaturedOffers scope="home" />
+ *      fills, so GEO filtering, active/expiry filtering and per-user hiding are
+ *      all inherited from the existing feed.
+ *   2. Active quests — the cache entry <StarterQuests /> fills.
+ *
+ * Offerwall data is deliberately NOT a source.
+ *
+ * `skipToken` on both observers means this component only *reads* those caches
+ * and never issues a request of its own, so neither the GEO logic nor the quest
+ * system is duplicated here.
  *
  * Purely presentational: nothing here writes data or triggers tracking.
  */
@@ -92,22 +106,37 @@ export function SimulatedLiveActivity() {
     queryFn: skipToken,
   });
 
-  const offers = useMemo<ActivityOffer[]>(
-    () =>
-      (data?.offers ?? []).map((offer) => ({
-        id: offer.id,
-        title: offer.title,
-        reward_amount: offer.reward_amount,
-        image_url: offer.image_url,
-      })),
-    [data?.offers],
-  );
+  const { data: quests } = useQuery<QuestRow[]>({
+    queryKey: ["quests-active"],
+    queryFn: skipToken,
+  });
 
-  const activity = useSimulatedActivityFeed(offers);
+  const items = useMemo<ActivityItem[]>(() => {
+    const offerItems: ActivityItem[] = (data?.offers ?? []).map((offer) => ({
+      id: offer.id,
+      title: offer.title,
+      reward_amount: offer.reward_amount,
+      image_url: offer.image_url,
+    }));
+
+    const questItems: ActivityItem[] = (quests ?? []).map((quest) => ({
+      id: `quest:${quest.id}`,
+      title: quest.label,
+      reward_amount: Number(quest.reward_amount ?? 0),
+      image_url: questImageUrl(quest.icon),
+    }));
+
+    return [...offerItems, ...questItems];
+  }, [data?.offers, quests]);
+
+  const activity = useSimulatedActivityFeed(items);
 
   return (
     <div
-      // grid-rows 0fr→1fr animates the collapse so the banner below never jumps.
+      // grid-rows 0fr→1fr animates the one-time reveal of the first activity so
+      // the banner below never jumps. After that the slot stays at 1fr for good:
+      // the feed replaces activities in place and never collapses again, so the
+      // container height is stable and there is no blank gap between activities.
       className={`live-activity-slot grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
         activity ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
       }`}
@@ -118,6 +147,11 @@ export function SimulatedLiveActivity() {
       <div className="overflow-hidden">
         {activity && (
           <div className="pt-3">
+            {/* Keying on activity.id swaps the card synchronously — React mounts
+                the replacement in the same commit the old one unmounts, so no
+                frame renders empty — and replays the live-activity-in slide/fade
+                for the incoming activity. That keyframe is already disabled
+                under prefers-reduced-motion in styles.css. */}
             <LiveActivityCard key={activity.id} activity={activity} />
           </div>
         )}
