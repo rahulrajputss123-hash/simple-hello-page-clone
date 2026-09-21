@@ -35,9 +35,34 @@ const signupSchema = signinSchema.extend({
   referralCode: z.string().trim().max(20).optional(),
 });
 
+/** Flat multi-colour Google "G". Inline so no icon dependency is needed. */
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 18 18" className="size-[1.15rem] shrink-0" aria-hidden>
+      <path
+        fill="#4285F4"
+        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62Z"
+      />
+      <path
+        fill="#34A853"
+        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.71H1.96v2.33A8.99 8.99 0 0 0 9 18Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M3.97 10.71a5.41 5.41 0 0 1 0-3.42V4.96H1.96a8.99 8.99 0 0 0 0 8.08l2.01-2.33Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A8.99 8.99 0 0 0 1.96 4.96l2.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"
+      />
+    </svg>
+  );
+}
+
 function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [name, setName] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const { session } = useAuth();
@@ -84,9 +109,52 @@ function AuthPage() {
           </div>
         </div>
 
+        {/* OAuth first, then an "or" divider, then the email/password form. */}
+        <div className="surface-card auth-card-in mt-6 space-y-3 p-5 shadow-lift">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full gap-2.5 bg-card"
+            disabled={busy || googleBusy}
+            data-testid="auth-google-btn"
+            onClick={async () => {
+              setGoogleBusy(true);
+              try {
+                // Persist the referral code before leaving the page: the OAuth
+                // round-trip returns to this same origin, so localStorage
+                // survives and AuthProvider reads it when it creates the profile.
+                const code = referralCode.trim().toUpperCase();
+                if (code) window.localStorage.setItem("coinquest.ref", code);
+
+                const { error } = await supabase.auth.signInWithOAuth({
+                  provider: "google",
+                  options: { redirectTo: window.location.origin },
+                });
+                if (error) throw error;
+                // On success the browser navigates away; leave the button busy.
+              } catch (error) {
+                toast.error((error as Error).message);
+                setGoogleBusy(false);
+              }
+            }}
+          >
+            <GoogleIcon />
+            {googleBusy ? "Redirecting…" : "Continue with Google"}
+          </Button>
+
+          <div className="flex items-center gap-3 pt-1" aria-hidden>
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              or
+            </span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+        </div>
+
         <form
           key={mode}
-          className="surface-card auth-card-in mt-6 space-y-3 p-5 shadow-lift"
+          className="surface-card auth-card-in mt-3 space-y-3 p-5 shadow-lift"
           data-testid={`auth-form-${mode}`}
           onSubmit={async (event) => {
             event.preventDefault();
@@ -203,7 +271,7 @@ function AuthPage() {
             variant="jade"
             size="lg"
             className="mt-1 w-full shadow-lift"
-            disabled={busy}
+            disabled={busy || googleBusy}
             data-testid="auth-submit-btn"
           >
             {busy
