@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { SHORTLINK_MAX_STEPS } from "./coinquest";
 
 const shortlinkStepSchema = z.object({
   network: z.string().trim().min(1).max(60),
@@ -20,7 +21,8 @@ const questFormSchema = z.object({
   questType: z.enum(["ads", "shortlink", "locker"]).default("ads"),
   adsRequired: z.number().int().min(0).max(500).default(0),
   rewardAmount: z.number().min(0).max(10000).default(0),
-  shortlinkSteps: z.array(shortlinkStepSchema).max(3).default([]),
+  // 1-10 steps. Optional overall so an ads/locker quest can omit it.
+  shortlinkSteps: z.array(shortlinkStepSchema).min(1).max(SHORTLINK_MAX_STEPS).optional(),
   minSecondsPerStep: z.number().int().min(1).max(600).default(15),
   // 1-3 ordered lockers, completed sequentially. Sent only for locker quests,
   // so min(1) does not reject an ads/shortlink save.
@@ -81,7 +83,7 @@ export const startShortlinkStep = createServerFn({ method: "POST" })
     z
       .object({
         questKey: z.string().min(1).max(40),
-        step: z.number().int().min(1).max(3),
+        step: z.number().int().min(1).max(SHORTLINK_MAX_STEPS),
       })
       .parse(input),
   )
@@ -97,7 +99,7 @@ export const completeShortlinkStep = createServerFn({ method: "POST" })
     z
       .object({
         questKey: z.string().min(1).max(40),
-        step: z.number().int().min(1).max(3),
+        step: z.number().int().min(1).max(SHORTLINK_MAX_STEPS),
       })
       .parse(input),
   )

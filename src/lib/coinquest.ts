@@ -20,6 +20,12 @@ export const REFERRAL_MILESTONE_BONUS = 1;
 export const REFERRAL_MAX_BONUS = REFERRAL_MILESTONE_BONUS * 3;
 /** Days a referral has to complete all milestones before the credited bonuses are reversed. */
 export const REFERRAL_WINDOW_DAYS = 365;
+/**
+ * Allowed number of steps in a shortlink-chain quest. Shared by the zod schema,
+ * the server-side validation and the admin form so the three can never disagree.
+ */
+export const SHORTLINK_MIN_STEPS = 1;
+export const SHORTLINK_MAX_STEPS = 10;
 
 export function formatMoney(value: number | string | null | undefined): string {
   const n = typeof value === "string" ? Number(value) : (value ?? 0);

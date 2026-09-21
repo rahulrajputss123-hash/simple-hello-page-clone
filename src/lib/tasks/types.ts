@@ -10,6 +10,7 @@ export const TASK_TYPES = [
   "shortlink",
   "content_locker",
   "offerwall_earning",
+  "quest_count",
 ] as const;
 
 export type TaskType = (typeof TASK_TYPES)[number];
@@ -24,6 +25,7 @@ export const TASK_TYPE_LABELS: Record<TaskType, string> = {
   shortlink: "Shortlink completion",
   content_locker: "Content locker completion",
   offerwall_earning: "SDK Offerwall earning target",
+  quest_count: "Quests completed",
 };
 
 export const TASK_FREQUENCIES = ["daily", "weekly", "one_time", "lifetime"] as const;
@@ -44,6 +46,12 @@ export const TASK_EVENT_TYPES = [
   "shortlink",
   "content_locker",
   "offerwall_earning",
+  /**
+   * One event per completed quest SESSION, regardless of quest type (ads,
+   * shortlink chain or content locker). Emitted wherever a quest_sessions row
+   * reaches status 'credited', keyed on the session id so it counts once.
+   */
+  "quest_completed",
 ] as const;
 export type TaskEventType = (typeof TASK_EVENT_TYPES)[number];
 
@@ -58,6 +66,8 @@ export const TASK_TYPE_EVENT: Record<TaskType, TaskEventType | null> = {
   shortlink: "shortlink",
   content_locker: "content_locker",
   offerwall_earning: "offerwall_earning",
+  // "any N quests completed" — counts ad, shortlink and locker quests together.
+  quest_count: "quest_completed",
 };
 
 /** Bucket a moment in time into the reset period of a task. */

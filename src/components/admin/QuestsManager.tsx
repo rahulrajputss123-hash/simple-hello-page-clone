@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { deleteQuest, listAdminQuests, saveQuest } from "@/lib/quests.functions";
 import type { QuestRow, ShortlinkStep } from "@/lib/quests.server";
-import { formatMoney } from "@/lib/coinquest";
+import { SHORTLINK_MAX_STEPS, SHORTLINK_MIN_STEPS, formatMoney } from "@/lib/coinquest";
 
 type FormState = {
   id?: string;
@@ -101,13 +101,16 @@ export function QuestsManager() {
           questType: state.questType,
           adsRequired: Number(state.adsRequired) || 0,
           rewardAmount: Number(state.rewardAmount) || 0,
-          shortlinkSteps:
-            state.questType === "shortlink"
-              ? state.shortlinkSteps.map((s) => ({
+          // Sent only for shortlink quests — the schema requires at least one
+          // step when the field is present, so an empty array would be rejected.
+          ...(state.questType === "shortlink"
+            ? {
+                shortlinkSteps: state.shortlinkSteps.map((s) => ({
                   network: s.network.trim(),
                   url: s.url.trim(),
-                }))
-              : [],
+                })),
+              }
+            : {}),
           minSecondsPerStep: Number(state.minSecondsPerStep) || 15,
           // Sent only for locker quests — the schema requires at least one URL
           // when the field is present.
@@ -153,20 +156,11 @@ export function QuestsManager() {
       questType: quest.quest_type,
       adsRequired: String(quest.ads_required ?? 0),
       rewardAmount: String(quest.reward_amount ?? 0),
-      shortlinkSteps: (quest.shortlink_steps?.length
-        ? [
-            ...quest.shortlink_steps,
-            ...Array.from({ length: 3 - quest.shortlink_steps.length }, () => ({
-              network: "",
-              url: "",
-            })),
-          ]
-        : [
-            { network: "", url: "" },
-            { network: "", url: "" },
-            { network: "", url: "" },
-          ]
-      ).slice(0, 3),
+      // Load exactly the steps that were saved (1-10). No padding to a fixed
+      // count — the admin adds and removes rows explicitly.
+      shortlinkSteps: quest.shortlink_steps?.length
+        ? quest.shortlink_steps.slice(0, SHORTLINK_MAX_STEPS).map((s) => ({ ...s }))
+        : [{ network: "", url: "" }],
       minSecondsPerStep: String(quest.min_seconds_per_step ?? 15),
       // A backfilled single-locker quest opens as one row; always keep >= 1 row
       // so the form is never empty.
@@ -192,7 +186,9 @@ export function QuestsManager() {
             const urls = form.lockerUrls.map((url) => url.trim()).filter(Boolean);
             return urls.length >= 1 && urls.length <= 3;
           })()
-        : form.shortlinkSteps.every((s) => s.network.trim() && s.url.trim()));
+        : form.shortlinkSteps.length >= SHORTLINK_MIN_STEPS &&
+          form.shortlinkSteps.length <= SHORTLINK_MAX_STEPS &&
+          form.shortlinkSteps.every((s) => s.network.trim() && s.url.trim()));
 
   const origin = typeof window !== "undefined" ? window.location.origin : "https://yourapp.com";
 
@@ -410,48 +406,84 @@ export function QuestsManager() {
                 </div>
               ) : (
                 <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Steps are completed in order. {SHORTLINK_MIN_STEPS} to {SHORTLINK_MAX_STEPS}{" "}
+                    allowed.
+                  </p>
                   {form.shortlinkSteps.map((step, index) => (
-                    <div key={index} className="grid grid-cols-2 gap-2">
-                      <Field label={`Step ${index + 1} network`}>
-                        <Input
-                          value={step.network}
-                          placeholder="Network name"
-                          onChange={(event) => {
-                            const next = [...form.shortlinkSteps];
-                            const current = next[index];
-                            if (!current) return;
-                            next[index] = { ...current, network: event.target.value };
-                            setForm({ ...form, shortlinkSteps: next });
-                          }}
-                        />
-                      </Field>
-                      <Field label={`Step ${index + 1} shortlink URL`}>
-                        <Input
-                          value={step.url}
-                          placeholder="https://…"
-                          onChange={(event) => {
-                            const next = [...form.shortlinkSteps];
-                            const current = next[index];
-                            if (!current) return;
-                            next[index] = { ...current, url: event.target.value };
-                            setForm({ ...form, shortlinkSteps: next });
-                          }}
-                        />
-                      </Field>
+                    <div key={index} className="flex items-end gap-2">
+                      <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
+                        <Field label={`Step ${index + 1} network`}>
+                          <Input
+                            value={step.network}
+                            placeholder="Network name"
+                            onChange={(event) => {
+                              const next = [...form.shortlinkSteps];
+                              const current = next[index];
+                              if (!current) return;
+                              next[index] = { ...current, network: event.target.value };
+                              setForm({ ...form, shortlinkSteps: next });
+                            }}
+                          />
+                        </Field>
+                        <Field label={`Step ${index + 1} shortlink URL`}>
+                          <Input
+                            value={step.url}
+                            placeholder="https://…"
+                            onChange={(event) => {
+                              const next = [...form.shortlinkSteps];
+                              const current = next[index];
+                              if (!current) return;
+                              next[index] = { ...current, url: event.target.value };
+                              setForm({ ...form, shortlinkSteps: next });
+                            }}
+                          />
+                        </Field>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        // Minimum of 1 step — the last row cannot be removed.
+                        disabled={form.shortlinkSteps.length <= SHORTLINK_MIN_STEPS}
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            shortlinkSteps: form.shortlinkSteps.filter((_, i) => i !== index),
+                          })
+                        }
+                        aria-label={`Remove step ${index + 1}`}
+                        data-testid={`quest-form-shortlink-remove-${index}`}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
                     </div>
                   ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={form.shortlinkSteps.length >= SHORTLINK_MAX_STEPS}
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        shortlinkSteps: [...form.shortlinkSteps, { network: "", url: "" }],
+                      })
+                    }
+                    data-testid="quest-form-shortlink-add"
+                  >
+                    <Plus className="mr-1 size-4" /> Add step ({form.shortlinkSteps.length}/
+                    {SHORTLINK_MAX_STEPS})
+                  </Button>
                   <div className="rounded-xl border border-dashed border-primary/40 bg-background-alt p-3 text-xs">
                     <p className="font-semibold">Destinations to configure on each shortener:</p>
+                    {/* One line per configured step, so this scales with the list. */}
                     <ul className="mt-1 space-y-0.5 font-mono">
-                      <li>
-                        Step 1 → {origin}/go/{form.key || "{key}"}/1
-                      </li>
-                      <li>
-                        Step 2 → {origin}/go/{form.key || "{key}"}/2
-                      </li>
-                      <li>
-                        Step 3 → {origin}/go/{form.key || "{key}"}/3
-                      </li>
+                      {form.shortlinkSteps.map((_, index) => (
+                        <li key={index}>
+                          Step {index + 1} → {origin}/go/{form.key || "{key}"}/{index + 1}
+                        </li>
+                      ))}
                     </ul>
                   </div>
                   <Field label="Minimum seconds per step">

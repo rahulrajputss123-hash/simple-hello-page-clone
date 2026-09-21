@@ -528,6 +528,12 @@ export async function reportAdImpl(userId: string, sessionId: string) {
       .update({ status: "credited", credited_at: new Date().toISOString() })
       .eq("id", sessionId);
     await notify(userId, "Quest completed", `You earned $${reward.toFixed(2)}.`, "quest");
+    // Drives the quest_count task type. Keyed on the session id so one completed
+    // quest counts once, however many times this path is retried.
+    {
+      const { recordTaskEvent } = await import("./tasks/engine.server");
+      await recordTaskEvent({ userId, eventType: "quest_completed", eventKey: sessionId });
+    }
     return { ...updated.data, status: "credited", credited: true };
   }
 

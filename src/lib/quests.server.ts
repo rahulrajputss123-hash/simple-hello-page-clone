@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { SHORTLINK_MAX_STEPS, SHORTLINK_MIN_STEPS } from "./coinquest";
 import { creditWallet } from "./coinquest.server";
 import { computeLockState, assertNotLocked, type LockState } from "./lock-state";
 
@@ -114,7 +115,8 @@ export type QuestFormInput = {
   questType: "ads" | "shortlink" | "locker";
   adsRequired: number;
   rewardAmount: number;
-  shortlinkSteps: ShortlinkStep[];
+  /** 1-10 ordered steps. Only meaningful when questType === "shortlink". */
+  shortlinkSteps?: ShortlinkStep[] | undefined;
   minSecondsPerStep: number;
   /** 1-3 ordered locker URLs. Only meaningful when questType === "locker". */
   lockerUrls?: string[] | undefined;
@@ -126,8 +128,13 @@ export type QuestFormInput = {
 };
 
 export async function upsertQuestImpl(input: QuestFormInput) {
-  if (input.questType === "shortlink" && input.shortlinkSteps.length !== 3) {
-    throw new Error("A shortlink quest needs exactly 3 shortlink steps.");
+  if (input.questType === "shortlink") {
+    const stepCount = input.shortlinkSteps?.length ?? 0;
+    if (stepCount < SHORTLINK_MIN_STEPS || stepCount > SHORTLINK_MAX_STEPS) {
+      throw new Error(
+        `A shortlink quest needs between ${SHORTLINK_MIN_STEPS} and ${SHORTLINK_MAX_STEPS} shortlink steps.`,
+      );
+    }
   }
   if (input.questType === "ads" && input.adsRequired < 1) {
     throw new Error("Ads-type quests need at least 1 ad.");
@@ -159,7 +166,7 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     quest_type: input.questType,
     ads_required: input.questType === "ads" ? input.adsRequired : 0,
     reward_amount: input.rewardAmount,
-    shortlink_steps: input.questType === "shortlink" ? input.shortlinkSteps : [],
+    shortlink_steps: input.questType === "shortlink" ? (input.shortlinkSteps ?? []) : [],
     min_seconds_per_step: input.minSecondsPerStep,
     locker_urls:
       input.questType === "locker"
@@ -232,6 +239,26 @@ export async function assertQuestNotLocked(userId: string, quest: QuestRow): Pro
     lifetimeEarned,
   );
   assertNotLocked(state, quest.label);
+}
+
+/**
+ * Records the generic "a quest was completed" event that the quest_count task
+ * type counts. One event per quest SESSION across every quest type, deduplicated
+ * by session id via the unique (user_id, event_type, event_key) index.
+ *
+ * Task automation must never roll back a quest that has already been credited,
+ * so a failure here is swallowed — matching how the offerwall postback treats it.
+ */
+async function recordQuestCompletedEvent(userId: string, sessionId: string): Promise<void> {
+  try {
+    const { recordTaskEvent } = await import("./tasks/engine.server");
+    await recordTaskEvent({ userId, eventType: "quest_completed", eventKey: sessionId });
+  } catch (error) {
+    console.error(
+      `[quests] quest_completed task event failed for session ${sessionId}:`,
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
 
 /**
@@ -392,6 +419,10 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
     kind: "quest",
   });
 
+  // Drives the quest_count task type, keyed on the session id so one completed
+  // quest counts once. Never allowed to fail the already-credited quest.
+  await recordQuestCompletedEvent(userId, session.data.id as string);
+
   return {
     completed: true,
     credited: true,
@@ -462,7 +493,8 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
     );
   }
 
-  const total = Math.max(1, quest.shortlink_steps.length || 3);
+  // Step count is whatever the admin configured (1-10) — no fixed assumption.
+  const total = Math.max(1, quest.shortlink_steps.length);
   const isFinal = step >= total;
 
   if (isFinal) {
@@ -487,6 +519,8 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
       body: `You earned $${reward.toFixed(2)}.`,
       kind: "quest",
     });
+    // Drives the quest_count task type, keyed on the session id.
+    await recordQuestCompletedEvent(userId, session.data.id as string);
     return { completed: true, credited: true, reward, nextStep: null };
   }
 
