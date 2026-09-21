@@ -17,7 +17,8 @@ type AuthValue = {
   isAdmin: boolean;
 };
 
-const AuthContext = createContext<AuthValue>({
+/** Exported so preview routes can mount real screens with a mock session. */
+export const AuthContext = createContext<AuthValue>({
   session: null,
   loading: true,
   profile: null,
