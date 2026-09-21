@@ -81,15 +81,23 @@ const SECTIONS: PolicySection[] = [
     body: (
       <>
         <P>
-          Referral rewards are milestone-based. A milestone reward is only released once the
-          referred user completes the qualifying action associated with that milestone (for example,
-          signing up, completing their first task or offer, or completing their first successful
-          withdrawal).
+          Referral rewards are milestone-based, but milestones are{" "}
+          <Strong>not paid out individually</Strong>. Completing a milestone increases the
+          referral's
+          <Strong> pending</Strong> value only. Pending referral earnings do not form part of your
+          wallet balance and cannot be withdrawn.
         </P>
         <P>
-          If the referred user does not reach a milestone within the time window shown in the app
-          for that milestone, the corresponding reward will not be paid; where the app notes a
-          clawback window, previously-credited rewards may be reversed.
+          The{" "}
+          <Strong>full referral reward is released to your main wallet in a single payment</Strong>{" "}
+          once the referred user has completed <Strong>all three</Strong> milestones: signing up,
+          their first qualifying earning from a task, offer or quest, and their first approved
+          withdrawal.
+        </P>
+        <P>
+          All three milestones must be completed within the time window shown in the app. If the
+          window elapses first, the referral expires and its pending earnings are not released.
+          Where the app notes a clawback window, previously-released rewards may be reversed.
         </P>
       </>
     ),
@@ -133,15 +141,45 @@ const SECTIONS: PolicySection[] = [
     ),
   },
   {
+    id: "privacy",
+    title: "Privacy of referred users",
+    body: (
+      <>
+        <P>
+          Referral information shown to a referrer is deliberately limited to what that referrer is
+          permitted to see about a person who joined with their code:
+        </P>
+        <UL>
+          <LI>A masked display name and avatar.</LI>
+          <LI>The date the referred user joined.</LI>
+          <LI>Milestone progress only — which of the three steps are complete.</LI>
+        </UL>
+        <P>
+          A referrer is <Strong>never</Strong> shown the referred user's account details, wallet
+          balance, transactions, withdrawals, earnings amounts, email address, phone number or any
+          other personal information. The same protection applies in reverse: whoever referred you
+          cannot see those details about you.
+        </P>
+      </>
+    ),
+  },
+  {
     id: "program-changes",
     title: "Program changes",
     body: (
-      <P>
-        We may adjust reward amounts, milestone conditions, time windows, geo-availability or cap
-        the number of rewarded referrals per account, and we may suspend or end the referral program
-        entirely, at any time and for any reason. Where possible we will communicate material
-        changes in advance inside the app.
-      </P>
+      <>
+        <P>
+          We may update the referral program rules when necessary — including reward amounts,
+          milestone conditions, time windows, geo-availability, or a cap on the number of rewarded
+          referrals per account — and we may suspend or end the program entirely, at any time.
+        </P>
+        <P>
+          The rules <Strong>currently displayed in the app</Strong> are the ones that apply to your
+          account, and supersede any earlier version. Please refer to the latest displayed rules on
+          the Refer &amp; Earn screen. Where possible we will communicate material changes in
+          advance inside the app.
+        </P>
+      </>
     ),
   },
   {

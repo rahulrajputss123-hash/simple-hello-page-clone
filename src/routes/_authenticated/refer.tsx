@@ -1,6 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { Check, Copy, FileText, Gift, Info, Lock, Share2, Users, Wallet } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  ArrowRight,
+  Check,
+  Copy,
+  FileText,
+  Gift,
+  Info,
+  Lock,
+  Share2,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 
@@ -195,7 +206,8 @@ function MilestoneStepper({ referral }: { referral: ReferralRow }) {
   );
 }
 
-function ReferPage() {
+/** Exported so the no-login preview route can render the real screen. */
+export function ReferPage() {
   const { session, profile } = useAuth();
   const code = profile?.referral_code ?? "";
   const link = typeof window === "undefined" ? "" : `${window.location.origin}/auth?ref=${code}`;
@@ -524,30 +536,37 @@ function ReferPage() {
           iconSrc="/icons/icon-terms-conditions.png"
           title="Terms & conditions"
         />
-        <details className="surface-card p-4">
-          <summary className="cursor-pointer text-sm font-semibold">
-            Referral terms &amp; conditions
-          </summary>
-          <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+        {/* Short summary only. The full, numbered rules live on one page
+            (/referral-rules) so the payout model is never described twice and
+            can never drift out of sync. */}
+        <div className="surface-card p-4">
+          <div className="space-y-2 text-xs leading-relaxed text-muted-foreground">
             <p>
-              Each referred friend can earn you up to {formatMoney(REFERRAL_MAX_BONUS)} in total —{" "}
-              {formatMoney(REFERRAL_MILESTONE_BONUS)} per milestone, counted once per referral.
+              Each referred friend is worth up to {formatMoney(REFERRAL_MAX_BONUS)} — one{" "}
+              {formatMoney(REFERRAL_MILESTONE_BONUS)} milestone for each of the 3 steps above,
+              counted once per friend.
             </p>
             <p>
-              Milestones unlock referral earnings as <strong>pending</strong>. Pending referral
-              earnings are not part of your wallet balance and cannot be withdrawn. The full{" "}
-              {formatMoney(REFERRAL_MAX_BONUS)} is released into your main wallet only once that
-              friend has completed all 3 milestones.
+              Milestones unlock referral earnings as <strong>pending</strong>. Nothing is credited
+              milestone by milestone — pending earnings are not part of your wallet balance and
+              cannot be withdrawn. The full {formatMoney(REFERRAL_MAX_BONUS)} is released into your
+              main wallet in one go, only once that friend has completed all 3 milestones.
             </p>
             <p>
-              All 3 milestones must be completed within 1 year of your friend's signup. If they are
-              not, that referral expires and its pending earnings are not released.
-            </p>
-            <p>
-              Self-referrals, duplicate accounts and fraudulent activity void all referral rewards.
+              All 3 milestones must be completed within 1 year of your friend&apos;s signup, or that
+              referral expires and its pending earnings are not released. Self-referrals, duplicate
+              accounts and fraudulent activity void all referral rewards.
             </p>
           </div>
-        </details>
+          <Link
+            to="/referral-rules"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+            data-testid="refer-view-rules"
+          >
+            Read the full program rules
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </div>
       </div>
     </AppShell>
   );
