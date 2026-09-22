@@ -67,3 +67,56 @@ export function useCountUp(
 
   return value;
 }
+
+/**
+ * Counts up from 0 to `target` once the attached element first scrolls into view.
+ *
+ * Display-only, one-shot per mount: the observer disconnects after the first
+ * intersection so scrolling back up never replays it. Attach the returned `ref`
+ * to the element that should trigger the animation.
+ *
+ * Unlike {@link useCountUp}, this starts at 0 and is driven by visibility rather
+ * than by an async value arriving — use it for static marketing/stat figures.
+ *
+ * @param target The value to land on.
+ * @param duration Animation length in ms. Default 1400ms.
+ */
+export function useCountUpOnVisible(target: number, duration = 1400) {
+  const ref = useRef<HTMLElement | null>(null);
+  const [value, setValue] = useState(0);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || startedRef.current) return;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      startedRef.current = true;
+      setValue(target);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry || !entry.isIntersecting || startedRef.current) return;
+        startedRef.current = true;
+        observer.disconnect();
+
+        const start = performance.now();
+        const tick = (now: number) => {
+          const progress = Math.min(1, (now - start) / duration);
+          const eased = 1 - (1 - progress) ** 3;
+          setValue(Math.round(target * eased));
+          if (progress < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      },
+      { threshold: 0.4 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [target, duration]);
+
+  return { ref, value };
+}

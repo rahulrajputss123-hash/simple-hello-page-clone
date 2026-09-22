@@ -23,52 +23,12 @@ import { StarterQuests } from "@/components/StarterQuests";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { useCountUpOnVisible } from "@/hooks/useCountUp";
 import { completeOnboarding } from "@/lib/coinquest.functions";
 import { getDeviceId } from "@/lib/ads";
 import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
 
 const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
-
-/** Counts up from 0 to `target` once the attached element first scrolls into view. */
-function useCountUpOnVisible(target: number, duration = 1400) {
-  const ref = useRef<HTMLElement | null>(null);
-  const [value, setValue] = useState(0);
-  const startedRef = useRef(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node || startedRef.current) return;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      startedRef.current = true;
-      setValue(target);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (!entry || !entry.isIntersecting || startedRef.current) return;
-        startedRef.current = true;
-        observer.disconnect();
-
-        const start = performance.now();
-        const tick = (now: number) => {
-          const progress = Math.min(1, (now - start) / duration);
-          const eased = 1 - (1 - progress) ** 3;
-          setValue(Math.round(target * eased));
-          if (progress < 1) requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      },
-      { threshold: 0.4 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [target, duration]);
-
-  return { ref, value };
-}
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -86,7 +46,7 @@ export const Route = createFileRoute("/_authenticated/home")({
 });
 
 function HomePage() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const save = useServerFn(completeOnboarding);
@@ -95,41 +55,53 @@ function HomePage() {
 
   useEffect(() => {
     if (!profile || profile.onboarded) return;
-    // Silent auto-onboarding from the signup-form fields captured pre-confirmation.
+    if (autoOnboarded.current) return;
+
+    // Source 1 — the email signup form stashes the name pre-confirmation.
+    let name = "";
+    let phone: string | undefined;
     const raw =
       typeof window !== "undefined"
         ? window.localStorage.getItem("coinquest.pending_onboarding")
         : null;
-    if (raw && !autoOnboarded.current) {
-      autoOnboarded.current = true;
+    if (raw) {
       try {
         const parsed = JSON.parse(raw) as { name?: string; phone?: string };
-        const name = (parsed.name ?? "").trim();
-        if (name.length >= 2) {
-          void save({
-            data: {
-              name,
-              ...(parsed.phone?.trim() ? { phone: parsed.phone.trim() } : {}),
-              deviceId: getDeviceId(),
-            },
-          })
-            .then(() => {
-              window.localStorage.removeItem("coinquest.pending_onboarding");
-              void queryClient.invalidateQueries({ queryKey: ["profile"] });
-            })
-            .catch(() => {
-              // Fall back to the onboarding screen if the silent save fails.
-              void navigate({ to: "/onboarding", replace: true });
-            });
-          return;
-        }
+        name = (parsed.name ?? "").trim();
+        if (parsed.phone?.trim()) phone = parsed.phone.trim();
       } catch {
-        /* fall through to fallback */
+        /* corrupt storage — fall through to the provider name */
       }
     }
-    // Fallback for edge cases (old accounts, cleared storage): keep old screen.
+
+    // Source 2 — OAuth sign-ups (e.g. Continue with Google) never go through
+    // that form, so use the display name the provider supplied instead.
+    if (name.length < 2) {
+      const meta = session?.user?.user_metadata as
+        { full_name?: string; name?: string } | undefined;
+      name = (meta?.full_name ?? meta?.name ?? "").trim().slice(0, 80);
+    }
+
+    if (name.length >= 2) {
+      autoOnboarded.current = true;
+      void save({
+        data: { name, ...(phone ? { phone } : {}), deviceId: getDeviceId() },
+      })
+        .then(() => {
+          window.localStorage.removeItem("coinquest.pending_onboarding");
+          void queryClient.invalidateQueries({ queryKey: ["profile"] });
+        })
+        .catch(() => {
+          // Fall back to the onboarding screen if the silent save fails.
+          void navigate({ to: "/onboarding", replace: true });
+        });
+      return;
+    }
+
+    // Fallback for edge cases (old accounts, cleared storage, provider gave no
+    // name): keep the manual onboarding screen.
     void navigate({ to: "/onboarding", replace: true });
-  }, [profile, navigate, queryClient, save]);
+  }, [profile, session, navigate, queryClient, save]);
   return (
     <AppShell subtitle="Earn as you go" bgClass="home-page-bg">
       {/* Decorative hero orbs — reuse the onboarding orb base, Home-specific tint/position. */}
@@ -228,7 +200,9 @@ function HomePage() {
           Live Community
         </span>
 
-        <div className="relative mt-3 flex items-end justify-between gap-4">
+        {/* Stacked on phones so the "4.9/5 from 18,400+ reviews" line is never
+            clipped behind the avatar stack; side-by-side from sm upwards. */}
+        <div className="relative mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <p
               className="text-amount font-display text-3xl leading-none text-foreground"
