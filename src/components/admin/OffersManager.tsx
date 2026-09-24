@@ -143,6 +143,8 @@ export function OffersManager() {
         method: "PUT",
         headers: {
           "Content-Type": file.type || "application/octet-stream",
+          // Unique, never-overwritten upload path -> safe to cache for a year.
+          "cache-control": "max-age=31536000",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: file,

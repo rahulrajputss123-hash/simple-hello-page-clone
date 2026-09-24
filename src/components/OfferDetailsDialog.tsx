@@ -108,6 +108,9 @@ export function OfferDetailsDialog({
         method: "PUT",
         headers: {
           "Content-Type": file.type || "application/octet-stream",
+          // Unique, never-overwritten upload path -> safe to cache for a year.
+          // (Private bucket, so this only affects signed-URL reads of the proof.)
+          "cache-control": "max-age=31536000",
           ...(token ? { "x-upsert": "false", Authorization: `Bearer ${token}` } : {}),
         },
         body: file,

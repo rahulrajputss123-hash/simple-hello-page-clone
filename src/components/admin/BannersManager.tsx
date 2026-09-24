@@ -209,6 +209,10 @@ export function BannersManager() {
         method: "PUT",
         headers: {
           "Content-Type": file.type || "application/octet-stream",
+          // Storage persists this as the object's cache-control. Upload paths are
+          // unique per upload and never overwritten in place, so a 1-year cache is
+          // safe and stops repeat visits re-downloading the same asset.
+          "cache-control": "max-age=31536000",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: file,
@@ -442,6 +446,7 @@ export function BannersManager() {
                     src={form.imageUrl}
                     alt="Preview"
                     className="mt-2 max-h-32 w-full rounded-xl object-cover"
+                    decoding="async"
                   />
                 )}
               </Field>

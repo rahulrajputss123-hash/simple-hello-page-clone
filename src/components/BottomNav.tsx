@@ -25,6 +25,7 @@ export function BottomNav() {
                 aria-hidden
                 data-testid={`bottom-nav-${label.toLowerCase()}-icon`}
                 className="size-8 object-contain transition-transform group-data-[status=active]:scale-110"
+                decoding="async"
               />
               <span className="text-[11px] font-semibold">{label}</span>
             </Link>

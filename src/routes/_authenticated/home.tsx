@@ -234,6 +234,8 @@ function HomePage() {
                 alt=""
                 style={{ zIndex: COMMUNITY_AVATARS.length - index }}
                 className="size-11 rounded-full border-2 border-card object-cover shadow-soft"
+                loading="lazy"
+                decoding="async"
               />
             ))}
             <span className="grid size-11 place-items-center rounded-full border-2 border-card bg-background-alt text-sm font-bold text-primary shadow-soft">

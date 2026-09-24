@@ -204,6 +204,7 @@ function TaskPage() {
                         alt=""
                         aria-hidden
                         loading="lazy"
+                        decoding="async"
                         onError={() => setBrokenImages((b) => ({ ...b, [task.id]: true }))}
                         className="size-full object-cover"
                       />

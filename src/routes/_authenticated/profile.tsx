@@ -93,6 +93,7 @@ function ProfilePage() {
             src={avatarById(profile?.avatar_url).imageUrl}
             alt=""
             className="size-full object-cover"
+            decoding="async"
           />
         </span>
         <div className="min-w-0">
@@ -207,7 +208,13 @@ function ProfilePage() {
           navigate({ to: "/auth", replace: true });
         }}
       >
-        <img src="/icons/icon-logout.png" alt="" aria-hidden className="size-6 object-contain" />{" "}
+        <img
+          src="/icons/icon-logout.png"
+          alt=""
+          aria-hidden
+          className="size-6 object-contain"
+          decoding="async"
+        />{" "}
         Sign out
       </Button>
 
@@ -232,6 +239,7 @@ function ProfilePage() {
                       src={avatar.imageUrl}
                       alt={avatar.name}
                       className="size-full object-cover"
+                      decoding="async"
                     />
                   </button>
                 ))}

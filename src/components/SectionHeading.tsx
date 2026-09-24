@@ -94,7 +94,12 @@ export function SectionHeading({
               className={`relative z-20 grid ${bubbleSize} shrink-0 place-items-center rounded-full bg-card shadow-soft ring-1 ring-inset ring-mint/35`}
             >
               {iconSrc ? (
-                <img src={iconSrc} alt="" className={`${bubbleImgSize} object-contain`} />
+                <img
+                  src={iconSrc}
+                  alt=""
+                  className={`${bubbleImgSize} object-contain`}
+                  decoding="async"
+                />
               ) : (
                 <Icon className={`${bubbleIconSize} text-primary`} strokeWidth={2.25} />
               )}
@@ -144,6 +149,7 @@ export function SectionHeading({
             aria-hidden
             data-testid={`section-heading-${slug}-icon`}
             className={`shrink-0 object-contain ${isPage ? "size-12" : "size-11"}`}
+            decoding="async"
           />
         ) : (
           <span

@@ -301,6 +301,7 @@ export function PremiumOnboarding() {
                           src={avatar.imageUrl}
                           alt={`${avatar.name} avatar`}
                           className="size-full object-cover"
+                          decoding="async"
                         />
                         {selected && (
                           <span className="absolute right-0.5 top-0.5 grid size-6 place-items-center rounded-full border-2 border-white bg-[#18a878] text-white">
@@ -330,6 +331,7 @@ export function PremiumOnboarding() {
                     alt="Selected profile avatar"
                     className="size-28 rounded-full border-4 border-[#f4cf56] object-cover shadow-[0_18px_38px_rgba(0,0,0,.3)]"
                     data-testid="premium-profile-avatar-preview"
+                    decoding="async"
                   />
                   <button
                     type="button"
@@ -557,7 +559,7 @@ function IllustrationPanel({
       className={`premium-illustration-panel relative overflow-hidden bg-[#0b2b28] ${className}`}
       data-testid={testId}
     >
-      <img src={src} alt={alt} className="size-full object-cover" />
+      <img src={src} alt={alt} className="size-full object-cover" decoding="async" />
       <span className="premium-panel-glint premium-panel-glint-one" aria-hidden />
       <span className="premium-panel-glint premium-panel-glint-two" aria-hidden />
     </div>

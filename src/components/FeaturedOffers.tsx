@@ -140,6 +140,7 @@ export function FeaturedOffers({
                     src={offer.image_url!}
                     alt={offer.title}
                     loading="lazy"
+                    decoding="async"
                     onError={() => setBroken((b) => ({ ...b, [offer.id]: true }))}
                     className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />

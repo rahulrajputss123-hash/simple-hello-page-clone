@@ -51,6 +51,7 @@ export function ClaimProofPreview({ path }: { path: string }) {
           alt="Proof of completion"
           className="max-h-64 w-full object-contain"
           loading="lazy"
+          decoding="async"
         />
       )}
     </a>

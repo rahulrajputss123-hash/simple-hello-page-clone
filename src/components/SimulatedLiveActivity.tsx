@@ -27,6 +27,7 @@ export function LiveActivityCard({ activity }: { activity: SimulatedActivity }) 
           alt=""
           aria-hidden
           loading="lazy"
+          decoding="async"
           className="size-9 shrink-0 rounded-full border border-border object-cover"
           data-testid="live-activity-avatar"
         />
@@ -62,6 +63,7 @@ export function LiveActivityCard({ activity }: { activity: SimulatedActivity }) 
           alt=""
           aria-hidden
           loading="lazy"
+          decoding="async"
           className="size-9 shrink-0 rounded-xl border border-border object-cover"
           data-testid="live-activity-offer-image"
         />

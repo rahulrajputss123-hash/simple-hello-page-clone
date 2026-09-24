@@ -43,6 +43,7 @@ export function BrandLogo({
         alt="CashGPT — Earn · Complete · Cashout"
         className={`h-auto w-auto select-none ${className}`}
         draggable={false}
+        decoding="async"
       />
     );
   }
@@ -53,6 +54,7 @@ export function BrandLogo({
         alt="CashGPT — Earn · Complete · Cashout"
         className={`h-auto w-auto select-none ${className}`}
         draggable={false}
+        decoding="async"
       />
     );
   }
@@ -64,6 +66,7 @@ export function BrandLogo({
         alt="CashGPT — Earn · Complete · Cashout"
         className="h-auto w-auto select-none"
         draggable={false}
+        decoding="async"
       />
     </picture>
   );
