@@ -20,6 +20,9 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
   if (slug === "offerwallme") {
     return `https://offerwall.me/offerwall/${appId}/${encodeURIComponent(userId)}`;
   }
+  if (slug === "timewall") {
+    return `https://timewall.io/users/login?oid=${appId}&uid=${encodeURIComponent(userId)}`;
+  }
   if (slug === "cpxresearch") {
     return `https://offers.cpx-research.com/index.php?app_id=${appId}&ext_user_id=${encodeURIComponent(userId)}`;
   }
@@ -67,6 +70,7 @@ export function OfferwallSlot({ limit }: { limit?: number }) {
                   src={provider.logoUrl}
                   alt={`${provider.name} banner`}
                   loading="lazy"
+                  decoding="async"
                   onError={() => setBroken((b) => ({ ...b, [provider.id]: true }))}
                   className="size-full object-cover"
                 />

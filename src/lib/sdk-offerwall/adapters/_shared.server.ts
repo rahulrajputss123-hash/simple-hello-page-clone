@@ -31,6 +31,15 @@ export function hmacSha256Hex(secret: string, input: string): string {
 }
 
 /**
+ * Plain (non-HMAC) SHA-256. Used by networks that concatenate the secret into
+ * the signed string rather than keying an HMAC with it — e.g. TimeWall's
+ * sha256(userID + revenue + secretKey).
+ */
+export function sha256Hex(input: string): string {
+  return createHash("sha256").update(input).digest("hex");
+}
+
+/**
  * Constant-time hex digest comparison. Compares case-insensitively because
  * networks differ on digest casing, and bails out on length mismatch before
  * timingSafeEqual (which throws on unequal lengths).
