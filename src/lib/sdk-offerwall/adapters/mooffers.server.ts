@@ -10,6 +10,10 @@
 //
 // Status handling: only "approved" credits. "pending", "reversed" and "invalid"
 // yield a zero amount, so the conversion is recorded but no wallet credit is made.
+//
+// Amount field: "payout" (the real USD amount), NOT "reward". Live postbacks
+// always send reward = "0" as a placeholder/virtual value, so reading it
+// credited nothing. The provider row's reward_param is "payout" to match.
 
 import type { SdkOfferwallAdapter } from "../types";
 import { field, numericField } from "./_shared.server";
@@ -27,7 +31,7 @@ export const mooffersSdkAdapter: SdkOfferwallAdapter = {
       providerTransactionId: field(payload, "conversion_no"),
       providerUserRef: field(payload, "uid"),
       providerOfferId: field(payload, "offer_id") || undefined,
-      currencyAmount: approved ? numericField(payload, "reward") : 0,
+      currencyAmount: approved ? numericField(payload, "payout") : 0,
       raw: payload,
     };
   },

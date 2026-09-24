@@ -1,38 +1,43 @@
 // Affike — S2S postback adapter for the web_sdk single-link offerwall.
 //
-// Signature: signature = HMAC-SHA256(secret, `${user_id}${payout}${transaction_id}`)
-// compared in constant time via crypto.timingSafeEqual (see secureEquals).
+// NO SIGNATURE VERIFICATION IS POSSIBLE HERE. Affike's macro list exposes no
+// {signature} / {hash} equivalent, so there is nothing to cryptographically
+// verify. The previous HMAC-SHA256 check was built from incorrect docs and has
+// been removed rather than left to fail every real postback.
 //
-// Provider config: postback_auth_mode = "none" (verification happens here), and
+// Because this adapter defines no verifyPostback, the generic verifier in
+// src/lib/automation/postback.server.ts applies instead — and Affike's row is
+// postback_auth_mode = "none", which accepts any caller. An IP allowlist is the
+// only authentication this network can support; see postback_ip_allowlist.
+//
+// Field names are confirmed against Affike's live dashboard:
+//   user_id, payout, txn_id, status, offer_id, offer_name, click_id
+//
+// Status handling: only "confirmed" credits. Anything else — including the
+// "test" value Affike's own dashboard test button sends — records the
+// conversion with a zero amount, so no wallet credit is made.
+//
 // currency_per_usd = 1 because Affike's `payout` is already USD-denominated
-// rather than the app's virtual currency like the other networks.
+// rather than the app's virtual currency, which makes convertSdkCurrency a
+// no-op. Leaving it at 100 would pay out 1/100th of the real amount.
 
 import type { SdkOfferwallAdapter } from "../types";
-import { field, hmacSha256Hex, numericField, providerSecret, secureEquals } from "./_shared.server";
+import { field, numericField } from "./_shared.server";
 
 export const affikeSdkAdapter: SdkOfferwallAdapter = {
   slug: "affike",
   integrationType: "web_sdk",
 
-  parsePostback: (provider, payload) => {
-    const secret = providerSecret(provider);
-    const userId = field(payload, "user_id");
-    const transactionId = field(payload, "transaction_id");
-    // Concatenated verbatim in the order Affike signs them.
-    const payout = field(payload, "payout");
-    const providedSig = field(payload, "signature");
-
-    const validSignature =
-      secret.length > 0 &&
-      secureEquals(hmacSha256Hex(secret, `${userId}${payout}${transactionId}`), providedSig);
+  parsePostback: (_provider, payload) => {
+    const confirmed = field(payload, "status") === "confirmed";
 
     return {
-      // Empty on mismatch -> generic pipeline rejects it, nothing is credited.
-      providerTransactionId: validSignature ? transactionId : "",
-      providerUserRef: userId,
+      // Kept even when not confirmed: the generic pipeline needs a stable
+      // transaction id to dedupe repeat callbacks for the same conversion.
+      providerTransactionId: field(payload, "txn_id"),
+      providerUserRef: field(payload, "user_id"),
       providerOfferId: field(payload, "offer_id") || undefined,
-      // payout is already USD; currency_per_usd = 1 keeps convertSdkCurrency a no-op.
-      currencyAmount: validSignature ? numericField(payload, "payout") : 0,
+      currencyAmount: confirmed ? numericField(payload, "payout") : 0,
       raw: payload,
     };
   },
