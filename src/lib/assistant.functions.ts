@@ -35,13 +35,23 @@ export const sendAssistantMessage = createServerFn({ method: "POST" })
     const { buildOfferAssistantContext, resolveOfferIdFromMessage } =
       await import("./assistant/offer-context.server");
 
-    // Path (a) the offer is in context from its dialog; path (b) the user named
-    // it in a normal message. The in-context offer always wins, because that is
-    // what the "Answering about:" chip promises.
-    let offerId = data.offerId ?? null;
-    if (!offerId) {
-      offerId = await resolveOfferIdFromMessage(data.message);
-      if (offerId) console.info(`[assistant] resolved offer ${offerId} from the message text`);
+    // Resolution order, deliberately: a name typed in the MESSAGE wins over the
+    // offer in context. Someone with offer A on screen who types offer B's name
+    // is asking about B, so the chip must not override them. resolveOfferIdFrom-
+    // Message is conservative (needs a distinctive 6+ char title word, refuses
+    // to guess on ties, and ignores question words), so ordinary questions like
+    // "how do I complete this offer" resolve to nothing and the in-context offer
+    // is used as before.
+    const contextOfferId = data.offerId ?? null;
+    const namedOfferId = await resolveOfferIdFromMessage(data.message);
+    const offerId = namedOfferId ?? contextOfferId;
+
+    if (namedOfferId && contextOfferId && namedOfferId !== contextOfferId) {
+      console.info(
+        `[assistant] message names offer ${namedOfferId}, overriding the in-context offer ${contextOfferId}`,
+      );
+    } else if (namedOfferId && !contextOfferId) {
+      console.info(`[assistant] resolved offer ${namedOfferId} from the message text`);
     }
 
     let extraContext: string | undefined;

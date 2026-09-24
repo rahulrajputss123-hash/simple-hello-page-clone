@@ -2,8 +2,14 @@
 // Calls the Gemini API directly with the CASHGPT_SYSTEM_PROMPT as the system instruction.
 // Never import this from client/route/*.functions.ts top-level — load it dynamically inside handlers.
 
-const GEMINI_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent";
+/**
+ * Model is overridable via GEMINI_MODEL so it can be switched without a code
+ * change — useful because the free tier caps requests PER MODEL per day, so a
+ * sibling model is the only way to keep working once one is exhausted.
+ * Defaults to the production model.
+ */
+const GEMINI_MODEL = process.env["GEMINI_MODEL"] ?? "gemini-3.6-flash";
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 export const CASHGPT_SYSTEM_PROMPT = `You are the CashGPT Assistant — a warm, concise in-app support helper for CashGPT, a rewards app where users earn coins by watching rewarded ads, completing partner offers, finishing daily tasks, and inviting friends, then cash out to real money.
 

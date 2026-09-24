@@ -34,6 +34,16 @@ const OFFER_QUICK_REPLIES = [
 
 const OPENED_KEY = "cashgpt.assistant.opened";
 
+/**
+ * Asked automatically when the chat is opened from an offer's "Ask the
+ * assistant" button, so the user gets a real answer without typing.
+ *
+ * Deliberately contains only words that offer-context.server.ts treats as
+ * question words ("complete", "offer", "about"), so it can never name-resolve to
+ * some other offer and override the one actually in context.
+ */
+const AUTO_OFFER_QUESTION = "Tell me about this offer and how to complete it.";
+
 type Role = "user" | "assistant";
 
 interface ChatMessage {
@@ -82,6 +92,8 @@ export function AiAssistant() {
   const [showNudge, setShowNudge] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  /** Guards the one-shot auto-ask fired when opened from an offer. */
+  const autoAskedRef = useRef(false);
 
   const callAssistant = useServerFn(sendAssistantMessage);
 
@@ -125,8 +137,9 @@ export function AiAssistant() {
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  // An offer's "Ask the assistant" button raises this before navigating here,
-  // so the panel opens on arrival instead of waiting for a second tap.
+  // An offer's "Ask the assistant" button raises this before navigating here, so
+  // the panel opens on arrival AND asks the opening question on the user's
+  // behalf — a real answer appears with zero typing.
   useEffect(() => {
     if (!assistantOpenRequested) return;
     consumeAssistantOpen();
@@ -137,6 +150,16 @@ export function AiAssistant() {
     } catch {
       /* ignore */
     }
+    // Goes through send() — the exact same path a typed message takes — so it
+    // renders as a normal user bubble followed by a normal reply, carries the
+    // viewed offer id, and is never hidden from the thread.
+    if (!autoAskedRef.current && viewedOffer) {
+      autoAskedRef.current = true;
+      send(AUTO_OFFER_QUESTION);
+    }
+    // send() and viewedOffer are re-created every render; the ref guard is what
+    // keeps this to exactly one auto-ask per requested open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assistantOpenRequested, consumeAssistantOpen]);
 
   const chat = useMutation({
@@ -278,6 +301,7 @@ export function AiAssistant() {
                 alt=""
                 className="h-full w-full scale-110 object-cover"
                 draggable={false}
+                decoding="async"
               />
             </span>
             <span className="absolute -right-0.5 -top-0.5 grid size-6 place-items-center rounded-full bg-gold-gradient text-gold-foreground shadow-gold">

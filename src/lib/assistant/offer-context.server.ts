@@ -191,15 +191,63 @@ const GENERIC_TITLE_WORDS = new Set([
   "the",
   "for",
   "web",
+  // Words that describe the QUESTION rather than the offer. Without these, a
+  // message like "how do I complete this offer" or "is it in my wallet" would
+  // name-resolve to whichever real title happens to contain that word and
+  // hijack the offer actually in context. Measured against the live catalogue:
+  // "wallet" appears in 2 titles, "complete" in 1.
+  "wallet",
+  "complete",
+  "completed",
+  "completion",
+  "detail",
+  "details",
+  "payout",
+  "payouts",
+  "withdraw",
+  "withdrawal",
+  "minimum",
+  "account",
+  "support",
+  "explain",
+  "requirement",
+  "requirements",
+  "proof",
+  "about",
+  "tell",
+  "please",
+  "should",
+  "would",
+  "there",
+  "status",
+  "pending",
+  "approved",
 ]);
 
 /**
+ * A title word distinctive enough to identify an offer on its own. Either a
+ * long-ish non-generic word ("hostingtom", "capcut", "hosting"), or a short
+ * alphanumeric brand token like "g2g" / "web3" — those are below the length
+ * threshold but are unmistakably brand names. Pure numbers ("110", "750") are
+ * excluded because they appear in payout amounts and would match loosely.
+ */
+function isDistinctiveTitleWord(word: string): boolean {
+  if (GENERIC_TITLE_WORDS.has(word)) return false;
+  if (word.length >= 6) return true;
+  const hasDigit = /\d/.test(word);
+  const hasLetter = /[a-z]/.test(word);
+  return word.length >= 3 && hasDigit && hasLetter;
+}
+
+/**
  * Resolves an offer from a plain chat message that names it, e.g. "how does
- * HostingTom work?". Used only when no offer is in context, so the assistant can
- * answer path (b) — asking by name — with the same real data as path (a).
+ * HostingTom work?". Runs on EVERY message: a name typed in the message takes
+ * priority over the offer in context, because a user naming a different offer is
+ * asking about that one.
  *
- * Deliberately conservative: it matches only distinctive title words of 6+
- * characters, and refuses to guess when two different offers tie. Attaching the
+ * Deliberately conservative: it needs a distinctive title word (see
+ * isDistinctiveTitleWord), ignores words that describe the question rather than
+ * the offer, and refuses to guess when two different offers tie. Attaching the
  * wrong offer's data would be worse than answering generically.
  */
 export async function resolveOfferIdFromMessage(message: string): Promise<string | null> {
@@ -224,10 +272,12 @@ export async function resolveOfferIdFromMessage(message: string): Promise<string
     let score = 0;
 
     for (const word of words) {
-      if (word.length < 4) continue;
+      const distinctive = isDistinctiveTitleWord(word);
+      // Short words only count when they are distinctive brand tokens ("g2g").
+      if (word.length < 4 && !distinctive) continue;
       if (!haystack.includes(` ${word} `)) continue;
       score += word.length;
-      if (word.length >= 6 && !GENERIC_TITLE_WORDS.has(word)) hasDistinctiveMatch = true;
+      if (distinctive) hasDistinctiveMatch = true;
     }
 
     if (!hasDistinctiveMatch) continue;
