@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -14,6 +14,8 @@ type UnifiedBanner =
   { kind: "custom"; data: EligibleBanner } | { kind: "smart"; data: SmartBanner };
 
 const ROTATION_INTERVAL_MS = 6000;
+/** Crossfade length. Must match the .banner-fade-out animation in styles.css. */
+const BANNER_FADE_MS = 350;
 const LAST_SHOWN_STORAGE_PREFIX = "cashgpt.banner_last:";
 
 function unifiedId(b: UnifiedBanner): string {
@@ -163,6 +165,62 @@ export function SectionBanner({ section }: { section: BannerSection }) {
     setIndex(pickStartIndex(section, ids));
   }, [section, merged]);
 
+  const current = merged.length ? merged[Math.min(index, merged.length - 1)] : undefined;
+  const currentId = current ? unifiedId(current) : null;
+  /** Identity of the banner SET, so a refetch/reorder isn't mistaken for a rotation. */
+  const setSignature = useMemo(() => merged.map(unifiedId).join("|"), [merged]);
+
+  /**
+   * The banner that was on screen before the current one. Held as the banner
+   * OBJECT rather than an index so a refetch that reorders or shortens the list
+   * can never leave the overlay pointing at the wrong entry.
+   */
+  const [outgoing, setOutgoing] = useState<UnifiedBanner | null>(null);
+  const shownRef = useRef<{ id: string; banner: UnifiedBanner } | null>(null);
+  const setSignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!current || !currentId) {
+      shownRef.current = null;
+      setOutgoing(null);
+      return;
+    }
+    const previouslyShown = shownRef.current;
+    shownRef.current = { id: currentId, banner: current };
+
+    // A brand-new banner SET is not a rotation — don't fade out from a banner
+    // the user was never shown in this list.
+    if (setSignatureRef.current !== setSignature) {
+      setSignatureRef.current = setSignature;
+      setOutgoing(null);
+      return;
+    }
+    if (!previouslyShown || previouslyShown.id === currentId) return;
+
+    setOutgoing(previouslyShown.banner);
+    // Rapid dot taps restart the fade instead of stacking overlays.
+    const t = setTimeout(() => setOutgoing(null), BANNER_FADE_MS);
+    return () => clearTimeout(t);
+  }, [current, currentId, setSignature]);
+
+  /**
+   * Warm the browser cache for EVERY banner image as soon as the list is known,
+   * so rotating to one paints instantly. Without this the next banner's image
+   * only starts downloading when its element mounts, which is what produced the
+   * blank frame mid-transition.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    for (const banner of merged) {
+      if (banner.kind !== "custom") continue;
+      const url = banner.data.image_url;
+      if (!url) continue;
+      const img = new Image();
+      img.decoding = "async";
+      img.src = url;
+    }
+  }, [merged]);
+
   // Persist "last shown" so the next visit rotates forward.
   useEffect(() => {
     if (!merged.length || typeof window === "undefined") return;
@@ -181,14 +239,29 @@ export function SectionBanner({ section }: { section: BannerSection }) {
 
   if (!merged.length) return null;
 
-  const current = merged[Math.min(index, merged.length - 1)];
   return (
     <section
       className="mb-4 mt-3"
       aria-label={`${section} banner`}
       data-testid={`section-banner-${section}`}
     >
-      <BannerCard banner={current} />
+      {/* Crossfade: the incoming banner stays in normal flow (so it keeps
+          defining the container height — banner kinds have different natural
+          heights), and the outgoing one is overlaid on top and fades out. The
+          incoming banner is never transparent, so there is no frame where
+          neither banner is painted. */}
+      <div className="relative">
+        <BannerCard banner={current} />
+        {outgoing && (
+          <div
+            aria-hidden
+            className="banner-fade-out pointer-events-none absolute inset-0 [&>article]:h-full [&>article]:w-full"
+            data-testid={`section-banner-outgoing-${section}`}
+          >
+            <BannerCard banner={outgoing} />
+          </div>
+        )}
+      </div>
       {merged.length > 1 && (
         <div className="mt-2 flex justify-center gap-1.5">
           {merged.map((b, i) => (

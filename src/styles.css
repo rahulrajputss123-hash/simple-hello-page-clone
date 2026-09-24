@@ -869,3 +869,35 @@
     animation: none !important;
   }
 }
+
+/* --- Section banner crossfade ---------------------------------------------
+ *
+ * SectionBanner renders the incoming banner in normal flow and overlays the
+ * outgoing one on top of it, then fades the overlay out. The incoming banner is
+ * never transparent, so there is never a frame with neither banner painted
+ * (the old hard swap unmounted the previous <article> and showed the page
+ * background until the next image decoded).
+ *
+ * Duration is mirrored by BANNER_FADE_MS in SectionBanner.tsx — keep in sync.
+ */
+@keyframes banner-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.banner-fade-out {
+  animation: banner-fade-out 350ms ease-out both;
+  will-change: opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Straight to hidden: the incoming banner is already painted underneath, so
+     this is still a clean swap rather than a blank flash. */
+  .banner-fade-out {
+    animation: none;
+    opacity: 0;
+  }
+}
