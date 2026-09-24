@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -12,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { useIsNative } from "@/hooks/useIsNative";
 import { ViewedOfferProvider } from "@/lib/viewed-offer";
 import { SplashScreen } from "@/components/SplashScreen";
 import { Toaster } from "@/components/ui/sonner";
@@ -111,11 +113,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+/**
+ * Runs before the body paints, so the native shell never shows a frame of the
+ * server-rendered web landing.
+ *
+ * "/" is server-rendered as the marketing page (search engines need that markup),
+ * and the platform swap in `useIsNative` can only happen after hydration. This
+ * marks the document as native the moment the Capacitor global is available, and
+ * `html[data-native] [data-web-only]` in styles.css hides web-only UI immediately.
+ */
+const NATIVE_PROBE = `try{var c=window.Capacitor;if(c&&(typeof c.isNativePlatform==="function"?c.isNativePlatform():/^(android|ios)$/.test(c.platform||""))){document.documentElement.setAttribute("data-native","1")}}catch(e){}`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: NATIVE_PROBE }} />
       </head>
       <body>
         {children}
@@ -144,8 +158,35 @@ function RootComponent() {
   );
 }
 
+/**
+ * Public marketing routes that must paint immediately.
+ *
+ * These pages have no session to wait on, and putting a splash screen in front of
+ * a download CTA both delays the first paint and swallows taps until the auth
+ * check settles. Auth itself is untouched — `AuthProvider` still initialises
+ * exactly as it does everywhere else; only the splash overlay is skipped.
+ */
+const SPLASH_FREE_ROUTES = new Set(["/app"]);
+
+/**
+ * Routes that skip the splash on the web but keep it inside the native shell.
+ *
+ * "/" is the marketing landing on cashgpt.in and the splash → redirect entry point
+ * in the packaged app. The web side must paint immediately with no overlay; the
+ * native side keeps its splash exactly as before.
+ */
+const WEB_ONLY_SPLASH_FREE_ROUTES = new Set(["/"]);
+
 function SplashGate({ children }: { children: ReactNode }) {
   const { loading } = useAuth();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const native = useIsNative();
+
+  const splashFree =
+    SPLASH_FREE_ROUTES.has(pathname) || (!native && WEB_ONLY_SPLASH_FREE_ROUTES.has(pathname));
+
+  if (splashFree) return <>{children}</>;
+
   return (
     <>
       <SplashScreen loading={loading} />

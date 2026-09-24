@@ -870,6 +870,177 @@
   }
 }
 
+/* ==========================================================================
+ * Web landing page (cashgpt.in "/").
+ *
+ * Everything below animates transform/opacity only, so it stays smooth on
+ * low-end Android. Each effect is disabled under prefers-reduced-motion at the
+ * end of this block.
+ * ========================================================================== */
+
+/* --- Scroll reveal: fade + rise once, driven by IntersectionObserver -------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal-in {
+  opacity: 1;
+  transform: none;
+}
+/* Stagger for card groups: the container observes, its children cascade. */
+.reveal-stagger > * {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal-stagger.reveal-in > * {
+  opacity: 1;
+  transform: none;
+}
+.reveal-stagger > *:nth-child(1) {
+  transition-delay: 0ms;
+}
+.reveal-stagger > *:nth-child(2) {
+  transition-delay: 70ms;
+}
+.reveal-stagger > *:nth-child(3) {
+  transition-delay: 140ms;
+}
+.reveal-stagger > *:nth-child(4) {
+  transition-delay: 210ms;
+}
+.reveal-stagger > *:nth-child(n + 5) {
+  transition-delay: 280ms;
+}
+
+/* --- Primary button shimmer sweep ------------------------------------------ */
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-130%) skewX(-16deg);
+  }
+  55%,
+  100% {
+    transform: translateX(240%) skewX(-16deg);
+  }
+}
+.shimmer-sweep {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.shimmer-sweep::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 100%
+  );
+  transform: translateX(-130%) skewX(-16deg);
+  animation: shimmer-sweep 5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* --- Hero ambient glow drift ----------------------------------------------- */
+@keyframes ambient-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(3%, -4%, 0) scale(1.07);
+  }
+}
+.ambient-drift {
+  animation: ambient-drift 20s ease-in-out infinite;
+}
+.ambient-drift-slow {
+  animation: ambient-drift 28s ease-in-out infinite reverse;
+}
+
+/* --- Softly floating coins behind the hero --------------------------------- */
+@keyframes coin-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -16px, 0);
+  }
+}
+.coin-float {
+  animation: coin-float 7s ease-in-out infinite;
+}
+.coin-float-b {
+  animation: coin-float 9.5s ease-in-out infinite reverse;
+}
+.coin-float-c {
+  animation: coin-float 8.2s ease-in-out infinite;
+}
+
+/* --- Offer card press feedback (touch) ------------------------------------- */
+.press-feedback {
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 200ms ease;
+}
+.press-feedback:active {
+  transform: scale(0.975);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .reveal-stagger > * {
+    opacity: 1;
+    transform: none;
+    transition: none;
+    transition-delay: 0ms;
+  }
+  .shimmer-sweep::after,
+  .ambient-drift,
+  .ambient-drift-slow,
+  .coin-float,
+  .coin-float-b,
+  .coin-float-c {
+    animation: none;
+  }
+  .shimmer-sweep::after {
+    opacity: 0;
+  }
+  .press-feedback {
+    transition: none;
+  }
+  .press-feedback:active {
+    transform: none;
+  }
+}
+
+/*
+ * Native shell: hide web-only UI before hydration.
+ *
+ * The attribute is set by the inline probe in __root.tsx, which runs before the
+ * body paints, so the packaged app never flashes the server-rendered marketing
+ * landing on its way to the splash → redirect flow.
+ */
+html[data-native="1"] [data-web-only] {
+  display: none !important;
+}
+
 /* --- Section banner crossfade ---------------------------------------------
  *
  * SectionBanner renders the incoming banner in normal flow and overlays the

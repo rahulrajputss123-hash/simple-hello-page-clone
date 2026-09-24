@@ -11,9 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as PreviewLiveActivityRouteImport } from './routes/preview-live-activity'
 import { Route as PreviewQuestCardsRouteImport } from './routes/preview-quest-cards'
+import { Route as PreviewReferRouteImport } from './routes/preview-refer'
+import { Route as PreviewReferralRulesRouteImport } from './routes/preview-referral-rules'
 import { Route as PreviewSectionHeadingRouteImport } from './routes/preview-section-heading'
 import { Route as PreviewSplashRouteImport } from './routes/preview-splash'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -25,6 +28,7 @@ import { Route as AuthenticatedOfferwallRouteImport } from './routes/_authentica
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedReferRouteImport } from './routes/_authenticated/refer'
+import { Route as AuthenticatedReferralRulesRouteImport } from './routes/_authenticated/referral-rules'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedTaskRouteImport } from './routes/_authenticated/task'
 import { Route as AuthenticatedWalletRouteImport } from './routes/_authenticated/wallet'
@@ -47,6 +51,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -60,6 +69,16 @@ const PreviewLiveActivityRoute = PreviewLiveActivityRouteImport.update({
 const PreviewQuestCardsRoute = PreviewQuestCardsRouteImport.update({
   id: '/preview-quest-cards',
   path: '/preview-quest-cards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewReferRoute = PreviewReferRouteImport.update({
+  id: '/preview-refer',
+  path: '/preview-refer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewReferralRulesRoute = PreviewReferralRulesRouteImport.update({
+  id: '/preview-referral-rules',
+  path: '/preview-referral-rules',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PreviewSectionHeadingRoute = PreviewSectionHeadingRouteImport.update({
@@ -118,6 +137,12 @@ const AuthenticatedReferRoute = AuthenticatedReferRouteImport.update({
   path: '/refer',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedReferralRulesRoute =
+  AuthenticatedReferralRulesRouteImport.update({
+    id: '/referral-rules',
+    path: '/referral-rules',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSupportRoute = AuthenticatedSupportRouteImport.update({
   id: '/support',
   path: '/support',
@@ -184,9 +209,12 @@ const ApiPublicOfferwallSlugRoute = ApiPublicOfferwallSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRoute
   '/auth': typeof AuthRoute
   '/preview-live-activity': typeof PreviewLiveActivityRoute
   '/preview-quest-cards': typeof PreviewQuestCardsRoute
+  '/preview-refer': typeof PreviewReferRoute
+  '/preview-referral-rules': typeof PreviewReferralRulesRoute
   '/preview-section-heading': typeof PreviewSectionHeadingRoute
   '/preview-splash': typeof PreviewSplashRoute
   '/admin': typeof AuthenticatedAdminRoute
@@ -198,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/refer': typeof AuthenticatedReferRoute
+  '/referral-rules': typeof AuthenticatedReferralRulesRoute
   '/support': typeof AuthenticatedSupportRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
@@ -213,9 +242,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app': typeof AppRoute
   '/auth': typeof AuthRoute
   '/preview-live-activity': typeof PreviewLiveActivityRoute
   '/preview-quest-cards': typeof PreviewQuestCardsRoute
+  '/preview-refer': typeof PreviewReferRoute
+  '/preview-referral-rules': typeof PreviewReferralRulesRoute
   '/preview-section-heading': typeof PreviewSectionHeadingRoute
   '/preview-splash': typeof PreviewSplashRoute
   '/admin': typeof AuthenticatedAdminRoute
@@ -227,6 +259,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/refer': typeof AuthenticatedReferRoute
+  '/referral-rules': typeof AuthenticatedReferralRulesRoute
   '/support': typeof AuthenticatedSupportRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
@@ -244,9 +277,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/app': typeof AppRoute
   '/auth': typeof AuthRoute
   '/preview-live-activity': typeof PreviewLiveActivityRoute
   '/preview-quest-cards': typeof PreviewQuestCardsRoute
+  '/preview-refer': typeof PreviewReferRoute
+  '/preview-referral-rules': typeof PreviewReferralRulesRoute
   '/preview-section-heading': typeof PreviewSectionHeadingRoute
   '/preview-splash': typeof PreviewSplashRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
@@ -258,6 +294,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/refer': typeof AuthenticatedReferRoute
+  '/_authenticated/referral-rules': typeof AuthenticatedReferralRulesRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/_authenticated/task': typeof AuthenticatedTaskRoute
   '/_authenticated/wallet': typeof AuthenticatedWalletRoute
@@ -275,9 +312,12 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/app'
     | '/auth'
     | '/preview-live-activity'
     | '/preview-quest-cards'
+    | '/preview-refer'
+    | '/preview-referral-rules'
     | '/preview-section-heading'
     | '/preview-splash'
     | '/admin'
@@ -289,6 +329,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/profile'
     | '/refer'
+    | '/referral-rules'
     | '/support'
     | '/task'
     | '/wallet'
@@ -304,9 +345,12 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/app'
     | '/auth'
     | '/preview-live-activity'
     | '/preview-quest-cards'
+    | '/preview-refer'
+    | '/preview-referral-rules'
     | '/preview-section-heading'
     | '/preview-splash'
     | '/admin'
@@ -318,6 +362,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/profile'
     | '/refer'
+    | '/referral-rules'
     | '/support'
     | '/task'
     | '/wallet'
@@ -334,9 +379,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/app'
     | '/auth'
     | '/preview-live-activity'
     | '/preview-quest-cards'
+    | '/preview-refer'
+    | '/preview-referral-rules'
     | '/preview-section-heading'
     | '/preview-splash'
     | '/_authenticated/admin'
@@ -348,6 +396,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding'
     | '/_authenticated/profile'
     | '/_authenticated/refer'
+    | '/_authenticated/referral-rules'
     | '/_authenticated/support'
     | '/_authenticated/task'
     | '/_authenticated/wallet'
@@ -365,9 +414,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AppRoute: typeof AppRoute
   AuthRoute: typeof AuthRoute
   PreviewLiveActivityRoute: typeof PreviewLiveActivityRoute
   PreviewQuestCardsRoute: typeof PreviewQuestCardsRoute
+  PreviewReferRoute: typeof PreviewReferRoute
+  PreviewReferralRulesRoute: typeof PreviewReferralRulesRoute
   PreviewSectionHeadingRoute: typeof PreviewSectionHeadingRoute
   PreviewSplashRoute: typeof PreviewSplashRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
@@ -395,6 +447,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -414,6 +473,20 @@ declare module '@tanstack/react-router' {
       path: '/preview-quest-cards'
       fullPath: '/preview-quest-cards'
       preLoaderRoute: typeof PreviewQuestCardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview-refer': {
+      id: '/preview-refer'
+      path: '/preview-refer'
+      fullPath: '/preview-refer'
+      preLoaderRoute: typeof PreviewReferRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview-referral-rules': {
+      id: '/preview-referral-rules'
+      path: '/preview-referral-rules'
+      fullPath: '/preview-referral-rules'
+      preLoaderRoute: typeof PreviewReferralRulesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/preview-section-heading': {
@@ -491,6 +564,13 @@ declare module '@tanstack/react-router' {
       path: '/refer'
       fullPath: '/refer'
       preLoaderRoute: typeof AuthenticatedReferRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/referral-rules': {
+      id: '/_authenticated/referral-rules'
+      path: '/referral-rules'
+      fullPath: '/referral-rules'
+      preLoaderRoute: typeof AuthenticatedReferralRulesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/support': {
@@ -590,6 +670,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedReferRoute: typeof AuthenticatedReferRoute
+  AuthenticatedReferralRulesRoute: typeof AuthenticatedReferralRulesRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
   AuthenticatedTaskRoute: typeof AuthenticatedTaskRoute
   AuthenticatedWalletRoute: typeof AuthenticatedWalletRoute
@@ -607,6 +688,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedReferRoute: AuthenticatedReferRoute,
+  AuthenticatedReferralRulesRoute: AuthenticatedReferralRulesRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
   AuthenticatedTaskRoute: AuthenticatedTaskRoute,
   AuthenticatedWalletRoute: AuthenticatedWalletRoute,
@@ -620,9 +702,12 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AppRoute: AppRoute,
   AuthRoute: AuthRoute,
   PreviewLiveActivityRoute: PreviewLiveActivityRoute,
   PreviewQuestCardsRoute: PreviewQuestCardsRoute,
+  PreviewReferRoute: PreviewReferRoute,
+  PreviewReferralRulesRoute: PreviewReferralRulesRoute,
   PreviewSectionHeadingRoute: PreviewSectionHeadingRoute,
   PreviewSplashRoute: PreviewSplashRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
