@@ -145,6 +145,27 @@
     border-color: var(--color-border);
   }
 
+  /*
+   * Kill the elastic overscroll bounce that exposed blank gutters at the screen
+   * corners on the web build.
+   *
+   * overscroll-behavior stops the rubber-band at the scroll boundaries, and
+   * touch-action: pan-y drops horizontal panning and pinch-zoom at the document
+   * level. Nested horizontal carousels (StarterQuests, the admin tab strip, the
+   * landing showcase) still pan: the gesture is handled by those scroll
+   * containers, whose own touch-action stays `auto`.
+   *
+   * min-height rather than height so the shells' `min-h-screen` can still grow
+   * past the viewport — a hard `height: 100%` here would cap body at the
+   * viewport and push all content into an overflow.
+   */
+  html,
+  body {
+    min-height: 100%;
+    overscroll-behavior: none;
+    touch-action: pan-y;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -680,6 +701,20 @@
 .home-page-bg {
   position: relative;
   isolation: isolate;
+  /*
+   * The decorative orbs below sit at negative offsets (home-orb-gold is at
+   * right: -95px), which widened the document by ~98px. On mobile that widens
+   * the layout viewport itself, and because BottomNav is `fixed inset-x-0` it
+   * then stretched to the widened width — pushing its 5th tab (Support) off
+   * the right edge of the screen.
+   *
+   * `clip` rather than `hidden` on purpose: `overflow-x: hidden` would turn
+   * this element into a scroll container and break the sticky AppHeader, while
+   * `clip` just clips. The fixed BottomNav is unaffected either way because
+   * this element is not its containing block (position/isolation alone don't
+   * create one).
+   */
+  overflow-x: clip;
 }
 .home-page-bg::before {
   content: "";

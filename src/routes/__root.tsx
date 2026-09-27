@@ -80,7 +80,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      // maximum-scale/user-scalable lock pinch-zoom so the web build behaves like
+      // the packaged app. Note this trades away pinch-to-zoom, which browsers
+      // otherwise offer as an accessibility affordance (see WCAG 1.4.4).
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+      },
       { name: "theme-color", content: "#FFF8EC" },
       { title: "CashGPT — Earn real rewards for ads & offers" },
       {
