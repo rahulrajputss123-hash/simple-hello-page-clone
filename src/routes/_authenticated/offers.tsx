@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Layers, Star, Tag } from "lucide-react";
+import { ArrowRight, Layers, LayoutGrid, Tag } from "lucide-react";
 import { useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
@@ -36,18 +36,19 @@ function OffersPage() {
 
       <SectionBanner section="offers" />
 
+      {/* scope="all" is the complete, unsliced feed (scope="home" slices to
+          settings.featuredSlots — that's the Home teaser, not this page). No
+          "View All" link here: it pointed at /featured, which renders the same
+          scope="all" list, so it led nowhere new. /featured is still reachable
+          from the Home screen's Featured Offers teaser. */}
       <SectionHeading
         variant="ribbon"
-        icon={Star}
-        iconSrc="/icons/icon-featured-offers.png"
-        title="Featured Offers"
+        icon={LayoutGrid}
+        title="All Offers"
         className="!mt-4"
         action={<OfferFilterButton value={filter} onChange={setFilter} />}
       />
-      <FeaturedOffers scope="home" filter={filter} />
-      <div className="mt-3 flex justify-center">
-        <ViewAllLink to="/featured" testid="offers-view-all-featured" />
-      </div>
+      <FeaturedOffers scope="all" filter={filter} />
 
       <SectionHeading
         variant="ribbon"
