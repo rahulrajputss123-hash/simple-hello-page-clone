@@ -104,7 +104,11 @@ export const saveManualOffer = createServerFn({ method: "POST" })
         rewardAmount: z.number().min(0).max(10000),
         networkPayout: z.number().min(0).max(10000).nullable().optional(),
         clickUrl: z.string().trim().url().max(1000).nullable().optional(),
-        countries: z.array(z.string().trim().min(2).max(3)).max(60).default([]),
+        // 250 = the full ISO 3166-1 picker list. The old cap of 60 was fine for a
+        // comma-separated text field but is easy to exceed now that the admin can
+        // tick whole regions; going over it would fail the save with no clear cause.
+        // (Targeting every country is still best expressed as [] — "no restriction".)
+        countries: z.array(z.string().trim().min(2).max(3)).max(250).default([]),
         devices: z.array(z.string().trim().max(20)).max(10).default([]),
         expiresAt: z.string().datetime().nullable().optional(),
         isActive: z.boolean().default(true),
@@ -117,6 +121,11 @@ export const saveManualOffer = createServerFn({ method: "POST" })
         actualCost: z.number().min(0).max(1000000).nullable().optional(),
         payoutPercentage: z.number().min(0).max(1000).default(110),
         maxPayoutCap: z.number().min(0).max(1000000).nullable().optional(),
+        // Reward mode — how reward_amount is derived. Separate from payoutMode
+        // (verification) and payoutPercentage (the Limited Deal actual_cost rule).
+        // The 500 ceiling mirrors offers_reward_percentage_check in the DB.
+        rewardMode: z.enum(["fixed", "percent_payout"]).default("fixed"),
+        rewardPercentage: z.number().min(0).max(500).nullable().optional(),
         // Payout mode
         payoutMode: z.enum(["manual", "manual_proof", "auto_postback"]).default("manual"),
         postbackSecretRef: z.string().trim().max(120).nullable().optional(),
