@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { TASK_FREQUENCIES, TASK_TYPES } from "./tasks/types";
+import { TASK_FREQUENCIES, TASK_LOCK_TYPES, TASK_TYPES } from "./tasks/types";
 
 const taskInput = z.object({
   id: z.string().uuid().optional(),
@@ -23,6 +23,9 @@ const taskInput = z.object({
   // offerwall_earning-specific fields; ignored for all other task types.
   earningTarget: z.number().min(0.01).max(100_000).nullable().optional(),
   earningProviderId: z.string().uuid().nullable().optional(),
+  // Availability lock, mirroring quests. 'first_withdrawal' needs no extra value.
+  lockType: z.enum(TASK_LOCK_TYPES).default("none"),
+  unlockAt: z.string().nullable().optional(),
 });
 
 export const listAdminTasks = createServerFn({ method: "POST" })

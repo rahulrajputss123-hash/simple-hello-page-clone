@@ -50,6 +50,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
+import { computeLockState, formatLockReason } from "@/lib/lock-state";
 import { formatMoney } from "@/lib/coinquest";
 import { completeTask } from "@/lib/coinquest.functions";
 import { tasksQuery, userTasksQuery } from "@/lib/queries";
@@ -123,7 +124,13 @@ export const Route = createFileRoute("/_authenticated/task")({
 });
 
 function TaskPage() {
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
+  /**
+   * Drives the 'first_withdrawal' lock. lifetime_withdrawn is incremented once per
+   * approved withdrawal, so `> 0` means the user has withdrawn at least once.
+   * Display only — the server re-checks before any progress or credit.
+   */
+  const lifetimeWithdrawn = Number(profile?.lifetime_withdrawn ?? 0);
   const queryClient = useQueryClient();
   const tasks = useQuery(tasksQuery());
   const userTasks = useQuery(userTasksQuery(session?.user.id));
@@ -190,7 +197,23 @@ function TaskPage() {
             const target = automated
               ? ((task as { target?: number }).target ?? 1)
               : task.steps_total;
-            const locked = index > 0 && !done && (userTasks.data ?? []).length === 0 && index > 2;
+            // Pre-existing "ease new users in" heuristic — unrelated to the
+            // admin-configured lock below, kept as-is.
+            const gatedForNewUser =
+              index > 0 && !done && (userTasks.data ?? []).length === 0 && index > 2;
+            // Admin-configured lock. Server-enforced in tasks/engine.server.ts and
+            // completeTaskImpl; this is the matching visual state.
+            const raw = task as { lock_type?: string | null; unlock_at?: string | null };
+            const lockState = computeLockState(
+              raw.lock_type ?? "none",
+              raw.unlock_at ?? null,
+              null,
+              0,
+              lifetimeWithdrawn,
+            );
+            const configLocked = lockState.is_locked && !done;
+            const lockLabel = configLocked ? formatLockReason(lockState.unlock_reason) : null;
+            const locked = gatedForNewUser || configLocked;
             const imageUrl = (task as { image_url?: string | null }).image_url ?? null;
             const showImage = Boolean(imageUrl) && !brokenImages[task.id];
             const TaskIcon = taskIcon((task as { icon?: string | null }).icon);
@@ -236,13 +259,18 @@ function TaskPage() {
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-mint-foreground">
                           <CheckCircle2 className="success-pop size-4 text-accent" /> Completed
                         </span>
+                      ) : /* A locked task must not claim it "tracks automatically" —
+                            the lock is checked before the automated branch. */
+                      locked ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+                          data-testid={`task-locked-${task.id}`}
+                        >
+                          <LockKeyhole className="size-3.5" /> {lockLabel ?? "Locked"}
+                        </span>
                       ) : automated ? (
                         <span className="text-xs text-muted-foreground">
                           Tracks automatically — reward pays out at {target}.
-                        </span>
-                      ) : locked ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                          <Lock className="size-3.5" /> Locked
                         </span>
                       ) : (
                         <Button

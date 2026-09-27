@@ -9,7 +9,10 @@
  */
 
 export type LockReason =
-  { type: "time"; unlocksAt: string } | { type: "earning"; required: number; current: number };
+  | { type: "time"; unlocksAt: string }
+  | { type: "earning"; required: number; current: number }
+  /** Locked until the user has had at least one withdrawal approved. */
+  | { type: "first_withdrawal" };
 
 export type LockState = {
   is_locked: boolean;
@@ -19,10 +22,14 @@ export type LockState = {
 /**
  * Compute whether an item is locked for a given user.
  *
- * @param lockType              'none' | 'time' | 'earning'
+ * @param lockType              'none' | 'time' | 'earning' | 'first_withdrawal'
  * @param unlockAt              ISO-8601 UTC string (used when lockType === 'time')
  * @param requiredLifetimeEarned  USD amount (used when lockType === 'earning')
  * @param lifetimeEarned        User's current lifetime_earned from profiles table
+ * @param lifetimeWithdrawn     User's current lifetime_withdrawn from profiles table.
+ *                              Only read when lockType === 'first_withdrawal'; it is
+ *                              incremented exactly once per approved withdrawal, so
+ *                              `> 0` is the same signal the referral milestone uses.
  * @param nowIso                Override "now" for testing; defaults to new Date()
  */
 export function computeLockState(
@@ -30,9 +37,14 @@ export function computeLockState(
   unlockAt: string | null,
   requiredLifetimeEarned: number | null,
   lifetimeEarned: number,
+  lifetimeWithdrawn = 0,
   nowIso?: string,
 ): LockState {
   const now = nowIso ? new Date(nowIso) : new Date();
+
+  if (lockType === "first_withdrawal" && Number(lifetimeWithdrawn) <= 0) {
+    return { is_locked: true, unlock_reason: { type: "first_withdrawal" } };
+  }
 
   if (lockType === "time" && unlockAt) {
     const unlockDate = new Date(unlockAt);
@@ -76,6 +88,9 @@ export function assertNotLocked(lockState: LockState, label: string): void {
       `"${label}" requires $${r.required.toFixed(2)} lifetime earned. You need $${needed} more.`,
     );
   }
+  if (r?.type === "first_withdrawal") {
+    throw new Error(`"${label}" unlocks after your first withdrawal is approved.`);
+  }
   throw new Error(`"${label}" is currently locked.`);
 }
 
@@ -102,4 +117,21 @@ export function formatTimeLockReason(unlocksAt: string): string {
 export function formatEarningLockReason(required: number, current: number): string {
   const needed = Math.max(0, required - current);
   return `Earn $${needed.toFixed(2)} more to unlock`;
+}
+
+/** Client helper: label for a first-withdrawal lock. */
+export function formatFirstWithdrawalLockReason(): string {
+  return "Unlocks after your first withdrawal";
+}
+
+/**
+ * Client helper: turn any lock reason into a short label.
+ * Keeps the Quest card and the Task list wording identical.
+ */
+export function formatLockReason(reason: LockReason | null): string {
+  if (!reason) return "Locked";
+  if (reason.type === "time") return formatTimeLockReason(reason.unlocksAt);
+  if (reason.type === "earning") return formatEarningLockReason(reason.required, reason.current);
+  if (reason.type === "first_withdrawal") return formatFirstWithdrawalLockReason();
+  return "Locked";
 }

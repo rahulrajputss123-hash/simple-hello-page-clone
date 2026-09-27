@@ -28,6 +28,25 @@ export const TASK_TYPE_LABELS: Record<TaskType, string> = {
   quest_count: "Quests completed",
 };
 
+/**
+ * Availability locks, mirroring quests (src/lib/lock-state.ts).
+ *
+ * Tasks deliberately omit the quests' 'earning' variant — only date and
+ * first-withdrawal locks were needed, and leaving it out keeps the
+ * tasks_lock_type_check constraint honest.
+ *
+ * A lock is NOT the same as is_active: is_active hides a task completely, while a
+ * lock keeps it listed in a locked state and blocks progress/crediting.
+ */
+export const TASK_LOCK_TYPES = ["none", "time", "first_withdrawal"] as const;
+export type TaskLockType = (typeof TASK_LOCK_TYPES)[number];
+
+export const TASK_LOCK_TYPE_LABELS: Record<TaskLockType, string> = {
+  none: "No lock",
+  time: "Until date",
+  first_withdrawal: "Until first withdrawal",
+};
+
 export const TASK_FREQUENCIES = ["daily", "weekly", "one_time", "lifetime"] as const;
 export type TaskFrequency = (typeof TASK_FREQUENCIES)[number];
 

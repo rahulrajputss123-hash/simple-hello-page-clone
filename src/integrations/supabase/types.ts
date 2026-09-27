@@ -886,6 +886,8 @@ export type Database = {
         Row: {
           created_at: string;
           description: string;
+          earning_provider_id: string | null;
+          earning_target: number | null;
           ends_at: string | null;
           frequency: string;
           icon: string;
@@ -893,6 +895,7 @@ export type Database = {
           image_url: string | null;
           is_active: boolean;
           is_featured: boolean;
+          lock_type: string;
           reward: number;
           sort_order: number;
           starts_at: string | null;
@@ -900,12 +903,15 @@ export type Database = {
           target: number;
           task_type: string;
           title: string;
+          unlock_at: string | null;
           updated_at: string;
           window_days: number | null;
         };
         Insert: {
           created_at?: string;
           description?: string;
+          earning_provider_id?: string | null;
+          earning_target?: number | null;
           ends_at?: string | null;
           frequency?: string;
           icon?: string;
@@ -913,6 +919,7 @@ export type Database = {
           image_url?: string | null;
           is_active?: boolean;
           is_featured?: boolean;
+          lock_type?: string;
           reward?: number;
           sort_order?: number;
           starts_at?: string | null;
@@ -920,12 +927,15 @@ export type Database = {
           target?: number;
           task_type?: string;
           title: string;
+          unlock_at?: string | null;
           updated_at?: string;
           window_days?: number | null;
         };
         Update: {
           created_at?: string;
           description?: string;
+          earning_provider_id?: string | null;
+          earning_target?: number | null;
           ends_at?: string | null;
           frequency?: string;
           icon?: string;
@@ -933,6 +943,7 @@ export type Database = {
           image_url?: string | null;
           is_active?: boolean;
           is_featured?: boolean;
+          lock_type?: string;
           reward?: number;
           sort_order?: number;
           starts_at?: string | null;
@@ -940,6 +951,7 @@ export type Database = {
           target?: number;
           task_type?: string;
           title?: string;
+          unlock_at?: string | null;
           updated_at?: string;
           window_days?: number | null;
         };

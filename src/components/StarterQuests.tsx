@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth";
 import { playRewardedAd } from "@/lib/ads";
 import { reportAdWatched, startQuest } from "@/lib/coinquest.functions";
 import { listActiveQuests, startLockerQuest, startShortlinkStep } from "@/lib/quests.functions";
-import { formatTimeLockReason, formatEarningLockReason } from "@/lib/lock-state";
+import { formatLockReason } from "@/lib/lock-state";
 
 export function StarterQuests() {
   const { session } = useAuth();
@@ -174,13 +174,8 @@ export function StarterQuests() {
           const isLocked: boolean = Boolean(q.is_locked);
           const unlockReason = q.unlock_reason ?? null;
 
-          const lockLabel = isLocked
-            ? unlockReason?.type === "time"
-              ? formatTimeLockReason(unlockReason.unlocksAt)
-              : unlockReason?.type === "earning"
-                ? formatEarningLockReason(unlockReason.required, unlockReason.current)
-                : "Locked"
-            : null;
+          // Shared formatter so Quest cards and the Task list word locks identically.
+          const lockLabel = isLocked ? formatLockReason(unlockReason) : null;
 
           const { active, credited } = questRuntime(q);
           const isBusy = busy === quest.key;

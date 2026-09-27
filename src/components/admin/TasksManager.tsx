@@ -39,9 +39,12 @@ import {
 import {
   TASK_FREQUENCIES,
   TASK_FREQUENCY_LABELS,
+  TASK_LOCK_TYPE_LABELS,
+  TASK_LOCK_TYPES,
   TASK_TYPE_LABELS,
   TASK_TYPES,
   type TaskFrequency,
+  type TaskLockType,
   type TaskType,
 } from "@/lib/tasks/types";
 
@@ -63,6 +66,9 @@ const emptyForm = {
   sortOrder: "0",
   isActive: true,
   isFeatured: false,
+  // Availability lock, mirroring quests. Separate from isActive.
+  lockType: "none" as TaskLockType,
+  unlockAt: "",
   // offerwall_earning-specific
   earningTarget: "",
   earningProviderId: "", // empty string = all providers (null on save)
@@ -158,6 +164,11 @@ export function TasksManager() {
           sortOrder: Number(state.sortOrder) || 0,
           isActive: state.isActive,
           isFeatured: state.isFeatured,
+          lockType: state.lockType,
+          unlockAt:
+            state.lockType === "time" && state.unlockAt
+              ? new Date(state.unlockAt).toISOString()
+              : null,
           earningTarget:
             state.taskType === "offerwall_earning" && state.earningTarget
               ? Number(state.earningTarget)
@@ -283,6 +294,9 @@ export function TasksManager() {
                         sortOrder: String(task.sort_order),
                         isActive: task.is_active,
                         isFeatured: task.is_featured,
+                        lockType: (raw.lock_type ?? "none") as TaskLockType,
+                        // datetime-local wants "YYYY-MM-DDTHH:mm", not a full ISO string.
+                        unlockAt: raw.unlock_at ? String(raw.unlock_at).slice(0, 16) : "",
                         earningTarget: raw.earning_target != null ? String(raw.earning_target) : "",
                         earningProviderId: raw.earning_provider_id ?? "",
                       });
@@ -459,6 +473,53 @@ export function TasksManager() {
                   />
                   Featured
                 </label>
+              </div>
+
+              {/* Lock condition — same pattern as QuestsManager. A lock is not the
+                  same as Active: Active hides the task completely, a lock leaves it
+                  listed in a locked state and blocks progress + crediting. */}
+              <div className="space-y-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-3 dark:border-amber-700 dark:bg-amber-950/20">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                  🔒 Lock condition
+                </p>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Lock type</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {TASK_LOCK_TYPES.map((t) => (
+                      <Button
+                        key={t}
+                        size="sm"
+                        type="button"
+                        variant={form.lockType === t ? "jade" : "outline"}
+                        data-testid={`task-lock-type-${t}`}
+                        onClick={() => setForm({ ...form, lockType: t, unlockAt: "" })}
+                      >
+                        {TASK_LOCK_TYPE_LABELS[t]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                {form.lockType === "time" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Unlock at (UTC date-time)
+                    </Label>
+                    <Input
+                      type="datetime-local"
+                      data-testid="task-lock-unlock-at"
+                      value={form.unlockAt}
+                      onChange={(e) => setForm({ ...form, unlockAt: e.target.value })}
+                    />
+                  </div>
+                )}
+                {form.lockType === "first_withdrawal" && (
+                  <p
+                    className="text-[11px] text-muted-foreground"
+                    data-testid="task-lock-first-withdrawal-note"
+                  >
+                    Unlocks as soon as the user has one approved withdrawal — no extra value needed.
+                  </p>
+                )}
               </div>
               {form.taskType === "shortlink" || form.taskType === "content_locker" ? (
                 <p className="text-xs text-muted-foreground">

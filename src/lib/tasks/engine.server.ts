@@ -1,11 +1,13 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { creditWallet } from "../coinquest.server";
+import { assertNotLocked, computeLockState, type LockState } from "../lock-state";
 import {
   periodKey,
   periodStart,
   TASK_TYPE_EVENT,
   type TaskEventType,
   type TaskFrequency,
+  type TaskLockType,
   type TaskType,
 } from "./types";
 
@@ -25,7 +27,55 @@ type TaskRow = {
   earning_target: number | null;
   /** Scope to one SDK offerwall provider; null = combined across all. */
   earning_provider_id: string | null;
+  lock_type: TaskLockType | null;
+  unlock_at: string | null;
 };
+
+/**
+ * Lock state for a task. Tasks have no 'earning' lock, so lifetime_earned is
+ * passed as 0 — it is never read for the 'time' or 'first_withdrawal' branches.
+ */
+export function computeTaskLockState(
+  task: Pick<TaskRow, "lock_type" | "unlock_at">,
+  lifetimeWithdrawn: number,
+  nowIso?: string,
+): LockState {
+  return computeLockState(
+    task.lock_type ?? "none",
+    task.unlock_at,
+    null,
+    0,
+    lifetimeWithdrawn,
+    nowIso,
+  );
+}
+
+async function fetchLifetimeWithdrawn(userId: string): Promise<number> {
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("lifetime_withdrawn")
+    .eq("id", userId)
+    .maybeSingle();
+  return Number(data?.lifetime_withdrawn ?? 0);
+}
+
+/**
+ * Server-side lock enforcement for tasks — the task counterpart of
+ * assertQuestNotLocked. Call before recording progress or crediting a reward.
+ */
+export async function assertTaskNotLocked(
+  userId: string,
+  task: { title: string; lock_type?: string | null; unlock_at?: string | null },
+): Promise<void> {
+  const lockType = task.lock_type ?? "none";
+  if (lockType === "none") return;
+  const lifetimeWithdrawn = await fetchLifetimeWithdrawn(userId);
+  const state = computeTaskLockState(
+    { lock_type: lockType as TaskLockType, unlock_at: task.unlock_at ?? null },
+    lifetimeWithdrawn,
+  );
+  assertNotLocked(state, task.title);
+}
 
 /**
  * Appends a real activity event. Duplicate (user, type, key) tuples are ignored,
@@ -113,11 +163,22 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
     .neq("task_type", "manual");
   if (tasks.error || !tasks.data) return { updated: 0 };
 
+  // Only fetched when some task actually carries a lock, so the unlocked case
+  // costs no extra query.
+  const anyLocked = (tasks.data as unknown as TaskRow[]).some(
+    (t) => (t.lock_type ?? "none") !== "none",
+  );
+  const lifetimeWithdrawn = anyLocked ? await fetchLifetimeWithdrawn(userId) : 0;
+
   let updated = 0;
   for (const raw of tasks.data as unknown as TaskRow[]) {
     if (eventType && TASK_TYPE_EVENT[raw.task_type] !== eventType) continue;
     if (raw.starts_at && new Date(raw.starts_at) > now) continue;
     if (raw.ends_at && new Date(raw.ends_at) < now) continue;
+    // Locked tasks accrue no progress and are never credited. Skipping (rather
+    // than throwing) is right here: this runs as a batch sync over every task,
+    // so one locked task must not abort the rest.
+    if (computeTaskLockState(raw, lifetimeWithdrawn, now.toISOString()).is_locked) continue;
 
     const key = periodKey(raw.frequency, now);
     // offerwall_earning tasks compare dollar progress against earning_target;

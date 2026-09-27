@@ -2,6 +2,8 @@
 // Completely separate from the Offer Feed provider system (src/lib/offers/*).
 // No real SDK is integrated yet — this is the configuration + adapter contract.
 
+import type { LockReason } from "../lock-state";
+
 export type SdkIntegrationType = "placeholder" | "native_sdk" | "web_sdk" | "hybrid" | "api";
 export type SdkProviderStatus = "draft" | "configured" | "testing" | "live" | "disabled";
 export type SdkPlatform = "android" | "ios" | "web";
@@ -75,10 +77,12 @@ export type PublicSdkOfferwallProvider = {
   unlockAt: string | null;
   requiredLifetimeEarned: number | null;
   isLocked: boolean;
-  unlockReason:
-    | { type: "time"; unlocksAt: string }
-    | { type: "earning"; required: number; current: number }
-    | null;
+  /**
+   * Reuses the shared LockReason rather than re-declaring the union, so adding a
+   * lock type in one place can't leave this out of step. Offerwall rows only ever
+   * use the 'time' and 'earning' variants.
+   */
+  unlockReason: LockReason | null;
 };
 
 export type SdkProviderInput = {

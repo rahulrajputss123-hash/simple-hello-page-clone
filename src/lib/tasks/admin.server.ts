@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import type { TaskFrequency, TaskType } from "./types";
+import type { TaskFrequency, TaskLockType, TaskType } from "./types";
 
 export type AdminTaskInput = {
   id?: string | undefined;
@@ -21,6 +21,13 @@ export type AdminTaskInput = {
   earningTarget?: number | null | undefined;
   /** Only used when taskType === 'offerwall_earning'. null = all providers. */
   earningProviderId?: string | null | undefined;
+  /**
+   * Availability lock, mirroring quests. Independent of isActive: isActive hides
+   * the task entirely, a lock shows it in a locked state and blocks progress.
+   */
+  lockType?: TaskLockType | undefined;
+  /** Required when lockType === 'time'; ignored otherwise. */
+  unlockAt?: string | null | undefined;
 };
 
 export async function listAdminTasksImpl(filters: {
@@ -53,6 +60,11 @@ export async function listAdminTasksImpl(filters: {
 }
 
 export async function upsertAdminTaskImpl(input: AdminTaskInput) {
+  const lockType: TaskLockType = input.lockType ?? "none";
+  if (lockType === "time" && !input.unlockAt) {
+    throw new Error("A time-locked task requires an unlock date.");
+  }
+
   const row = {
     title: input.title,
     description: input.description,
@@ -73,6 +85,10 @@ export async function upsertAdminTaskImpl(input: AdminTaskInput) {
     earning_target: input.taskType === "offerwall_earning" ? (input.earningTarget ?? null) : null,
     earning_provider_id:
       input.taskType === "offerwall_earning" ? (input.earningProviderId ?? null) : null,
+    // Lock. unlock_at must be NULL for every mode except 'time' — the
+    // tasks_lock_type_check constraint rejects the row otherwise.
+    lock_type: lockType,
+    unlock_at: lockType === "time" ? input.unlockAt || null : null,
   };
 
   const result = input.id

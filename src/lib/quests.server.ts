@@ -33,7 +33,8 @@ export type QuestRow = {
   locker_urls: string[];
   is_active: boolean;
   sort_order: number;
-  lock_type: "none" | "time" | "earning";
+  /** 'first_withdrawal' unlocks once profiles.lifetime_withdrawn > 0. */
+  lock_type: "none" | "time" | "earning" | "first_withdrawal";
   unlock_at: string | null;
   required_lifetime_earned: number | null;
   created_at: string;
@@ -58,13 +59,23 @@ function normalize(row: QuestRow): QuestRow {
   };
 }
 
-async function fetchLifetimeEarned(userId: string): Promise<number> {
+/**
+ * Both figures the lock rules depend on, in one round trip.
+ * lifetime_withdrawn is incremented once per approved withdrawal, so `> 0` is the
+ * "has withdrawn at least once" signal used by the 'first_withdrawal' lock.
+ */
+async function fetchLockInputs(
+  userId: string,
+): Promise<{ lifetimeEarned: number; lifetimeWithdrawn: number }> {
   const { data } = await db
     .from("profiles")
-    .select("lifetime_earned")
+    .select("lifetime_earned, lifetime_withdrawn")
     .eq("id", userId)
     .maybeSingle();
-  return Number(data?.lifetime_earned ?? 0);
+  return {
+    lifetimeEarned: Number(data?.lifetime_earned ?? 0),
+    lifetimeWithdrawn: Number(data?.lifetime_withdrawn ?? 0),
+  };
 }
 
 /**
@@ -82,7 +93,9 @@ export async function listActiveQuestsImpl(userId?: string): Promise<(QuestRow &
   if (error) throw new Error(error.message ?? "Could not load quests.");
 
   const rows: QuestRow[] = (data ?? []).map((r: QuestRow) => normalize(r));
-  const lifetimeEarned = userId ? await fetchLifetimeEarned(userId) : 0;
+  const { lifetimeEarned, lifetimeWithdrawn } = userId
+    ? await fetchLockInputs(userId)
+    : { lifetimeEarned: 0, lifetimeWithdrawn: 0 };
 
   return rows.map((quest) => {
     const lockState = userId
@@ -91,6 +104,7 @@ export async function listActiveQuestsImpl(userId?: string): Promise<(QuestRow &
           quest.unlock_at,
           quest.required_lifetime_earned,
           lifetimeEarned,
+          lifetimeWithdrawn,
         )
       : { is_locked: false, unlock_reason: null };
     return { ...quest, ...lockState };
@@ -122,33 +136,50 @@ export type QuestFormInput = {
   lockerUrls?: string[] | undefined;
   isActive: boolean;
   sortOrder: number;
-  lockType: "none" | "time" | "earning";
+  lockType: "none" | "time" | "earning" | "first_withdrawal";
   unlockAt?: string | null | undefined;
   requiredLifetimeEarned?: number | null | undefined;
 };
 
 export async function upsertQuestImpl(input: QuestFormInput) {
-  if (input.questType === "shortlink") {
-    const stepCount = input.shortlinkSteps?.length ?? 0;
-    if (stepCount < SHORTLINK_MIN_STEPS || stepCount > SHORTLINK_MAX_STEPS) {
-      throw new Error(
-        `A shortlink quest needs between ${SHORTLINK_MIN_STEPS} and ${SHORTLINK_MAX_STEPS} shortlink steps.`,
-      );
-    }
+  const lockerUrls = (input.lockerUrls ?? []).map((url) => url.trim()).filter(Boolean);
+  const shortlinkSteps = input.shortlinkSteps ?? [];
+
+  // Upper bounds and malformed URLs are still hard errors — they are mistakes,
+  // not an unfinished draft.
+  if (input.questType === "shortlink" && shortlinkSteps.length > SHORTLINK_MAX_STEPS) {
+    throw new Error(`A shortlink quest can have at most ${SHORTLINK_MAX_STEPS} steps.`);
   }
   if (input.questType === "ads" && input.adsRequired < 1) {
     throw new Error("Ads-type quests need at least 1 ad.");
   }
-  // Lower bound lives here rather than in a DB CHECK — see the migration note.
   if (input.questType === "locker") {
-    const urls = (input.lockerUrls ?? []).map((url) => url.trim()).filter(Boolean);
-    if (urls.length < 1 || urls.length > 3) {
-      throw new Error("A locker quest needs between 1 and 3 locker URLs.");
+    if (lockerUrls.length > 3) {
+      throw new Error("A locker quest can have at most 3 locker URLs.");
     }
-    if (urls.some((url) => !/^https?:\/\/.+/.test(url))) {
+    if (lockerUrls.some((url) => !/^https?:\/\/.+/.test(url))) {
       throw new Error("Every locker URL must be valid (must start with http:// or https://).");
     }
   }
+
+  /**
+   * Draft rule (replaces the old "must have N links to save at all" errors):
+   * a link-driven quest with too few links saves fine, but is forced inactive.
+   *
+   * is_active is the only thing users can see through (listActiveQuestsImpl and
+   * getQuestByKey both filter on it), so this is what guarantees a placeholder
+   * quest can never go live broken.
+   */
+  const requiredLinks =
+    input.questType === "locker" ? 1 : input.questType === "shortlink" ? SHORTLINK_MIN_STEPS : 0;
+  const availableLinks =
+    input.questType === "locker"
+      ? lockerUrls.length
+      : input.questType === "shortlink"
+        ? shortlinkSteps.length
+        : 0;
+  const isDraft = availableLinks < requiredLinks;
+  const isActive = isDraft ? false : input.isActive;
   if (input.lockType === "time" && !input.unlockAt) {
     throw new Error("A time-locked quest requires an unlock date.");
   }
@@ -166,13 +197,10 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     quest_type: input.questType,
     ads_required: input.questType === "ads" ? input.adsRequired : 0,
     reward_amount: input.rewardAmount,
-    shortlink_steps: input.questType === "shortlink" ? (input.shortlinkSteps ?? []) : [],
+    shortlink_steps: input.questType === "shortlink" ? shortlinkSteps : [],
     min_seconds_per_step: input.minSecondsPerStep,
-    locker_urls:
-      input.questType === "locker"
-        ? (input.lockerUrls ?? []).map((url) => url.trim()).filter(Boolean)
-        : [],
-    is_active: input.isActive,
+    locker_urls: input.questType === "locker" ? lockerUrls : [],
+    is_active: isActive,
     sort_order: input.sortOrder,
     lock_type: input.lockType,
     unlock_at: input.lockType === "time" ? input.unlockAt : null,
@@ -231,12 +259,13 @@ export async function getQuestByKey(key: string): Promise<QuestRow> {
  */
 export async function assertQuestNotLocked(userId: string, quest: QuestRow): Promise<void> {
   if (quest.lock_type === "none") return;
-  const lifetimeEarned = await fetchLifetimeEarned(userId);
+  const { lifetimeEarned, lifetimeWithdrawn } = await fetchLockInputs(userId);
   const state = computeLockState(
     quest.lock_type,
     quest.unlock_at,
     quest.required_lifetime_earned,
     lifetimeEarned,
+    lifetimeWithdrawn,
   );
   assertNotLocked(state, quest.label);
 }

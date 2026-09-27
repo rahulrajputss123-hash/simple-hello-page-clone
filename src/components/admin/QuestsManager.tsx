@@ -45,10 +45,41 @@ type FormState = {
   lockerUrls: string[];
   isActive: boolean;
   sortOrder: string;
-  lockType: "none" | "time" | "earning";
+  lockType: "none" | "time" | "earning" | "first_withdrawal";
   unlockAt: string;
   requiredLifetimeEarned: string;
 };
+
+/**
+ * Draft state for a link-driven quest.
+ *
+ * A locker quest needs 1 URL and a shortlink quest needs SHORTLINK_MIN_STEPS
+ * complete steps to actually work. Below that the quest is a DRAFT: it saves
+ * fine, but must not be active. upsertQuestImpl applies the identical rule on
+ * the server, so this is the affordance rather than the guarantee — it exists
+ * here so the Active switch and the save payload can't disagree with it.
+ */
+function draftInfo(state: FormState) {
+  const filledLockerUrls = state.lockerUrls.map((url) => url.trim()).filter(Boolean);
+  const filledShortlinkSteps = state.shortlinkSteps
+    .filter((s) => s.network.trim() && s.url.trim())
+    .map((s) => ({ network: s.network.trim(), url: s.url.trim() }));
+  const requiredLinks =
+    state.questType === "locker" ? 1 : state.questType === "shortlink" ? SHORTLINK_MIN_STEPS : 0;
+  const availableLinks =
+    state.questType === "locker"
+      ? filledLockerUrls.length
+      : state.questType === "shortlink"
+        ? filledShortlinkSteps.length
+        : 0;
+  return {
+    filledLockerUrls,
+    filledShortlinkSteps,
+    requiredLinks,
+    availableLinks,
+    isDraft: requiredLinks > 0 && availableLinks < requiredLinks,
+  };
+}
 
 const emptyForm = (): FormState => ({
   key: "",
@@ -101,23 +132,17 @@ export function QuestsManager() {
           questType: state.questType,
           adsRequired: Number(state.adsRequired) || 0,
           rewardAmount: Number(state.rewardAmount) || 0,
-          // Sent only for shortlink quests — the schema requires at least one
-          // step when the field is present, so an empty array would be rejected.
+          // Only complete rows are sent: half-typed rows would fail the step
+          // schema, and an empty array is now valid (it saves as a draft).
           ...(state.questType === "shortlink"
-            ? {
-                shortlinkSteps: state.shortlinkSteps.map((s) => ({
-                  network: s.network.trim(),
-                  url: s.url.trim(),
-                })),
-              }
+            ? { shortlinkSteps: draftInfo(state).filledShortlinkSteps }
             : {}),
           minSecondsPerStep: Number(state.minSecondsPerStep) || 15,
-          // Sent only for locker quests — the schema requires at least one URL
-          // when the field is present.
           ...(state.questType === "locker"
-            ? { lockerUrls: state.lockerUrls.map((url) => url.trim()).filter(Boolean) }
+            ? { lockerUrls: draftInfo(state).filledLockerUrls }
             : {}),
-          isActive: state.isActive,
+          // Mirrors the server rule so the optimistic UI matches what is stored.
+          isActive: state.isActive && !draftInfo(state).isDraft,
           sortOrder: Number(state.sortOrder) || 0,
           lockType: state.lockType,
           unlockAt: state.lockType === "time" && state.unlockAt ? state.unlockAt : null,
@@ -168,12 +193,16 @@ export function QuestsManager() {
       isActive: quest.is_active,
       sortOrder: String(quest.sort_order ?? 0),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      lockType: ((quest as any).lock_type ?? "none") as "none" | "time" | "earning",
+      lockType: ((quest as any).lock_type ?? "none") as FormState["lockType"],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       unlockAt: String((quest as any).unlock_at ?? ""),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       requiredLifetimeEarned: String((quest as any).required_lifetime_earned ?? ""),
     });
+
+  const { requiredLinks, isDraft, filledLockerUrls } = form
+    ? draftInfo(form)
+    : { requiredLinks: 0, isDraft: false, filledLockerUrls: [] as string[] };
 
   const canSave =
     form &&
@@ -182,13 +211,13 @@ export function QuestsManager() {
     (form.questType === "ads"
       ? Number(form.adsRequired) > 0
       : form.questType === "locker"
-        ? (() => {
-            const urls = form.lockerUrls.map((url) => url.trim()).filter(Boolean);
-            return urls.length >= 1 && urls.length <= 3;
-          })()
-        : form.shortlinkSteps.length >= SHORTLINK_MIN_STEPS &&
-          form.shortlinkSteps.length <= SHORTLINK_MAX_STEPS &&
-          form.shortlinkSteps.every((s) => s.network.trim() && s.url.trim()));
+        ? // Zero URLs is a valid draft; only the upper bound is a real error.
+          filledLockerUrls.length <= 3
+        : form.shortlinkSteps.length <= SHORTLINK_MAX_STEPS &&
+          // Any row that has been started must be finished.
+          form.shortlinkSteps.every(
+            (s) => (!s.network.trim() && !s.url.trim()) || (s.network.trim() && s.url.trim()),
+          ));
 
   const origin = typeof window !== "undefined" ? window.location.origin : "https://yourapp.com";
 
@@ -506,13 +535,23 @@ export function QuestsManager() {
                     onChange={(event) => setForm({ ...form, sortOrder: event.target.value })}
                   />
                 </Field>
-                <label className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={form.isActive}
-                    onCheckedChange={(value) => setForm({ ...form, isActive: value })}
-                  />
-                  Active
-                </label>
+                <div className="space-y-1">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={form.isActive && !isDraft}
+                      disabled={isDraft}
+                      data-testid="quest-form-is-active"
+                      onCheckedChange={(value) => setForm({ ...form, isActive: value })}
+                    />
+                    Active
+                  </label>
+                  {isDraft && (
+                    <p className="text-[11px] text-amber-600" data-testid="quest-form-draft-note">
+                      Add at least {requiredLinks === 1 ? "one link" : `${requiredLinks} links`}{" "}
+                      before activating. Saves as an inactive draft.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Lock condition */}
@@ -521,13 +560,21 @@ export function QuestsManager() {
                   🔒 Lock condition
                 </p>
                 <Field label="Lock type">
-                  <div className="flex gap-2">
-                    {(["none", "time", "earning"] as const).map((t) => (
+                  <div className="flex flex-wrap gap-2">
+                    {(
+                      [
+                        ["none", "No lock"],
+                        ["time", "Until date"],
+                        ["earning", "Until earned"],
+                        ["first_withdrawal", "Until first withdrawal"],
+                      ] as const
+                    ).map(([t, label]) => (
                       <Button
                         key={t}
                         size="sm"
                         type="button"
                         variant={form.lockType === t ? "jade" : "outline"}
+                        data-testid={`quest-lock-type-${t}`}
                         onClick={() =>
                           setForm({
                             ...form,
@@ -537,11 +584,19 @@ export function QuestsManager() {
                           })
                         }
                       >
-                        {t === "none" ? "No lock" : t === "time" ? "Until date" : "Until earned"}
+                        {label}
                       </Button>
                     ))}
                   </div>
                 </Field>
+                {form.lockType === "first_withdrawal" && (
+                  <p
+                    className="text-[11px] text-muted-foreground"
+                    data-testid="quest-lock-first-withdrawal-note"
+                  >
+                    Unlocks as soon as the user has one approved withdrawal — no extra value needed.
+                  </p>
+                )}
                 {form.lockType === "time" && (
                   <Field label="Unlock at (UTC date-time)">
                     <Input

@@ -546,6 +546,19 @@ export async function completeTaskImpl(userId: string, taskId: string) {
   if ((task.data as { task_type?: string }).task_type !== "manual") {
     throw new Error("This task completes automatically from your activity.");
   }
+  // Lock gate for manual tasks. Automated tasks are gated inside syncUserTasks;
+  // this is the only path by which a user can advance a task by hand.
+  {
+    const { assertTaskNotLocked } = await import("./tasks/engine.server");
+    await assertTaskNotLocked(
+      userId,
+      task.data as unknown as {
+        title: string;
+        lock_type?: string | null;
+        unlock_at?: string | null;
+      },
+    );
+  }
 
   const existing = await supabaseAdmin
     .from("user_tasks")

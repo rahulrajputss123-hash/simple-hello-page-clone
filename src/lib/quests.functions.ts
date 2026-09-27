@@ -21,15 +21,17 @@ const questFormSchema = z.object({
   questType: z.enum(["ads", "shortlink", "locker"]).default("ads"),
   adsRequired: z.number().int().min(0).max(500).default(0),
   rewardAmount: z.number().min(0).max(10000).default(0),
-  // 1-10 steps. Optional overall so an ads/locker quest can omit it.
-  shortlinkSteps: z.array(shortlinkStepSchema).min(1).max(SHORTLINK_MAX_STEPS).optional(),
+  // Up to 10 steps. No lower bound: an incomplete quest is saveable as a draft,
+  // and upsertQuestImpl forces is_active = false until it has enough links, so a
+  // half-built quest can never be shown to users.
+  shortlinkSteps: z.array(shortlinkStepSchema).max(SHORTLINK_MAX_STEPS).optional(),
   minSecondsPerStep: z.number().int().min(1).max(600).default(15),
-  // 1-3 ordered lockers, completed sequentially. Sent only for locker quests,
-  // so min(1) does not reject an ads/shortlink save.
-  lockerUrls: z.array(z.string().trim().url().max(2000)).min(1).max(3).optional(),
+  // Up to 3 ordered lockers, completed sequentially. Same draft rule as above.
+  lockerUrls: z.array(z.string().trim().url().max(2000)).max(3).optional(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(9999).default(0),
-  lockType: z.enum(["none", "time", "earning"]).default("none"),
+  // 'first_withdrawal' needs no extra field — it reads profiles.lifetime_withdrawn.
+  lockType: z.enum(["none", "time", "earning", "first_withdrawal"]).default("none"),
   unlockAt: z.string().datetime({ offset: true }).nullable().optional(),
   requiredLifetimeEarned: z.number().min(0).max(100_000).nullable().optional(),
 });
