@@ -43,6 +43,14 @@ export type NormalizedOffer = {
   description?: string;
   requirements?: string;
   icon?: string;
+  /**
+   * Artwork the provider sent inline as a base64 `data:` URI instead of a URL.
+   *
+   * Never persisted as-is — the sync layer uploads it to Storage once per offer
+   * and stores only the resulting public URL, so the offers table stays free of
+   * inline blobs. See materializeInlineOfferImages in ./image-upload.server.
+   */
+  imageDataUri?: string;
   clickUrl: string;
   /** What the network pays us, in USD. */
   networkPayout: number;

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 import { getAdapter } from "./registry.server";
+import { existingOfferImageUrls, materializeInlineOfferImages } from "./image-upload.server";
 import { computeUserReward, type NormalizedOffer, type OfferProvider } from "./provider-types";
 import {
   getFeedSettingsImpl,
@@ -140,11 +141,35 @@ async function refreshProviderCountry(
   let cached: CachedOffer[] = [];
   if (limited.length) {
     const hasImageUrl = await offersHasImageUrl();
+    /**
+     * Some providers send artwork inline as a base64 data URI. Those are uploaded
+     * to Storage here and only the resulting URL is persisted, so the offers table
+     * never holds an inline blob. Skips offers that already have an image_url, so
+     * a re-sync does no upload work.
+     */
+    const storedImages = hasImageUrl
+      ? await existingOfferImageUrls(
+          provider.id,
+          limited.map((o) => o.externalOfferId),
+        )
+      : new Map<string, string>();
+    const uploadedImages = hasImageUrl
+      ? await materializeInlineOfferImages(provider, limited, storedImages)
+      : new Map<string, string>();
+
     const rows = limited.map((o) => {
       const row = offerRowFromNormalized(provider, o, seenAt);
-      // Once the dedicated column exists, persist the banner URL there too so
-      // `icon` is no longer the only place a network image lives.
-      return hasImageUrl ? { ...row, image_url: imageUrlFromIcon(o.icon) } : row;
+      if (!hasImageUrl) return row;
+      // Precedence: a URL from the feed, then one we just uploaded, then whatever
+      // is already stored. That last fallback matters — this is a bulk upsert, so
+      // image_url is written for every row, and without it a sync where the feed
+      // has no image would null out a previously uploaded one.
+      const imageUrl =
+        imageUrlFromIcon(o.icon) ??
+        uploadedImages.get(o.externalOfferId) ??
+        storedImages.get(o.externalOfferId) ??
+        null;
+      return { ...row, image_url: imageUrl };
     });
     const { data: upserted, error } = await supabaseAdmin
       .from("offers")

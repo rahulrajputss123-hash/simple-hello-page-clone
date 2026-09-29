@@ -45,9 +45,26 @@ function normalizeCountries(raw: (string | null)[] | null | undefined): string[]
   return raw as string[];
 }
 
-/** Only keep http(s) image URLs; skip base64 data: URIs to avoid bloating the table. */
+/**
+ * Only http(s) URLs go in `icon` — that value is written straight to the offers
+ * table, so an inline base64 blob must never land there.
+ */
 function iconFromImage(image: string | null | undefined): string | undefined {
   return typeof image === "string" && image.startsWith("http") ? image : undefined;
+}
+
+/**
+ * Affike sends roughly 11% of its catalogue with the artwork inline as a base64
+ * data URI rather than a URL. Those used to be discarded, so those offers fell
+ * back to the generic icon.
+ *
+ * They are now surfaced separately and uploaded to Storage by the sync layer
+ * (materializeInlineOfferImages), which stores only the resulting public URL.
+ */
+function inlineImageFrom(image: string | null | undefined): string | undefined {
+  return typeof image === "string" && /^data:image\//i.test(image.trim())
+    ? image.trim()
+    : undefined;
 }
 
 export const affikeAdapter: OfferProviderAdapter = {
@@ -103,13 +120,16 @@ export const affikeAdapter: OfferProviderAdapter = {
       seen.add(externalOfferId);
 
       const icon = iconFromImage(item.image);
+      const imageDataUri = inlineImageFrom(item.image);
 
       offers.push({
         externalOfferId,
         title,
         description: String(item.description ?? "").trim(),
-        // icon only when it's a real http(s) image; base64 data URIs are skipped.
+        // `icon` holds only real http(s) URLs.
         ...(icon ? { icon } : {}),
+        // Inline base64 artwork, uploaded to Storage once per offer during sync.
+        ...(imageDataUri ? { imageDataUri } : {}),
         // No direct click URL from Affike — built per-user at click time.
         clickUrl: "",
         networkPayout: num(item.payoutAmount),
