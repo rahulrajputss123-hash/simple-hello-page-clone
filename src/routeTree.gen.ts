@@ -32,6 +32,7 @@ import { Route as AuthenticatedReferralRulesRouteImport } from './routes/_authen
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedTaskRouteImport } from './routes/_authenticated/task'
 import { Route as AuthenticatedWalletRouteImport } from './routes/_authenticated/wallet'
+import { Route as AuthConfirmedRouteImport } from './routes/auth_.confirmed'
 import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
 import { Route as LegalReferralTermsRouteImport } from './routes/legal/referral-terms'
 import { Route as LegalTermsRouteImport } from './routes/legal/terms'
@@ -158,6 +159,11 @@ const AuthenticatedWalletRoute = AuthenticatedWalletRouteImport.update({
   path: '/wallet',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthConfirmedRoute = AuthConfirmedRouteImport.update({
+  id: '/auth_/confirmed',
+  path: '/auth/confirmed',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
   id: '/legal/privacy',
   path: '/legal/privacy',
@@ -230,6 +236,7 @@ export interface FileRoutesByFullPath {
   '/support': typeof AuthenticatedSupportRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
+  '/auth/confirmed': typeof AuthConfirmedRoute
   '/legal/privacy': typeof LegalPrivacyRoute
   '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
@@ -263,6 +270,7 @@ export interface FileRoutesByTo {
   '/support': typeof AuthenticatedSupportRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
+  '/auth/confirmed': typeof AuthConfirmedRoute
   '/legal/privacy': typeof LegalPrivacyRoute
   '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
@@ -298,6 +306,7 @@ export interface FileRoutesById {
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/_authenticated/task': typeof AuthenticatedTaskRoute
   '/_authenticated/wallet': typeof AuthenticatedWalletRoute
+  '/auth_/confirmed': typeof AuthConfirmedRoute
   '/legal/privacy': typeof LegalPrivacyRoute
   '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
@@ -333,6 +342,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/task'
     | '/wallet'
+    | '/auth/confirmed'
     | '/legal/privacy'
     | '/legal/referral-terms'
     | '/legal/terms'
@@ -366,6 +376,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/task'
     | '/wallet'
+    | '/auth/confirmed'
     | '/legal/privacy'
     | '/legal/referral-terms'
     | '/legal/terms'
@@ -400,6 +411,7 @@ export interface FileRouteTypes {
     | '/_authenticated/support'
     | '/_authenticated/task'
     | '/_authenticated/wallet'
+    | '/auth_/confirmed'
     | '/legal/privacy'
     | '/legal/referral-terms'
     | '/legal/terms'
@@ -422,6 +434,7 @@ export interface RootRouteChildren {
   PreviewReferralRulesRoute: typeof PreviewReferralRulesRoute
   PreviewSectionHeadingRoute: typeof PreviewSectionHeadingRoute
   PreviewSplashRoute: typeof PreviewSplashRoute
+  AuthConfirmedRoute: typeof AuthConfirmedRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
   LegalReferralTermsRoute: typeof LegalReferralTermsRoute
   LegalTermsRoute: typeof LegalTermsRoute
@@ -594,6 +607,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWalletRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/auth_/confirmed': {
+      id: '/auth_/confirmed'
+      path: '/auth/confirmed'
+      fullPath: '/auth/confirmed'
+      preLoaderRoute: typeof AuthConfirmedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/legal/privacy': {
       id: '/legal/privacy'
       path: '/legal/privacy'
@@ -710,6 +730,7 @@ const rootRouteChildren: RootRouteChildren = {
   PreviewReferralRulesRoute: PreviewReferralRulesRoute,
   PreviewSectionHeadingRoute: PreviewSectionHeadingRoute,
   PreviewSplashRoute: PreviewSplashRoute,
+  AuthConfirmedRoute: AuthConfirmedRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
   LegalReferralTermsRoute: LegalReferralTermsRoute,
   LegalTermsRoute: LegalTermsRoute,

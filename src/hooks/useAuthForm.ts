@@ -130,7 +130,11 @@ export function useAuthForm({
         const { error } = await supabase.auth.signUp({
           email: data.email,
           password: data.password,
-          options: { emailRedirectTo: window.location.origin },
+          // Dedicated confirmation page rather than "/": WebEntry paints a blank
+          // placeholder while it verifies in the background, which left users on an
+          // empty screen whenever that was slow or failed. /auth/confirmed shows
+          // the result immediately and always offers a way forward.
+          options: { emailRedirectTo: `${window.location.origin}/auth/confirmed` },
         });
         if (error) throw error;
         // Persist the signup-only fields so the authenticated home page can
