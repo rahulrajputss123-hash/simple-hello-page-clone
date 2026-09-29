@@ -39,6 +39,12 @@ export type FeaturedOffer = {
   icon: string;
   image_url: string | null;
   reward_amount: number;
+  /**
+   * Decorative card badges. Display only — `reward_amount` above remains the
+   * figure that is actually credited. See src/lib/offers/display-badge.ts.
+   */
+  display_price: string | null;
+  display_percent: number | null;
   click_url: string | null;
   source: string;
   provider_id: string | null;
@@ -251,7 +257,7 @@ export async function assembleFeaturedImpl(
     const { data } = await supabaseAdmin
       .from("offers")
       .select(
-        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual" +
+        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
           imageCol(hasImageUrl),
       )
       .in("id", [...collected.keys()])
@@ -269,6 +275,11 @@ export async function assembleFeaturedImpl(
         icon: o.icon,
         image_url: pickImageUrl(o as { image_url?: string | null; icon?: string | null }),
         reward_amount: Number(o.reward_amount),
+        display_price: (o as { display_price?: string | null }).display_price ?? null,
+        display_percent:
+          (o as { display_percent?: number | null }).display_percent != null
+            ? Number((o as { display_percent?: number }).display_percent)
+            : null,
         click_url: o.click_url,
         source: o.source,
         provider_id: o.provider_id,
@@ -297,7 +308,7 @@ export async function assembleFeaturedImpl(
   const { data: manualRows } = await supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, payout_mode, category, category_manual, tags, tags_manual" +
+      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
         imageCol(hasImageUrl),
     )
     .eq("source", "manual")
@@ -323,6 +334,11 @@ export async function assembleFeaturedImpl(
       icon: o.icon,
       image_url: pickImageUrl(o as { image_url?: string | null; icon?: string | null }),
       reward_amount: Number(o.reward_amount),
+      display_price: (o as { display_price?: string | null }).display_price ?? null,
+      display_percent:
+        (o as { display_percent?: number | null }).display_percent != null
+          ? Number((o as { display_percent?: number }).display_percent)
+          : null,
       click_url: o.click_url,
       source: o.source,
       provider_id: o.provider_id,

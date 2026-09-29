@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatMoney } from "@/lib/coinquest";
+import { offerDisplayBadge } from "@/lib/offers/display-badge";
 import { requestProofUploadUrl } from "@/lib/offers.functions";
 import { useViewedOffer } from "@/lib/viewed-offer";
 
@@ -51,6 +52,11 @@ export type OfferDetailsPayload = {
   provider_slug?: string | null;
   is_limited_deal?: boolean;
   payout_mode?: "manual" | "manual_proof" | "auto_postback";
+  /** Real offer artwork. Falls back to the Gift glyph when absent or broken. */
+  image_url?: string | null;
+  /** Decorative badges — see src/lib/offers/display-badge.ts. */
+  display_price?: string | null;
+  display_percent?: number | null;
 };
 
 export function OfferDetailsDialog({
@@ -66,6 +72,10 @@ export function OfferDetailsDialog({
   onContinue: (payload: { proofPath?: string | null }) => void;
   isSubmitting?: boolean;
 }) {
+  /** Offer ids whose artwork failed to load — keyed by id like FeaturedOffers. */
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
+  const showImage = Boolean(offer?.image_url) && !brokenImages[offer?.id ?? ""];
+
   const notAllowed = (offer?.not_allowed ?? "").trim() || DEFAULT_NOT_ALLOWED;
   const proofRequired = Boolean(offer?.is_limited_deal) || offer?.payout_mode === "manual_proof";
   const autoPostback = offer?.payout_mode === "auto_postback";
@@ -139,16 +149,35 @@ export function OfferDetailsDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto" data-testid="offer-details-dialog">
         <DialogHeader>
           <div className="flex items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-background-alt">
-              <Gift className="size-5 text-primary" />
+            {/* Same pattern as the offer cards in FeaturedOffers: use the real
+                artwork when there is one, and fall back to the Gift glyph when
+                it is missing OR fails to load (tracked per offer id). */}
+            <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-background-alt">
+              {showImage ? (
+                <img
+                  src={offer!.image_url!}
+                  alt=""
+                  aria-hidden
+                  loading="lazy"
+                  decoding="async"
+                  onError={() => setBrokenImages((b) => ({ ...b, [offer!.id]: true }))}
+                  className="size-full object-cover"
+                  data-testid="offer-details-image"
+                />
+              ) : (
+                <Gift className="size-5 text-primary" data-testid="offer-details-icon" />
+              )}
             </span>
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-left text-base" data-testid="offer-details-title">
                 {offer?.title ?? "Offer"}
               </DialogTitle>
               {offer && (
-                <p className="text-amount text-sm text-gold-dark">
-                  {formatMoney(offer.reward_amount)}
+                <p
+                  className="text-amount text-sm text-gold-dark"
+                  data-testid="offer-details-amount"
+                >
+                  {offerDisplayBadge(offer) ?? formatMoney(offer.reward_amount)}
                 </p>
               )}
               {offer?.is_limited_deal && (

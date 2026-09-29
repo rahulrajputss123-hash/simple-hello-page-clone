@@ -10,6 +10,7 @@ import { OfferTagRow } from "@/components/OfferTagRow";
 import { SuccessBurst } from "@/components/SuccessBurst";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
 import { formatMoney } from "@/lib/coinquest";
+import { offerDisplayBadge } from "@/lib/offers/display-badge";
 import { claimOffer } from "@/lib/coinquest.functions";
 import { getFeaturedFeed, trackOfferClick } from "@/lib/offers.functions";
 import { useAuth } from "@/lib/auth";
@@ -95,6 +96,10 @@ export function FeaturedOffers({
       provider_slug: offer.provider_slug,
       is_limited_deal: offer.is_limited_deal,
       payout_mode: offer.payout_mode,
+      // Artwork + decorative badges, so the dialog header matches the card.
+      image_url: offer.image_url,
+      display_price: offer.display_price,
+      display_percent: offer.display_percent,
     });
 
   const handleContinue = (payload: { proofPath?: string | null }) => {
@@ -169,8 +174,13 @@ export function FeaturedOffers({
                 <p className="truncate text-[11px] leading-snug text-muted-foreground">
                   {offer.description}
                 </p>
-                <span className="text-amount mt-auto pt-1 text-base leading-none text-gold-dark">
-                  {formatMoney(offer.reward_amount)}
+                {/* Decorative badge when the admin set one, otherwise the real
+                    reward. The badge never changes what is actually paid. */}
+                <span
+                  className="text-amount mt-auto pt-1 text-base leading-none text-gold-dark"
+                  data-testid={`featured-offer-amount-${offer.id}`}
+                >
+                  {offerDisplayBadge(offer) ?? formatMoney(offer.reward_amount)}
                 </span>
               </div>
 

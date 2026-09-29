@@ -5,14 +5,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CountryMultiSelect } from "@/components/admin/CountryMultiSelect";
-import {
-  MAX_REWARD_PERCENTAGE,
-  computePercentReward,
-  rewardBase,
-  rewardBaseLabel,
-  resolveRewardAmount,
-  type RewardMode,
-} from "@/lib/offers/reward-mode";
+import { offerDisplayBadge } from "@/lib/offers/display-badge";
 import { EmptyState } from "@/components/States";
 import {
   AlertDialog,
@@ -75,9 +68,9 @@ const emptyForm = {
   actualCost: "",
   payoutPercentage: "110",
   maxPayoutCap: "",
-  // Reward mode — fixed amount, or a % of the payout. Not the same as payoutMode.
-  rewardMode: "fixed" as RewardMode,
-  rewardPercentage: "100",
+  // Display-only card badges. Never affect reward_amount or crediting.
+  displayPrice: "",
+  displayPercent: "",
   // Payout mode
   payoutMode: "manual" as "manual" | "manual_proof" | "auto_postback",
   postbackSecretRef: "",
@@ -220,9 +213,8 @@ export function OffersManager() {
           actualCost: state.actualCost.trim() ? Number(state.actualCost) : null,
           payoutPercentage: Number(state.payoutPercentage) || 110,
           maxPayoutCap: state.maxPayoutCap.trim() ? Number(state.maxPayoutCap) : null,
-          rewardMode: state.rewardMode,
-          rewardPercentage:
-            state.rewardMode === "percent_payout" ? Number(state.rewardPercentage) || 0 : null,
+          displayPrice: state.displayPrice.trim() || null,
+          displayPercent: state.displayPercent.trim() ? Number(state.displayPercent) : null,
           payoutMode: state.payoutMode,
           postbackSecretRef: state.postbackSecretRef.trim() || null,
           postbackIpAllowlist: state.postbackIpAllowlist
@@ -278,10 +270,11 @@ export function OffersManager() {
           ? String((offer as { actual_cost?: number }).actual_cost)
           : "",
       payoutPercentage: String((offer as { payout_percentage?: number }).payout_percentage ?? 110),
-      rewardMode: ((offer as { reward_mode?: string }).reward_mode ?? "fixed") as RewardMode,
-      rewardPercentage: String(
-        (offer as { reward_percentage?: number | null }).reward_percentage ?? 100,
-      ),
+      displayPrice: (offer as { display_price?: string | null }).display_price ?? "",
+      displayPercent:
+        (offer as { display_percent?: number | null }).display_percent != null
+          ? String((offer as { display_percent?: number }).display_percent)
+          : "",
       maxPayoutCap:
         (offer as { max_payout_cap?: number | null }).max_payout_cap != null
           ? String((offer as { max_payout_cap?: number }).max_payout_cap)
@@ -417,11 +410,12 @@ export function OffersManager() {
 
                 <p className="text-xs text-muted-foreground">
                   Reward {formatMoney(offer.reward_amount)}
-                  {(offer as { reward_mode?: string }).reward_mode === "percent_payout" && (
-                    <span data-testid={`offer-row-reward-mode-${offer.id}`}>
+                  {/* Badge text is cosmetic, so the admin list shows it alongside
+                      the real reward rather than in place of it. */}
+                  {offerDisplayBadge(offer) && (
+                    <span data-testid={`offer-row-display-badge-${offer.id}`}>
                       {" "}
-                      ({(offer as { reward_percentage?: number }).reward_percentage ?? 0}% of
-                      payout)
+                      · badge “{offerDisplayBadge(offer)}”
                     </span>
                   )}
                   {offer.network_payout != null && ` · payout ${formatMoney(offer.network_payout)}`}
@@ -790,7 +784,15 @@ export function OffersManager() {
                   data-testid="offer-form-network-payout"
                 />
               </Field>
-              <RewardModeField form={form} setForm={setForm} />
+              <Field label="User reward ($)">
+                <Input
+                  inputMode="decimal"
+                  value={form.rewardAmount}
+                  data-testid="offer-form-reward-amount"
+                  onChange={(event) => setForm({ ...form, rewardAmount: event.target.value })}
+                />
+              </Field>
+              <DisplayBadgeFields form={form} setForm={setForm} />
               <Field label="Click URL">
                 <Input
                   placeholder="https://…"
@@ -895,138 +897,66 @@ export function OffersManager() {
 }
 
 /**
- * Fixed amount vs percentage-of-payout.
+ * Decorative badges shown on the offer card.
  *
- * Percentage mode needs something to apply the percentage to, so it is disabled
- * until an Offer payout (or, for a Limited Deal, an Actual cost) is entered —
- * that's the "without payout" case, which falls back to fixed-only.
+ * DISPLAY ONLY: neither field touches reward_amount, the reward maths or
+ * crediting. They are rendered verbatim next to (or instead of) the reward
+ * figure, purely so an offer can advertise something like "$5 · 110%".
  *
- * A Limited Deal computes its reward from actual cost x payout % x cap instead,
- * so this control steps aside entirely for those offers rather than competing
- * with a rule the server already enforces.
+ * Either, both or neither may be filled. With neither, the card falls back to
+ * the real reward amount.
  */
-function RewardModeField({
+function DisplayBadgeFields({
   form,
   setForm,
 }: {
   form: FormState;
   setForm: (next: FormState) => void;
 }) {
-  const basis = {
-    networkPayout: form.networkPayout,
-    actualCost: form.actualCost,
-  };
-  const base = rewardBase(basis);
-  const baseLabel = rewardBaseLabel(basis);
-  const hasBase = base != null;
-  const isPercent = form.rewardMode === "percent_payout";
-
-  if (form.isLimitedDeal) {
-    return (
-      <div
-        className="rounded-xl border border-border bg-background-alt p-3"
-        data-testid="offer-form-reward-mode-limited-deal"
-      >
-        <p className="text-xs text-muted-foreground">
-          This is a <span className="font-semibold">Limited Deal</span>, so the reward is computed
-          from actual cost × payout % × cap above. Turn off Limited Deal to set a fixed or
-          percentage reward here.
-        </p>
-      </div>
-    );
-  }
-
-  const pctPreview = hasBase ? computePercentReward(base, form.rewardPercentage) : 0;
-  const effective = resolveRewardAmount({
-    rewardMode: form.rewardMode,
-    rewardAmount: Number(form.rewardAmount) || 0,
-    rewardPercentage: form.rewardPercentage,
-    ...basis,
+  const preview = offerDisplayBadge({
+    display_price: form.displayPrice,
+    display_percent: form.displayPercent,
   });
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-card p-3">
-      <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Reward mode</Label>
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              ["fixed", "Fixed amount"],
-              ["percent_payout", "Percentage of payout"],
-            ] as const
-          ).map(([key, label]) => {
-            const disabled = key === "percent_payout" && !hasBase;
-            return (
-              <Button
-                key={key}
-                type="button"
-                size="sm"
-                variant={form.rewardMode === key ? "jade" : "outline"}
-                disabled={disabled}
-                title={
-                  disabled ? "Enter an Offer payout first to reward a percentage of it" : undefined
-                }
-                data-testid={`offer-form-reward-mode-${key}`}
-                onClick={() => setForm({ ...form, rewardMode: key })}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </div>
-        {!hasBase && (
-          <p
-            className="text-[11px] text-muted-foreground"
-            data-testid="offer-form-reward-mode-hint"
-          >
-            Percentage mode needs a base value — enter an Offer payout above to enable it.
-          </p>
-        )}
+      <div className="space-y-0.5">
+        <Label className="text-xs text-muted-foreground">Card badges (optional)</Label>
+        <p className="text-[11px] text-muted-foreground">
+          Shown on the offer card instead of the reward figure. Cosmetic only — these never change
+          what a user is paid.
+        </p>
       </div>
-
-      {isPercent ? (
-        <div className="space-y-2">
-          <Field label={`Percentage of ${baseLabel === "cost" ? "actual cost" : "payout"} (%)`}>
-            <Input
-              inputMode="decimal"
-              value={form.rewardPercentage}
-              placeholder="110"
-              data-testid="offer-form-reward-percentage"
-              onChange={(event) => setForm({ ...form, rewardPercentage: event.target.value })}
-            />
-          </Field>
-          <p className="text-[11px] text-muted-foreground">
-            Over 100% is allowed (a loss-leading offer pays out more than it earns). Capped at{" "}
-            {MAX_REWARD_PERCENTAGE}%.
-          </p>
-          <p
-            className="rounded-lg bg-background-alt px-3 py-2 text-xs"
-            data-testid="offer-form-reward-preview"
-          >
-            User reward:{" "}
-            <span className="text-amount text-gold-dark">{formatMoney(pctPreview)}</span>{" "}
-            <span className="text-muted-foreground">
-              = {form.rewardPercentage || 0}% of {formatMoney(base ?? 0)}
-            </span>
-          </p>
-          <p className="text-[11px] text-amber-600" data-testid="offer-form-reward-stale-note">
-            Saved as a fixed figure. If the {baseLabel === "cost" ? "actual cost" : "offer payout"}{" "}
-            changes later, re-save this offer to recalculate the reward.
-          </p>
-        </div>
-      ) : (
-        <Field label="User reward ($)">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Display price">
           <Input
-            inputMode="decimal"
-            value={form.rewardAmount}
-            data-testid="offer-form-reward-amount"
-            onChange={(event) => setForm({ ...form, rewardAmount: event.target.value })}
+            placeholder="$5"
+            value={form.displayPrice}
+            data-testid="offer-form-display-price"
+            onChange={(event) => setForm({ ...form, displayPrice: event.target.value })}
           />
         </Field>
-      )}
-
-      <p className="text-[11px] text-muted-foreground">
-        Stored reward on save: <span className="font-semibold">{formatMoney(effective)}</span>
+        <Field label="Display percent">
+          <Input
+            inputMode="decimal"
+            placeholder="110"
+            value={form.displayPercent}
+            data-testid="offer-form-display-percent"
+            onChange={(event) => setForm({ ...form, displayPercent: event.target.value })}
+          />
+        </Field>
+      </div>
+      <p
+        className="rounded-lg bg-background-alt px-3 py-2 text-xs"
+        data-testid="offer-form-display-preview"
+      >
+        Card shows:{" "}
+        <span className="text-amount text-gold-dark">
+          {preview ?? formatMoney(Number(form.rewardAmount) || 0)}
+        </span>
+        {preview ? null : (
+          <span className="text-muted-foreground"> (the reward, since no badge is set)</span>
+        )}
       </p>
     </div>
   );

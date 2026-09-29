@@ -2,8 +2,6 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 /** Admin-only offer management + dashboard aggregates. Reads/writes only existing columns. */
 
-import { resolveRewardAmount, type RewardMode } from "./reward-mode";
-
 export type ManualOfferInput = {
   id?: string | undefined;
   title: string;
@@ -27,10 +25,12 @@ export type ManualOfferInput = {
   actualCost?: number | null | undefined;
   payoutPercentage?: number | undefined;
   maxPayoutCap?: number | null | undefined;
-  // Reward mode — fixed amount, or a percentage of the payout. Separate from
-  // payoutMode (verification) and payoutPercentage (Limited Deal actual_cost).
-  rewardMode?: RewardMode | undefined;
-  rewardPercentage?: number | null | undefined;
+  /**
+   * Decorative badge fields. Rendered verbatim on the offer card and NOT used in
+   * any reward calculation — reward_amount is unaffected by these.
+   */
+  displayPrice?: string | null | undefined;
+  displayPercent?: number | null | undefined;
   // Payout mode
   payoutMode?: "manual" | "manual_proof" | "auto_postback" | undefined;
   postbackSecretRef?: string | null | undefined;
@@ -145,7 +145,7 @@ export async function listAdminOffersImpl(input: {
   let q = supabaseAdmin
     .from("offers")
     .select(
-      "id, title, description, requirements, not_allowed, icon, source, provider_id, external_offer_id, reward_amount, network_payout, revenue_share, click_url, countries, devices, expires_at, last_seen_at, is_active, is_featured, sort_order, admin_priority, created_at, updated_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, reward_mode, reward_percentage, payout_mode, postback_secret_ref, postback_ip_allowlist, category, category_manual, tags, tags_manual, offer_providers:provider_id(name, slug)",
+      "id, title, description, requirements, not_allowed, icon, source, provider_id, external_offer_id, reward_amount, network_payout, revenue_share, click_url, countries, devices, expires_at, last_seen_at, is_active, is_featured, sort_order, admin_priority, created_at, updated_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, postback_secret_ref, postback_ip_allowlist, category, category_manual, tags, tags_manual, offer_providers:provider_id(name, slug)",
     )
     .order("admin_priority", { ascending: false })
     .order("sort_order", { ascending: true })
@@ -167,35 +167,18 @@ export async function listAdminOffersImpl(input: {
 }
 
 export async function upsertManualOfferImpl(input: ManualOfferInput) {
-  // Server-side reward enforcement — never trust the client's rewardAmount.
+  // Server-side reward enforcement for limited-deal offers — never trust the
+  // client's rewardAmount, always recompute from actual_cost / % / cap.
   //
-  // Precedence: a Limited Deal keeps its own actual_cost x % x cap rule, so it
-  // is resolved first and reward_mode is forced back to 'fixed' for that row
-  // (the stored reward_amount is already the computed cashback).
-  //
-  // Otherwise resolveRewardAmount materialises reward_amount from reward_mode:
-  // 'percent_payout' applies reward_percentage to network_payout (falling back
-  // to actual_cost), and anything unsatisfiable falls back to the fixed amount.
-  // Materialising here is what lets every display site keep reading the single
-  // reward_amount column.
-  const isLimitedDeal = Boolean(input.isLimitedDeal);
-  const rewardMode: RewardMode = isLimitedDeal ? "fixed" : (input.rewardMode ?? "fixed");
-
-  let effectiveReward: number;
-  if (isLimitedDeal) {
+  // Everything else stores the amount as entered. The display_* fields below are
+  // decorative and deliberately play no part in this.
+  let effectiveReward = input.rewardAmount;
+  if (input.isLimitedDeal) {
     const { computeLimitedDealReward } = await import("./proof.server");
     effectiveReward = computeLimitedDealReward({
       actual_cost: input.actualCost ?? null,
       payout_percentage: input.payoutPercentage ?? 110,
       max_payout_cap: input.maxPayoutCap ?? null,
-    });
-  } else {
-    effectiveReward = resolveRewardAmount({
-      rewardMode,
-      rewardAmount: input.rewardAmount,
-      rewardPercentage: input.rewardPercentage ?? null,
-      networkPayout: input.networkPayout ?? null,
-      actualCost: input.actualCost ?? null,
     });
   }
 
@@ -222,10 +205,10 @@ export async function upsertManualOfferImpl(input: ManualOfferInput) {
     actual_cost: input.actualCost ?? null,
     payout_percentage: input.payoutPercentage ?? 110,
     max_payout_cap: input.maxPayoutCap ?? null,
-    // Reward mode — reward_percentage must be NULL unless the mode uses it
-    // (enforced by offers_reward_percentage_required_check).
-    reward_mode: rewardMode,
-    reward_percentage: rewardMode === "percent_payout" ? (input.rewardPercentage ?? null) : null,
+    // Display-only badges. Empty string is normalised to NULL so "unset" is a
+    // single representation everywhere.
+    display_price: input.displayPrice?.trim() || null,
+    display_percent: input.displayPercent ?? null,
     // Payout mode
     payout_mode: input.payoutMode ?? "manual",
     postback_secret_ref: input.postbackSecretRef?.trim() || null,

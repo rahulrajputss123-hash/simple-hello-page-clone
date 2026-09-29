@@ -290,6 +290,8 @@ export type Database = {
           deal_group_id: string | null;
           description: string;
           devices: string[];
+          display_percent: number | null;
+          display_price: string | null;
           expires_at: string | null;
           external_offer_id: string | null;
           icon: string;
@@ -311,8 +313,6 @@ export type Database = {
           requirements: string;
           revenue_share: number | null;
           reward_amount: number;
-          reward_mode: string;
-          reward_percentage: number | null;
           sort_order: number;
           source: string;
           tags: string[];
@@ -331,6 +331,8 @@ export type Database = {
           deal_group_id?: string | null;
           description?: string;
           devices?: string[];
+          display_percent?: number | null;
+          display_price?: string | null;
           expires_at?: string | null;
           external_offer_id?: string | null;
           icon?: string;
@@ -352,8 +354,6 @@ export type Database = {
           requirements?: string;
           revenue_share?: number | null;
           reward_amount?: number;
-          reward_mode?: string;
-          reward_percentage?: number | null;
           sort_order?: number;
           source?: string;
           tags?: string[];
@@ -372,6 +372,8 @@ export type Database = {
           deal_group_id?: string | null;
           description?: string;
           devices?: string[];
+          display_percent?: number | null;
+          display_price?: string | null;
           expires_at?: string | null;
           external_offer_id?: string | null;
           icon?: string;
@@ -393,8 +395,6 @@ export type Database = {
           requirements?: string;
           revenue_share?: number | null;
           reward_amount?: number;
-          reward_mode?: string;
-          reward_percentage?: number | null;
           sort_order?: number;
           source?: string;
           tags?: string[];

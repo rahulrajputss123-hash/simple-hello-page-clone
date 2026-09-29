@@ -121,11 +121,10 @@ export const saveManualOffer = createServerFn({ method: "POST" })
         actualCost: z.number().min(0).max(1000000).nullable().optional(),
         payoutPercentage: z.number().min(0).max(1000).default(110),
         maxPayoutCap: z.number().min(0).max(1000000).nullable().optional(),
-        // Reward mode — how reward_amount is derived. Separate from payoutMode
-        // (verification) and payoutPercentage (the Limited Deal actual_cost rule).
-        // The 500 ceiling mirrors offers_reward_percentage_check in the DB.
-        rewardMode: z.enum(["fixed", "percent_payout"]).default("fixed"),
-        rewardPercentage: z.number().min(0).max(500).nullable().optional(),
+        // Display-only badges — rendered verbatim on the card, never used in any
+        // reward calculation. Bounds mirror the DB CHECK constraints.
+        displayPrice: z.string().trim().max(24).nullable().optional(),
+        displayPercent: z.number().min(0).max(100_000).nullable().optional(),
         // Payout mode
         payoutMode: z.enum(["manual", "manual_proof", "auto_postback"]).default("manual"),
         postbackSecretRef: z.string().trim().max(120).nullable().optional(),
