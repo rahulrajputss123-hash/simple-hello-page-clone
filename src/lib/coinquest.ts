@@ -26,6 +26,13 @@ export const REFERRAL_WINDOW_DAYS = 365;
  */
 export const SHORTLINK_MIN_STEPS = 1;
 export const SHORTLINK_MAX_STEPS = 10;
+/**
+ * Upper bound on locker URLs per quest. Mirrors the quests_locker_urls_max_check
+ * constraint — keep the two in sync. There is no lower bound: a quest with zero
+ * locker URLs is a valid "not configured yet" state that surfaces to users as
+ * "link coming soon".
+ */
+export const LOCKER_MAX_URLS = 10;
 
 export function formatMoney(value: number | string | null | undefined): string {
   const n = typeof value === "string" ? Number(value) : (value ?? 0);

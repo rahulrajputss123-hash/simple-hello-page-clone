@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { SHORTLINK_MAX_STEPS } from "./coinquest";
+import { LOCKER_MAX_URLS, SHORTLINK_MAX_STEPS } from "./coinquest";
 
 const shortlinkStepSchema = z.object({
   network: z.string().trim().min(1).max(60),
@@ -27,7 +27,7 @@ const questFormSchema = z.object({
   shortlinkSteps: z.array(shortlinkStepSchema).max(SHORTLINK_MAX_STEPS).optional(),
   minSecondsPerStep: z.number().int().min(1).max(600).default(15),
   // Up to 3 ordered lockers, completed sequentially. Same draft rule as above.
-  lockerUrls: z.array(z.string().trim().url().max(2000)).max(3).optional(),
+  lockerUrls: z.array(z.string().trim().url().max(2000)).max(LOCKER_MAX_URLS).optional(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(9999).default(0),
   // 'first_withdrawal' needs no extra field — it reads profiles.lifetime_withdrawn.

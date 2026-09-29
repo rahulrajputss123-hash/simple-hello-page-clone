@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { SHORTLINK_MAX_STEPS, SHORTLINK_MIN_STEPS } from "./coinquest";
+import { LOCKER_MAX_URLS, SHORTLINK_MAX_STEPS } from "./coinquest";
 import { creditWallet } from "./coinquest.server";
 import { computeLockState, assertNotLocked, type LockState } from "./lock-state";
 
@@ -154,8 +154,8 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     throw new Error("Ads-type quests need at least 1 ad.");
   }
   if (input.questType === "locker") {
-    if (lockerUrls.length > 3) {
-      throw new Error("A locker quest can have at most 3 locker URLs.");
+    if (lockerUrls.length > LOCKER_MAX_URLS) {
+      throw new Error(`A locker quest can have at most ${LOCKER_MAX_URLS} locker URLs.`);
     }
     if (lockerUrls.some((url) => !/^https?:\/\/.+/.test(url))) {
       throw new Error("Every locker URL must be valid (must start with http:// or https://).");
@@ -163,23 +163,12 @@ export async function upsertQuestImpl(input: QuestFormInput) {
   }
 
   /**
-   * Draft rule (replaces the old "must have N links to save at all" errors):
-   * a link-driven quest with too few links saves fine, but is forced inactive.
-   *
-   * is_active is the only thing users can see through (listActiveQuestsImpl and
-   * getQuestByKey both filter on it), so this is what guarantees a placeholder
-   * quest can never go live broken.
+   * The admin's Active toggle is authoritative, including for a quest with zero
+   * links. Such a quest is visible and tappable; the start calls below return
+   * `{ unavailable: true }` so the user sees a friendly "link coming soon"
+   * instead of an error, and no reward is ever credited for it.
    */
-  const requiredLinks =
-    input.questType === "locker" ? 1 : input.questType === "shortlink" ? SHORTLINK_MIN_STEPS : 0;
-  const availableLinks =
-    input.questType === "locker"
-      ? lockerUrls.length
-      : input.questType === "shortlink"
-        ? shortlinkSteps.length
-        : 0;
-  const isDraft = availableLinks < requiredLinks;
-  const isActive = isDraft ? false : input.isActive;
+  const isActive = input.isActive;
   if (input.lockType === "time" && !input.unlockAt) {
     throw new Error("A time-locked quest requires an unlock date.");
   }
@@ -314,7 +303,11 @@ export async function startLockerQuestImpl(userId: string, questKey: string) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "locker") throw new Error("This quest is not a locker quest.");
   const urls = quest.locker_urls;
-  if (!urls.length) throw new Error("This locker quest has no URL configured.");
+  // Not configured yet. A soft result rather than a throw: the admin is allowed
+  // to publish a quest before its links exist, so this is an expected state and
+  // the user should see "link coming soon", not an error toast. No session is
+  // created and nothing is ever credited.
+  if (!urls.length) return { unavailable: true as const };
   await assertQuestNotLocked(userId, quest);
 
   // Idempotent: return the existing in-progress session rather than creating a duplicate.
@@ -466,6 +459,10 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
 export async function startShortlinkStepImpl(userId: string, questKey: string, step: number) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "shortlink") throw new Error("This quest is not a shortlink quest.");
+  // Same soft path as the locker case — no steps configured yet is expected, not
+  // an error. Checked before the session lookup so an unconfigured quest never
+  // reports "Start the quest first".
+  if (!quest.shortlink_steps.length) return { unavailable: true as const };
   await assertQuestNotLocked(userId, quest);
 
   const session = await db

@@ -28,7 +28,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { deleteQuest, listAdminQuests, saveQuest } from "@/lib/quests.functions";
 import type { QuestRow, ShortlinkStep } from "@/lib/quests.server";
-import { SHORTLINK_MAX_STEPS, SHORTLINK_MIN_STEPS, formatMoney } from "@/lib/coinquest";
+import {
+  LOCKER_MAX_URLS,
+  SHORTLINK_MAX_STEPS,
+  SHORTLINK_MIN_STEPS,
+  formatMoney,
+} from "@/lib/coinquest";
 
 type FormState = {
   id?: string;
@@ -51,34 +56,50 @@ type FormState = {
 };
 
 /**
- * Draft state for a link-driven quest.
+ * Usable links currently entered on the form.
  *
- * A locker quest needs 1 URL and a shortlink quest needs SHORTLINK_MIN_STEPS
- * complete steps to actually work. Below that the quest is a DRAFT: it saves
- * fine, but must not be active. upsertQuestImpl applies the identical rule on
- * the server, so this is the affordance rather than the guarantee — it exists
- * here so the Active switch and the save payload can't disagree with it.
+ * A link-driven quest with zero links is publishable on purpose: the Active
+ * toggle is respected either way, and the user-facing start call returns a soft
+ * "link coming soon" instead of an error. This only trims the values that get
+ * sent (half-typed rows would fail the step schema) and drives the
+ * "No links yet" hint.
  */
-function draftInfo(state: FormState) {
+function linkInfo(state: FormState) {
   const filledLockerUrls = state.lockerUrls.map((url) => url.trim()).filter(Boolean);
   const filledShortlinkSteps = state.shortlinkSteps
     .filter((s) => s.network.trim() && s.url.trim())
     .map((s) => ({ network: s.network.trim(), url: s.url.trim() }));
-  const requiredLinks =
-    state.questType === "locker" ? 1 : state.questType === "shortlink" ? SHORTLINK_MIN_STEPS : 0;
+  const linkDriven = state.questType === "locker" || state.questType === "shortlink";
   const availableLinks =
-    state.questType === "locker"
-      ? filledLockerUrls.length
-      : state.questType === "shortlink"
-        ? filledShortlinkSteps.length
-        : 0;
+    state.questType === "locker" ? filledLockerUrls.length : filledShortlinkSteps.length;
   return {
     filledLockerUrls,
     filledShortlinkSteps,
-    requiredLinks,
     availableLinks,
-    isDraft: requiredLinks > 0 && availableLinks < requiredLinks,
+    /** Publishable, but worth flagging so the admin remembers to fill it in. */
+    noLinksYet: linkDriven && availableLinks === 0,
   };
+}
+
+/**
+ * One-line lock summary for the admin list.
+ *
+ * Handles every lock_type explicitly — the previous inline ternary only covered
+ * 'time' and 'earning', so a 'first_withdrawal' quest rendered "Earn $NaN".
+ */
+function lockSummary(quest: {
+  lock_type?: string | null;
+  unlock_at?: string | null;
+  required_lifetime_earned?: number | null;
+}): string {
+  if (quest.lock_type === "time") {
+    return `Until ${new Date(String(quest.unlock_at)).toLocaleDateString()}`;
+  }
+  if (quest.lock_type === "earning") {
+    return `Earn $${Number(quest.required_lifetime_earned ?? 0).toFixed(2)}`;
+  }
+  if (quest.lock_type === "first_withdrawal") return "Until first withdrawal";
+  return "Locked";
 }
 
 const emptyForm = (): FormState => ({
@@ -135,14 +156,12 @@ export function QuestsManager() {
           // Only complete rows are sent: half-typed rows would fail the step
           // schema, and an empty array is now valid (it saves as a draft).
           ...(state.questType === "shortlink"
-            ? { shortlinkSteps: draftInfo(state).filledShortlinkSteps }
+            ? { shortlinkSteps: linkInfo(state).filledShortlinkSteps }
             : {}),
           minSecondsPerStep: Number(state.minSecondsPerStep) || 15,
-          ...(state.questType === "locker"
-            ? { lockerUrls: draftInfo(state).filledLockerUrls }
-            : {}),
+          ...(state.questType === "locker" ? { lockerUrls: linkInfo(state).filledLockerUrls } : {}),
           // Mirrors the server rule so the optimistic UI matches what is stored.
-          isActive: state.isActive && !draftInfo(state).isDraft,
+          isActive: state.isActive,
           sortOrder: Number(state.sortOrder) || 0,
           lockType: state.lockType,
           unlockAt: state.lockType === "time" && state.unlockAt ? state.unlockAt : null,
@@ -200,9 +219,9 @@ export function QuestsManager() {
       requiredLifetimeEarned: String((quest as any).required_lifetime_earned ?? ""),
     });
 
-  const { requiredLinks, isDraft, filledLockerUrls } = form
-    ? draftInfo(form)
-    : { requiredLinks: 0, isDraft: false, filledLockerUrls: [] as string[] };
+  const { noLinksYet, filledLockerUrls } = form
+    ? linkInfo(form)
+    : { noLinksYet: false, filledLockerUrls: [] as string[] };
 
   const canSave =
     form &&
@@ -212,7 +231,7 @@ export function QuestsManager() {
       ? Number(form.adsRequired) > 0
       : form.questType === "locker"
         ? // Zero URLs is a valid draft; only the upper bound is a real error.
-          filledLockerUrls.length <= 3
+          filledLockerUrls.length <= LOCKER_MAX_URLS
         : form.shortlinkSteps.length <= SHORTLINK_MAX_STEPS &&
           // Any row that has been started must be finished.
           form.shortlinkSteps.every(
@@ -263,16 +282,25 @@ export function QuestsManager() {
                         : ` · ${quest.shortlink_steps.length} shortlinks`}
                     · reward {formatMoney(quest.reward_amount)} · sort {quest.sort_order}
                   </p>
+                  {/* A link-driven quest with nothing configured yet. It is still
+                      publishable — users just see "link coming soon" — so this is
+                      a reminder rather than a warning about breakage. */}
+                  {(quest.quest_type === "locker" || quest.quest_type === "shortlink") &&
+                    (quest.quest_type === "locker"
+                      ? quest.locker_urls.length
+                      : quest.shortlink_steps.length) === 0 && (
+                      <span
+                        className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                        data-testid={`quest-no-links-badge-${quest.key}`}
+                      >
+                        No links yet
+                      </span>
+                    )}
                   {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {(quest as any).lock_type !== "none" && (
                     <p className="text-xs text-amber-600">
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      🔒{" "}
-                      {(quest as any).lock_type === "time"
-                        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          `Until ${new Date(String((quest as any).unlock_at)).toLocaleDateString()}`
-                        : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          `Earn $${Number((quest as any).required_lifetime_earned).toFixed(2)}`}
+                      🔒 {lockSummary(quest as any)}
                     </p>
                   )}
                 </div>
@@ -409,7 +437,7 @@ export function QuestsManager() {
                     </div>
                   ))}
                   {/* Maximum of 3 lockers. */}
-                  {form.lockerUrls.length < 3 && (
+                  {form.lockerUrls.length < LOCKER_MAX_URLS && (
                     <Button
                       type="button"
                       size="sm"
@@ -417,7 +445,8 @@ export function QuestsManager() {
                       onClick={() => setForm({ ...form, lockerUrls: [...form.lockerUrls, ""] })}
                       data-testid="quest-form-locker-add"
                     >
-                      <Plus className="mr-1 size-4" /> Add locker ({form.lockerUrls.length}/3)
+                      <Plus className="mr-1 size-4" /> Add locker ({form.lockerUrls.length}/
+                      {LOCKER_MAX_URLS})
                     </Button>
                   )}
                   <div className="rounded-xl border border-dashed border-primary/40 bg-background-alt p-3 text-xs">
@@ -538,17 +567,16 @@ export function QuestsManager() {
                 <div className="space-y-1">
                   <label className="flex items-center gap-2 text-sm">
                     <Switch
-                      checked={form.isActive && !isDraft}
-                      disabled={isDraft}
+                      checked={form.isActive}
                       data-testid="quest-form-is-active"
                       onCheckedChange={(value) => setForm({ ...form, isActive: value })}
                     />
                     Active
                   </label>
-                  {isDraft && (
+                  {noLinksYet && (
                     <p className="text-[11px] text-amber-600" data-testid="quest-form-draft-note">
-                      Add at least {requiredLinks === 1 ? "one link" : `${requiredLinks} links`}{" "}
-                      before activating. Saves as an inactive draft.
+                      No links yet — this quest can go live, but users will see “link coming soon”
+                      until you add one.
                     </p>
                   )}
                 </div>

@@ -67,7 +67,11 @@ export function StarterQuests() {
       return openStep({ data: { questKey, step } });
     },
     onSuccess: (result) => {
-      if (result.url) {
+      // The admin may publish a quest before its links exist. That's an expected
+      // state, so it reads as "coming soon" rather than an error.
+      if ("unavailable" in result) {
+        toast.info("Link coming soon — this quest isn't quite ready yet.");
+      } else if (result.url) {
         window.open(result.url, "_blank", "noopener,noreferrer");
         toast.info(`Complete the step — you'll be sent back automatically.`);
       } else {
@@ -82,7 +86,10 @@ export function StarterQuests() {
   const runLocker = useMutation({
     mutationFn: async (questKey: string) => openLocker({ data: { questKey } }),
     onSuccess: (result) => {
-      if (result.lockerUrl) {
+      // No lockers configured yet — see the note in runShortlink.
+      if ("unavailable" in result) {
+        toast.info("Link coming soon — this quest isn't quite ready yet.");
+      } else if (result.lockerUrl) {
         window.open(result.lockerUrl, "_blank", "noopener,noreferrer");
         // Multi-locker quests tell the user where they are in the chain.
         toast.info(

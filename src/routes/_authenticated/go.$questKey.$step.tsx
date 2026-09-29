@@ -72,7 +72,9 @@ function GoPage() {
       const result = await openNext({
         data: { questKey, step: state.nextStep },
       });
-      if (result.url) {
+      // `unavailable` means the quest has no links configured yet — nothing to
+      // open, so just return home rather than surfacing a failure.
+      if (!("unavailable" in result) && result.url) {
         window.open(result.url, "_blank", "noopener,noreferrer");
       }
       goHome();
