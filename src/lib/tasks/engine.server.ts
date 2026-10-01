@@ -198,16 +198,24 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
       .eq("period_key", key)
       .maybeSingle();
 
+    let userTaskId: string | null = existing.data?.id ?? null;
+    let rewardStatus: string = existing.data?.reward_status ?? "pending";
     if (!existing.data) {
-      await supabaseAdmin.from("user_tasks").insert({
-        user_id: userId,
-        task_id: raw.id,
-        period_key: key,
-        progress,
-        target,
-        status: completed ? "completed" : "active",
-        completed_at: completed ? now.toISOString() : null,
-      });
+      const inserted = await supabaseAdmin
+        .from("user_tasks")
+        .insert({
+          user_id: userId,
+          task_id: raw.id,
+          period_key: key,
+          progress,
+          target,
+          status: completed ? "completed" : "active",
+          completed_at: completed ? now.toISOString() : null,
+        })
+        .select("id, reward_status")
+        .maybeSingle();
+      userTaskId = inserted.data?.id ?? null;
+      rewardStatus = inserted.data?.reward_status ?? "pending";
     } else {
       await supabaseAdmin
         .from("user_tasks")
@@ -222,28 +230,39 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
     updated += 1;
 
     if (!completed) continue;
+    if (rewardStatus === "paid" || !userTaskId) continue;
 
-    // Exactly-once payout: only the update that flips pending -> paid credits.
-    const claimed = await supabaseAdmin
-      .from("user_tasks")
-      .update({ reward_status: "paid", rewarded_at: now.toISOString() })
-      .eq("user_id", userId)
-      .eq("task_id", raw.id)
-      .eq("period_key", key)
-      .eq("reward_status", "pending")
-      .select("id");
-    if (!claimed.data?.length) continue;
-
+    // Exactly-once payout: credit FIRST, keyed on the user_tasks row id
+    // (idempotent), then flip pending -> paid. Overlapping syncs can both get
+    // here, but only one credit lands; and if the credit fails the row stays
+    // 'pending', so the next sync retries it instead of losing the reward.
     const reward = Number(raw.reward);
     if (reward > 0) {
-      await creditWallet(userId, reward, "task", raw.title);
-      await supabaseAdmin.from("notifications").insert({
-        user_id: userId,
-        title: "Task completed",
-        body: `${raw.title} — $${reward.toFixed(2)} added to your wallet.`,
-        kind: "task",
-      });
+      let credit: Awaited<ReturnType<typeof creditWallet>>;
+      try {
+        credit = await creditWallet(userId, reward, "task", raw.title, "earned", userTaskId);
+      } catch (error) {
+        console.error("[tasks] reward credit failed; will retry on next sync", {
+          userId,
+          taskId: raw.id,
+          error,
+        });
+        continue;
+      }
+      if (!credit.duplicate) {
+        await supabaseAdmin.from("notifications").insert({
+          user_id: userId,
+          title: "Task completed",
+          body: `${raw.title} — $${reward.toFixed(2)} added to your wallet.`,
+          kind: "task",
+        });
+      }
     }
+    await supabaseAdmin
+      .from("user_tasks")
+      .update({ reward_status: "paid", rewarded_at: now.toISOString() })
+      .eq("id", userTaskId)
+      .eq("reward_status", "pending");
   }
   return { updated };
 }

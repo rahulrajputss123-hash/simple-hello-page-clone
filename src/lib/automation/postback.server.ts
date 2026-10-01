@@ -2,7 +2,8 @@ import { createHmac, timingSafeEqual, createHash } from "crypto";
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-import { creditWallet, payReferralMilestone } from "../coinquest.server";
+import { payReferralMilestone } from "../coinquest.server";
+import { creditSdkConversionRpc } from "../wallet/rpc.server";
 import {
   convertSdkCurrency,
   type Json,
@@ -370,7 +371,8 @@ export async function processSdkPostback(req: PostbackRequest): Promise<Postback
         reject_reason: "zero_reward",
         processed_at: new Date().toISOString(),
       })
-      .eq("id", claim.data.id);
+      .eq("id", claim.data.id)
+      .eq("status", "pending");
     await logAutomation({
       eventType: "sdk_postback",
       status: "warning",
@@ -384,9 +386,19 @@ export async function processSdkPostback(req: PostbackRequest): Promise<Postback
     return { ok: false, status: "rejected", reason: "zero_reward" };
   }
 
+  // Wallet credit + ledger row + conversion -> 'credited' commit together
+  // (sdk_conversion_credit), so a conversion can never be paid without being
+  // marked credited, or marked credited without being paid.
+  let credit: Awaited<ReturnType<typeof creditSdkConversionRpc>>;
   try {
-    await creditWallet(userId, reward, "offerwall", `${provider.name} offerwall reward`);
+    credit = await creditSdkConversionRpc({
+      conversionId: claim.data.id,
+      reward,
+      description: `${provider.name} offerwall reward`,
+      allowRetry: false,
+    });
   } catch (error) {
+    // Nothing was credited. Mark it so the admin retry can pick it up.
     await supabaseAdmin
       .from("sdk_offerwall_conversions")
       .update({
@@ -394,7 +406,8 @@ export async function processSdkPostback(req: PostbackRequest): Promise<Postback
         reject_reason: "wallet_credit_failed",
         processed_at: new Date().toISOString(),
       })
-      .eq("id", claim.data.id);
+      .eq("id", claim.data.id)
+      .eq("status", "pending");
     await logAutomation({
       eventType: "wallet_credit",
       status: "error",
@@ -407,14 +420,20 @@ export async function processSdkPostback(req: PostbackRequest): Promise<Postback
     return { ok: false, status: "rejected", reason: "wallet_credit_failed" };
   }
 
-  await supabaseAdmin
-    .from("sdk_offerwall_conversions")
-    .update({
-      status: "credited",
-      reward_amount: reward,
-      processed_at: new Date().toISOString(),
-    })
-    .eq("id", claim.data.id);
+  if (!credit.credited) {
+    // Only reachable if another process (e.g. an admin retry) settled this
+    // just-claimed row first. It was not paid twice.
+    await logAutomation({
+      eventType: "wallet_credit",
+      status: "warning",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: claim.data.id,
+      message: `Conversion not credited: ${credit.reason ?? "unknown"}`,
+    });
+    return { ok: true, status: "duplicate", reason: credit.reason ?? "duplicate" };
+  }
 
   await logAutomation({
     eventType: "wallet_credit",

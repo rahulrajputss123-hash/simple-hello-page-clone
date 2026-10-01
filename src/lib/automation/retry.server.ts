@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-import { creditWallet, payReferralMilestone } from "../coinquest.server";
+import { payReferralMilestone } from "../coinquest.server";
+import { creditSdkConversionRpc } from "../wallet/rpc.server";
 import { convertSdkCurrency, type SdkOfferwallProvider } from "../sdk-offerwall/types";
 import { logAutomation } from "./logs.server";
 
@@ -39,13 +40,17 @@ export async function retryConversionImpl(conversionId: string) {
     return { ok: false, status: "rejected" as const, reason: "zero_reward" };
   }
 
+  // The status checks above are a fast path. sdk_conversion_credit re-checks
+  // under a row lock and credits + marks credited in one transaction, so two
+  // concurrent retries (double click) can no longer both pay.
+  let credit: Awaited<ReturnType<typeof creditSdkConversionRpc>>;
   try {
-    await creditWallet(
-      conversion.user_id,
+    credit = await creditSdkConversionRpc({
+      conversionId: conversion.id,
       reward,
-      "offerwall",
-      `${provider.name} offerwall reward (retry)`,
-    );
+      description: `${provider.name} offerwall reward (retry)`,
+      allowRetry: true,
+    });
   } catch (err) {
     await logAutomation({
       eventType: "wallet_credit",
@@ -59,15 +64,15 @@ export async function retryConversionImpl(conversionId: string) {
     return { ok: false, status: "rejected" as const, reason: "wallet_credit_failed" };
   }
 
-  await supabaseAdmin
-    .from("sdk_offerwall_conversions")
-    .update({
-      status: "credited",
-      reward_amount: reward,
-      reject_reason: null,
-      processed_at: new Date().toISOString(),
-    })
-    .eq("id", conversion.id);
+  if (!credit.credited) {
+    if (credit.reason === "already_credited") {
+      return { ok: false, status: "credited" as const, reason: "already_credited" };
+    }
+    if (credit.reason === "duplicate") {
+      return { ok: false, status: "duplicate" as const, reason: "duplicate" };
+    }
+    return { ok: false, status: "rejected" as const, reason: credit.reason ?? "not_creditable" };
+  }
 
   await logAutomation({
     eventType: "wallet_credit",
@@ -76,8 +81,8 @@ export async function retryConversionImpl(conversionId: string) {
     providerId: provider.id,
     userId: conversion.user_id,
     referenceId: conversion.id,
-    message: `Retry credited $${reward.toFixed(2)} from ${provider.name}`,
-    context: { reward },
+    message: `Retry credited $${credit.reward.toFixed(2)} from ${provider.name}`,
+    context: { reward: credit.reward },
   });
 
   try {
@@ -86,5 +91,5 @@ export async function retryConversionImpl(conversionId: string) {
     // Referral automation must not fail the retry.
   }
 
-  return { ok: true, status: "credited" as const, reward };
+  return { ok: true, status: "credited" as const, reward: credit.reward };
 }

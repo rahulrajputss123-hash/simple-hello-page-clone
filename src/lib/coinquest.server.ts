@@ -9,8 +9,26 @@ import {
   STREAK_BONUS,
   STREAK_GOAL,
 } from "./coinquest";
+import type { Json, Tables } from "@/integrations/supabase/types";
 import { buildPayoutSnapshot, payoutMethodSpec } from "./payout-methods";
 import { deriveReferralProgress, REFERRAL_MILESTONE_COUNT } from "./referral-progress";
+import {
+  cancelWithdrawalRpc,
+  releaseReferralRewardRpc,
+  requestWithdrawalRpc,
+  reverseExpiredReferralRpc,
+  settleOfferClaimRpc,
+  settleWithdrawalRpc,
+  walletApply,
+  WalletRpcError,
+  deterministicReferenceId,
+  type WalletApplyResult,
+} from "./wallet/rpc.server";
+
+/** True when a wallet RPC failed with the given machine-readable code. */
+function isWalletError(error: unknown, code: string): boolean {
+  return error instanceof WalletRpcError && error.code === code;
+}
 
 function code(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -224,10 +242,12 @@ async function creditReferralMilestone(
  * Releases the full referral reward into the referrer's MAIN wallet, once, after
  * all three milestones are complete and inside the 365-day window.
  *
- * Idempotency: `reward_released_at` is claimed with a conditional update BEFORE
- * any money moves, so duplicate events, retries and concurrent callers can only
- * ever produce a single credit. The referrer row is read first so a read failure
- * aborts before the claim is burned.
+ * The release claim (`reward_released_at`) and the referrer credit commit in a
+ * single transaction (referral_release_reward), which re-checks milestones and
+ * the window under a row lock. Duplicate events, retries and concurrent callers
+ * can only ever produce a single credit, and a failed credit no longer burns
+ * the claim. Legacy rows that already hold part of the reward are only topped
+ * up to the maximum.
  */
 async function releaseReferralReward(referralId: string) {
   const referral = await supabaseAdmin
@@ -238,56 +258,31 @@ async function releaseReferralReward(referralId: string) {
   if (!referral.data) return;
   if (referral.data.reward_released_at) return; // already released
 
+  // Cheap pre-checks; the RPC re-checks both under the lock.
   const progress = deriveReferralProgress(referral.data);
   if (!progress.allComplete) return; // still pending
   if (progress.expired) return; // outside the window — nothing is released
 
-  // Legacy rows credited under the old per-milestone model already hold part of
-  // the reward, so only top up to the maximum: never double-pay, never claw back.
-  const alreadyPaid = Math.max(0, Number(referral.data.bonus_amount ?? 0));
-  const payout = Math.max(0, REFERRAL_MAX_BONUS - alreadyPaid);
+  let result: Awaited<ReturnType<typeof releaseReferralRewardRpc>>;
+  try {
+    result = await releaseReferralRewardRpc({
+      referralId,
+      maxBonus: REFERRAL_MAX_BONUS,
+      windowDays: REFERRAL_WINDOW_DAYS,
+      description: `Referral reward — friend completed all ${REFERRAL_MILESTONE_COUNT} milestones`,
+    });
+  } catch (error) {
+    // Nothing committed. Every later milestone event re-runs this release, so
+    // it is retried rather than lost; never fail the caller's own credit.
+    console.error("[referral] release failed", { referralId, error });
+    return;
+  }
+  if (!result.released || result.payout <= 0) return;
 
-  const referrer = await supabaseAdmin
-    .from("profiles")
-    .select("wallet_balance, lifetime_earned")
-    .eq("id", referral.data.referrer_id)
-    .single();
-  if (referrer.error) return;
-
-  const claimed = await supabaseAdmin
-    .from("referrals")
-    .update({
-      reward_released_at: new Date().toISOString(),
-      bonus_amount: REFERRAL_MAX_BONUS,
-      status: "completed",
-    })
-    .eq("id", referralId)
-    .is("reward_released_at", null)
-    .select("id");
-  if (!claimed.data?.length) return; // another run won the release
-
-  if (payout <= 0) return; // legacy row was already paid in full
-
-  await supabaseAdmin
-    .from("profiles")
-    .update({
-      wallet_balance: Number(referrer.data.wallet_balance) + payout,
-      lifetime_earned: Number(referrer.data.lifetime_earned) + payout,
-    })
-    .eq("id", referral.data.referrer_id);
-  await supabaseAdmin.from("wallet_transactions").insert({
-    user_id: referral.data.referrer_id,
-    source: "referral",
-    description: `Referral reward — friend completed all ${REFERRAL_MILESTONE_COUNT} milestones`,
-    amount: payout,
-    kind: "bonus",
-    status: "completed",
-    reference_id: referralId,
-  });
   await notify(
     referral.data.referrer_id,
     "Referral reward unlocked",
-    `${formatMoney(payout)} has been added to your wallet.`,
+    `${formatMoney(result.payout)} has been added to your wallet.`,
     "referral",
   );
 }
@@ -322,33 +317,18 @@ export async function payReferralMilestone(
         .eq("id", referral.data.id);
     }
     if (milestone !== "withdrawal") return;
-    const credited = Number(referral.data.bonus_amount ?? 0);
-    if (credited <= 0) return;
-    const referrer = await supabaseAdmin
-      .from("profiles")
-      .select("wallet_balance, lifetime_earned")
-      .eq("id", referral.data.referrer_id)
-      .single();
-    if (referrer.error) return;
-    await supabaseAdmin
-      .from("profiles")
-      .update({
-        wallet_balance: Number(referrer.data.wallet_balance) - credited,
-        lifetime_earned: Math.max(0, Number(referrer.data.lifetime_earned) - credited),
-      })
-      .eq("id", referral.data.referrer_id);
-    await supabaseAdmin.from("wallet_transactions").insert({
-      user_id: referral.data.referrer_id,
-      source: "referral",
-      description: "Referral rewards reversed (1-year limit)",
-      amount: -credited,
-      kind: "adjustment",
-      status: "completed",
-    });
-    await supabaseAdmin
-      .from("referrals")
-      .update({ bonus_amount: 0, status: "expired" })
-      .eq("id", referral.data.id);
+    if (Number(referral.data.bonus_amount ?? 0) <= 0) return;
+    // Debit, ledger row and bonus_amount reset commit together, exactly once.
+    try {
+      const reversal = await reverseExpiredReferralRpc(
+        referral.data.id,
+        "Referral rewards reversed (1-year limit)",
+      );
+      if (!reversal.reversed) return;
+    } catch (error) {
+      console.error("[referral] expiry reversal failed", { referralId: referral.data.id, error });
+      return;
+    }
     await notify(
       referral.data.referrer_id,
       "Referral rewards reversed",
@@ -361,38 +341,40 @@ export async function payReferralMilestone(
   await creditReferralMilestone(referral.data.id, milestone, description);
 }
 
+/**
+ * Credits a publisher wallet. Atomic (wallet_apply): the balance increment and
+ * its wallet_transactions row commit together under a row lock, so concurrent
+ * credits can no longer overwrite each other. Throws "Wallet unavailable." if
+ * nothing was credited.
+ *
+ * `referenceId` (optional) links the ledger row to its source record.
+ */
 export async function creditWallet(
   userId: string,
   amount: number,
   source: string,
   description: string,
   kind = "earned",
-) {
-  const profile = await supabaseAdmin
-    .from("profiles")
-    .select("wallet_balance, lifetime_earned")
-    .eq("id", userId)
-    .single();
-  if (profile.error) throw new Error("Wallet unavailable.");
-  const firstEarning = Number(profile.data.lifetime_earned) === 0;
-  await supabaseAdmin
-    .from("profiles")
-    .update({
-      wallet_balance: Number(profile.data.wallet_balance) + amount,
-      lifetime_earned: Number(profile.data.lifetime_earned) + amount,
-    })
-    .eq("id", userId);
-  await supabaseAdmin.from("wallet_transactions").insert({
-    user_id: userId,
-    source,
-    description,
-    amount,
-    kind,
-    status: "completed",
-  });
-  if (firstEarning && ["quest", "task", "offer"].includes(source)) {
-    await payReferralMilestone(userId, "earning", "Referral: friend's first earning");
+  referenceId: string | null = null,
+): Promise<WalletApplyResult> {
+  let result: WalletApplyResult;
+  try {
+    result = await walletApply({ userId, amount, source, kind, description, referenceId });
+  } catch (error) {
+    console.error("[wallet] credit failed", { userId, source, error });
+    throw new Error("Wallet unavailable.");
   }
+  // Same rule as before: lifetime_earned was 0 before this credit.
+  const firstEarning = !result.duplicate && result.previousLifetimeEarned === 0;
+  if (firstEarning && ["quest", "task", "offer"].includes(source)) {
+    try {
+      await payReferralMilestone(userId, "earning", "Referral: friend's first earning");
+    } catch (error) {
+      // The credit has committed; referral automation must never fail it.
+      console.error("[referral] earning milestone failed", { userId, error });
+    }
+  }
+  return result;
 }
 
 function today(): string {
@@ -416,20 +398,45 @@ export async function touchStreakImpl(userId: string) {
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   const streak = profile.data.streak_date === yesterday ? profile.data.streak_count + 1 : 1;
 
-  await supabaseAdmin
+  // Claim today's bump only if nobody else did since we read it, so two
+  // overlapping requests can't both count the day (or both pay the bonus).
+  const bump = supabaseAdmin
     .from("profiles")
     .update({ streak_count: streak, streak_date: day })
     .eq("id", userId);
+  const claimed = await (
+    profile.data.streak_date
+      ? bump.eq("streak_date", profile.data.streak_date)
+      : bump.is("streak_date", null)
+  ).select("id");
+  if (!claimed.data?.length) return { streak: profile.data.streak_count, credited: false };
 
   if (streak > 0 && streak % STREAK_GOAL === 0) {
-    await creditWallet(userId, STREAK_BONUS, "streak", `${STREAK_GOAL}-day streak bonus`, "bonus");
-    await notify(
-      userId,
-      "Streak bonus",
-      `You earned $${STREAK_BONUS.toFixed(2)} for your streak.`,
-      "bonus",
-    );
-    return { streak, credited: true };
+    try {
+      // One bonus per user per day, enforced by the idempotent ledger reference.
+      const credit = await creditWallet(
+        userId,
+        STREAK_BONUS,
+        "streak",
+        `${STREAK_GOAL}-day streak bonus`,
+        "bonus",
+        deterministicReferenceId("streak", userId, day),
+      );
+      if (!credit.duplicate) {
+        await notify(
+          userId,
+          "Streak bonus",
+          `You earned $${STREAK_BONUS.toFixed(2)} for your streak.`,
+          "bonus",
+        );
+      }
+      return { streak, credited: !credit.duplicate };
+    } catch (error) {
+      // The streak bump runs inside quest/task flows; a failed bonus must not
+      // fail the earning that triggered it.
+      console.error("[wallet] streak bonus failed", { userId, day, error });
+      return { streak, credited: false };
+    }
   }
   return { streak, credited: false };
 }
@@ -474,6 +481,10 @@ export async function reportAdImpl(userId: string, sessionId: string) {
     .eq("user_id", userId)
     .single();
   if (session.error || !session.data) throw new Error("Quest session not found.");
+  // 'verified' = the final ad was counted but crediting didn't finish (e.g. a
+  // transient wallet error). Finish it instead of refusing; the credit is
+  // idempotent per session, so this can never pay twice.
+  if (session.data.status === "verified") return finishAdQuest(userId, session.data);
   if (session.data.status !== "started") throw new Error("This quest is already finished.");
 
   const nextCount = session.data.ads_watched + 1;
@@ -497,6 +508,8 @@ export async function reportAdImpl(userId: string, sessionId: string) {
   }
 
   const done = nextCount >= session.data.ads_required;
+  // Conditional on the count we read: two overlapping reports of the same ad
+  // can't both count it (or both reach the credit below).
   const updated = await supabaseAdmin
     .from("quest_sessions")
     .update({
@@ -505,9 +518,12 @@ export async function reportAdImpl(userId: string, sessionId: string) {
       verified_at: done ? new Date().toISOString() : null,
     })
     .eq("id", sessionId)
+    .eq("status", "started")
+    .eq("ads_watched", session.data.ads_watched)
     .select("*")
-    .single();
+    .maybeSingle();
   if (updated.error) throw new Error("Could not record that ad.");
+  if (!updated.data) throw new Error("That ad was already counted. Please try again.");
 
   await touchStreakImpl(userId);
 
@@ -520,24 +536,41 @@ export async function reportAdImpl(userId: string, sessionId: string) {
     });
   }
 
-  if (done) {
-    const reward = Number(session.data.reward_amount);
-    await creditWallet(userId, reward, "quest", `Starter quest — ${session.data.ads_required} ads`);
-    await supabaseAdmin
-      .from("quest_sessions")
-      .update({ status: "credited", credited_at: new Date().toISOString() })
-      .eq("id", sessionId);
-    await notify(userId, "Quest completed", `You earned $${reward.toFixed(2)}.`, "quest");
-    // Drives the quest_count task type. Keyed on the session id so one completed
-    // quest counts once, however many times this path is retried.
-    {
-      const { recordTaskEvent } = await import("./tasks/engine.server");
-      await recordTaskEvent({ userId, eventType: "quest_completed", eventKey: sessionId });
-    }
-    return { ...updated.data, status: "credited", credited: true };
-  }
+  if (done) return finishAdQuest(userId, updated.data);
 
   return { ...updated.data, credited: false };
+}
+
+/**
+ * Pays a 'verified' ads quest session and marks it credited. Safe to call more
+ * than once: the credit is keyed on the session id, so only the first call pays
+ * (and notifies).
+ */
+async function finishAdQuest(userId: string, session: Tables<"quest_sessions">) {
+  const reward = Number(session.reward_amount);
+  const credit = await creditWallet(
+    userId,
+    reward,
+    "quest",
+    `Starter quest — ${session.ads_required} ads`,
+    "earned",
+    session.id,
+  );
+  await supabaseAdmin
+    .from("quest_sessions")
+    .update({ status: "credited", credited_at: new Date().toISOString() })
+    .eq("id", session.id)
+    .eq("status", "verified");
+  if (!credit.duplicate) {
+    await notify(userId, "Quest completed", `You earned $${reward.toFixed(2)}.`, "quest");
+  }
+  // Drives the quest_count task type. Keyed on the session id so one completed
+  // quest counts once, however many times this path is retried.
+  {
+    const { recordTaskEvent } = await import("./tasks/engine.server");
+    await recordTaskEvent({ userId, eventType: "quest_completed", eventKey: session.id });
+  }
+  return { ...session, status: "credited", credited: true };
 }
 
 export async function completeTaskImpl(userId: string, taskId: string) {
@@ -567,39 +600,64 @@ export async function completeTaskImpl(userId: string, taskId: string) {
     .eq("task_id", taskId)
     .eq("period_key", "lifetime")
     .maybeSingle();
-  if (existing.data?.status === "completed") throw new Error("Task already completed.");
+  if (existing.data?.status === "completed") {
+    // Completed but never paid (the credit failed after the row was saved):
+    // finish paying instead of refusing. Idempotent per user_tasks row.
+    if (existing.data.reward_status !== "paid") {
+      await payManualTask(userId, existing.data.id, task.data.title, Number(task.data.reward));
+      return { progress: existing.data.progress, completed: true };
+    }
+    throw new Error("Task already completed.");
+  }
 
   const progress = Math.min((existing.data?.progress ?? 0) + 1, task.data.steps_total);
   const completed = progress >= task.data.steps_total;
 
-  await supabaseAdmin.from("user_tasks").upsert(
-    {
-      user_id: userId,
-      task_id: taskId,
-      period_key: "lifetime",
-      target: task.data.steps_total,
-      progress,
-      status: completed ? "completed" : "active",
-      completed_at: completed ? new Date().toISOString() : null,
-      reward_status: completed ? "paid" : "pending",
-      rewarded_at: completed ? new Date().toISOString() : null,
-    },
-    { onConflict: "user_id,task_id,period_key" },
-  );
+  // reward_status stays 'pending' until the credit has committed, so a failed
+  // credit is retried by the next tap instead of being lost.
+  const saved = await supabaseAdmin
+    .from("user_tasks")
+    .upsert(
+      {
+        user_id: userId,
+        task_id: taskId,
+        period_key: "lifetime",
+        target: task.data.steps_total,
+        progress,
+        status: completed ? "completed" : "active",
+        completed_at: completed ? new Date().toISOString() : null,
+        reward_status: "pending",
+        rewarded_at: null,
+      },
+      { onConflict: "user_id,task_id,period_key" },
+    )
+    .select("id")
+    .single();
+  if (saved.error || !saved.data) throw new Error("Couldn't update that task.");
 
   await touchStreakImpl(userId);
 
   if (completed) {
-    const reward = Number(task.data.reward);
-    await creditWallet(userId, reward, "task", task.data.title);
-    await notify(
-      userId,
-      "Task completed",
-      `${task.data.title} — $${reward.toFixed(2)} added.`,
-      "task",
-    );
+    await payManualTask(userId, saved.data.id, task.data.title, Number(task.data.reward));
   }
   return { progress, completed };
+}
+
+/**
+ * Pays a completed manual task once. Two overlapping final taps both reach
+ * here; the credit is keyed on the user_tasks row id, so only one pays (and
+ * notifies), and both then mark the row paid.
+ */
+async function payManualTask(userId: string, userTaskId: string, title: string, reward: number) {
+  const credit = await creditWallet(userId, reward, "task", title, "earned", userTaskId);
+  await supabaseAdmin
+    .from("user_tasks")
+    .update({ reward_status: "paid", rewarded_at: new Date().toISOString() })
+    .eq("id", userTaskId)
+    .eq("reward_status", "pending");
+  if (!credit.duplicate) {
+    await notify(userId, "Task completed", `${title} — $${reward.toFixed(2)} added.`, "task");
+  }
 }
 
 export async function claimOfferImpl(userId: string, offerId: string, proofUrl: string | null) {
@@ -671,15 +729,6 @@ export async function createWithdrawalImpl(userId: string, amount: number, payou
   if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL) {
     throw new Error(`Minimum withdrawal is $${MIN_WITHDRAWAL.toFixed(2)}.`);
   }
-  const profile = await supabaseAdmin
-    .from("profiles")
-    .select("wallet_balance, held_balance, is_flagged")
-    .eq("id", userId)
-    .single();
-  if (profile.error) throw new Error("Wallet unavailable.");
-
-  const available = Number(profile.data.wallet_balance) - Number(profile.data.held_balance);
-  if (amount > available) throw new Error("That's more than your available balance.");
 
   // Selected with "*" so the method can be snapshotted onto the request below.
   const method = await supabaseAdmin
@@ -695,43 +744,30 @@ export async function createWithdrawalImpl(userId: string, amount: number, payou
     throw new Error(`${methodSpec?.label ?? "That payout method"} is not available yet.`);
   }
 
-  const openRequest = await supabaseAdmin
-    .from("withdrawal_requests")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("status", "pending")
-    .maybeSingle();
-  if (openRequest.data) throw new Error("You already have a withdrawal awaiting review.");
-
-  // method_type and the masked snapshot are captured here so the request stays
-  // auditable even if the payout method is later edited or deleted.
-  const created = await supabaseAdmin
-    .from("withdrawal_requests")
-    .insert({
-      user_id: userId,
+  // Balance check, one-pending rule, hold and ledger row run in one locked
+  // transaction (withdrawal_request), so two simultaneous requests can no
+  // longer both pass. method_type and the masked snapshot are captured so the
+  // request stays auditable even if the payout method is later edited/deleted.
+  let created: Awaited<ReturnType<typeof requestWithdrawalRpc>>;
+  try {
+    created = await requestWithdrawalRpc({
+      userId,
       amount,
-      payout_method_id: payoutMethodId,
-      method_type: method.data.method_type,
-      payout_details_snapshot: buildPayoutSnapshot(method.data),
-    })
-    .select("*")
-    .single();
-  if (created.error) throw new Error("Could not submit that withdrawal.");
-
-  await supabaseAdmin
-    .from("profiles")
-    .update({ held_balance: Number(profile.data.held_balance) + amount })
-    .eq("id", userId);
-
-  await supabaseAdmin.from("wallet_transactions").insert({
-    user_id: userId,
-    source: "withdrawal",
-    description: "Withdrawal request",
-    amount: -amount,
-    kind: "withdrawn",
-    status: "pending",
-    reference_id: created.data.id,
-  });
+      payoutMethodId,
+      methodType: method.data.method_type,
+      snapshot: buildPayoutSnapshot(method.data) as Json,
+    });
+  } catch (error) {
+    if (isWalletError(error, "WITHDRAWAL_INSUFFICIENT")) {
+      throw new Error("That's more than your available balance.");
+    }
+    if (isWalletError(error, "WITHDRAWAL_ALREADY_PENDING")) {
+      throw new Error("You already have a withdrawal awaiting review.");
+    }
+    if (isWalletError(error, "WALLET_NOT_FOUND")) throw new Error("Wallet unavailable.");
+    console.error("[wallet] withdrawal request failed", { userId, error });
+    throw new Error("Could not submit that withdrawal.");
+  }
 
   await notify(
     userId,
@@ -739,35 +775,21 @@ export async function createWithdrawalImpl(userId: string, amount: number, payou
     `$${amount.toFixed(2)} is pending review.`,
     "wallet",
   );
-  return created.data;
+  return created;
 }
 
 export async function cancelWithdrawalImpl(userId: string, id: string) {
-  const req = await supabaseAdmin
-    .from("withdrawal_requests")
-    .select("*")
-    .eq("id", id)
-    .eq("user_id", userId)
-    .single();
-  if (req.error || req.data.status !== "pending")
-    throw new Error("This request can't be cancelled.");
-
-  await supabaseAdmin.from("withdrawal_requests").update({ status: "cancelled" }).eq("id", id);
-  const profile = await supabaseAdmin
-    .from("profiles")
-    .select("held_balance")
-    .eq("id", userId)
-    .single();
-  await supabaseAdmin
-    .from("profiles")
-    .update({
-      held_balance: Math.max(0, Number(profile.data?.held_balance ?? 0) - Number(req.data.amount)),
-    })
-    .eq("id", userId);
-  await supabaseAdmin
-    .from("wallet_transactions")
-    .update({ status: "failed", description: "Withdrawal cancelled" })
-    .eq("reference_id", id);
+  // Status change, hold release and ledger update commit together; only the
+  // owner's pending request can be cancelled.
+  try {
+    await cancelWithdrawalRpc(userId, id);
+  } catch (error) {
+    if (isWalletError(error, "WITHDRAWAL_NOT_CANCELLABLE")) {
+      throw new Error("This request can't be cancelled.");
+    }
+    console.error("[wallet] withdrawal cancel failed", { userId, id, error });
+    throw new Error("Couldn't cancel that request.");
+  }
   return { ok: true };
 }
 
@@ -789,61 +811,49 @@ export async function adminUpdateWithdrawalImpl(
   note: string | null,
   referenceId: string | null = null,
 ) {
-  const req = await supabaseAdmin.from("withdrawal_requests").select("*").eq("id", id).single();
-  if (req.error) throw new Error("Request not found.");
-  if (req.data.status !== "pending" && req.data.status !== "approved") {
-    throw new Error("This request has already been settled.");
+  if (status !== "approved" && status !== "rejected") throw new Error("Unsupported status.");
+
+  // Money moves only on the transition out of 'pending', under a row lock
+  // (withdrawal_settle). Re-approving an approved request only updates the
+  // fulfilment reference / note — it used to deduct the balance again.
+  let result: Awaited<ReturnType<typeof settleWithdrawalRpc>>;
+  try {
+    result = await settleWithdrawalRpc({
+      requestId: id,
+      decision: status,
+      note,
+      reference: referenceId,
+    });
+  } catch (error) {
+    if (isWalletError(error, "WITHDRAWAL_NOT_FOUND")) throw new Error("Request not found.");
+    if (isWalletError(error, "WITHDRAWAL_ALREADY_SETTLED")) {
+      throw new Error("This request has already been settled.");
+    }
+    console.error("[wallet] withdrawal settle failed", { id, status, error });
+    throw new Error("Could not update that withdrawal.");
   }
-  const patch: { status: string; admin_note: string | null; reference_id?: string } = {
-    status,
-    admin_note: note,
-  };
-  // Fulfilment reference is optional and only overwritten when provided.
-  if (referenceId) patch.reference_id = referenceId;
-  await supabaseAdmin.from("withdrawal_requests").update(patch).eq("id", id);
+  if (!result.settled) return { ok: true, alreadySettled: true };
 
-  const profile = await supabaseAdmin
-    .from("profiles")
-    .select("wallet_balance, held_balance, lifetime_withdrawn")
-    .eq("id", req.data.user_id)
-    .single();
-  const amount = Number(req.data.amount);
-
-  if (status === "approved") {
-    await supabaseAdmin
-      .from("profiles")
-      .update({
-        wallet_balance: Number(profile.data?.wallet_balance ?? 0) - amount,
-        held_balance: Math.max(0, Number(profile.data?.held_balance ?? 0) - amount),
-        lifetime_withdrawn: Number(profile.data?.lifetime_withdrawn ?? 0) + amount,
-      })
-      .eq("id", req.data.user_id);
-    await supabaseAdmin
-      .from("wallet_transactions")
-      .update({ status: "completed", description: "Withdrawal paid" })
-      .eq("reference_id", id);
+  const amount = result.amount;
+  if (result.status === "approved") {
     await notify(
-      req.data.user_id,
+      result.userId,
       "Withdrawal approved",
       note ?? `$${amount.toFixed(2)} has been sent to your payout method.`,
       "wallet",
     );
-    await payReferralMilestone(
-      req.data.user_id,
-      "withdrawal",
-      "Referral: friend's first withdrawal",
-    );
-  } else if (status === "rejected") {
-    await supabaseAdmin
-      .from("profiles")
-      .update({ held_balance: Math.max(0, Number(profile.data?.held_balance ?? 0) - amount) })
-      .eq("id", req.data.user_id);
-    await supabaseAdmin
-      .from("wallet_transactions")
-      .update({ status: "failed", description: "Withdrawal rejected" })
-      .eq("reference_id", id);
+    try {
+      await payReferralMilestone(
+        result.userId,
+        "withdrawal",
+        "Referral: friend's first withdrawal",
+      );
+    } catch (error) {
+      console.error("[referral] withdrawal milestone failed", { userId: result.userId, error });
+    }
+  } else {
     await notify(
-      req.data.user_id,
+      result.userId,
       "Withdrawal rejected",
       note ?? "Please contact support for details.",
       "wallet",
@@ -853,15 +863,19 @@ export async function adminUpdateWithdrawalImpl(
 }
 
 export async function adminUpdateOfferClaimImpl(id: string, status: string, note: string | null) {
+  if (status !== "approved" && status !== "rejected") throw new Error("Unsupported status.");
   const claim = await supabaseAdmin.from("offer_claims").select("*").eq("id", id).single();
   if (claim.error) throw new Error("Claim not found.");
   // Idempotent: a repeat submit (double click / retry) is a no-op, not an error.
+  // Fast path only — offer_claim_settle re-checks under a row lock, which is
+  // what stops two concurrent approvals from both paying.
   if (claim.data.status !== "pending") return { ok: true, alreadyReviewed: true };
 
   // For limited-deal offers, always recompute the reward at approval time from
   // the offer's CURRENT config — never trust the snapshot captured at claim
   // submission (the offer's actual_cost / percentage / cap may have changed).
-  let effectiveReward = Number(claim.data.reward_amount);
+  // null = pay the claim's snapshot.
+  let rewardOverride: number | null = null;
   if (status === "approved") {
     const offer = await supabaseAdmin
       .from("offers")
@@ -872,32 +886,51 @@ export async function adminUpdateOfferClaimImpl(id: string, status: string, note
     const o = offer.data as any;
     if (o?.is_limited_deal) {
       const { computeLimitedDealReward } = await import("./offers/proof.server");
-      effectiveReward = computeLimitedDealReward({
+      rewardOverride = computeLimitedDealReward({
         actual_cost: o.actual_cost,
         payout_percentage: o.payout_percentage,
         max_payout_cap: o.max_payout_cap,
       });
-      await supabaseAdmin
-        .from("offer_claims")
-        .update({ reward_amount: effectiveReward })
-        .eq("id", id);
     }
   }
 
-  await supabaseAdmin.from("offer_claims").update({ status, admin_note: note }).eq("id", id);
+  // Status change, stored reward and wallet credit commit together, exactly
+  // once: an approved claim can no longer end up unpaid, and a concurrent
+  // second approval is a no-op.
+  let result: Awaited<ReturnType<typeof settleOfferClaimRpc>>;
+  try {
+    result = await settleOfferClaimRpc({
+      claimId: id,
+      decision: status,
+      note,
+      reward: rewardOverride,
+    });
+  } catch (error) {
+    if (isWalletError(error, "CLAIM_NOT_FOUND")) throw new Error("Claim not found.");
+    console.error("[wallet] offer claim settle failed", { id, status, error });
+    throw new Error("Could not update that claim.");
+  }
+  if (!result.settled) return { ok: true, alreadyReviewed: true };
 
-  if (status === "approved") {
-    await creditWallet(claim.data.user_id, effectiveReward, "offer", "Offer reward");
+  if (result.status === "approved") {
+    // creditWallet used to fire this for source "offer"; the RPC credits directly.
+    if (result.previousLifetimeEarned === 0) {
+      try {
+        await payReferralMilestone(result.userId, "earning", "Referral: friend's first earning");
+      } catch (error) {
+        console.error("[referral] earning milestone failed", { userId: result.userId, error });
+      }
+    }
     const { recordTaskEvent } = await import("./tasks/engine.server");
     await recordTaskEvent({
-      userId: claim.data.user_id,
+      userId: result.userId,
       eventType: "offer_completion",
       eventKey: claim.data.id,
     });
     await notify(
-      claim.data.user_id,
+      result.userId,
       "Offer approved",
-      `$${effectiveReward.toFixed(2)} was added to your wallet.`,
+      `$${result.reward.toFixed(2)} was added to your wallet.`,
       "offer",
     );
   } else {
@@ -928,30 +961,27 @@ export async function adminSetFlagImpl(userId: string, flagged: boolean) {
 }
 
 export async function adminAdjustWalletImpl(userId: string, amount: number, reason: string) {
-  const profile = await supabaseAdmin
-    .from("profiles")
-    .select("wallet_balance, lifetime_earned")
-    .eq("id", userId)
-    .single();
-  if (profile.error) throw new Error("User not found.");
-  const next = Number(profile.data.wallet_balance) + amount;
-  if (next < 0) throw new Error("That adjustment would make the balance negative.");
-  await supabaseAdmin
-    .from("profiles")
-    .update({
-      wallet_balance: next,
-      lifetime_earned:
-        amount > 0 ? Number(profile.data.lifetime_earned) + amount : profile.data.lifetime_earned,
-    })
-    .eq("id", userId);
-  await supabaseAdmin.from("wallet_transactions").insert({
-    user_id: userId,
-    source: "adjustment",
-    description: reason,
-    amount,
-    kind: amount >= 0 ? "bonus" : "adjustment",
-    status: "completed",
-  });
+  // Atomic delta; refuses to take the balance below zero (checked under the lock).
+  // Positive adjustments count toward lifetime_earned, negative ones don't.
+  try {
+    await walletApply({
+      userId,
+      amount,
+      source: "adjustment",
+      kind: amount >= 0 ? "bonus" : "adjustment",
+      description: reason,
+      lifetimeEarnedDelta: amount > 0 ? amount : 0,
+    });
+  } catch (error) {
+    if (isWalletError(error, "WALLET_NOT_FOUND")) throw new Error("User not found.");
+    if (isWalletError(error, "WALLET_NEGATIVE")) {
+      // Checked against the available balance (wallet − funds held for a
+      // pending withdrawal).
+      throw new Error("That adjustment would make the available balance negative.");
+    }
+    console.error("[wallet] admin adjustment failed", { userId, error });
+    throw new Error("Could not adjust that wallet.");
+  }
   await notify(
     userId,
     "Wallet adjusted",

@@ -280,6 +280,39 @@ async function recordQuestCompletedEvent(userId: string, sessionId: string): Pro
 }
 
 /**
+ * Pays a 'verified' locker/shortlink session and marks it credited.
+ *
+ * Safe to call more than once and from overlapping requests: the credit is
+ * keyed on the session id, so only the first call pays (and notifies). A
+ * session left 'verified' by a failed credit is finished by the user's next
+ * attempt instead of being stranded.
+ */
+async function finishQuestSession(
+  userId: string,
+  sessionId: string,
+  reward: number,
+  description: string,
+): Promise<void> {
+  const credit = await creditWallet(userId, reward, "quest", description, "earned", sessionId);
+  await db
+    .from("quest_sessions")
+    .update({ status: "credited", credited_at: new Date().toISOString() })
+    .eq("id", sessionId)
+    .eq("status", "verified");
+  if (!credit.duplicate) {
+    await db.from("notifications").insert({
+      user_id: userId,
+      title: "Quest completed",
+      body: `You earned $${reward.toFixed(2)}.`,
+      kind: "quest",
+    });
+  }
+  // Drives the quest_count task type, keyed on the session id so one completed
+  // quest counts once. Never allowed to fail the already-credited quest.
+  await recordQuestCompletedEvent(userId, sessionId);
+}
+
+/**
  * Start a locker quest for a user.
  *
  * DESIGN NOTE — "most recent started session" fallback:
@@ -378,11 +411,13 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
     .select("*")
     .eq("user_id", userId)
     .eq("quest_key", questKey)
-    .eq("status", "started")
+    // 'verified' too: a session whose final credit didn't finish is completed
+    // here rather than stranded (see finishQuestSession).
+    .in("status", ["started", "verified"])
     // See the note in startLockerQuestImpl: the column is started_at, not
     // created_at. Ordering by a non-existent column made this lookup always
     // return null, so locker quests could never be credited at all.
-    // The matching STRATEGY is unchanged: most recent 'started' session for
+    // The matching STRATEGY is unchanged: most recent open session for
     // (user, questKey), no per-session token.
     .order("started_at", { ascending: false })
     .limit(1)
@@ -392,6 +427,25 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
 
   // Each return hit completes one locker in the chain.
   const total = Math.max(1, quest.locker_urls.length);
+
+  if (session.data.status === "verified") {
+    const reward = Number(quest.reward_amount);
+    await finishQuestSession(
+      userId,
+      session.data.id as string,
+      reward,
+      `Content locker — ${quest.label}`,
+    );
+    return {
+      completed: true,
+      credited: true,
+      reward,
+      step: total,
+      total,
+      nextStep: null,
+      nextUrl: null,
+    };
+  }
   const completedCount = Number(session.data.current_step ?? 0) + 1;
 
   // --- More lockers left: advance and hand back the next URL -----------------
@@ -413,8 +467,9 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
     };
   }
 
-  // --- Final locker: unchanged crediting behaviour ---------------------------
-  // Mark verified.
+  // --- Final locker ---------------------------------------------------------
+  // Mark verified (only from 'started'; an overlapping request may already have
+  // done it — finishQuestSession is idempotent either way).
   await db
     .from("quest_sessions")
     .update({
@@ -423,27 +478,16 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
       status: "verified",
       verified_at: new Date().toISOString(),
     })
-    .eq("id", session.data.id);
+    .eq("id", session.data.id)
+    .eq("status", "started");
 
   const reward = Number(quest.reward_amount);
-  await creditWallet(userId, reward, "quest", `Content locker — ${quest.label}`);
-
-  // Mark credited.
-  await db
-    .from("quest_sessions")
-    .update({ status: "credited", credited_at: new Date().toISOString() })
-    .eq("id", session.data.id);
-
-  await db.from("notifications").insert({
-    user_id: userId,
-    title: "Quest completed",
-    body: `You earned $${reward.toFixed(2)}.`,
-    kind: "quest",
-  });
-
-  // Drives the quest_count task type, keyed on the session id so one completed
-  // quest counts once. Never allowed to fail the already-credited quest.
-  await recordQuestCompletedEvent(userId, session.data.id as string);
+  await finishQuestSession(
+    userId,
+    session.data.id as string,
+    reward,
+    `Content locker — ${quest.label}`,
+  );
 
   return {
     completed: true,
@@ -502,9 +546,24 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
     .select("*")
     .eq("user_id", userId)
     .eq("quest_key", questKey)
-    .eq("status", "started")
+    // 'verified' too: a session whose final credit didn't finish is completed
+    // here rather than stranded (see finishQuestSession).
+    .in("status", ["started", "verified"])
+    .order("started_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (!session.data) throw new Error("No active session for this quest.");
+
+  if (session.data.status === "verified") {
+    const reward = Number(quest.reward_amount);
+    await finishQuestSession(
+      userId,
+      session.data.id as string,
+      reward,
+      `Shortlink quest — ${quest.label}`,
+    );
+    return { completed: true, credited: true, reward, nextStep: null };
+  }
 
   const currentStep = Number(session.data.current_step ?? 0);
   if (currentStep !== step) throw new Error("Wrong step — go back and start from the app.");
@@ -524,6 +583,8 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
   const isFinal = step >= total;
 
   if (isFinal) {
+    // Only from 'started'; an overlapping request may already have verified it —
+    // finishQuestSession is idempotent either way.
     await db
       .from("quest_sessions")
       .update({
@@ -532,21 +593,15 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
         status: "verified",
         verified_at: new Date().toISOString(),
       })
-      .eq("id", session.data.id);
+      .eq("id", session.data.id)
+      .eq("status", "started");
     const reward = Number(quest.reward_amount);
-    await creditWallet(userId, reward, "quest", `Shortlink quest — ${quest.label}`);
-    await db
-      .from("quest_sessions")
-      .update({ status: "credited", credited_at: new Date().toISOString() })
-      .eq("id", session.data.id);
-    await db.from("notifications").insert({
-      user_id: userId,
-      title: "Quest completed",
-      body: `You earned $${reward.toFixed(2)}.`,
-      kind: "quest",
-    });
-    // Drives the quest_count task type, keyed on the session id.
-    await recordQuestCompletedEvent(userId, session.data.id as string);
+    await finishQuestSession(
+      userId,
+      session.data.id as string,
+      reward,
+      `Shortlink quest — ${quest.label}`,
+    );
     return { completed: true, credited: true, reward, nextStep: null };
   }
 

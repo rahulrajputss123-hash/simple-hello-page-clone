@@ -1,7 +1,8 @@
 import { createHmac, timingSafeEqual, createHash } from "crypto";
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { creditWallet, payReferralMilestone } from "@/lib/coinquest.server";
+import { payReferralMilestone } from "@/lib/coinquest.server";
+import { settleOfferClaimRpc } from "@/lib/wallet/rpc.server";
 import { logAutomation } from "@/lib/automation/logs.server";
 
 export type OfferPostbackResult = {
@@ -108,7 +109,11 @@ export async function processOfferPostback(
     return { ok: true, status: "duplicate", reason: "duplicate", claimId: existing.data.id };
   }
 
-  // ---- Insert approved claim + credit --------------------------------------
+  // ---- Insert pending claim, then approve + credit atomically -------------
+  // The claim is inserted 'pending' (the unique indexes still dedupe), then
+  // offer_claim_settle approves and credits it in one transaction. If the
+  // credit fails, the claim is left pending in the admin Claims queue instead
+  // of 'approved' but unpaid.
   const reward = Number(o.reward_amount);
   const claim = await supabaseAdmin
     .from("offer_claims")
@@ -116,9 +121,8 @@ export async function processOfferPostback(
       user_id: userId,
       offer_id: req.offerId,
       reward_amount: reward,
-      status: "approved",
+      status: "pending",
       postback_txn_id: txnId,
-      admin_note: "Auto-credited via postback",
     } as never)
     .select("id")
     .maybeSingle();
@@ -128,7 +132,16 @@ export async function processOfferPostback(
   }
 
   try {
-    await creditWallet(userId, reward, "offer", `Offer reward: ${o.title}`);
+    const settled = await settleOfferClaimRpc({
+      claimId: claim.data.id,
+      decision: "approved",
+      note: "Auto-credited via postback",
+      reward,
+    });
+    if (!settled.settled) {
+      // Someone (an admin) settled it in the moment since the insert; not paid twice.
+      return { ok: true, status: "duplicate", reason: "duplicate", claimId: claim.data.id };
+    }
   } catch (error) {
     await logAutomation({
       eventType: "wallet_credit",
@@ -137,6 +150,7 @@ export async function processOfferPostback(
       userId,
       referenceId: claim.data.id,
       message: error instanceof Error ? error.message : "Wallet credit failed",
+      context: { offerId: req.offerId, txnId, leftPendingForReview: true },
     });
     return { ok: false, status: "rejected", reason: "wallet_credit_failed" };
   }

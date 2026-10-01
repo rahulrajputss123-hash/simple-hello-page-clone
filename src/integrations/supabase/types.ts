@@ -1129,6 +1129,73 @@ export type Database = {
         };
         Returns: boolean;
       };
+      offer_claim_settle: {
+        Args: {
+          p_claim_id: string;
+          p_decision: string;
+          p_note?: string | null;
+          p_reward?: number | null;
+        };
+        Returns: Json;
+      };
+      referral_release_reward: {
+        Args: {
+          p_description: string;
+          p_max_bonus: number;
+          p_referral_id: string;
+          p_window_days: number;
+        };
+        Returns: Json;
+      };
+      referral_reverse_expired: {
+        Args: { p_description: string; p_referral_id: string };
+        Returns: Json;
+      };
+      sdk_conversion_credit: {
+        Args: {
+          p_allow_retry?: boolean;
+          p_conversion_id: string;
+          p_description: string;
+          p_reward: number;
+        };
+        Returns: Json;
+      };
+      wallet_apply: {
+        Args: {
+          p_allow_negative?: boolean;
+          p_amount: number;
+          p_description: string;
+          p_kind: string;
+          p_lifetime_earned_delta?: number | null;
+          p_reference_id?: string | null;
+          p_source: string;
+          p_user_id: string;
+        };
+        Returns: Json;
+      };
+      withdrawal_cancel: {
+        Args: { p_request_id: string; p_user_id: string };
+        Returns: Json;
+      };
+      withdrawal_request: {
+        Args: {
+          p_amount: number;
+          p_method_type: string;
+          p_payout_method_id: string;
+          p_snapshot: Json;
+          p_user_id: string;
+        };
+        Returns: Json;
+      };
+      withdrawal_settle: {
+        Args: {
+          p_decision: string;
+          p_note?: string | null;
+          p_reference?: string | null;
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       app_role: "admin" | "user";
