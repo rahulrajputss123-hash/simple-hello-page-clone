@@ -42,9 +42,15 @@ export type SimulatedActivity = {
 /**
  * Cadence between replacements. The visible activity is never cleared in
  * between — the next one replaces it directly, so there is no blank gap.
+ *
+ * Each gap is drawn uniformly from 18–24s, which bounds the rate to
+ * 3600/24 = 150 and 3600/18 = 200 changes per hour. Because every single gap
+ * sits inside that window, any hour of feed stays within 150–200 changes, not
+ * just the average. (Browsers throttle timers in hidden tabs, which can only
+ * slow the feed down while it isn't visible.)
  */
-const ROTATE_MIN_MS = 6_000;
-const ROTATE_MAX_MS = 12_000;
+export const ROTATE_MIN_MS = 18_000;
+export const ROTATE_MAX_MS = 24_000;
 /** Short delay before the first activity appears, then it stays for good. */
 const FIRST_SHOW_MS = 1_200;
 /** Share of activities that render with an avatar. */

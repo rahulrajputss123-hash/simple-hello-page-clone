@@ -27,6 +27,7 @@ import { useCountUpOnVisible } from "@/hooks/useCountUp";
 import { completeOnboarding } from "@/lib/coinquest.functions";
 import { getDeviceId } from "@/lib/ads";
 import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
+import { simulatedPayoutSnapshot } from "@/lib/payout-simulation";
 
 const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
 
@@ -378,32 +379,49 @@ function HomePage() {
   );
 }
 
-// Subtle "paid out this week" trust strip. The figure is a display-only
-// placeholder (MOCKED) — wire to a real aggregate when the endpoint exists.
-const PAID_OUT_THIS_WEEK = 128540;
+// Subtle "total paid out" trust strip. The figure is a display-only SIMULATION
+// (see src/lib/payout-simulation.ts) — nothing is read from or written to the
+// database. Wire to a real aggregate when the endpoint exists.
+const LIVE_TICK_MS = 60_000;
 
 function PaidOutThisWeek() {
   const [value, setValue] = useState(0);
+  const [todayChange, setTodayChange] = useState<number | null>(null);
 
   useEffect(() => {
-    if (
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      setValue(PAID_OUT_THIS_WEEK);
-      return;
-    }
-    const duration = 1100;
-    const start = performance.now();
+    // Computed client-side only: the state lives in localStorage, and doing it in
+    // an effect keeps the server render and first client render identical.
+    const initial = simulatedPayoutSnapshot();
+    setTodayChange(initial.todayChange);
+
     let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(Math.round(PAID_OUT_THIS_WEEK * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setValue(initial.total);
+    } else {
+      // Same 1.1s ease-out count-up as before, just to the simulated total.
+      const duration = 1100;
+      const start = performance.now();
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        setValue(Math.round(initial.total * eased));
+        if (t < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }
+
+    // Today's amount accrues across the day, so nudge the total while the page
+    // stays open. ~$1/minute, so this is a quiet update rather than a re-animation.
+    const interval = window.setInterval(() => {
+      const next = simulatedPayoutSnapshot();
+      setValue(next.total);
+      setTodayChange(next.todayChange);
+    }, LIVE_TICK_MS);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearInterval(interval);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
   }, []);
 
   return (
@@ -417,8 +435,16 @@ function PaidOutThisWeek() {
       </span>
       <span className="text-xs text-primary-foreground/80">
         <span className="text-amount font-bold text-gold">${value.toLocaleString("en-US")}</span>{" "}
-        paid out this week
+        total paid out
       </span>
+      {todayChange !== null && (
+        <span
+          className="rounded-full bg-mint/20 px-1.5 py-0.5 text-[10px] font-bold text-mint"
+          data-testid="payout-today-change"
+        >
+          +${todayChange.toLocaleString("en-US")} today
+        </span>
+      )}
     </div>
   );
 }
