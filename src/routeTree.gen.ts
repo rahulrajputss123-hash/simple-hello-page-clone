@@ -22,6 +22,7 @@ import { Route as PreviewSplashRouteImport } from './routes/preview-splash'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedFeaturedRouteImport } from './routes/_authenticated/featured'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedMySubmissionsRouteImport } from './routes/_authenticated/my-submissions'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedOffersRouteImport } from './routes/_authenticated/offers'
 import { Route as AuthenticatedOfferwallRouteImport } from './routes/_authenticated/offerwall'
@@ -29,6 +30,7 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedReferRouteImport } from './routes/_authenticated/refer'
 import { Route as AuthenticatedReferralRulesRouteImport } from './routes/_authenticated/referral-rules'
+import { Route as AuthenticatedSpecialRouteImport } from './routes/_authenticated/special'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedTaskRouteImport } from './routes/_authenticated/task'
 import { Route as AuthenticatedWalletRouteImport } from './routes/_authenticated/wallet'
@@ -37,7 +39,16 @@ import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
 import { Route as LegalReferralTermsRouteImport } from './routes/legal/referral-terms'
 import { Route as LegalTermsRouteImport } from './routes/legal/terms'
 import { Route as LegalWithdrawalPolicyRouteImport } from './routes/legal/withdrawal-policy'
+import { Route as AuthenticatedAdvertiserCampaignsRouteImport } from './routes/_authenticated/advertiser/campaigns'
+import { Route as AuthenticatedAdvertiserCreateRouteImport } from './routes/_authenticated/advertiser/create'
+import { Route as AuthenticatedAdvertiserFundsRouteImport } from './routes/_authenticated/advertiser/funds'
+import { Route as AuthenticatedAdvertiserHelpRouteImport } from './routes/_authenticated/advertiser/help'
+import { Route as AuthenticatedAdvertiserReferralRouteImport } from './routes/_authenticated/advertiser/referral'
+import { Route as AuthenticatedAdvertiserTransactionsRouteImport } from './routes/_authenticated/advertiser/transactions'
+import { Route as AuthenticatedMicrotaskProofIdRouteImport } from './routes/_authenticated/microtask-proof.$id'
+import { Route as AuthenticatedMicrotaskIdRouteImport } from './routes/_authenticated/microtask.$id'
 import { Route as ApiCronRefreshOfferFeedRouteImport } from './routes/api/cron/refresh-offer-feed'
+import { Route as AuthenticatedAdvertiserResultsIdRouteImport } from './routes/_authenticated/advertiser/results.$id'
 import { Route as AuthenticatedGoQuestKeyStepRouteImport } from './routes/_authenticated/go.$questKey.$step'
 import { Route as AuthenticatedGoLockerReturnRouteImport } from './routes/_authenticated/go.locker.return'
 import { Route as ApiPublicOfferPostbackOfferIdRouteImport } from './routes/api/public/offer-postback.$offerId'
@@ -107,6 +118,12 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMySubmissionsRoute =
+  AuthenticatedMySubmissionsRouteImport.update({
+    id: '/my-submissions',
+    path: '/my-submissions',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedNotificationsRoute =
   AuthenticatedNotificationsRouteImport.update({
     id: '/notifications',
@@ -144,6 +161,11 @@ const AuthenticatedReferralRulesRoute =
     path: '/referral-rules',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSpecialRoute = AuthenticatedSpecialRouteImport.update({
+  id: '/special',
+  path: '/special',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSupportRoute = AuthenticatedSupportRouteImport.update({
   id: '/support',
   path: '/support',
@@ -184,11 +206,65 @@ const LegalWithdrawalPolicyRoute = LegalWithdrawalPolicyRouteImport.update({
   path: '/legal/withdrawal-policy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdvertiserCampaignsRoute =
+  AuthenticatedAdvertiserCampaignsRouteImport.update({
+    id: '/advertiser/campaigns',
+    path: '/advertiser/campaigns',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdvertiserCreateRoute =
+  AuthenticatedAdvertiserCreateRouteImport.update({
+    id: '/advertiser/create',
+    path: '/advertiser/create',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdvertiserFundsRoute =
+  AuthenticatedAdvertiserFundsRouteImport.update({
+    id: '/advertiser/funds',
+    path: '/advertiser/funds',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdvertiserHelpRoute =
+  AuthenticatedAdvertiserHelpRouteImport.update({
+    id: '/advertiser/help',
+    path: '/advertiser/help',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdvertiserReferralRoute =
+  AuthenticatedAdvertiserReferralRouteImport.update({
+    id: '/advertiser/referral',
+    path: '/advertiser/referral',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdvertiserTransactionsRoute =
+  AuthenticatedAdvertiserTransactionsRouteImport.update({
+    id: '/advertiser/transactions',
+    path: '/advertiser/transactions',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMicrotaskProofIdRoute =
+  AuthenticatedMicrotaskProofIdRouteImport.update({
+    id: '/microtask-proof/$id',
+    path: '/microtask-proof/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMicrotaskIdRoute =
+  AuthenticatedMicrotaskIdRouteImport.update({
+    id: '/microtask/$id',
+    path: '/microtask/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiCronRefreshOfferFeedRoute = ApiCronRefreshOfferFeedRouteImport.update({
   id: '/api/cron/refresh-offer-feed',
   path: '/api/cron/refresh-offer-feed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdvertiserResultsIdRoute =
+  AuthenticatedAdvertiserResultsIdRouteImport.update({
+    id: '/advertiser/results/$id',
+    path: '/advertiser/results/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedGoQuestKeyStepRoute =
   AuthenticatedGoQuestKeyStepRouteImport.update({
     id: '/go/$questKey/$step',
@@ -226,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/my-submissions': typeof AuthenticatedMySubmissionsRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/offers': typeof AuthenticatedOffersRoute
   '/offerwall': typeof AuthenticatedOfferwallRoute
@@ -233,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AuthenticatedProfileRoute
   '/refer': typeof AuthenticatedReferRoute
   '/referral-rules': typeof AuthenticatedReferralRulesRoute
+  '/special': typeof AuthenticatedSpecialRoute
   '/support': typeof AuthenticatedSupportRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
@@ -241,7 +319,16 @@ export interface FileRoutesByFullPath {
   '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
   '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
+  '/advertiser/campaigns': typeof AuthenticatedAdvertiserCampaignsRoute
+  '/advertiser/create': typeof AuthenticatedAdvertiserCreateRoute
+  '/advertiser/funds': typeof AuthenticatedAdvertiserFundsRoute
+  '/advertiser/help': typeof AuthenticatedAdvertiserHelpRoute
+  '/advertiser/referral': typeof AuthenticatedAdvertiserReferralRoute
+  '/advertiser/transactions': typeof AuthenticatedAdvertiserTransactionsRoute
+  '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
+  '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
+  '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
@@ -260,6 +347,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/my-submissions': typeof AuthenticatedMySubmissionsRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/offers': typeof AuthenticatedOffersRoute
   '/offerwall': typeof AuthenticatedOfferwallRoute
@@ -267,6 +355,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AuthenticatedProfileRoute
   '/refer': typeof AuthenticatedReferRoute
   '/referral-rules': typeof AuthenticatedReferralRulesRoute
+  '/special': typeof AuthenticatedSpecialRoute
   '/support': typeof AuthenticatedSupportRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
@@ -275,7 +364,16 @@ export interface FileRoutesByTo {
   '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
   '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
+  '/advertiser/campaigns': typeof AuthenticatedAdvertiserCampaignsRoute
+  '/advertiser/create': typeof AuthenticatedAdvertiserCreateRoute
+  '/advertiser/funds': typeof AuthenticatedAdvertiserFundsRoute
+  '/advertiser/help': typeof AuthenticatedAdvertiserHelpRoute
+  '/advertiser/referral': typeof AuthenticatedAdvertiserReferralRoute
+  '/advertiser/transactions': typeof AuthenticatedAdvertiserTransactionsRoute
+  '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
+  '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
+  '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
@@ -296,6 +394,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/featured': typeof AuthenticatedFeaturedRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/my-submissions': typeof AuthenticatedMySubmissionsRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/offers': typeof AuthenticatedOffersRoute
   '/_authenticated/offerwall': typeof AuthenticatedOfferwallRoute
@@ -303,6 +402,7 @@ export interface FileRoutesById {
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/refer': typeof AuthenticatedReferRoute
   '/_authenticated/referral-rules': typeof AuthenticatedReferralRulesRoute
+  '/_authenticated/special': typeof AuthenticatedSpecialRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/_authenticated/task': typeof AuthenticatedTaskRoute
   '/_authenticated/wallet': typeof AuthenticatedWalletRoute
@@ -311,7 +411,16 @@ export interface FileRoutesById {
   '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
   '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
+  '/_authenticated/advertiser/campaigns': typeof AuthenticatedAdvertiserCampaignsRoute
+  '/_authenticated/advertiser/create': typeof AuthenticatedAdvertiserCreateRoute
+  '/_authenticated/advertiser/funds': typeof AuthenticatedAdvertiserFundsRoute
+  '/_authenticated/advertiser/help': typeof AuthenticatedAdvertiserHelpRoute
+  '/_authenticated/advertiser/referral': typeof AuthenticatedAdvertiserReferralRoute
+  '/_authenticated/advertiser/transactions': typeof AuthenticatedAdvertiserTransactionsRoute
+  '/_authenticated/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
+  '/_authenticated/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
+  '/_authenticated/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/_authenticated/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/_authenticated/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
@@ -332,6 +441,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/featured'
     | '/home'
+    | '/my-submissions'
     | '/notifications'
     | '/offers'
     | '/offerwall'
@@ -339,6 +449,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/refer'
     | '/referral-rules'
+    | '/special'
     | '/support'
     | '/task'
     | '/wallet'
@@ -347,7 +458,16 @@ export interface FileRouteTypes {
     | '/legal/referral-terms'
     | '/legal/terms'
     | '/legal/withdrawal-policy'
+    | '/advertiser/campaigns'
+    | '/advertiser/create'
+    | '/advertiser/funds'
+    | '/advertiser/help'
+    | '/advertiser/referral'
+    | '/advertiser/transactions'
+    | '/microtask-proof/$id'
+    | '/microtask/$id'
     | '/api/cron/refresh-offer-feed'
+    | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
     | '/api/public/offer-postback/$offerId'
@@ -366,6 +486,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/featured'
     | '/home'
+    | '/my-submissions'
     | '/notifications'
     | '/offers'
     | '/offerwall'
@@ -373,6 +494,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/refer'
     | '/referral-rules'
+    | '/special'
     | '/support'
     | '/task'
     | '/wallet'
@@ -381,7 +503,16 @@ export interface FileRouteTypes {
     | '/legal/referral-terms'
     | '/legal/terms'
     | '/legal/withdrawal-policy'
+    | '/advertiser/campaigns'
+    | '/advertiser/create'
+    | '/advertiser/funds'
+    | '/advertiser/help'
+    | '/advertiser/referral'
+    | '/advertiser/transactions'
+    | '/microtask-proof/$id'
+    | '/microtask/$id'
     | '/api/cron/refresh-offer-feed'
+    | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
     | '/api/public/offer-postback/$offerId'
@@ -401,6 +532,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/featured'
     | '/_authenticated/home'
+    | '/_authenticated/my-submissions'
     | '/_authenticated/notifications'
     | '/_authenticated/offers'
     | '/_authenticated/offerwall'
@@ -408,6 +540,7 @@ export interface FileRouteTypes {
     | '/_authenticated/profile'
     | '/_authenticated/refer'
     | '/_authenticated/referral-rules'
+    | '/_authenticated/special'
     | '/_authenticated/support'
     | '/_authenticated/task'
     | '/_authenticated/wallet'
@@ -416,7 +549,16 @@ export interface FileRouteTypes {
     | '/legal/referral-terms'
     | '/legal/terms'
     | '/legal/withdrawal-policy'
+    | '/_authenticated/advertiser/campaigns'
+    | '/_authenticated/advertiser/create'
+    | '/_authenticated/advertiser/funds'
+    | '/_authenticated/advertiser/help'
+    | '/_authenticated/advertiser/referral'
+    | '/_authenticated/advertiser/transactions'
+    | '/_authenticated/microtask-proof/$id'
+    | '/_authenticated/microtask/$id'
     | '/api/cron/refresh-offer-feed'
+    | '/_authenticated/advertiser/results/$id'
     | '/_authenticated/go/$questKey/$step'
     | '/_authenticated/go/locker/return'
     | '/api/public/offer-postback/$offerId'
@@ -537,6 +679,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/my-submissions': {
+      id: '/_authenticated/my-submissions'
+      path: '/my-submissions'
+      fullPath: '/my-submissions'
+      preLoaderRoute: typeof AuthenticatedMySubmissionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/notifications': {
       id: '/_authenticated/notifications'
       path: '/notifications'
@@ -584,6 +733,13 @@ declare module '@tanstack/react-router' {
       path: '/referral-rules'
       fullPath: '/referral-rules'
       preLoaderRoute: typeof AuthenticatedReferralRulesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/special': {
+      id: '/_authenticated/special'
+      path: '/special'
+      fullPath: '/special'
+      preLoaderRoute: typeof AuthenticatedSpecialRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/support': {
@@ -642,12 +798,75 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalWithdrawalPolicyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/advertiser/campaigns': {
+      id: '/_authenticated/advertiser/campaigns'
+      path: '/advertiser/campaigns'
+      fullPath: '/advertiser/campaigns'
+      preLoaderRoute: typeof AuthenticatedAdvertiserCampaignsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/advertiser/create': {
+      id: '/_authenticated/advertiser/create'
+      path: '/advertiser/create'
+      fullPath: '/advertiser/create'
+      preLoaderRoute: typeof AuthenticatedAdvertiserCreateRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/advertiser/funds': {
+      id: '/_authenticated/advertiser/funds'
+      path: '/advertiser/funds'
+      fullPath: '/advertiser/funds'
+      preLoaderRoute: typeof AuthenticatedAdvertiserFundsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/advertiser/help': {
+      id: '/_authenticated/advertiser/help'
+      path: '/advertiser/help'
+      fullPath: '/advertiser/help'
+      preLoaderRoute: typeof AuthenticatedAdvertiserHelpRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/advertiser/referral': {
+      id: '/_authenticated/advertiser/referral'
+      path: '/advertiser/referral'
+      fullPath: '/advertiser/referral'
+      preLoaderRoute: typeof AuthenticatedAdvertiserReferralRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/advertiser/transactions': {
+      id: '/_authenticated/advertiser/transactions'
+      path: '/advertiser/transactions'
+      fullPath: '/advertiser/transactions'
+      preLoaderRoute: typeof AuthenticatedAdvertiserTransactionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/microtask-proof/$id': {
+      id: '/_authenticated/microtask-proof/$id'
+      path: '/microtask-proof/$id'
+      fullPath: '/microtask-proof/$id'
+      preLoaderRoute: typeof AuthenticatedMicrotaskProofIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/microtask/$id': {
+      id: '/_authenticated/microtask/$id'
+      path: '/microtask/$id'
+      fullPath: '/microtask/$id'
+      preLoaderRoute: typeof AuthenticatedMicrotaskIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/cron/refresh-offer-feed': {
       id: '/api/cron/refresh-offer-feed'
       path: '/api/cron/refresh-offer-feed'
       fullPath: '/api/cron/refresh-offer-feed'
       preLoaderRoute: typeof ApiCronRefreshOfferFeedRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/advertiser/results/$id': {
+      id: '/_authenticated/advertiser/results/$id'
+      path: '/advertiser/results/$id'
+      fullPath: '/advertiser/results/$id'
+      preLoaderRoute: typeof AuthenticatedAdvertiserResultsIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/go/$questKey/$step': {
       id: '/_authenticated/go/$questKey/$step'
@@ -684,6 +903,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedFeaturedRoute: typeof AuthenticatedFeaturedRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedMySubmissionsRoute: typeof AuthenticatedMySubmissionsRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedOffersRoute: typeof AuthenticatedOffersRoute
   AuthenticatedOfferwallRoute: typeof AuthenticatedOfferwallRoute
@@ -691,9 +911,19 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedReferRoute: typeof AuthenticatedReferRoute
   AuthenticatedReferralRulesRoute: typeof AuthenticatedReferralRulesRoute
+  AuthenticatedSpecialRoute: typeof AuthenticatedSpecialRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
   AuthenticatedTaskRoute: typeof AuthenticatedTaskRoute
   AuthenticatedWalletRoute: typeof AuthenticatedWalletRoute
+  AuthenticatedAdvertiserCampaignsRoute: typeof AuthenticatedAdvertiserCampaignsRoute
+  AuthenticatedAdvertiserCreateRoute: typeof AuthenticatedAdvertiserCreateRoute
+  AuthenticatedAdvertiserFundsRoute: typeof AuthenticatedAdvertiserFundsRoute
+  AuthenticatedAdvertiserHelpRoute: typeof AuthenticatedAdvertiserHelpRoute
+  AuthenticatedAdvertiserReferralRoute: typeof AuthenticatedAdvertiserReferralRoute
+  AuthenticatedAdvertiserTransactionsRoute: typeof AuthenticatedAdvertiserTransactionsRoute
+  AuthenticatedMicrotaskProofIdRoute: typeof AuthenticatedMicrotaskProofIdRoute
+  AuthenticatedMicrotaskIdRoute: typeof AuthenticatedMicrotaskIdRoute
+  AuthenticatedAdvertiserResultsIdRoute: typeof AuthenticatedAdvertiserResultsIdRoute
   AuthenticatedGoQuestKeyStepRoute: typeof AuthenticatedGoQuestKeyStepRoute
   AuthenticatedGoLockerReturnRoute: typeof AuthenticatedGoLockerReturnRoute
 }
@@ -702,6 +932,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedFeaturedRoute: AuthenticatedFeaturedRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedMySubmissionsRoute: AuthenticatedMySubmissionsRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedOffersRoute: AuthenticatedOffersRoute,
   AuthenticatedOfferwallRoute: AuthenticatedOfferwallRoute,
@@ -709,9 +940,20 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedReferRoute: AuthenticatedReferRoute,
   AuthenticatedReferralRulesRoute: AuthenticatedReferralRulesRoute,
+  AuthenticatedSpecialRoute: AuthenticatedSpecialRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
   AuthenticatedTaskRoute: AuthenticatedTaskRoute,
   AuthenticatedWalletRoute: AuthenticatedWalletRoute,
+  AuthenticatedAdvertiserCampaignsRoute: AuthenticatedAdvertiserCampaignsRoute,
+  AuthenticatedAdvertiserCreateRoute: AuthenticatedAdvertiserCreateRoute,
+  AuthenticatedAdvertiserFundsRoute: AuthenticatedAdvertiserFundsRoute,
+  AuthenticatedAdvertiserHelpRoute: AuthenticatedAdvertiserHelpRoute,
+  AuthenticatedAdvertiserReferralRoute: AuthenticatedAdvertiserReferralRoute,
+  AuthenticatedAdvertiserTransactionsRoute:
+    AuthenticatedAdvertiserTransactionsRoute,
+  AuthenticatedMicrotaskProofIdRoute: AuthenticatedMicrotaskProofIdRoute,
+  AuthenticatedMicrotaskIdRoute: AuthenticatedMicrotaskIdRoute,
+  AuthenticatedAdvertiserResultsIdRoute: AuthenticatedAdvertiserResultsIdRoute,
   AuthenticatedGoQuestKeyStepRoute: AuthenticatedGoQuestKeyStepRoute,
   AuthenticatedGoLockerReturnRoute: AuthenticatedGoLockerReturnRoute,
 }

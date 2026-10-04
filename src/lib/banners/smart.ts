@@ -106,7 +106,7 @@ export function buildSmartBanners(section: BannerSection, ctx: SmartContext): Sm
             : `${toGoal} more ${toGoal === 1 ? "day" : "days"} until your next streak bonus.`,
         priority: 40,
         variant: "streak",
-        cta: { label: "Earn today", route: "/task" },
+        cta: { label: "Earn today", route: "/special" },
       });
     }
     if (ctx.hasHighValueOffer) {
@@ -156,7 +156,7 @@ export function buildSmartBanners(section: BannerSection, ctx: SmartContext): Sm
         description: "Finish the last steps to unlock the rewards you've already earned.",
         priority: 50,
         variant: "progress",
-        cta: { label: "Finish tasks", route: "/task" },
+        cta: { label: "Finish tasks", route: "/special" },
       });
     } else if (ctx.tasksInProgress > 0) {
       banners.push({

@@ -1,11 +1,16 @@
 import { Link } from "@tanstack/react-router";
 
+/**
+ * Bottom tabs. "Task" now opens the Microtasks marketplace; the original
+ * quest/task system lives unchanged under "Special" (/special). Support moved
+ * out of the nav — it is reachable from the Home header and the Profile screen.
+ */
 const TABS = [
   { to: "/home", label: "Home", iconSrc: "/icons/icon-home.png" },
   { to: "/offers", label: "Offers", iconSrc: "/icons/icon-offers.png" },
   { to: "/task", label: "Task", iconSrc: "/icons/icon-your-task.png" },
+  { to: "/special", label: "Special", iconSrc: "/icons/icon-starter-quest.png" },
   { to: "/refer", label: "Refer", iconSrc: "/icons/icon-referral.png" },
-  { to: "/support", label: "Support", iconSrc: "/icons/icon-support.png" },
 ] as const;
 
 export function BottomNav() {
