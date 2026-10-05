@@ -9,7 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { BottomNav } from "./BottomNav";
 import { RoleSwitcher } from "./marketplace/RoleSwitcher";
-import { ADVERTISER } from "@/lib/marketplace/data";
 import { useRole } from "@/lib/marketplace/role";
 
 export function BrandMark({ className = "" }: { className?: string }) {
@@ -77,9 +76,9 @@ export function BrandLogo({
 
 export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?: boolean }) {
   const { session, profile } = useAuth();
-  // Marketplace preview: only the Home header shows the role chip, and only
-  // advertiser mode swaps the wallet pill for the (sample) Campaign Balance.
-  const { role } = useRole();
+  // Marketplace: only the Home header shows the role chip, and only
+  // advertiser mode swaps the wallet pill for the Campaign Balance.
+  const { role, overview } = useRole();
   const advertiserMode = home && role === "advertiser";
   const unread = useQuery({
     queryKey: ["notifications-unread", session?.user.id],
@@ -172,7 +171,7 @@ export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?
                   Campaign Balance
                 </span>
                 <span className="text-amount text-sm">
-                  {formatMoney(ADVERTISER.campaignBalance)}
+                  {formatMoney(overview?.account?.spendable ?? 0)}
                 </span>
               </span>
             </Link>
