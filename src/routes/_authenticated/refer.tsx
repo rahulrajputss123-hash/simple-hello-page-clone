@@ -7,7 +7,9 @@ import {
   FileText,
   Gift,
   Info,
+  Link2,
   Lock,
+  Megaphone,
   Share2,
   Users,
   Wallet,
@@ -17,6 +19,8 @@ import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
+import { PreviewNotice } from "@/components/marketplace/Preview";
+import { ADVERTISER_REFERRAL } from "@/lib/marketplace/data";
 import { Button } from "@/components/ui/button";
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -370,7 +374,8 @@ export function ReferPage() {
           variant="ribbon"
           icon={Wallet}
           iconSrc="/icons/icon-wallet.png"
-          title="Referral Earnings"
+          title="Publisher Referral"
+          subtitle="Rewards when friends earn as publishers"
         />
         <div className="surface-card p-4" data-testid="refer-earnings-summary">
           <div className="grid grid-cols-2 gap-3">
@@ -413,6 +418,53 @@ export function ReferPage() {
               is released to your main wallet only once that friend completes all 3 milestones.
             </span>
           </p>
+        </div>
+
+        {/* Marketplace preview — sample numbers, same referral link as above.
+            See src/lib/marketplace/data.ts. */}
+        <SectionHeading
+          variant="ribbon"
+          icon={Megaphone}
+          title="Advertiser Referral"
+          subtitle="Same link — extra rewards when invitees advertise"
+        />
+        <div className="surface-card p-4" data-testid="refer-advertiser-section">
+          <PreviewNotice className="mb-3" />
+          <p className="flex items-start gap-1.5 rounded-xl bg-primary/5 p-3 text-[11px] leading-snug text-primary">
+            <Link2 className="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              <strong>One link, both rewards.</strong> If a friend you invite with the link above
+              becomes an advertiser and funds their first campaign, you earn an extra{" "}
+              {formatMoney(ADVERTISER_REFERRAL.rewardPerActivation)} — on top of your publisher
+              referral rewards. Coming soon.
+            </span>
+          </p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-background-alt p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Referred advertisers
+              </p>
+              <p className="text-amount mt-1 text-xl leading-none">
+                {ADVERTISER_REFERRAL.referredAdvertisers}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-mint/15 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
+                Activations
+              </p>
+              <p className="text-amount mt-1 text-xl leading-none text-primary">
+                {ADVERTISER_REFERRAL.qualifyingActivations}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-gold/10 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gold-dark">
+                Earned
+              </p>
+              <p className="text-amount mt-1 text-xl leading-none text-gold-dark">
+                {formatMoney(ADVERTISER_REFERRAL.rewardsEarned)}
+              </p>
+            </div>
+          </div>
         </div>
 
         <SectionHeading

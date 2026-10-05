@@ -28,6 +28,8 @@ import { completeOnboarding } from "@/lib/coinquest.functions";
 import { getDeviceId } from "@/lib/ads";
 import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
 import { simulatedPayoutSnapshot } from "@/lib/payout-simulation";
+import { AdvertiserDashboard } from "@/components/marketplace/AdvertiserDashboard";
+import { useRole } from "@/lib/marketplace/role";
 
 const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
 
@@ -53,6 +55,9 @@ function HomePage() {
   const save = useServerFn(completeOnboarding);
   const autoOnboarded = useRef(false);
   const communityStat = useCountUpOnVisible(50000);
+  // Marketplace preview: advertiser mode swaps the Home content for the dashboard.
+  // Local state only — see src/lib/marketplace/role.tsx.
+  const { role } = useRole();
 
   useEffect(() => {
     if (!profile || profile.onboarded) return;
@@ -104,7 +109,11 @@ function HomePage() {
     void navigate({ to: "/onboarding", replace: true });
   }, [profile, session, navigate, queryClient, save]);
   return (
-    <AppShell subtitle="Earn as you go" bgClass="home-page-bg">
+    <AppShell subtitle="Earn as you go" bgClass="home-page-bg" home>
+      {role === "advertiser" ? (
+        <AdvertiserDashboard />
+      ) : (
+        <>
       {/* Decorative hero orbs — reuse the onboarding orb base, Home-specific tint/position. */}
       <div aria-hidden className="premium-orb home-orb home-orb-jade" />
       <div aria-hidden className="premium-orb home-orb home-orb-gold" />
@@ -375,6 +384,8 @@ function HomePage() {
         {/* eslint-enable @typescript-eslint/no-explicit-any */}
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">CashGPT © 2026 • v1.0.0</p>
+        </>
+      )}
     </AppShell>
   );
 }

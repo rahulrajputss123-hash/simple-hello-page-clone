@@ -36,6 +36,11 @@ import {
   upsertOfferProvider,
 } from "@/lib/offers.functions";
 import { LifeBuoy, Network } from "lucide-react";
+import {
+  AdvertisersList,
+  CampaignApprovals,
+  ProofReviews,
+} from "@/components/admin/MarketplaceManagers";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -87,7 +92,10 @@ type TabKey =
   | "providers"
   | "sdk-offerwalls"
   | "automation"
-  | "offer-feed";
+  | "offer-feed"
+  | "campaigns"
+  | "proof-reviews"
+  | "advertisers";
 
 function AdminPage() {
   const { isAdmin } = useAuth();
@@ -269,6 +277,9 @@ function AdminPage() {
             ["sdk-offerwalls", "SDK Offerwalls"],
             ["automation", "Automation"],
             ["offer-feed", "Offer Feed"],
+            ["campaigns", "Campaigns ★"],
+            ["proof-reviews", "Proof Reviews ★"],
+            ["advertisers", "Advertisers ★"],
           ] as [TabKey, string][]
         ).map(([key, label]) => (
           <Button
@@ -658,6 +669,11 @@ function AdminPage() {
       )}
 
       {tab === "sdk-offerwalls" && <SdkOfferwallManager />}
+
+      {/* Marketplace preview tabs (★) — sample data, nothing is saved. */}
+      {tab === "campaigns" && <CampaignApprovals />}
+      {tab === "proof-reviews" && <ProofReviews />}
+      {tab === "advertisers" && <AdvertisersList />}
 
       {tab === "automation" && <AutomationPanel />}
 

@@ -42,7 +42,7 @@ function sectionFallbackRoute(section: BannerSection): string {
     case "offers":
       return "/offers";
     case "tasks":
-      return "/task";
+      return "/special";
     case "offerwall":
       return "/offerwall";
   }
@@ -57,7 +57,7 @@ async function resolveCta(banner: BannerRow): Promise<EligibleBanner["cta_resolv
     case "offers":
       return { route: "/offers", label };
     case "tasks":
-      return { route: "/task", label };
+      return { route: "/special", label };
     case "offerwall":
       return { route: "/offerwall", label };
     case "url":

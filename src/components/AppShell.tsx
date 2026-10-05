@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, Coins } from "lucide-react";
+import { Bell, Coins, Headset } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
 import { useCountUp } from "@/hooks/useCountUp";
@@ -8,6 +8,9 @@ import { avatarById } from "@/lib/onboarding/premium";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { BottomNav } from "./BottomNav";
+import { RoleSwitcher } from "./marketplace/RoleSwitcher";
+import { ADVERTISER } from "@/lib/marketplace/data";
+import { useRole } from "@/lib/marketplace/role";
 
 export function BrandMark({ className = "" }: { className?: string }) {
   return (
@@ -72,8 +75,12 @@ export function BrandLogo({
   );
 }
 
-export function AppHeader({ subtitle }: { subtitle?: string }) {
+export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?: boolean }) {
   const { session, profile } = useAuth();
+  // Marketplace preview: only the Home header shows the role chip, and only
+  // advertiser mode swaps the wallet pill for the (sample) Campaign Balance.
+  const { role } = useRole();
+  const advertiserMode = home && role === "advertiser";
   const unread = useQuery({
     queryKey: ["notifications-unread", session?.user.id],
     enabled: Boolean(session),
@@ -122,8 +129,23 @@ export function AppHeader({ subtitle }: { subtitle?: string }) {
             <span className="block font-display text-lg leading-tight">{firstName}</span>
           </span>
         </Link>
+        {home && (
+          <div className="-ml-1 mr-auto">
+            <RoleSwitcher />
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
+          {home && (
+            <Link
+              to="/support"
+              aria-label="Help & Support"
+              data-testid="home-support-icon"
+              className="grid size-10 place-items-center rounded-full border border-border bg-card shadow-soft"
+            >
+              <Headset className="size-4 text-primary" />
+            </Link>
+          )}
           <Link
             to="/notifications"
             aria-label="Notifications"
@@ -136,15 +158,35 @@ export function AppHeader({ subtitle }: { subtitle?: string }) {
               </span>
             )}
           </Link>
-          <Link
-            id="tour-wallet-balance"
-            to="/wallet"
-            aria-label="Open wallet"
-            className="flex items-center gap-1.5 rounded-full bg-gold-gradient px-3 py-2 text-gold-foreground shadow-gold"
-          >
-            <Coins className="app-header-coin size-4" />
-            <span className="text-amount text-sm">{formatMoney(shownAvailable)}</span>
-          </Link>
+          {advertiserMode ? (
+            <Link
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              to={"/advertiser/funds" as any}
+              aria-label="Campaign balance"
+              data-testid="campaign-balance-pill"
+              className="flex items-center gap-1.5 rounded-full bg-jade-gradient px-3 py-1.5 text-primary-foreground shadow-lift"
+            >
+              <Coins className="size-4" />
+              <span className="flex flex-col leading-none">
+                <span className="text-[9px] font-semibold uppercase tracking-wide opacity-80">
+                  Campaign Balance
+                </span>
+                <span className="text-amount text-sm">
+                  {formatMoney(ADVERTISER.campaignBalance)}
+                </span>
+              </span>
+            </Link>
+          ) : (
+            <Link
+              id="tour-wallet-balance"
+              to="/wallet"
+              aria-label="Open wallet"
+              className="flex items-center gap-1.5 rounded-full bg-gold-gradient px-3 py-2 text-gold-foreground shadow-gold"
+            >
+              <Coins className="app-header-coin size-4" />
+              <span className="text-amount text-sm">{formatMoney(shownAvailable)}</span>
+            </Link>
+          )}
         </div>
       </div>
     </header>
@@ -155,12 +197,15 @@ export function AppShell({
   children,
   subtitle,
   hideNav = false,
+  home = false,
   bgClass = "",
   mainClass = "",
 }: {
   children: React.ReactNode;
   subtitle?: string;
   hideNav?: boolean;
+  /** Home screen header: role switcher chip + support icon. */
+  home?: boolean;
   /**
    * Optional per-screen background treatment on the shell root (e.g. the Home
    * hero wash). Purely decorative — layout and spacing are unchanged.
@@ -171,7 +216,7 @@ export function AppShell({
 }) {
   return (
     <div className={`min-h-screen bg-background pb-24 ${bgClass}`}>
-      <AppHeader {...(subtitle ? { subtitle } : {})} />
+      <AppHeader {...(subtitle ? { subtitle } : {})} home={home} />
       <main className={`mx-auto w-full max-w-lg px-4 py-4 ${mainClass}`}>{children}</main>
       {!hideNav && <BottomNav />}
     </div>

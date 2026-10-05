@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Edit3, FileText, Settings, Shield, Wallet } from "lucide-react";
+import { ChevronRight, Edit3, FileText, LifeBuoy, Settings, Shield, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -175,6 +175,16 @@ function ProfilePage() {
         >
           <span className="flex items-center gap-2 font-semibold">
             <Wallet className="size-4 text-primary" /> Wallet & payouts
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground" />
+        </button>
+        <button
+          className="flex w-full items-center justify-between p-4 text-left"
+          data-testid="profile-help-support"
+          onClick={() => navigate({ to: "/support" })}
+        >
+          <span className="flex items-center gap-2 font-semibold">
+            <LifeBuoy className="size-4 text-primary" /> Help & Support
           </span>
           <ChevronRight className="size-4 text-muted-foreground" />
         </button>
