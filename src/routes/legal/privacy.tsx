@@ -148,8 +148,10 @@ const SECTIONS: PolicySection[] = [
           <LI>Withdraw consent for optional marketing communications at any time.</LI>
         </UL>
         <P>
-          To exercise any of these rights, email <Strong>[SUPPORT EMAIL]</Strong> from the address
-          associated with your account.
+          To exercise any of these rights, visit your in-app Profile settings or email{" "}
+          <Strong>[SUPPORT EMAIL]</Strong> from the address associated with your account. You can
+          also delete your account directly in the app by visiting{" "}
+          <Strong>Profile → Delete my account</Strong>.
         </P>
       </>
     ),

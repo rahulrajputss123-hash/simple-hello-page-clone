@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Edit3, FileText, LifeBuoy, Settings, Shield, Wallet } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { AlertTriangle, ChevronRight, Edit3, FileText, LifeBuoy, Settings, Shield, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -20,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { signOutEverywhere, useAuth } from "@/lib/auth";
 import { formatMoney } from "@/lib/coinquest";
+import { requestAccountDeletion } from "@/lib/coinquest.functions";
 import { AVATAR_OPTIONS, avatarById } from "@/lib/onboarding/premium";
 
 export const Route = createFileRoute("/_authenticated/profile")({
@@ -42,6 +44,8 @@ function ProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const deleteAccountFn = useServerFn(requestAccountDeletion);
   const [draft, setDraft] = useState({
     name: profile?.name ?? "",
     avatar: profile?.avatar_url ?? "nova",
@@ -77,6 +81,26 @@ function ProfilePage() {
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["profile"] }),
     onError: () => toast.error("Couldn't save that setting."),
+  });
+
+  const deleteAccount = useMutation({
+    mutationFn: async () => {
+      return await deleteAccountFn({});
+    },
+    onSuccess: async (result) => {
+      toast.success(result.message);
+      // Sign out and redirect to auth page
+      await signOutEverywhere(queryClient);
+      navigate({ to: "/auth", replace: true });
+    },
+    onError: (error) => {
+      const message = (error as Error).message;
+      if (message.includes("PENDING_WITHDRAWAL")) {
+        toast.error("Cannot delete account while a withdrawal is pending.");
+      } else {
+        toast.error("Failed to delete account. Please try again or contact support.");
+      }
+    },
   });
 
   return (
@@ -228,6 +252,15 @@ function ProfilePage() {
         Sign out
       </Button>
 
+      <Button
+        variant="ghost"
+        className="mt-2 w-full gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+        onClick={() => setDeletingAccount(true)}
+        data-testid="profile-delete-account-button"
+      >
+        <AlertTriangle className="size-4" /> Delete my account
+      </Button>
+
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent className="max-h-[88vh] overflow-y-auto">
           <DialogHeader>
@@ -307,6 +340,52 @@ function ProfilePage() {
               data-testid="profile-edit-save"
             >
               {saveProfile.isPending ? "Saving…" : "Save profile"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deletingAccount} onOpenChange={setDeletingAccount}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-5" /> Delete Account
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm">
+              This action is <strong>permanent</strong> and cannot be undone. Once deleted:
+            </p>
+            <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+              <li>All personal information will be removed</li>
+              <li>You will lose access to your account</li>
+              <li>
+                Any pending wallet balance (
+                {formatMoney(Number(profile?.wallet_balance ?? 0) - Number(profile?.held_balance ?? 0))}) will be forfeited
+              </li>
+              <li>You cannot restore your account after deletion</li>
+            </ul>
+            <p className="text-sm text-muted-foreground">
+              Note: Transaction history is preserved for compliance and audit purposes.
+            </p>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              variant="outline"
+              onClick={() => setDeletingAccount(false)}
+              disabled={deleteAccount.isPending}
+              className="w-full"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteAccount.mutate()}
+              disabled={deleteAccount.isPending}
+              className="w-full"
+              data-testid="profile-delete-account-confirm"
+            >
+              {deleteAccount.isPending ? "Deleting..." : "Yes, delete my account"}
             </Button>
           </DialogFooter>
         </DialogContent>

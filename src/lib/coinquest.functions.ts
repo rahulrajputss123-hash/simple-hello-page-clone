@@ -190,3 +190,20 @@ export const adminAdjustWallet = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     return adminAdjustWalletImpl(data.userId, data.amount, data.reason);
   });
+
+/** Account deletion (Amazon/Google app store compliance). */
+export const requestAccountDeletion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requestAccountDeletionImpl, AccountDeletionError } = await import(
+      "./account-deletion.server"
+    );
+    try {
+      return await requestAccountDeletionImpl(context.userId);
+    } catch (err) {
+      if (err instanceof AccountDeletionError) {
+        throw new Error(`${err.code}: ${err.message}`);
+      }
+      throw err;
+    }
+  });
