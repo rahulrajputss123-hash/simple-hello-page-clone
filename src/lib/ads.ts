@@ -1,3 +1,5 @@
+import { safeStorage } from "@/lib/safe-storage";
+
 /**
  * INTEGRATION POINT — rewarded video ads.
  *
@@ -20,7 +22,7 @@ export async function playRewardedAd(): Promise<AdResult> {
 export function getDeviceId(): string {
   if (typeof window === "undefined") return "server";
   const KEY = "coinquest.device_id";
-  const existing = window.localStorage.getItem(KEY);
+  const existing = safeStorage.getItem(KEY);
   if (existing) return existing;
   const seed = [
     navigator.userAgent,
@@ -36,6 +38,6 @@ export function getDeviceId(): string {
     hash |= 0;
   }
   const id = `dev_${Math.abs(hash).toString(36)}`;
-  window.localStorage.setItem(KEY, id);
+  safeStorage.setItem(KEY, id);
   return id;
 }

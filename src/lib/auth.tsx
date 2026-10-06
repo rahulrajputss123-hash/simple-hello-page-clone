@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { getDeviceId } from "@/lib/ads";
 import { ensureProfile } from "@/lib/coinquest.functions";
+import { safeStorage } from "@/lib/safe-storage";
 
 export type Profile = Tables<"profiles">;
 
@@ -57,9 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data) return data;
       // First sign-in: create the profile row (wallet, referral code, device id).
       const referralCode =
-        typeof window !== "undefined"
-          ? (window.localStorage.getItem("coinquest.ref") ?? undefined)
-          : undefined;
+        typeof window !== "undefined" ? (safeStorage.getItem("coinquest.ref") ?? undefined) : undefined;
       return (await ensureProfile({
         data: { deviceId: getDeviceId(), ...(referralCode ? { referralCode } : {}) },
       })) as Profile;

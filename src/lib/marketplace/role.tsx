@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useAuth } from "@/lib/auth";
 import { getAdvertiserOverview, getPreferredRole, setPreferredRole } from "@/lib/marketplace.functions";
 import type { AdvertiserOverview } from "@/lib/marketplace/advertiser.server";
+import { safeStorage } from "@/lib/safe-storage";
 
 /**
  * Publisher ⇄ Advertiser mode.
@@ -48,7 +49,7 @@ export const advertiserOverviewKey = (userId: string | undefined) => ["advertise
 
 function readStoredRole(): MarketplaceRole {
   if (typeof window === "undefined") return "publisher";
-  return window.localStorage.getItem(STORAGE_KEY) === "advertiser" ? "advertiser" : "publisher";
+  return safeStorage.getItem(STORAGE_KEY) === "advertiser" ? "advertiser" : "publisher";
 }
 
 export function RoleProvider({ children }: { children: ReactNode }) {
@@ -75,7 +76,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       setPreferred(preferredRoleQuery.data.preferredRole);
       // Also sync to localStorage for offline fallback
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(STORAGE_KEY, preferredRoleQuery.data.preferredRole);
+        safeStorage.setItem(STORAGE_KEY, preferredRoleQuery.data.preferredRole);
       }
     }
   }, [preferredRoleQuery.data]);
@@ -106,7 +107,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       }
       // Also persist to localStorage as fallback
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(STORAGE_KEY, next);
+        safeStorage.setItem(STORAGE_KEY, next);
       }
     },
     [userId, savePreferredRole],
