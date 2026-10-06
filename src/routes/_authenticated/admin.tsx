@@ -39,6 +39,7 @@ import { LifeBuoy, Network } from "lucide-react";
 import {
   AdvertisersList,
   CampaignApprovals,
+  FinancialOverview,
   ProofReviews,
 } from "@/components/admin/MarketplaceManagers";
 
@@ -671,7 +672,13 @@ function AdminPage() {
       {tab === "sdk-offerwalls" && <SdkOfferwallManager />}
 
       {/* Marketplace preview tabs (★) — sample data, nothing is saved. */}
-      {tab === "campaigns" && <CampaignApprovals />}
+      {tab === "campaigns" && (
+        <>
+          <FinancialOverview />
+          <div className="mt-6" />
+          <CampaignApprovals />
+        </>
+      )}
       {tab === "proof-reviews" && <ProofReviews />}
       {tab === "advertisers" && <AdvertisersList />}
 
