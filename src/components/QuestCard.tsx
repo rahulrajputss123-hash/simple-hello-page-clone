@@ -32,7 +32,7 @@ type QuestCardProps = {
 const CARD_W = 240;
 const CARD_H = 340;
 
-/** Display font already loaded in __root.tsx — geometric, not the rounded Baloo. */
+/** Display font already loaded in __root.tsx — geometric, for premium onboarding only. */
 const DISPLAY_FONT = '"Outfit", "Inter", ui-sans-serif, system-ui, sans-serif';
 
 /* Neutral palette, warm-tinted to sit on the app's cream background. */

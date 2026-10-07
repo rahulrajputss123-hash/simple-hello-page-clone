@@ -19,7 +19,8 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 18px);
 
-  --font-display: "Baloo 2", ui-rounded, system-ui, sans-serif;
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-section: "Baloo 2", ui-rounded, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
@@ -178,14 +179,14 @@
   h3,
   h4 {
     font-family: var(--font-display);
-    font-weight: 800;
-    letter-spacing: -0.01em;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 }
 
 @utility font-display {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 @utility text-amount {
@@ -1027,11 +1028,11 @@
 /* --- Offer card press feedback (touch) ------------------------------------- */
 .press-feedback {
   transition:
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 200ms ease;
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 150ms ease;
 }
 .press-feedback:active {
-  transform: scale(0.975);
+  transform: scale(0.98);
 }
 
 @media (prefers-reduced-motion: reduce) {
