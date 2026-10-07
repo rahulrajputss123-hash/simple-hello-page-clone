@@ -2,20 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowDownUp,
   Check,
-  ListChecks,
   ChevronRight,
-  Filter,
-  Globe2,
   Grid2X2,
-  Megaphone,
+  ListChecks,
   Phone,
   Plane,
+  Shield,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   Star,
-  Tag,
-  Users,
 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -43,24 +38,21 @@ type Sort = "all" | "reward" | "featured";
 type TaskCardProps = { campaign: Campaign };
 
 function TaskCard({ campaign }: TaskCardProps) {
-  const Icon = campaign.verification === "auto" ? ShieldCheck : ShieldCheck;
+  const VerificationIcon = campaign.verification === "auto" ? ShieldCheck : Shield;
   return (
-    <Link to="/microtask/$id" params={{ id: campaign.id }} data-testid={`microtask-card-${campaign.id}`} className={cn("surface-card hover-lift press-feedback block p-4", campaign.featured && "border-gold/60") }>
+    <Link to="/microtask/$id" params={{ id: campaign.id }} data-testid={`microtask-card-${campaign.id}`} className="surface-card hover-lift press-feedback block p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap gap-1.5">
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold", campaign.verification === "auto" ? "bg-mint/20 text-primary" : "bg-gold/15 text-gold-dark")}><Icon className="size-3" />{campaign.verification === "auto" ? "Auto Verified" : "Proof Required"}</span>
-          {campaign.featured && <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-1 text-[10px] font-bold text-gold-dark"><Star className="size-3 fill-current" /> Featured</span>}
+          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold", campaign.verification === "auto" ? "bg-mint/20 text-primary" : "bg-gold/15 text-gold-dark")}><VerificationIcon className="size-3" />{campaign.verification === "auto" ? "Auto Verified" : "Proof Required"}</span>
+          {campaign.featured && <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2 py-1 text-[10px] font-bold text-white"><Star className="size-3 fill-current" /> Featured</span>}
         </div>
         <div className="shrink-0 text-right"><p className="text-amount text-xl leading-none text-gold-dark">{formatMoney(campaign.reward)}</p><p className="mt-1 text-[10px] text-muted-foreground">{campaign.estimatedTime}</p></div>
       </div>
-      <div className="mt-4 flex items-center gap-3"><div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-mint/20 text-lg font-extrabold text-primary">{campaign.icon ? <img src={campaign.icon} alt="" className="size-10 rounded-xl object-cover" /> : campaign.title.charAt(0)}</div><div className="min-w-0"><p className="truncate font-bold">{campaign.title}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{campaign.description}</p></div></div>
-      <div className="mt-4 grid grid-cols-2 divide-x divide-border text-xs"><span className="flex items-center gap-2 pr-3"><Megaphone className="size-3.5 text-primary" /><span className="min-w-0"><b className="block truncate font-semibold">{campaign.advertiser}</b><small className="text-muted-foreground">Advertiser</small></span></span><span className="flex items-center gap-2 pl-3"><Tag className="size-3.5 text-primary" /><span><b className="block font-semibold">{campaign.category}</b><small className="text-muted-foreground">Category</small></span></span></div>
-      <div className="my-4 border-t border-border" />
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-3 text-xs"><Meta icon={Globe2} value={campaign.countries.join(", ")} label="Countries" /><Meta icon={Phone} value={campaign.device} label="Device" /><Meta icon={Users} value={`${campaign.slotsLeft ?? 0} slots left`} label="Slots" /><Button asChild variant="jade" size="sm" className="ml-auto max-[399px]:w-full"><span>View task <ChevronRight data-icon="inline-end" /></span></Button></div>
+      <div className="mt-4"><p className="font-bold">{campaign.title}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{campaign.description}</p></div>
+      <div className="mt-4 flex items-center gap-3 text-xs"><span className="inline-flex min-w-0 items-center gap-1.5"><span aria-hidden="true">{campaign.countryFlag}</span><span className="truncate">{campaign.country}</span></span><span className="inline-flex min-w-0 items-center gap-1.5"><Phone className="size-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{campaign.device}</span></span><span className="ml-auto shrink-0 rounded-full bg-background-alt px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">{campaign.slotsLeft === null ? "Unlimited slots" : `${campaign.slotsLeft} slots left`}</span></div>
     </Link>
   );
 }
-function Meta({ icon: Icon, value, label }: { icon: typeof Globe2; value: string; label: string }) { return <span className="flex min-w-0 items-start gap-1.5"><Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" /><span className="min-w-0"><b className="block max-w-28 truncate font-semibold">{value}</b><small className="text-muted-foreground">{label}</small></span></span>; }
 
 function MicrotasksPage() {
   const listRef = useRef<HTMLOListElement>(null);
@@ -78,7 +70,7 @@ function MicrotasksPage() {
   const toggle = (value: string, current: string[], setter: (next: string[]) => void) => setter(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
   const reset = () => { setFeatured(false); setVerification(null); setSelectedCategories([]); setSelectedCountries([]); setSelectedDevices([]); };
   return <AppShell subtitle="Tasks" mainClass="page-fade-in"><SectionHeading variant="ribbon" size="page" icon={Grid2X2} iconSrc="/icons/icon-your-task.png" title="Microtasks" subtitle="Complete simple tasks posted by advertisers and earn rewards." className="mb-2" />{SHOW_PREVIEW_NOTICE && null}
-    <div className="surface-card mt-3 grid grid-cols-2 divide-x divide-border bg-mint/10"><button className="flex items-center gap-3 p-4 text-left" onClick={() => listRef.current?.scrollIntoView({ behavior: "smooth" })}><span className="grid size-10 place-items-center rounded-full bg-mint/30 text-primary"><Sparkles className="size-5" /></span><span><b className="block text-sm">Available tasks</b><span className="text-lg font-extrabold">{filtered.length}</span></span><ChevronRight className="ml-auto size-4 text-muted-foreground" /></button><Link to="/my-submissions" className="flex items-center gap-3 p-4"><span className="grid size-10 place-items-center rounded-full bg-primary/10 text-primary"><Check className="size-5" /></span><span><b className="block text-sm">My submissions</b><span className="text-lg font-extrabold">{pending} pending</span></span><ChevronRight className="ml-auto size-4 text-muted-foreground" /></Link></div>
+    <div className="surface-card mt-3 grid grid-cols-2 divide-x divide-border bg-mint/10"><button className="flex items-center gap-3 p-4 text-left" onClick={() => listRef.current?.scrollIntoView({ behavior: "smooth" })}><span className="grid size-10 place-items-center rounded-full bg-mint/30 text-primary"><ListChecks className="size-5" /></span><span><b className="block text-sm">Available tasks</b><span className="text-lg font-extrabold">{filtered.length}</span></span><ChevronRight className="ml-auto size-4 text-muted-foreground" /></button><Link to="/my-submissions" className="flex items-center gap-3 p-4"><span className="grid size-10 place-items-center rounded-full bg-primary/10 text-primary"><Check className="size-5" /></span><span><b className="block text-sm">My submissions</b><span className="text-lg font-extrabold">{pending} pending</span></span><ChevronRight className="ml-auto size-4 text-muted-foreground" /></Link></div>
     <div className="mt-3 flex items-center gap-2"><div className="flex min-w-0 flex-1 rounded-full bg-background-alt p-1">{([["all", Grid2X2, "All tasks"], ["reward", ArrowDownUp, "Highest reward"], ["featured", Star, "Featured"]] as const).map(([value, Icon, label]) => <button key={value} onClick={() => setSort(value)} className={cn("flex min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 py-2 text-[11px] font-semibold", sort === value && "bg-primary text-primary-foreground")}><Icon className="size-3.5 shrink-0" /><span className="truncate">{label}</span></button>)}</div><button aria-label="Open filters" onClick={() => setOpen(true)} className="relative grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-card"><SlidersHorizontal className="size-4" />{activeFilters > 0 && <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">{activeFilters}</span>}</button></div>
     <div ref={listRef} className="mt-5 flex items-end justify-between"><SectionHeading variant="ribbon" icon={ListChecks} title="Available Tasks" /><span className="mb-3 text-xs text-muted-foreground">{filtered.length} tasks</span></div>
     <ol className="stagger-children space-y-3" data-testid="microtask-list">{filtered.map((campaign) => <li key={campaign.id}><TaskCard campaign={campaign} /></li>)}</ol>
