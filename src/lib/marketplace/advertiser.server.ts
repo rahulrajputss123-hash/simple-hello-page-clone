@@ -23,6 +23,13 @@ import {
 
 /**
  * Phase 2 — advertiser activation, Razorpay deposits, dashboard reads.
+ * Phase 3 — campaign creation (CORRECTED: mkt_create_campaign doesn't exist!)
+ *
+ * CRITICAL SCHEMA CORRECTIONS:
+ * - Campaign columns: verification_mode is 'manual_proof' or 'auto' (not 'manual')
+ * - Campaign columns: proof_description (not proof_instructions)
+ * - Campaign columns: steps (jsonb array, REQUIRED), landing_url (REQUIRED)
+ * - Type_key must be from campaign_types table (e.g. 'custom', not 'microtask')
  *
  * ┌─────────────────────────────────────────────────────────────────────────┐
  * │ MONEY RULE: a deposit is credited (mkt_credit_deposit) from exactly one │
@@ -719,6 +726,79 @@ export async function routeWebhookEvent(evt: RazorpayWebhookEvent): Promise<Webh
 }
 
 /* ------------------------------------------------------------ campaigns */
+
+export const createCampaignInput = z.object({
+  title: z.string().trim().min(3).max(80),
+  description: z.string().trim().min(10).max(1000),
+  verification: z.enum(["auto", "proof"]),
+  reward: z.number().positive().min(0.05).max(1000),
+  budget: z.number().positive().min(10).max(100000),
+  countries: z.array(z.string()).min(1).max(20),
+});
+export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
+
+/**
+ * Creates a campaign in draft status, then submits it for review.
+ * NOTE: mkt_create_campaign() doesn't exist - we INSERT then call mkt_submit_campaign()
+ */
+export async function createCampaignImpl(
+  userId: string,
+  input: CreateCampaignInput,
+): Promise<{ campaignId: string; status: CampaignDbStatus }> {
+  const account = await getAccount(userId);
+  if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
+  if (account.status !== "active") {
+    throw new DepositError("ACCOUNT_RESTRICTED", "Your advertiser account cannot create campaigns.");
+  }
+
+  // Calculate max completions and cost per completion
+  const maxCompletions = Math.floor(input.budget / input.reward);
+  const platformFee = (await loadMarketplaceSettings()).platform_fee_percent;
+  const feeMultiplier = 1 + num(platformFee) / 100;
+  const costPerCompletion = Math.round(input.reward * feeMultiplier * 100) / 100;
+
+  // Step 1: INSERT campaign in draft status (mkt_create_campaign doesn't exist!)
+  const { data: campaign, error: insertError } = await mktDb
+    .from("campaigns")
+    .insert({
+      advertiser_id: userId,
+      type_key: "custom", // From campaign_types table
+      name: input.title,
+      summary: input.description.slice(0, 140),
+      description: input.description,
+      landing_url: "https://example.com", // TODO: Get from input
+      steps: [{ text: "Complete the task" }], // Required field
+      verification_mode: input.verification === "auto" ? "auto" : "manual_proof",
+      countries: input.countries,
+      publisher_reward: input.reward,
+      advertiser_cost: costPerCompletion,
+      max_completions: maxCompletions,
+      proof_description: "Please upload proof of completion",
+      status: "draft",
+    })
+    .select("id, status")
+    .single();
+
+  if (insertError) {
+    throw new DepositError("CREATE_FAILED", `Failed to create campaign: ${insertError.message}`);
+  }
+
+  // Step 2: Submit for review
+  try {
+    await mktRpc("mkt_submit_campaign", {
+      p_campaign_id: campaign.id,
+      p_actor: userId,
+    });
+
+    return {
+      campaignId: campaign.id,
+      status: "pending_review" as CampaignDbStatus,
+    };
+  } catch (err) {
+    if (err instanceof MktRpcError) throw new DepositError(err.code, humanMktError(err.code));
+    throw err;
+  }
+}
 
 export type CampaignAction = "pause" | "resume" | "submit" | "complete" | "archive";
 

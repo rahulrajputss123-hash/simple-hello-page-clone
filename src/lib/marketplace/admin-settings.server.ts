@@ -3,8 +3,8 @@
  * Phase 6: Configure marketplace parameters and referral bonuses
  */
 
-import { createServerFn } from "@tanstack/start";
-import { supabaseServer } from "../supabase.server";
+import { createServerFn } from "@tanstack/react-start";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
 
 export interface MarketplaceSettings {
@@ -44,7 +44,7 @@ export interface ReferralSettings {
  * Get current marketplace settings
  */
 export const getMarketplaceSettingsImpl = async (): Promise<MarketplaceSettings> => {
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   const { data, error } = await supabase
     .from("marketplace_settings")
@@ -66,7 +66,7 @@ export const getMarketplaceSettings = createServerFn({ method: "GET" }).handler(
  * Get current referral settings
  */
 export const getReferralSettingsImpl = async (): Promise<ReferralSettings> => {
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   const { data, error } = await supabase
     .from("referral_settings")
@@ -99,7 +99,7 @@ export const updateMarketplaceSettingsImpl = async (
   input: z.infer<typeof updateMarketplaceSettingsInput>
 ): Promise<MarketplaceSettings> => {
   const validated = updateMarketplaceSettingsInput.parse(input);
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   const { data, error } = await supabase
     .from("marketplace_settings")
@@ -131,7 +131,7 @@ export const updateReferralSettingsImpl = async (
   input: z.infer<typeof updateReferralSettingsInput>
 ): Promise<ReferralSettings> => {
   const validated = updateReferralSettingsInput.parse(input);
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   const { data, error } = await supabase
     .from("referral_settings")

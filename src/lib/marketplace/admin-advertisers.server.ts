@@ -3,8 +3,8 @@
  * Phase 6: Real advertiser list and status management
  */
 
-import { createServerFn } from "@tanstack/start";
-import { supabaseServer } from "../supabase.server";
+import { createServerFn } from "@tanstack/react-start";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
 
 export interface AdvertiserAccount {
@@ -29,7 +29,7 @@ export interface AdvertiserAccount {
  * List all advertiser accounts with their campaign counts
  */
 export const listAdvertisersImpl = async (): Promise<AdvertiserAccount[]> => {
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   // Get all advertiser accounts
   const { data: advertisers, error } = await supabase
@@ -74,7 +74,7 @@ export const setAdvertiserStatusImpl = async (
   input: z.infer<typeof setAdvertiserStatusInput>
 ): Promise<{ status: string }> => {
   const { advertiserId, adminId, status, reason } = setAdvertiserStatusInput.parse(input);
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   const { data, error } = await supabase.rpc("mkt_set_advertiser_status", {
     p_advertiser: advertiserId,
@@ -106,7 +106,7 @@ export const clearAdvertiserFlagImpl = async (
   input: z.infer<typeof clearAdvertiserFlagInput>
 ): Promise<{ cleared: boolean }> => {
   const { advertiserId, adminId, note } = clearAdvertiserFlagInput.parse(input);
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   const { data, error } = await supabase.rpc("mkt_clear_advertiser_flag", {
     p_advertiser: advertiserId,

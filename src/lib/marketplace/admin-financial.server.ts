@@ -3,8 +3,8 @@
  * Phase 6: Real ledger data for admin dashboard
  */
 
-import { createServerFn } from "@tanstack/start";
-import { supabaseServer } from "../supabase.server";
+import { createServerFn } from "@tanstack/react-start";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 interface FinancialOverview {
   totalDeposits: number;
@@ -21,7 +21,7 @@ interface FinancialOverview {
  * Pulls from advertiser_ledger and campaign_submissions tables
  */
 export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => {
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   // Get total deposits from advertiser_ledger (kind = 'deposit')
   const { data: deposits, error: depositError } = await supabase

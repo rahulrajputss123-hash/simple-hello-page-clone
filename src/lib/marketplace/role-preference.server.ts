@@ -3,8 +3,8 @@
  * Persist publisher/advertiser mode preference across sessions
  */
 
-import { createServerFn } from "@tanstack/start";
-import { supabaseServer } from "../supabase.server";
+import { createServerFn } from "@tanstack/react-start";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
 
 export type UserRole = "publisher" | "advertiser";
@@ -20,7 +20,7 @@ export const getPreferredRoleImpl = async (
   input: z.infer<typeof getPreferredRoleInput>
 ): Promise<UserRole | null> => {
   const { userId } = getPreferredRoleInput.parse(input);
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   const { data, error } = await supabase
     .from("profiles")
@@ -49,7 +49,7 @@ export const setPreferredRoleImpl = async (
   input: z.infer<typeof setPreferredRoleInput>
 ): Promise<{ success: boolean }> => {
   const { userId, role } = setPreferredRoleInput.parse(input);
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   const { error } = await supabase
     .from("profiles")

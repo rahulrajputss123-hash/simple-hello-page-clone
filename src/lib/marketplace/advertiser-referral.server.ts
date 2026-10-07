@@ -3,8 +3,8 @@
  * Uses same referral link - tracks when referred users become advertisers
  */
 
-import { createServerFn } from "@tanstack/start";
-import { supabaseServer } from "../supabase.server";
+import { createServerFn } from "@tanstack/react-start";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
 
 export interface AdvertiserReferralStats {
@@ -30,7 +30,7 @@ export const getAdvertiserReferralStatsImpl = async (
   input: z.infer<typeof getAdvertiserReferralStatsInput>
 ): Promise<AdvertiserReferralStats> => {
   const { userId } = getAdvertiserReferralStatsInput.parse(input);
-  const supabase = supabaseServer();
+  const supabase = supabaseAdmin();
 
   // Get all referrals where this user is the referrer
   const { data: referrals, error: referralsError } = await supabase

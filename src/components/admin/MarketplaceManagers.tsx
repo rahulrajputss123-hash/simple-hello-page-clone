@@ -19,7 +19,7 @@ import {
 } from "@/lib/marketplace.functions";
 import { getFinancialOverview } from "@/lib/marketplace/admin-financial.server";
 import { listAdvertisers, setAdvertiserStatus } from "@/lib/marketplace/admin-advertisers.server";
-import { useAuth } from "@/lib/hooks/useAuth";
+import { useAuth } from "@/lib/auth";
 
 /**
  * Admin screens for the marketplace (real data from Phase 1 schema). Campaign
