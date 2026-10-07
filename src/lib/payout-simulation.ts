@@ -1,3 +1,5 @@
+import { safeStorage } from "@/lib/safe-storage";
+
 /**
  * Simulated "total paid out" figure for the Home payouts strip.
  *
@@ -66,14 +68,14 @@ function newSeed(nowMs: number): Seed {
 
 function loadSeed(nowMs: number): Seed {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = safeStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed: unknown = JSON.parse(raw);
       // A seed "from the future" (clock moved back) is treated as corrupt.
       if (isValidSeed(parsed) && parsed.day0 <= utcDay(nowMs)) return parsed;
     }
     const seed = newSeed(nowMs);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+    safeStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
     return seed;
   } catch {
     memorySeed ??= newSeed(nowMs);

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
   Check,
@@ -19,8 +20,6 @@ import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
-import { PreviewNotice } from "@/components/marketplace/Preview";
-import { ADVERTISER_REFERRAL } from "@/lib/marketplace/data";
 import { Button } from "@/components/ui/button";
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +35,7 @@ import {
   sumReferralTotals,
   type ReferralRewardState,
 } from "@/lib/referral-progress";
+import { getAdvertiserReferralStats } from "@/lib/marketplace/advertiser-referral.server";
 
 export const Route = createFileRoute("/_authenticated/refer")({
   head: () => ({
@@ -215,6 +215,8 @@ export function ReferPage() {
   const { session, profile } = useAuth();
   const code = profile?.referral_code ?? "";
   const link = typeof window === "undefined" ? "" : `${window.location.origin}/auth?ref=${code}`;
+  
+  const fetchAdvertiserStats = useServerFn(getAdvertiserReferralStats);
 
   const referrals = useQuery({
     queryKey: ["referrals", session?.user.id],
@@ -228,6 +230,12 @@ export function ReferPage() {
     },
   });
 
+  const advertiserStats = useQuery({
+    queryKey: ["advertiser-referral-stats", session?.user.id],
+    enabled: Boolean(session?.user.id),
+    queryFn: () => fetchAdvertiserStats({ data: { userId: session!.user.id } }),
+  });
+
   const mine = referrals.data?.filter((r) => r.referrer_id === session?.user.id) ?? [];
   // Pending vs credited both come from the shared derivation the server uses to
   // decide the release, so the screen can never disagree with the wallet.
@@ -235,6 +243,13 @@ export function ReferPage() {
   const referralEarnings = totals.credited;
   const potentialEarnings = mine.length * REFERRAL_MAX_BONUS;
   const shareMessage = "Join me on CashGPT and start earning!";
+  
+  const advStats = advertiserStats.data ?? {
+    referredAdvertisers: 0,
+    qualifyingActivations: 0,
+    rewardsEarned: 0,
+    rewardPerActivation: 10,
+  };
 
   return (
     <AppShell subtitle="Refer">
@@ -420,8 +435,7 @@ export function ReferPage() {
           </p>
         </div>
 
-        {/* Marketplace preview — sample numbers, same referral link as above.
-            See src/lib/marketplace/data.ts. */}
+        {/* Marketplace advertiser referral — real data from advertiser_accounts and deposits. */}
         <SectionHeading
           variant="ribbon"
           icon={Megaphone}
@@ -429,42 +443,49 @@ export function ReferPage() {
           subtitle="Same link — extra rewards when invitees advertise"
         />
         <div className="surface-card p-4" data-testid="refer-advertiser-section">
-          <PreviewNotice className="mb-3" />
           <p className="flex items-start gap-1.5 rounded-xl bg-primary/5 p-3 text-[11px] leading-snug text-primary">
             <Link2 className="mt-0.5 size-3.5 shrink-0" />
             <span>
               <strong>One link, both rewards.</strong> If a friend you invite with the link above
               becomes an advertiser and funds their first campaign, you earn an extra{" "}
-              {formatMoney(ADVERTISER_REFERRAL.rewardPerActivation)} — on top of your publisher
-              referral rewards. Coming soon.
+              {formatMoney(advStats.rewardPerActivation)} — on top of your publisher
+              referral rewards.
             </span>
           </p>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <div className="rounded-2xl bg-background-alt p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Referred advertisers
-              </p>
-              <p className="text-amount mt-1 text-xl leading-none">
-                {ADVERTISER_REFERRAL.referredAdvertisers}
-              </p>
+          {advertiserStats.isPending ? (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="h-16 animate-pulse rounded-2xl bg-background-alt" />
+              <div className="h-16 animate-pulse rounded-2xl bg-background-alt" />
+              <div className="h-16 animate-pulse rounded-2xl bg-background-alt" />
             </div>
-            <div className="rounded-2xl bg-mint/15 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
-                Activations
-              </p>
-              <p className="text-amount mt-1 text-xl leading-none text-primary">
-                {ADVERTISER_REFERRAL.qualifyingActivations}
-              </p>
+          ) : (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="rounded-2xl bg-background-alt p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Referred advertisers
+                </p>
+                <p className="text-amount mt-1 text-xl leading-none">
+                  {advStats.referredAdvertisers}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-mint/15 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  Activations
+                </p>
+                <p className="text-amount mt-1 text-xl leading-none text-primary">
+                  {advStats.qualifyingActivations}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-gold/10 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gold-dark">
+                  Earned
+                </p>
+                <p className="text-amount mt-1 text-xl leading-none text-gold-dark">
+                  {formatMoney(advStats.rewardsEarned)}
+                </p>
+              </div>
             </div>
-            <div className="rounded-2xl bg-gold/10 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gold-dark">
-                Earned
-              </p>
-              <p className="text-amount mt-1 text-xl leading-none text-gold-dark">
-                {formatMoney(ADVERTISER_REFERRAL.rewardsEarned)}
-              </p>
-            </div>
-          </div>
+          )}
         </div>
 
         <SectionHeading

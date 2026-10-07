@@ -48,6 +48,7 @@ import { Route as AuthenticatedAdvertiserTransactionsRouteImport } from './route
 import { Route as AuthenticatedMicrotaskProofIdRouteImport } from './routes/_authenticated/microtask-proof.$id'
 import { Route as AuthenticatedMicrotaskIdRouteImport } from './routes/_authenticated/microtask.$id'
 import { Route as ApiCronRefreshOfferFeedRouteImport } from './routes/api/cron/refresh-offer-feed'
+import { Route as ApiPublicRazorpayWebhookRouteImport } from './routes/api/public/razorpay-webhook'
 import { Route as AuthenticatedAdvertiserResultsIdRouteImport } from './routes/_authenticated/advertiser/results.$id'
 import { Route as AuthenticatedGoQuestKeyStepRouteImport } from './routes/_authenticated/go.$questKey.$step'
 import { Route as AuthenticatedGoLockerReturnRouteImport } from './routes/_authenticated/go.locker.return'
@@ -259,6 +260,12 @@ const ApiCronRefreshOfferFeedRoute = ApiCronRefreshOfferFeedRouteImport.update({
   path: '/api/cron/refresh-offer-feed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRazorpayWebhookRoute =
+  ApiPublicRazorpayWebhookRouteImport.update({
+    id: '/api/public/razorpay-webhook',
+    path: '/api/public/razorpay-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAdvertiserResultsIdRoute =
   AuthenticatedAdvertiserResultsIdRouteImport.update({
     id: '/advertiser/results/$id',
@@ -328,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
+  '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
   '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
@@ -373,6 +381,7 @@ export interface FileRoutesByTo {
   '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
+  '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
   '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
@@ -420,6 +429,7 @@ export interface FileRoutesById {
   '/_authenticated/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/_authenticated/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
+  '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
   '/_authenticated/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/_authenticated/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/_authenticated/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
@@ -467,6 +477,7 @@ export interface FileRouteTypes {
     | '/microtask-proof/$id'
     | '/microtask/$id'
     | '/api/cron/refresh-offer-feed'
+    | '/api/public/razorpay-webhook'
     | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/microtask-proof/$id'
     | '/microtask/$id'
     | '/api/cron/refresh-offer-feed'
+    | '/api/public/razorpay-webhook'
     | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
@@ -558,6 +570,7 @@ export interface FileRouteTypes {
     | '/_authenticated/microtask-proof/$id'
     | '/_authenticated/microtask/$id'
     | '/api/cron/refresh-offer-feed'
+    | '/api/public/razorpay-webhook'
     | '/_authenticated/advertiser/results/$id'
     | '/_authenticated/go/$questKey/$step'
     | '/_authenticated/go/locker/return'
@@ -582,6 +595,7 @@ export interface RootRouteChildren {
   LegalTermsRoute: typeof LegalTermsRoute
   LegalWithdrawalPolicyRoute: typeof LegalWithdrawalPolicyRoute
   ApiCronRefreshOfferFeedRoute: typeof ApiCronRefreshOfferFeedRoute
+  ApiPublicRazorpayWebhookRoute: typeof ApiPublicRazorpayWebhookRoute
   ApiPublicOfferPostbackOfferIdRoute: typeof ApiPublicOfferPostbackOfferIdRoute
   ApiPublicOfferwallSlugRoute: typeof ApiPublicOfferwallSlugRoute
 }
@@ -861,6 +875,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronRefreshOfferFeedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/razorpay-webhook': {
+      id: '/api/public/razorpay-webhook'
+      path: '/api/public/razorpay-webhook'
+      fullPath: '/api/public/razorpay-webhook'
+      preLoaderRoute: typeof ApiPublicRazorpayWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/advertiser/results/$id': {
       id: '/_authenticated/advertiser/results/$id'
       path: '/advertiser/results/$id'
@@ -978,6 +999,7 @@ const rootRouteChildren: RootRouteChildren = {
   LegalTermsRoute: LegalTermsRoute,
   LegalWithdrawalPolicyRoute: LegalWithdrawalPolicyRoute,
   ApiCronRefreshOfferFeedRoute: ApiCronRefreshOfferFeedRoute,
+  ApiPublicRazorpayWebhookRoute: ApiPublicRazorpayWebhookRoute,
   ApiPublicOfferPostbackOfferIdRoute: ApiPublicOfferPostbackOfferIdRoute,
   ApiPublicOfferwallSlugRoute: ApiPublicOfferwallSlugRoute,
 }

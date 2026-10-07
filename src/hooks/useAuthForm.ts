@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { safeStorage } from "@/lib/safe-storage";
 
 /**
  * Shared signup/login behaviour, extracted from the /auth route so the web landing
@@ -63,10 +64,10 @@ export function useAuthForm({
     const ref = new URLSearchParams(window.location.search).get("ref");
     if (ref) {
       const clean = ref.trim().toUpperCase().slice(0, 20);
-      window.localStorage.setItem("coinquest.ref", clean);
+      safeStorage.setItem("coinquest.ref", clean);
       setReferralCode(clean);
     } else {
-      const stored = window.localStorage.getItem("coinquest.ref");
+      const stored = safeStorage.getItem("coinquest.ref");
       if (stored) setReferralCode(stored);
     }
   }, []);
@@ -82,7 +83,7 @@ export function useAuthForm({
       // returns to this same origin, so localStorage survives and AuthProvider
       // reads it when it creates the profile.
       const code = referralCode.trim().toUpperCase();
-      if (code) window.localStorage.setItem("coinquest.ref", code);
+      if (code) safeStorage.setItem("coinquest.ref", code);
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -140,13 +141,10 @@ export function useAuthForm({
         // Persist the signup-only fields so the authenticated home page can
         // silently call completeOnboarding once the profile row exists.
         if (collectName && data.name) {
-          window.localStorage.setItem(
-            "coinquest.pending_onboarding",
-            JSON.stringify({ name: data.name }),
-          );
+          safeStorage.setItem("coinquest.pending_onboarding", JSON.stringify({ name: data.name }));
         }
         if (data.referralCode) {
-          window.localStorage.setItem("coinquest.ref", data.referralCode);
+          safeStorage.setItem("coinquest.ref", data.referralCode);
         }
         toast.success("Check your email to confirm your account.");
       } else {

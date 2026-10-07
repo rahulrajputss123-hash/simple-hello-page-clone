@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { listEligibleBanners, listSmartBannerSettings } from "@/lib/banners/functions";
 import type { BannerSection, EligibleBanner } from "@/lib/banners/server";
 import { buildSmartBanners, type SmartBanner } from "@/lib/banners/smart";
+import { safeStorage } from "@/lib/safe-storage";
 
 type UnifiedBanner =
   { kind: "custom"; data: EligibleBanner } | { kind: "smart"; data: SmartBanner };
@@ -30,7 +31,7 @@ function pickStartIndex(section: BannerSection, sortedIds: string[]): number {
   if (sortedIds.length <= 1) return 0;
   if (typeof window === "undefined") return 0;
   const key = LAST_SHOWN_STORAGE_PREFIX + section;
-  const last = window.localStorage.getItem(key);
+  const last = safeStorage.getItem(key);
   if (!last) return 0;
   const idx = sortedIds.indexOf(last);
   if (idx === -1) return 0;
@@ -225,7 +226,7 @@ export function SectionBanner({ section }: { section: BannerSection }) {
   useEffect(() => {
     if (!merged.length || typeof window === "undefined") return;
     const id = unifiedId(merged[index] ?? merged[0]);
-    window.localStorage.setItem(LAST_SHOWN_STORAGE_PREFIX + section, id);
+    safeStorage.setItem(LAST_SHOWN_STORAGE_PREFIX + section, id);
   }, [section, index, merged]);
 
   // In-view auto-advance if there's more than one.

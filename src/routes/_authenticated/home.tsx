@@ -30,6 +30,7 @@ import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
 import { simulatedPayoutSnapshot } from "@/lib/payout-simulation";
 import { AdvertiserDashboard } from "@/components/marketplace/AdvertiserDashboard";
 import { useRole } from "@/lib/marketplace/role";
+import { safeStorage } from "@/lib/safe-storage";
 
 const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
 
@@ -66,10 +67,7 @@ function HomePage() {
     // Source 1 — the email signup form stashes the name pre-confirmation.
     let name = "";
     let phone: string | undefined;
-    const raw =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem("coinquest.pending_onboarding")
-        : null;
+    const raw = typeof window !== "undefined" ? safeStorage.getItem("coinquest.pending_onboarding") : null;
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as { name?: string; phone?: string };
@@ -94,7 +92,7 @@ function HomePage() {
         data: { name, ...(phone ? { phone } : {}), deviceId: getDeviceId() },
       })
         .then(() => {
-          window.localStorage.removeItem("coinquest.pending_onboarding");
+          safeStorage.removeItem("coinquest.pending_onboarding");
           void queryClient.invalidateQueries({ queryKey: ["profile"] });
         })
         .catch(() => {

@@ -1,11 +1,11 @@
 import { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.simplehello.app",
-  appName: "SimpleHello",
+  appId: "com.rahulrajput.coinquest",
+  appName: "CashGPT",
   webDir: "dist",
   server: {
-    url: "https://simple-hello-page-clone.vercel.app",
+    url: "https://cashgpt.in",
     cleartext: false,
   },
 };

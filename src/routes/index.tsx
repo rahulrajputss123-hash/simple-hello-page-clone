@@ -6,6 +6,7 @@ import { WebLanding } from "@/components/landing/WebLanding";
 import { LANDING_DESCRIPTION, LANDING_TITLE } from "@/components/landing/landing-data";
 import { useIsNative } from "@/hooks/useIsNative";
 import { useAuth } from "@/lib/auth";
+import { safeStorage } from "@/lib/safe-storage";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -74,12 +75,13 @@ function hasPersistedSession(): boolean {
   try {
     for (let index = 0; index < window.localStorage.length; index++) {
       const key = window.localStorage.key(index);
-      if (key && /^sb-.+-auth-token$/.test(key) && window.localStorage.getItem(key)) return true;
+      if (key && /^sb-.+-auth-token$/.test(key) && safeStorage.getItem(key)) return true;
     }
+    return false;
   } catch {
     // Storage can be unavailable (private mode, blocked cookies) — assume logged out.
+    return false;
   }
-  return false;
 }
 
 function WebEntry() {
