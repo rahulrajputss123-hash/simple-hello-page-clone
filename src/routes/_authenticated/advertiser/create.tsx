@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { PlusCircle } from "lucide-react";
-import { useState } from "react";
+import { PlusCircle, Star } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -10,6 +10,7 @@ import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { BackLink } from "@/components/marketplace/Preview";
 import { createCampaign } from "@/lib/marketplace.functions";
@@ -36,10 +37,13 @@ function CreateCampaignPage() {
   const [reward, setReward] = useState("0.50");
   const [budget, setBudget] = useState("100");
   const [country, setCountry] = useState("Worldwide");
+  const [featured, setFeatured] = useState(false);
+  const [featuredDays, setFeaturedDays] = useState("7");
 
   const rewardNum = Number(reward) || 0;
   const budgetNum = Number(budget) || 0;
   const conversions = Math.floor(budgetNum / (rewardNum || 1));
+  const featuredFee = useMemo(() => featured ? Number(featuredDays) * 2 : 0, [featured, featuredDays]);
 
   const account = overview?.account;
   const canCreate = account?.status === "active" && account.spendable >= budgetNum;
@@ -191,6 +195,37 @@ function CreateCampaignPage() {
               <option key={c}>{c}</option>
             ))}
           </select>
+        </div>
+
+        <div className="rounded-2xl border border-gold/40 bg-gold/10 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Star className="size-4 fill-gold text-gold-dark" />
+              <div>
+                <Label htmlFor="c-featured">Featured placement</Label>
+                <p className="text-[11px] text-muted-foreground">Get more visibility in the marketplace.</p>
+              </div>
+            </div>
+            <Switch id="c-featured" checked={featured} onCheckedChange={setFeatured} aria-label="Enable featured placement" />
+          </div>
+          {featured && (
+            <div className="mt-3 grid grid-cols-2 items-end gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="c-featured-days">Featured days</Label>
+                <Input
+                  id="c-featured-days"
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={featuredDays}
+                  onChange={(e) => setFeaturedDays(e.target.value)}
+                />
+              </div>
+              <p className="rounded-xl bg-card px-3 py-2 text-xs text-gold-dark">
+                +${featuredFee.toFixed(2)} placement fee
+              </p>
+            </div>
+          )}
         </div>
 
         {!canCreate && account && (
