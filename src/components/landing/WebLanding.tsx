@@ -199,9 +199,8 @@ export function WebLanding() {
               <h2 className="sr-only">Featured paid offers</h2>
               <OffersShowcase variant="compact" className="mt-4 sm:mt-7" />
 
-              {/* Desktop only: on mobile the auth card's own footer line already says
-                  this, and the vertical space is needed for the submit button. */}
-              <ul className="mt-5 hidden flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground lg:flex">
+              {/* Trust badges - shown on all screen sizes */}
+              <ul className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
                 <li className="flex items-center gap-1.5">
                   <ShieldCheck className="size-3.5 text-primary" aria-hidden /> Free to join
                 </li>
@@ -434,6 +433,9 @@ function Footer() {
           <a href="/legal/withdrawal-policy" className="transition-colors hover:text-foreground">
             Withdrawal Policy
           </a>
+          <Link to="/app" className="transition-colors hover:text-foreground">
+            Get the app
+          </Link>
         </nav>
 
         <p className="text-xs text-muted-foreground">

@@ -20,6 +20,7 @@ import {
 import { getFinancialOverview } from "@/lib/marketplace/admin-financial.server";
 import { listAdvertisers, setAdvertiserStatus } from "@/lib/marketplace/admin-advertisers.server";
 import { useAuth } from "@/lib/auth";
+import { AutoApprovalCountdown, AutoApprovedBadge } from "./AutoApprovalCountdown";
 
 /**
  * Admin screens for the marketplace (real data from Phase 1 schema). Campaign
@@ -168,6 +169,11 @@ export function CampaignApprovals() {
                   <p className="text-xs text-muted-foreground">
                     by {c.advertiserName} · {c.countries.join(", ")} · submitted {formatShortDate(c.submittedAt)}
                   </p>
+                  <AutoApprovalCountdown
+                    autoApproveAt={c.autoApproveAt}
+                    autoApproveEligible={c.autoApproveEligible ?? false}
+                    autoApproveReason={c.autoApproveReason}
+                  />
                 </div>
                 <div className="shrink-0 text-right text-xs">
                   <p className="text-amount text-sm text-gold-dark">{formatMoney(c.reward)}</p>
