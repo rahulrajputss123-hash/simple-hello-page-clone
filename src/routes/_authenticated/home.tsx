@@ -137,19 +137,18 @@ function HomePage() {
           icon={Star}
           iconSrc="/icons/icon-featured-offers.png"
           title="Featured Offers"
+          action={
+            <Link
+              to={"/featured" as any}
+              data-testid="home-view-all-featured"
+              className="flex items-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary-soft"
+            >
+              View all
+              <ArrowRight className="size-3.5" />
+            </Link>
+          }
         />
         <FeaturedOffers scope="home" />
-        <div className="mt-3 flex justify-center">
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <Link
-            to={"/featured" as any}
-            data-testid="home-view-all-featured"
-            className="group inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-card px-4 py-1.5 text-xs font-semibold text-primary shadow-soft transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground"
-          >
-            View All
-            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        </div>
       </section>
 
       <SectionHeading
