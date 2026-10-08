@@ -46,9 +46,9 @@ function AdvertiserReferralPage() {
       <SectionHeading variant="ribbon" icon={Users} title="Your advertiser referrals" />
       <div className="grid grid-cols-2 gap-3">
         <StatTile label="Referred advertisers" value={String(r.referredAdvertisers)} />
-        <StatTile label="Qualifying activations" value={String(r.qualifyingActivations)} hint="Funded a first campaign" tone="mint" />
+        <StatTile label="Qualifying activations" value={String(r.totalDeposits)} hint="Funded a first campaign" tone="mint" />
         <StatTile label="Rewards earned" value={formatMoney(r.rewardsEarned)} tone="gold" />
-        <StatTile label="Per activation" value={formatMoney(r.rewardPerActivation)} />
+        <StatTile label="Per activation" value={`${r.referralPercent}%`} />
       </div>
     </AppShell>
   );
