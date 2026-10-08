@@ -473,7 +473,7 @@ GRANT EXECUTE ON FUNCTION public.mkt_campaign_auto_approve_at(uuid) TO service_r
 --
 -- The cron job runs every minute and calls mkt_auto_approve_pending_campaigns()
 
-DO $$
+DO $migration$
 BEGIN
   -- Check if pg_cron extension exists
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
@@ -484,7 +484,7 @@ BEGIN
     PERFORM cron.schedule(
       'campaign-auto-approval',
       '* * * * *',  -- Every minute
-      $$SELECT public.mkt_auto_approve_pending_campaigns()$$
+      'SELECT public.mkt_auto_approve_pending_campaigns()'
     );
 
     RAISE NOTICE 'pg_cron job scheduled: campaign-auto-approval runs every minute';
@@ -496,11 +496,11 @@ BEGIN
 EXCEPTION
   WHEN insufficient_privilege THEN
     RAISE NOTICE 'Insufficient privileges to schedule cron job. This is expected if not running as superuser.';
-    RAISE NOTICE 'After enabling pg_cron extension, run: SELECT cron.schedule(''campaign-auto-approval'', ''* * * * *'', $$SELECT public.mkt_auto_approve_pending_campaigns()$$);';
+    RAISE NOTICE 'After enabling pg_cron extension, run: SELECT cron.schedule(''campaign-auto-approval'', ''* * * * *'', ''SELECT public.mkt_auto_approve_pending_campaigns()'');';
   WHEN OTHERS THEN
     RAISE NOTICE 'Could not schedule pg_cron job: %', SQLERRM;
     RAISE NOTICE 'You may need to enable pg_cron extension first, then manually schedule the job.';
-END $$;
+END $migration$;
 
 
 -- =============================================================================
