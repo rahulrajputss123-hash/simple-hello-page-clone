@@ -14,6 +14,7 @@ import {
   Share2,
   Users,
   Wallet,
+  ChevronDown,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
@@ -36,16 +37,23 @@ import {
   type ReferralRewardState,
 } from "@/lib/referral-progress";
 import { getAdvertiserReferralStats } from "@/lib/marketplace/advertiser-referral.server";
+import {
+  ADVERTISER_REFERRAL_PERCENT,
+  ADVERTISER_REFERRAL_RULES,
+  PUBLISHER_REFERRAL_RULES,
+  REFERRAL_HEADLINE_MAX,
+  formatAdvertiserReferralLine,
+} from "@/lib/referral-program";
 
 export const Route = createFileRoute("/_authenticated/refer")({
   head: () => ({
     meta: [
       { title: "Refer & earn — CashGPT" },
-      { name: "description", content: "Invite friends to CashGPT and earn up to $3 per friend." },
+      { name: "description", content: `Invite friends, earn up to $${REFERRAL_HEADLINE_MAX}.` },
       { property: "og:title", content: "Refer & earn — CashGPT" },
       {
         property: "og:description",
-        content: "Invite friends to CashGPT and earn up to $3 per friend.",
+        content: `Invite friends, earn up to $${REFERRAL_HEADLINE_MAX}.`,
       },
     ],
   }),
@@ -246,9 +254,9 @@ export function ReferPage() {
   
   const advStats = advertiserStats.data ?? {
     referredAdvertisers: 0,
-    qualifyingActivations: 0,
+    totalDeposits: 0,
     rewardsEarned: 0,
-    rewardPerActivation: 10,
+    referralPercent: ADVERTISER_REFERRAL_PERCENT,
   };
 
   return (
@@ -265,9 +273,9 @@ export function ReferPage() {
         />
 
         <section className="premium-step-in rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
-          <h2 className="text-xl">Invite friends, earn more</h2>
+          <h2 className="text-xl">Invite friends, earn up to ${REFERRAL_HEADLINE_MAX}</h2>
           <p className="mt-1 text-sm opacity-80">
-            Earn up to {formatMoney(REFERRAL_MAX_BONUS)} per friend.
+            {formatAdvertiserReferralLine(REFERRAL_MILESTONE_BONUS)}
           </p>
           <p className="mt-1 text-xs opacity-60">Join thousands of users earning together.</p>
 
@@ -419,7 +427,7 @@ export function ReferPage() {
           </div>
 
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-            <p className="text-xs font-semibold">Total referral earnings</p>
+            <p className="text-xs font-semibold">Total publisher referral earnings</p>
             <p className="text-amount text-base" data-testid="refer-earnings-total">
               {formatMoney(totals.total)}
             </p>
@@ -447,9 +455,7 @@ export function ReferPage() {
             <Link2 className="mt-0.5 size-3.5 shrink-0" />
             <span>
               <strong>One link, both rewards.</strong> If a friend you invite with the link above
-              becomes an advertiser and funds their first campaign, you earn an extra{" "}
-              {formatMoney(advStats.rewardPerActivation)} — on top of your publisher
-              referral rewards.
+              becomes an advertiser and makes a deposit, you earn {ADVERTISER_REFERRAL_PERCENT}% of it, on top of publisher referral rewards.
             </span>
           </p>
           {advertiserStats.isPending ? (
@@ -470,10 +476,10 @@ export function ReferPage() {
               </div>
               <div className="rounded-2xl bg-mint/15 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
-                  Activations
+Deposits
                 </p>
                 <p className="text-amount mt-1 text-xl leading-none text-primary">
-                  {advStats.qualifyingActivations}
+                  {formatMoney(advStats.totalDeposits)}
                 </p>
               </div>
               <div className="rounded-2xl bg-gold/10 p-3">
@@ -609,35 +615,25 @@ export function ReferPage() {
           iconSrc="/icons/icon-terms-conditions.png"
           title="Terms & conditions"
         />
-        {/* Short summary only. The full, numbered rules live on one page
-            (/referral-rules) so the payout model is never described twice and
-            can never drift out of sync. */}
-        <div className="surface-card p-4">
-          <div className="space-y-2 text-xs leading-relaxed text-muted-foreground">
-            <p>
-              Each referred friend is worth up to {formatMoney(REFERRAL_MAX_BONUS)} — one{" "}
-              {formatMoney(REFERRAL_MILESTONE_BONUS)} milestone for each of the 3 steps above,
-              counted once per friend.
-            </p>
-            <p>
-              Milestones unlock referral earnings as <strong>pending</strong>. Nothing is credited
-              milestone by milestone — pending earnings are not part of your wallet balance and
-              cannot be withdrawn. The full {formatMoney(REFERRAL_MAX_BONUS)} is released into your
-              main wallet in one go, only once that friend has completed all 3 milestones.
-            </p>
-            <p>
-              All 3 milestones must be completed within 1 year of your friend&apos;s signup, or that
-              referral expires and its pending earnings are not released. Self-referrals, duplicate
-              accounts and fraudulent activity void all referral rewards.
-            </p>
-          </div>
-          <Link
-            to="/referral-rules"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
-            data-testid="refer-view-rules"
-          >
-            Read the full program rules
-            <ArrowRight className="size-3.5" />
+        <div className="surface-card p-3" data-testid="refer-rules-accordion">
+          <details open className="group rounded-2xl bg-background-alt p-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
+              <span>Publisher referral</span><ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+            </summary>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs leading-relaxed text-muted-foreground">
+              {PUBLISHER_REFERRAL_RULES.map((rule) => <li key={rule}>{rule}</li>)}
+            </ol>
+          </details>
+          <details className="group mt-2 rounded-2xl bg-background-alt p-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
+              <span>Advertiser referral</span><ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+            </summary>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs leading-relaxed text-muted-foreground">
+              {ADVERTISER_REFERRAL_RULES.map((rule) => <li key={rule}>{rule}</li>)}
+            </ol>
+          </details>
+          <Link to="/referral-rules" className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary" data-testid="refer-view-rules">
+            Read the full program rules <ArrowRight className="size-3.5" />
           </Link>
         </div>
       </div>

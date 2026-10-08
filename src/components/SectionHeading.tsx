@@ -66,24 +66,25 @@ export function SectionHeading({
           <div
             className={`flex min-w-0 items-center ${action ? "flex-1 basis-[13.5rem]" : ""}`.trim()}
           >
-            {/* Icon bubble sits above the ribbon so the ribbon reads as
-                emerging from underneath it. */}
-            <span
-              aria-hidden
-              data-testid={`section-heading-${slug}-icon`}
-              className={`relative z-20 grid ${bubbleSize} shrink-0 place-items-center rounded-full bg-card shadow-soft ring-1 ring-inset ring-mint/35`}
-            >
-              {iconSrc ? (
-                <img
-                  src={iconSrc}
-                  alt=""
-                  className={`${bubbleImgSize} object-contain`}
-                  decoding="async"
-                />
-              ) : (
+            {/* Glossy artwork owns its rounded tile background; keep it above the ribbon without a wrapper. */}
+            {iconSrc ? (
+              <img
+                src={iconSrc}
+                alt=""
+                aria-hidden
+                data-testid={`section-heading-${slug}-icon`}
+                className={`relative z-20 shrink-0 rounded-xl object-contain shadow-sm ${bubbleImgSize}`}
+                decoding="async"
+              />
+            ) : (
+              <span
+                aria-hidden
+                data-testid={`section-heading-${slug}-icon`}
+                className={`relative z-20 grid ${bubbleSize} shrink-0 place-items-center rounded-2xl bg-card shadow-soft ring-1 ring-inset ring-mint/35`}
+              >
                 <Icon className={`${bubbleIconSize} text-primary`} strokeWidth={2.25} />
-              )}
-            </span>
+              </span>
+            )}
 
             {/* Ribbon — negative margin tucks its rounded left end behind the icon. */}
             <span

@@ -42,6 +42,8 @@ function TransactionsPage() {
     queryKey: ["advertiser-transactions", session?.user.id],
     queryFn: () => list(),
     enabled: Boolean(session),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   return (
