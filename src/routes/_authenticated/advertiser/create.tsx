@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PlusCircle } from "lucide-react";
-import { useState } from "react";
+import { PlusCircle, Star } from "lucide-react";
+import { useMemo, useState } from "react";
+
+import { Switch } from "@/components/ui/switch";
 
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
@@ -22,7 +24,10 @@ function CreateCampaignPage() {
   const [verification, setVerification] = useState<Verification>("proof");
   const [reward, setReward] = useState("0.50");
   const [budget, setBudget] = useState("100");
+  const [featured, setFeatured] = useState(false);
+  const [featuredDays, setFeaturedDays] = useState("7");
   const conversions = Math.floor((Number(budget) || 0) / (Number(reward) || 1));
+  const featuredFee = useMemo(() => featured ? Number(featuredDays) * 2 : 0, [featured, featuredDays]);
 
   return (
     <AppShell subtitle="Advertiser" mainClass="page-fade-in">
@@ -130,6 +135,14 @@ function CreateCampaignPage() {
               <option key={c}>{c}</option>
             ))}
           </select>
+        </div>
+
+        <div className="rounded-2xl border border-gold/40 bg-gold/10 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2"><Star className="size-4 fill-gold text-gold-dark" /><div><Label htmlFor="c-featured">Featured placement</Label><p className="text-[11px] text-muted-foreground">Get more visibility in the marketplace.</p></div></div>
+            <Switch id="c-featured" checked={featured} onCheckedChange={setFeatured} aria-label="Enable featured placement" />
+          </div>
+          {featured && <div className="mt-3 grid grid-cols-2 items-end gap-3"><div className="space-y-1.5"><Label htmlFor="c-featured-days">Featured days</Label><Input id="c-featured-days" type="number" min={1} max={30} value={featuredDays} onChange={(e) => setFeaturedDays(e.target.value)} /></div><p className="rounded-xl bg-card px-3 py-2 text-xs text-gold-dark">+${featuredFee.toFixed(2)} placement fee</p></div>}
         </div>
 
         <Button type="submit" variant="jade" size="lg" className="w-full" data-testid="create-campaign-submit">
