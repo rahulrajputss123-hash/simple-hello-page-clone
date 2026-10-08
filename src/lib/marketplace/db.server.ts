@@ -127,6 +127,8 @@ export type CampaignRow = {
   paused_by: "advertiser" | "admin" | "system" | null;
   needs_review: boolean;
   review_note: string | null;
+  review_source: "admin" | "auto" | null;
+  submitted_at: string | null;
   created_at: string;
   activated_at: string | null;
 };

@@ -99,6 +99,31 @@ export const listAdvertiserTransactions = createServerFn({ method: "POST" })
     return listTransactionsImpl(context.userId);
   });
 
+// Admin: get marketplace settings for auto-approval configuration
+export const getMarketplaceSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { getMarketplaceSettingsImpl } = await import("./marketplace/admin.server");
+    return getMarketplaceSettingsImpl(context.userId);
+  });
+
+// Admin: update marketplace settings
+export const updateMarketplaceSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        auto_approve_enabled: z.boolean().optional(),
+        auto_approve_after_minutes: z.number().int().min(1).max(120).optional(),
+        auto_approve_skip_first_campaign: z.boolean().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { updateMarketplaceSettingsImpl } = await import("./marketplace/admin.server");
+    return updateMarketplaceSettingsImpl(context.userId, data);
+  });
+
 export const listMyCampaigns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

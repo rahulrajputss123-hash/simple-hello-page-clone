@@ -42,6 +42,7 @@ import {
   FinancialOverview,
   ProofReviews,
 } from "@/components/admin/MarketplaceManagers";
+import { MarketplaceSettingsPanel } from "@/components/admin/MarketplaceSettingsPanel";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -674,6 +675,8 @@ function AdminPage() {
       {/* Marketplace preview tabs (★) — sample data, nothing is saved. */}
       {tab === "campaigns" && (
         <>
+          <MarketplaceSettingsPanel />
+          <div className="mt-6" />
           <FinancialOverview />
           <div className="mt-6" />
           <CampaignApprovals />

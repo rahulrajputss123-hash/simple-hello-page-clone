@@ -34,6 +34,11 @@ export type AdminCampaignView = {
   status: CampaignRow["status"];
   submittedAt: string;
   createdAt: string;
+  // Auto-approval info
+  reviewSource?: string | null;
+  autoApproveAt?: string | null;
+  autoApproveEligible?: boolean;
+  autoApproveReason?: string | null;
 };
 
 export type AdminProofView = {
@@ -55,31 +60,106 @@ export type AdminProofView = {
 
 /**
  * Lists campaigns pending admin approval.
+ * Includes auto-approval eligibility and countdown information.
  */
 export async function listPendingCampaignsImpl(): Promise<AdminCampaignView[]> {
   const { data, error } = await mktDbAdmin
     .from("campaigns")
     .select("*, advertiser_accounts(display_name, user_id)")
     .eq("status", "pending_review")
-    .order("created_at", { ascending: false });
+    .order("submitted_at", { ascending: false });
 
   if (error) throw new Error(`campaigns: ${error.message}`);
 
-  return ((data ?? []) as Array<CampaignRow & { advertiser_accounts: { display_name: string; user_id: string } | null }>).map((c) => ({
-    id: c.id,
-    title: c.name,
-    summary: c.summary,
-    advertiserName: c.advertiser_accounts?.display_name ?? "Unknown",
-    advertiserId: c.advertiser_accounts?.user_id ?? c.advertiser_id,
-    verification: c.verification_mode === "auto" ? "auto" : "proof",
-    reward: num(c.publisher_reward),
-    budget: num(c.budget_allocated),
-    maxCompletions: c.max_completions,
-    countries: c.countries ?? [],
-    status: c.status,
-    submittedAt: c.created_at,
-    createdAt: c.created_at,
-  }));
+  // Get marketplace settings for auto-approval calculation
+  const { data: settings } = await mktDbAdmin
+    .from("marketplace_settings")
+    .select("auto_approve_enabled, auto_approve_after_minutes, auto_approve_skip_first_campaign")
+    .eq("id", true)
+    .single();
+
+  const autoApproveEnabled = settings?.auto_approve_enabled ?? false;
+  const autoApproveMinutes = settings?.auto_approve_after_minutes ?? 10;
+  const skipFirstCampaign = settings?.auto_approve_skip_first_campaign ?? true;
+
+  const campaigns = (data ?? []) as Array<CampaignRow & { advertiser_accounts: { display_name: string; user_id: string } | null }>;
+
+  // For each campaign, check auto-approval eligibility
+  return await Promise.all(
+    campaigns.map(async (c) => {
+      let autoApproveAt: string | null = null;
+      let autoApproveEligible = false;
+      let autoApproveReason: string | null = null;
+
+      if (autoApproveEnabled && c.submitted_at) {
+        const submittedDate = new Date(c.submitted_at);
+        const approvalDate = new Date(submittedDate.getTime() + autoApproveMinutes * 60 * 1000);
+        autoApproveAt = approvalDate.toISOString();
+
+        // Check if this is the advertiser's first campaign (if skip_first is enabled)
+        if (skipFirstCampaign) {
+          const { data: firstCheck } = await mktDbAdmin
+            .from("campaigns")
+            .select("id")
+            .eq("advertiser_id", c.advertiser_id)
+            .neq("id", c.id)
+            .not("status", "in", "(draft,rejected)")
+            .limit(1)
+            .single();
+
+          if (!firstCheck) {
+            autoApproveReason = "First campaign (manual review required)";
+            autoApproveEligible = false;
+          }
+        }
+
+        // Check if advertiser is flagged
+        if (!autoApproveReason) {
+          const { data: advertiser } = await mktDbAdmin
+            .from("advertiser_accounts")
+            .select("flagged_for_review")
+            .eq("user_id", c.advertiser_id)
+            .single();
+
+          if (advertiser?.flagged_for_review) {
+            autoApproveReason = "Advertiser flagged for review";
+            autoApproveEligible = false;
+          }
+        }
+
+        // Check if budget is allocated
+        if (!autoApproveReason && num(c.budget_allocated) === 0) {
+          autoApproveReason = "No budget allocated";
+          autoApproveEligible = false;
+        }
+
+        // If no blocking reason found, eligible for auto-approval
+        if (!autoApproveReason) {
+          autoApproveEligible = true;
+        }
+      }
+
+      return {
+        id: c.id,
+        title: c.name,
+        summary: c.summary,
+        advertiserName: c.advertiser_accounts?.display_name ?? "Unknown",
+        advertiserId: c.advertiser_accounts?.user_id ?? c.advertiser_id,
+        verification: c.verification_mode === "auto" ? "auto" : "proof",
+        reward: num(c.publisher_reward),
+        budget: num(c.budget_allocated),
+        maxCompletions: c.max_completions,
+        countries: c.countries ?? [],
+        status: c.status,
+        submittedAt: c.submitted_at ?? c.created_at,
+        createdAt: c.created_at,
+        reviewSource: c.review_source,
+        autoApproveAt,
+        autoApproveEligible,
+        autoApproveReason,
+      };
+    })
+  );
 }
 
 /**

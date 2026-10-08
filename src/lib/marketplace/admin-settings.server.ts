@@ -30,6 +30,10 @@ export interface MarketplaceSettings {
   rejection_flag_min_decisions: number;
   terms_version: string;
   updated_at: string;
+  // Auto-approval settings
+  auto_approve_enabled: boolean;
+  auto_approve_after_minutes: number;
+  auto_approve_skip_first_campaign: boolean;
 }
 
 export interface ReferralSettings {
@@ -93,6 +97,10 @@ const updateMarketplaceSettingsInput = z.object({
   min_publisher_reward: z.number().min(0).optional(),
   auto_approve_after_hours: z.number().min(1).max(720).optional(),
   appeal_window_hours: z.number().min(1).max(720).optional(),
+  // Auto-approval settings
+  auto_approve_enabled: z.boolean().optional(),
+  auto_approve_after_minutes: z.number().int().min(1).max(120).optional(),
+  auto_approve_skip_first_campaign: z.boolean().optional(),
 });
 
 export const updateMarketplaceSettingsImpl = async (
