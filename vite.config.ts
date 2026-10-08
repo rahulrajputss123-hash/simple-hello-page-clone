@@ -12,8 +12,12 @@ const projectEnv = loadEnv("project", "/vercel/share", "");
 export default defineConfig({
   vite: {
     define: {
-      "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(projectEnv.VITE_SUPABASE_URL),
-      "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(projectEnv.VITE_SUPABASE_PUBLISHABLE_KEY),
+      "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(
+        projectEnv.VITE_SUPABASE_URL || projectEnv.SUPABASE_URL,
+      ),
+      "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(
+        projectEnv.VITE_SUPABASE_PUBLISHABLE_KEY || projectEnv.SUPABASE_PUBLISHABLE_KEY,
+      ),
     },
     server: { allowedHosts: true, host: "0.0.0.0", port: 3000 },
   },

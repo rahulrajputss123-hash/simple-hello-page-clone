@@ -57,7 +57,13 @@ function MyCampaignsPage() {
   const [tab, setTab] = useState<Group>("active");
 
   const key = ["my-campaigns", session?.user.id];
-  const campaigns = useQuery({ queryKey: key, queryFn: () => list(), enabled: Boolean(session) });
+  const campaigns = useQuery({
+    queryKey: key,
+    queryFn: () => list(),
+    enabled: Boolean(session),
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
 
   const mutation = useMutation({
     mutationFn: (input: { campaignId: string; action: "pause" | "resume" | "submit" | "complete" | "archive" }) =>

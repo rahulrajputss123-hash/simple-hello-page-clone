@@ -91,7 +91,7 @@ export function SectionHeading({
             <span
               aria-hidden
               data-testid={`section-heading-${slug}-icon`}
-              className={`relative z-20 grid ${bubbleSize} shrink-0 place-items-center rounded-full bg-card shadow-soft ring-1 ring-inset ring-mint/35`}
+              className={`relative z-20 grid ${bubbleSize} shrink-0 place-items-center rounded-2xl bg-card shadow-soft ring-1 ring-inset ring-mint/35`}
             >
               {iconSrc ? (
                 <img
