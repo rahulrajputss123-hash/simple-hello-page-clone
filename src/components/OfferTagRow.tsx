@@ -60,7 +60,7 @@ export function OfferTagRow({
         return (
           <span
             key={key}
-            className={`inline-flex items-center gap-1 rounded-full font-bold uppercase tracking-wide backdrop-blur-sm ${px} ${c.className}`}
+            className={`inline-flex items-center gap-1 rounded-full font-bold uppercase tracking-wide ${px} ${c.className}`}
             data-testid={`offer-tag-${key.toLowerCase()}`}
           >
             <Icon className={size === "xs" ? "size-2.5" : "size-3"} />

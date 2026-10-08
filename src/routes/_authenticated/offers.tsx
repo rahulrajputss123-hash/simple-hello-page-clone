@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Layers, LayoutGrid, Tag } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 import { AppShell } from "@/components/AppShell";
 import { FeaturedOffers } from "@/components/FeaturedOffers";
@@ -8,6 +10,7 @@ import { OfferFilterButton, type OfferFilter } from "@/components/OfferFilterBut
 import { OfferwallSlot } from "@/components/OfferwallSlot";
 import { SectionBanner } from "@/components/SectionBanner";
 import { SectionHeading } from "@/components/SectionHeading";
+import { getFeaturedFeed } from "@/lib/offers.functions";
 
 export const Route = createFileRoute("/_authenticated/offers")({
   head: () => ({
@@ -23,6 +26,17 @@ export const Route = createFileRoute("/_authenticated/offers")({
 
 function OffersPage() {
   const [filter, setFilter] = useState<OfferFilter>("All");
+  const queryClient = useQueryClient();
+  const fetchFeed = useServerFn(getFeaturedFeed);
+
+  // Prefetch offerwall when the page mounts
+  useEffect(() => {
+    queryClient.prefetchQuery({
+      queryKey: ["sdk-offerwall-public", "all"],
+      staleTime: 5 * 60 * 1000,
+    });
+  }, [queryClient]);
+
   return (
     <AppShell subtitle="Offers" mainClass="page-fade-in">
       <SectionHeading

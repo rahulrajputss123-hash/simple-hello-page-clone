@@ -637,9 +637,9 @@
 
 /* --- List entrance staggers -------------------------------------------------
  * Applied to a list/grid container so children animate in sequence without
- * needing a per-item inline animationDelay.
+ * needing a per-item inline animationDelay. Only first 9 cards animate.
  */
-.stagger-children > * {
+.stagger-children > *:nth-child(-n+9) {
   animation: payout-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* Pure fade variant for dense data rows (transactions), where vertical
@@ -679,9 +679,8 @@
 .stagger-fade-children > *:nth-child(8) {
   animation-delay: 315ms;
 }
-/* Cap the cascade so long lists never feel slow to arrive. */
-.stagger-children > *:nth-child(n + 9),
-.stagger-fade-children > *:nth-child(n + 9) {
+.stagger-children > *:nth-child(9),
+.stagger-fade-children > *:nth-child(9) {
   animation-delay: 360ms;
 }
 
@@ -841,6 +840,21 @@
   }
   .live-activity-slot {
     transition: none;
+  }
+}
+
+/* Hover effects only on devices that support hover */
+@media (hover: hover) {
+  .surface-card.group:hover {
+    box-shadow: var(--shadow-gold);
+  }
+  .surface-card.group:hover img {
+    transform: scale(1.05);
+  }
+  /* Offerwall cards */
+  article.surface-card:hover {
+    box-shadow: var(--shadow-gold);
+    transform: translateY(-4px);
   }
 }
 

@@ -15,7 +15,7 @@ const TABS = [
 
 export function BottomNav() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/97 md:bg-card/95 md:backdrop-blur-md">
       <ul className="mx-auto flex w-full max-w-lg items-stretch justify-between px-2 py-1.5">
         {TABS.map(({ to, label, iconSrc }) => (
           <li key={to} className="flex-1">

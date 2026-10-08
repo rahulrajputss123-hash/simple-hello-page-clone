@@ -1,21 +1,21 @@
-import { ArrowUpRight, Gift } from "lucide-react";
+import { Gift } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState } from "@/components/States";
+import { OfferCard } from "@/components/OfferCard";
 import { OfferDetailsDialog, type OfferDetailsPayload } from "@/components/OfferDetailsDialog";
-import { OfferTagRow } from "@/components/OfferTagRow";
-import { SuccessBurst } from "@/components/SuccessBurst";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
-import { formatMoney } from "@/lib/coinquest";
-import { offerDisplayBadge } from "@/lib/offers/display-badge";
 import { claimOffer } from "@/lib/coinquest.functions";
 import { getFeaturedFeed, trackOfferClick } from "@/lib/offers.functions";
 import { useAuth } from "@/lib/auth";
 import { appendAffSub4 } from "@/lib/offers/click-url";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const INITIAL_RENDER = 18; // First 6 rows of 3
+const LOAD_MORE = 18; // Append 6 more rows each time
 
 export function FeaturedOffers({
   scope = "home",
@@ -32,13 +32,45 @@ export function FeaturedOffers({
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["featured-feed", scope],
     queryFn: () => fetchFeed({ data: { scope } }),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000,
   });
+  
   const queryClient = useQueryClient();
   const claim = useServerFn(claimOffer);
   const [pending, setPending] = useState<OfferDetailsPayload | null>(null);
-  const [broken, setBroken] = useState<Record<string, boolean>>({});
-  /** Offer id to play the one-shot reward burst over. Display-only. */
   const [burstOfferId, setBurstOfferId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Prefetch the "all" feed when "home" scope mounts
+  useEffect(() => {
+    if (scope === "home") {
+      queryClient.prefetchQuery({
+        queryKey: ["featured-feed", "all"],
+        queryFn: () => fetchFeed({ data: { scope: "all" } }),
+        staleTime: 5 * 60 * 1000,
+      });
+    }
+  }, [scope, queryClient, fetchFeed]);
+
+  // Progressive loading with IntersectionObserver
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((prev) => prev + LOAD_MORE);
+        }
+      },
+      { rootMargin: "600px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
   const mutation = useMutation({
     mutationFn: async (input: { offerId: string; proofUrl: string | null }) =>
@@ -56,6 +88,55 @@ export function FeaturedOffers({
     onError: (err: Error) => toast.error(err.message || "Could not submit that claim. Try again."),
   });
 
+  // Memoize filtered offers
+  const offers = useMemo(() => {
+    const rawOffers = data?.offers ?? [];
+    return filter && filter !== "All" 
+      ? rawOffers.filter((o) => offerMatchesFilter(filter, o))
+      : rawOffers;
+  }, [data?.offers, filter]);
+
+  // Memoize visible offers
+  const visibleOffers = useMemo(
+    () => offers.slice(0, visibleCount),
+    [offers, visibleCount]
+  );
+
+  const openOffer = useCallback((offer: typeof offers[number]) => {
+    setPending({
+      id: offer.id,
+      external_offer_id: offer.external_offer_id,
+      title: offer.title,
+      description: offer.description,
+      requirements: offer.requirements,
+      not_allowed: offer.not_allowed,
+      reward_amount: offer.reward_amount,
+      click_url: offer.click_url,
+      provider_slug: offer.provider_slug,
+      is_limited_deal: offer.is_limited_deal,
+      payout_mode: offer.payout_mode,
+      image_url: offer.image_url,
+      display_price: offer.display_price,
+      display_percent: offer.display_percent,
+    });
+  }, []);
+
+  const handleContinue = useCallback((payload: { proofPath?: string | null }) => {
+    if (!pending) return;
+    void trackClick({ data: { offerId: pending.id } }).catch(() => {});
+    const clickUrl = appendAffSub4(
+      pending.click_url,
+      pending.provider_slug,
+      session?.user.id,
+      pending.external_offer_id,
+    );
+    if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
+    if (pending.payout_mode !== "auto_postback") {
+      mutation.mutate({ offerId: pending.id, proofUrl: payload.proofPath ?? null });
+    }
+    setPending(null);
+  }, [pending, mutation, session?.user.id, trackClick]);
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-3 gap-3" data-testid="featured-offers-loading">
@@ -65,10 +146,9 @@ export function FeaturedOffers({
       </div>
     );
   }
+  
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
-  const rawOffers = data?.offers ?? [];
-  const offers =
-    filter && filter !== "All" ? rawOffers.filter((o) => offerMatchesFilter(filter, o)) : rawOffers;
+  
   if (!offers.length) {
     return (
       <EmptyState
@@ -83,112 +163,33 @@ export function FeaturedOffers({
     );
   }
 
-  const openOffer = (offer: (typeof offers)[number]) =>
-    setPending({
-      id: offer.id,
-      external_offer_id: offer.external_offer_id,
-      title: offer.title,
-      description: offer.description,
-      requirements: offer.requirements,
-      not_allowed: offer.not_allowed,
-      reward_amount: offer.reward_amount,
-      click_url: offer.click_url,
-      provider_slug: offer.provider_slug,
-      is_limited_deal: offer.is_limited_deal,
-      payout_mode: offer.payout_mode,
-      // Artwork + decorative badges, so the dialog header matches the card.
-      image_url: offer.image_url,
-      display_price: offer.display_price,
-      display_percent: offer.display_percent,
-    });
-
-  const handleContinue = (payload: { proofPath?: string | null }) => {
-    if (!pending) return;
-    // Fire-and-forget click event for the Popular/Trending tag engine.
-    void trackClick({ data: { offerId: pending.id } }).catch(() => {});
-    const clickUrl = appendAffSub4(
-      pending.click_url,
-      pending.provider_slug,
-      session?.user.id,
-      pending.external_offer_id,
-    );
-    if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
-    if (pending.payout_mode !== "auto_postback") {
-      mutation.mutate({ offerId: pending.id, proofUrl: payload.proofPath ?? null });
-    }
-    setPending(null);
-  };
-
   return (
     <>
-      <ul className="stagger-children grid grid-cols-3 gap-3" data-testid="featured-offers-list">
-        {offers.map((offer) => {
-          const showImage = Boolean(offer.image_url) && !broken[offer.id];
-          return (
-            <li
-              key={offer.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => openOffer(offer)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openOffer(offer);
-                }
-              }}
-              className="surface-card group relative flex cursor-pointer flex-col overflow-hidden !p-0 shadow-soft outline-none transition-all duration-200 hover:-translate-y-0.5 hover:shadow-gold focus-visible:ring-2 focus-visible:ring-primary/50 active:translate-y-0"
-              data-testid={`featured-offer-${offer.id}`}
-            >
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-background-alt">
-                {showImage ? (
-                  <img
-                    src={offer.image_url!}
-                    alt={offer.title}
-                    loading="lazy"
-                    decoding="async"
-                    onError={() => setBroken((b) => ({ ...b, [offer.id]: true }))}
-                    className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                ) : (
-                  <span className="grid size-full place-items-center bg-jade-gradient text-primary-foreground">
-                    <Gift className="size-7" />
-                  </span>
-                )}
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/25 to-transparent" />
-                <OfferTagRow
-                  tags={offer.tags ?? []}
-                  isDeal={offer.is_limited_deal}
-                  size="xs"
-                  className="absolute left-1.5 top-1.5"
-                />
-                <span
-                  className="absolute bottom-1.5 right-1.5 grid size-6 place-items-center rounded-full bg-card/90 text-primary shadow-soft backdrop-blur-sm transition-transform duration-200 group-hover:scale-110"
-                  data-testid={`featured-offer-claim-${offer.id}`}
-                >
-                  <ArrowUpRight className="size-3.5" />
-                </span>
-              </div>
-
-              <div className="flex flex-1 flex-col gap-0.5 p-2.5">
-                <p className="truncate text-[13px] font-semibold leading-tight">{offer.title}</p>
-                <p className="truncate text-[11px] leading-snug text-muted-foreground">
-                  {offer.description}
-                </p>
-                {/* Decorative badge when the admin set one, otherwise the real
-                    reward. The badge never changes what is actually paid. */}
-                <span
-                  className="text-amount mt-auto pt-1 text-base leading-none text-gold-dark"
-                  data-testid={`featured-offer-amount-${offer.id}`}
-                >
-                  {offerDisplayBadge(offer) ?? formatMoney(offer.reward_amount)}
-                </span>
-              </div>
-
-              {burstOfferId === offer.id && <SuccessBurst />}
-            </li>
-          );
-        })}
+      <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
+        {visibleOffers.map((offer, index) => (
+          <OfferCard
+            key={offer.id}
+            id={offer.id}
+            title={offer.title}
+            description={offer.description}
+            reward_amount={offer.reward_amount}
+            image_url={offer.image_url}
+            tags={offer.tags}
+            is_limited_deal={offer.is_limited_deal}
+            display_price={offer.display_price}
+            display_percent={offer.display_percent}
+            onOpen={() => openOffer(offer)}
+            showBurst={burstOfferId === offer.id}
+            isEager={index < 6}
+            isPriority={index < 3}
+          />
+        ))}
       </ul>
+      
+      {/* Sentinel for progressive loading - only render if more offers available */}
+      {visibleCount < offers.length && (
+        <div ref={sentinelRef} className="h-px" aria-hidden="true" />
+      )}
 
       <OfferDetailsDialog
         offer={pending}
