@@ -78,8 +78,10 @@ function WalletPage() {
 
   const transactions = useQuery({
     queryKey: ["transactions", session?.user.id],
-    enabled: Boolean(session),
-    queryFn: async () => {
+      enabled: Boolean(session),
+      staleTime: 0,
+      refetchOnMount: "always",
+      queryFn: async () => {
       const { data } = await supabase
         .from("wallet_transactions")
         .select("*")
@@ -91,8 +93,10 @@ function WalletPage() {
 
   const methods = useQuery({
     queryKey: ["payout-methods", session?.user.id],
-    enabled: Boolean(session),
-    queryFn: async () => {
+      enabled: Boolean(session),
+      staleTime: 0,
+      refetchOnMount: "always",
+      queryFn: async () => {
       const { data } = await supabase.from("payout_methods").select("*");
       return data ?? [];
     },
@@ -100,8 +104,10 @@ function WalletPage() {
 
   const withdrawals = useQuery({
     queryKey: ["withdrawals", session?.user.id],
-    enabled: Boolean(session),
-    queryFn: async () => {
+      enabled: Boolean(session),
+      staleTime: 0,
+      refetchOnMount: "always",
+      queryFn: async () => {
       const { data } = await supabase
         .from("withdrawal_requests")
         .select("*")

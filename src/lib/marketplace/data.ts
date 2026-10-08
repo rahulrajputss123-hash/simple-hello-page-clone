@@ -23,6 +23,12 @@ export type Campaign = {
   rules: string[];
   proofRequirements?: string[];
   estimatedTime: string;
+  advertiser: string;
+  category: string;
+  countries: string[];
+  featured?: boolean;
+  featuredBidPerDay?: number;
+  icon?: string;
 };
 
 export const VERIFICATION_LABEL: Record<Verification, string> = {
@@ -45,6 +51,11 @@ export const CAMPAIGNS: Campaign[] = [
     slotsLeft: 118,
     slotsTotal: 500,
     estimatedTime: "~6 min",
+    advertiser: "Coin Rush Labs",
+    category: "Gaming",
+    countries: ["US", "CA", "UK", "AU"],
+    featured: true,
+    featuredBidPerDay: 4,
     steps: [
       "Tap Start Task to open the store page.",
       "Install Coin Rush and open it.",
@@ -71,6 +82,11 @@ export const CAMPAIGNS: Campaign[] = [
     slotsLeft: 42,
     slotsTotal: 150,
     estimatedTime: "~5 min",
+    advertiser: "TravelPay",
+    category: "Finance",
+    countries: ["US", "CA"],
+    featured: true,
+    featuredBidPerDay: 2.5,
     steps: [
       "Tap Start & Complete to open TravelPay.",
       "Sign up with your email and set a password.",
@@ -103,6 +119,9 @@ export const CAMPAIGNS: Campaign[] = [
     slotsLeft: null,
     slotsTotal: null,
     estimatedTime: "~2 min",
+    advertiser: "AdStream Media",
+    category: "Entertainment",
+    countries: ["US", "CA", "UK", "AU"],
     steps: [
       "Tap Start Task to open the player.",
       "Watch all three clips without skipping.",
@@ -124,6 +143,11 @@ export const CAMPAIGNS: Campaign[] = [
     slotsLeft: 9,
     slotsTotal: 200,
     estimatedTime: "~1 min",
+    advertiser: "CashGPT Official",
+    category: "Social",
+    countries: ["IN", "US"],
+    featured: true,
+    featuredBidPerDay: 1,
     steps: [
       "Tap Start & Complete to open Instagram.",
       "Follow @cashgpt.official.",

@@ -9,9 +9,9 @@ import { z } from "zod";
 
 export interface AdvertiserReferralStats {
   referredAdvertisers: number; // Count of referred users who created advertiser accounts
-  qualifyingActivations: number; // Count who made their first credited deposit
+  totalDeposits: number; // Number of referred advertisers with a credited deposit
   rewardsEarned: number; // Total rewards from advertiser referrals
-  rewardPerActivation: number; // Fixed reward amount per qualifying activation
+  referralPercent: number; // Advertiser referral percentage
 }
 
 const ADVERTISER_REFERRAL_REWARD = 10; // $10 per qualifying activation
@@ -43,9 +43,9 @@ export const getAdvertiserReferralStatsImpl = async (
   if (!referrals || referrals.length === 0) {
     return {
       referredAdvertisers: 0,
-      qualifyingActivations: 0,
+      totalDeposits: 0,
       rewardsEarned: 0,
-      rewardPerActivation: ADVERTISER_REFERRAL_REWARD,
+      referralPercent: 50,
     };
   }
 
@@ -64,9 +64,9 @@ export const getAdvertiserReferralStatsImpl = async (
   if (referredAdvertisers === 0) {
     return {
       referredAdvertisers: 0,
-      qualifyingActivations: 0,
+      totalDeposits: 0,
       rewardsEarned: 0,
-      rewardPerActivation: ADVERTISER_REFERRAL_REWARD,
+      referralPercent: 50,
     };
   }
 
@@ -92,9 +92,9 @@ export const getAdvertiserReferralStatsImpl = async (
 
   return {
     referredAdvertisers,
-    qualifyingActivations,
+    totalDeposits: qualifyingActivations,
     rewardsEarned,
-    rewardPerActivation: ADVERTISER_REFERRAL_REWARD,
+    referralPercent: 50,
   };
 };
 
