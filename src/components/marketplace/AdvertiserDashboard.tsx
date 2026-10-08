@@ -143,10 +143,18 @@ export function AdvertiserDashboard() {
         <QuickAction to="/advertiser/funds" icon={Wallet} label="Add Funds" hint="Top up your campaign balance" testId="qa-add-funds" />
         <QuickAction to="/advertiser/create" icon={PlusCircle} label="Create Campaign" hint="Launch a new task for publishers" testId="qa-create-campaign" />
         <QuickAction to="/advertiser/campaigns" icon={Megaphone} label="My Campaigns" hint="Active, paused, draft and completed" testId="qa-my-campaigns" />
-        <QuickAction to="/advertiser/campaigns" icon={BarChart3} label="Campaign Results" hint="Clicks, completions and spend" testId="qa-campaign-results" />
         <QuickAction to="/advertiser/transactions" icon={Receipt} label="Transactions" hint="Deposits, spend and charges" testId="qa-transactions" />
-        <QuickAction to="/advertiser/referral" icon={Users} label="Advertiser Referral" hint="Same link, extra rewards" testId="qa-referral" />
-        <QuickAction to="/advertiser/help" icon={LifeBuoy} label="Advertiser Help" hint="FAQ for campaign owners" testId="qa-help" />
+        
+        <details className="surface-card overflow-hidden rounded-2xl">
+          <summary className="flex cursor-pointer items-center justify-between px-3.5 py-3 text-sm font-semibold">
+            <span>More</span>
+            <span className="text-muted-foreground">▾</span>
+          </summary>
+          <div className="space-y-2.5 border-t border-border px-2 pb-2 pt-2.5">
+            <QuickAction to="/advertiser/referral" icon={Users} label="Advertiser Referral" hint="Same link, extra rewards" testId="qa-referral" />
+            <QuickAction to="/advertiser/help" icon={LifeBuoy} label="Advertiser Help" hint="FAQ for campaign owners" testId="qa-help" />
+          </div>
+        </details>
       </div>
 
       <SectionHeading

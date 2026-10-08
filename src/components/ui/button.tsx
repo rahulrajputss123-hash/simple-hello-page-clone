@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold cursor-pointer transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 active:scale-[0.98]",
   {
     variants: {
       variant: {
@@ -15,9 +15,9 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/70",
         ghost: "hover:bg-background-alt text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        gold: "bg-gold-gradient text-gold-foreground shadow-gold hover:brightness-105 active:scale-[0.98]",
-        mint: "bg-mint-gradient text-mint-foreground shadow-soft hover:brightness-105 active:scale-[0.98]",
-        jade: "bg-jade-gradient text-primary-foreground shadow-lift hover:brightness-110 active:scale-[0.98]",
+        gold: "bg-gold-gradient text-gold-foreground shadow-gold hover:brightness-105",
+        mint: "bg-mint-gradient text-mint-foreground shadow-soft hover:brightness-105",
+        jade: "bg-jade-gradient text-primary-foreground shadow-lift hover:brightness-110",
       },
       size: {
         default: "h-11 px-5 py-2",

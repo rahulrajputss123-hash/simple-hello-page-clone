@@ -7,6 +7,7 @@ import { EarnWaysSection } from "@/components/landing/EarnWaysSection";
 import { LiveEarningsFeed } from "@/components/landing/LiveEarningsFeed";
 import { OffersShowcase } from "@/components/landing/OffersShowcase";
 import { Reveal } from "@/components/landing/Reveal";
+import { RotatingPhrase } from "@/components/landing/RotatingPhrase";
 import { TrustSection } from "@/components/landing/TrustSection";
 import {
   FAQ_ITEMS,
@@ -167,7 +168,29 @@ export function WebLanding() {
                 id="landing-h1"
                 className="font-display text-[1.72rem] leading-[1.12] text-foreground sm:text-[2.6rem] lg:text-[3.1rem]"
               >
-                Earn real money online, <span className="text-gold-dark">in your spare time</span>
+                {/* Static text for screen readers and SEO */}
+                <span className="sr-only">
+                  Earn real money online by completing tasks, unlocking lockers, claiming deals,
+                  visiting shortlinks, watching ads, taking surveys, installing apps and playing
+                  games
+                </span>
+                {/* Visible headline with rotating phrase */}
+                <span aria-hidden="true">
+                  Earn real money online{" "}
+                  <RotatingPhrase
+                    phrases={[
+                      "by completing tasks",
+                      "by unlocking lockers",
+                      "by claiming deals",
+                      "by visiting shortlinks",
+                      "by watching ads",
+                      "by taking surveys",
+                      "by installing apps",
+                      "by playing games",
+                    ]}
+                    className="text-gold-dark"
+                  />
+                </span>
               </h1>
               <p className="mt-2 max-w-xl text-[13px] leading-snug text-muted-foreground sm:mt-3 sm:text-base sm:leading-relaxed">
                 Free offers, surveys and games — cash out from just $1.
@@ -390,7 +413,7 @@ function FinalCta({ onStart }: { onStart: () => void }) {
 function Footer() {
   return (
     <footer className="border-t border-border/70 bg-background-alt px-4 py-8 pb-24 sm:px-6 lg:pb-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-4 text-center">
+      <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-5 text-center">
         <img
           src="/logo-horizontal-light.png"
           alt="CashGPT"
@@ -409,16 +432,21 @@ function Footer() {
             Terms
           </a>
           <a href="/legal/withdrawal-policy" className="transition-colors hover:text-foreground">
-            Withdrawal policy
+            Withdrawal Policy
           </a>
-          <Link to="/app" className="transition-colors hover:text-foreground">
-            Get the app
-          </Link>
         </nav>
+
+        <p className="text-xs text-muted-foreground">
+          Support:{" "}
+          <a href="mailto:support@cashgpt.in" className="underline-offset-2 hover:underline">
+            support@cashgpt.in
+          </a>
+        </p>
 
         <p className="text-xs text-muted-foreground">
           © {new Date().getFullYear()} CashGPT. All rights reserved.
         </p>
+
         <p className="sr-only">{LANDING_DESCRIPTION}</p>
       </div>
     </footer>

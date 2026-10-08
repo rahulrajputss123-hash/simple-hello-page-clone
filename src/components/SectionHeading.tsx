@@ -6,26 +6,6 @@ import { Sparkles } from "lucide-react";
  * emerald premium title with a subtle brush accent + tasteful sparkle, and an
  * optional subtitle / right-aligned action. Left-aligned, mobile-first.
  */
-/**
- * Layered mint leaf accent that finishes the ribbon's right tip. Purely
- * decorative; sized in the flex row so it can never overflow a narrow screen.
- */
-function RibbonLeaves({ isPage }: { isPage: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 30 24"
-      className={`shrink-0 ${isPage ? "h-6 w-[1.9rem]" : "h-5 w-[1.6rem]"}`}
-      aria-hidden
-    >
-      <path d="M2 13C8 3 18 1.5 27 4.5C21 13 10.5 16.5 2 13Z" fill="var(--mint)" opacity="0.95" />
-      <path
-        d="M4.5 19.5C9.5 13 17 12 23 14C18 20 10 22.5 4.5 19.5Z"
-        fill="var(--mint)"
-        opacity="0.55"
-      />
-    </svg>
-  );
-}
 
 export function SectionHeading({
   icon: Icon,
@@ -65,8 +45,8 @@ export function SectionHeading({
     const bubbleIconSize = isPage ? "size-[1.6rem]" : "size-[1.35rem]";
     const ribbonTuck = isPage ? "-ml-6" : "-ml-5";
     const ribbonPad = isPage ? "py-2.5 pl-8 pr-6" : "py-2 pl-7 pr-5";
+    const ribbonRound = "rounded-full"; // Keep rounded end
     const titleSize = isPage ? "text-[17px]" : "text-[15px]";
-    const leafTuck = isPage ? "-ml-2.5" : "-ml-2";
     // Lines the subtitle up with the title inside the ribbon:
     // page  = 56px bubble - 24px tuck + 32px ribbon padding = 64px (pl-16)
     // block = 48px bubble - 20px tuck + 28px ribbon padding = 56px (pl-14)
@@ -107,17 +87,14 @@ export function SectionHeading({
 
             {/* Ribbon — negative margin tucks its rounded left end behind the icon. */}
             <span
-              className={`section-ribbon relative z-10 ${ribbonTuck} inline-flex min-w-0 items-center overflow-hidden rounded-full bg-jade-gradient ${ribbonPad}`}
+              className={`section-ribbon relative z-10 ${ribbonTuck} inline-flex min-w-0 items-center overflow-hidden ${ribbonRound} bg-jade-gradient ${ribbonPad}`}
             >
               <h2
-                className={`truncate font-display ${titleSize} uppercase leading-none tracking-[0.03em] text-primary-foreground`}
+                className={`truncate ${titleSize} uppercase leading-none tracking-[0.03em] text-primary-foreground`}
+                style={{ fontFamily: "var(--font-section)", fontWeight: 700 }}
               >
                 {title}
               </h2>
-            </span>
-
-            <span className={`${leafTuck} shrink-0`}>
-              <RibbonLeaves isPage={isPage} />
             </span>
           </div>
 
@@ -166,7 +143,8 @@ export function SectionHeading({
           <span className="inline-flex items-center gap-1.5">
             <span className="relative inline-block">
               <h2
-                className={`font-display leading-tight text-primary ${isPage ? "text-xl" : "text-lg"}`}
+                className={`leading-tight text-primary ${isPage ? "text-xl" : "text-lg"}`}
+                style={{ fontFamily: "var(--font-section)", fontWeight: 700 }}
               >
                 {title}
               </h2>

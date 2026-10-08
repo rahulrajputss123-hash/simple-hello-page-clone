@@ -28,9 +28,10 @@ export function RoleSwitcher() {
               ? "bg-sky-500/10 text-sky-700 ring-sky-500/30"
               : "bg-mint/15 text-primary ring-mint/30"
           }`}
+          aria-label={isAdvertiser ? "Advertise mode" : "Earn mode"}
         >
           <span aria-hidden>{isAdvertiser ? "🔵" : "🟢"}</span>
-          {isAdvertiser ? "Advertiser" : "Publisher"}
+          {isAdvertiser ? "Advertise" : "Earn"}
           <ChevronDown className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-72 rounded-2xl p-1.5">
@@ -46,7 +47,7 @@ export function RoleSwitcher() {
               🟢
             </span>
             <span className="flex flex-col">
-              <span className="font-semibold">Publisher</span>
+              <span className="font-semibold">Earn</span>
               <span className="text-xs text-muted-foreground">Earn & complete tasks</span>
             </span>
             {!isAdvertiser && <span className="ml-auto text-xs text-primary">Current</span>}
@@ -62,7 +63,7 @@ export function RoleSwitcher() {
                 🔵
               </span>
               <span className="flex flex-col">
-                <span className="font-semibold">Advertiser</span>
+                <span className="font-semibold">Advertise</span>
                 <span className="text-xs text-muted-foreground">Create & manage campaigns</span>
               </span>
               {isAdvertiser && <span className="ml-auto text-xs text-sky-700">Current</span>}
@@ -70,7 +71,7 @@ export function RoleSwitcher() {
           ) : (
             <div className="px-2 py-2">
               <p className="flex items-center gap-2 text-sm font-semibold">
-                <span aria-hidden>🔵</span> Advertiser
+                <span aria-hidden>🔵</span> Advertise
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {marketplaceAvailable
