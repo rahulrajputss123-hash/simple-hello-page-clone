@@ -72,6 +72,7 @@ export type SettingsView = {
   promoActive: boolean;
   promoEndsAt: string | null;
   firstDepositBonusPercent: number;
+  featuredPricePerDay: number;
   termsVersion: string;
   razorpayConfigured: boolean;
 };
@@ -170,6 +171,7 @@ function settingsView(s: MarketplaceSettingsRow): SettingsView {
     promoActive: Boolean(promoEnds && promoEnds.getTime() > Date.now()),
     promoEndsAt: s.promo_ends_at,
     firstDepositBonusPercent: num(s.first_deposit_bonus_percent),
+    featuredPricePerDay: num(s.featured_price_per_day),
     termsVersion: s.terms_version,
     razorpayConfigured: razorpayConfigured(),
   };
@@ -755,11 +757,33 @@ export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
 export async function createCampaignImpl(
   userId: string,
   input: CreateCampaignInput,
-): Promise<{ campaignId: string; status: CampaignDbStatus }> {
+): Promise<{ campaignId: string; status: CampaignDbStatus; featuredApplied?: boolean; featuredError?: string }> {
   const account = await getAccount(userId);
   if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
   if (account.status !== "active") {
     throw new DepositError("ACCOUNT_RESTRICTED", "Your advertiser account cannot create campaigns.");
+  }
+
+  // Validate featured placement
+  if (input.featured) {
+    if (!input.featuredDays || input.featuredDays < 1 || input.featuredDays > 30) {
+      throw new DepositError(
+        "INVALID_FEATURED",
+        "Featured placement requires days between 1 and 30."
+      );
+    }
+
+    // Preflight check: ensure enough balance for budget + featured fee
+    const settings = await loadMarketplaceSettings();
+    const featuredFee = num(settings.featured_price_per_day) * input.featuredDays;
+    const totalCost = input.budget + featuredFee;
+    
+    if (account.spendable < totalCost) {
+      throw new DepositError(
+        "INSUFFICIENT_FUNDS",
+        `Not enough balance. Need $${totalCost.toFixed(2)} ($${input.budget.toFixed(2)} campaign + $${featuredFee.toFixed(2)} featured), have $${account.spendable.toFixed(2)}.`
+      );
+    }
   }
 
   // Validate category/subcategory relationship
@@ -776,40 +800,12 @@ export async function createCampaignImpl(
     }
   }
 
-  // Load settings for featured pricing
-  const settings = await loadMarketplaceSettings();
-  
-  // Calculate featured fee SERVER-SIDE ONLY (never trust client!)
-  let featuredFee = 0;
-  let featuredDays = 0;
-  let featuredExpiresAt: Date | null = null;
-  
-  if (input.featured && input.featuredDays) {
-    featuredDays = Math.min(Math.max(input.featuredDays, 1), 30); // Clamp to 1-30
-    const pricePerDay = num(settings.featured_price_per_day);
-    featuredFee = Math.round(featuredDays * pricePerDay * 100) / 100;
-    
-    // Check if advertiser has enough balance for campaign budget + featured fee
-    const totalCost = input.budget + featuredFee;
-    if (account.spendable < totalCost) {
-      throw new DepositError(
-        "INSUFFICIENT_FUNDS",
-        `Not enough balance. Need $${totalCost.toFixed(2)} ($${input.budget.toFixed(2)} budget + $${featuredFee.toFixed(2)} featured), have $${account.spendable.toFixed(2)}.`
-      );
-    }
-    
-    featuredExpiresAt = new Date();
-    featuredExpiresAt.setDate(featuredExpiresAt.getDate() + featuredDays);
-  }
-
   // Calculate max completions
   const maxCompletions = Math.floor(input.budget / input.reward);
 
-  // Generate idempotency key for featured fee charge
-  const idempotencyKey = `featured-${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
   // Step 1: INSERT campaign in draft status
-  // CRITICAL FIX: Remove advertiser_cost - campaigns_guard rejects it!
+  // CRITICAL: Do NOT set featured fields here - campaigns_guard rejects them!
+  // Featured billing happens via mkt_charge_featured RPC after insert.
   const campaignInsert: Record<string, any> = {
     advertiser_id: userId,
     type_key: "custom",
@@ -829,14 +825,6 @@ export async function createCampaignImpl(
     status: "draft",
   };
 
-  // Add featured fields if applicable
-  if (input.featured && featuredFee > 0) {
-    campaignInsert.is_featured = true;
-    campaignInsert.featured_started_at = new Date().toISOString();
-    campaignInsert.featured_expires_at = featuredExpiresAt!.toISOString();
-    campaignInsert.featured_fee_paid = featuredFee;
-  }
-
   const { data: campaign, error: insertError } = await mktDb
     .from("campaigns")
     .insert(campaignInsert)
@@ -847,87 +835,49 @@ export async function createCampaignImpl(
     throw new DepositError("CREATE_FAILED", `Failed to create campaign: ${insertError.message}`);
   }
 
-  // Step 2: If featured, charge the fee atomically
-  if (input.featured && featuredFee > 0) {
-    try {
-      // Charge featured fee from advertiser balance
-      // This uses the existing wallet system and creates a ledger entry
-      const { data: ledgerInsert, error: ledgerError } = await mktDb
-        .from("advertiser_ledger")
-        .insert({
-          advertiser_id: userId,
-          kind: "adjustment",
-          bucket: "deposit",
-          amount: featuredFee,
-          delta: -featuredFee,
-          balance_after: account.spendable - featuredFee,
-          campaign_id: campaign.id,
-          reference_type: "featured_placement",
-          reference_id: campaign.id,
-          description: `Featured placement fee (${featuredDays} days)`,
-          idempotency_key: idempotencyKey,
-        })
-        .select("id")
-        .single();
-
-      if (ledgerError) {
-        // Rollback: delete the campaign
-        await mktDb.from("campaigns").delete().eq("id", campaign.id);
-        
-        if (ledgerError.code === "23505") {
-          // Duplicate idempotency key - possible retry
-          throw new DepositError("DUPLICATE_REQUEST", "This featured request was already processed.");
-        }
-        
-        throw new DepositError("FEATURED_CHARGE_FAILED", `Failed to charge featured fee: ${ledgerError.message}`);
-      }
-
-      // Update advertiser account balance
-      const { error: balanceError } = await mktDb
-        .from("advertiser_accounts")
-        .update({
-          deposit_balance: account.spendable - featuredFee,
-          lifetime_spent: num(account.lifetime_spent) + featuredFee,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
-
-      if (balanceError) {
-        // This is a critical error - ledger created but balance not updated
-        // Log it for manual reconciliation
-        console.error("[CRITICAL] Featured fee charged but balance update failed:", {
-          userId,
-          campaignId: campaign.id,
-          fee: featuredFee,
-          error: balanceError,
-        });
-        
-        throw new DepositError("BALANCE_UPDATE_FAILED", "Featured fee charged but balance update failed. Contact support.");
-      }
-    } catch (err) {
-      if (err instanceof DepositError) throw err;
-      
-      // Unexpected error - try to rollback campaign
-      await mktDb.from("campaigns").delete().eq("id", campaign.id);
-      throw err;
-    }
-  }
-
-  // Step 3: Submit for review
+  // Step 2: Submit for review (allocates budget)
   try {
     await mktRpc("mkt_submit_campaign", {
       p_campaign_id: campaign.id,
       p_actor: userId,
     });
-
-    return {
-      campaignId: campaign.id,
-      status: "pending_review" as CampaignDbStatus,
-    };
   } catch (err) {
     if (err instanceof MktRpcError) throw new DepositError(err.code, humanMktError(err.code));
     throw err;
   }
+
+  // Step 3: If featured, charge the fee atomically via RPC
+  // Note: Campaign is already submitted, so if this fails we DON'T delete the campaign
+  let featuredApplied = false;
+  let featuredError: string | undefined;
+
+  if (input.featured && input.featuredDays && input.featuredDays > 0) {
+    try {
+      const featuredDays = Math.min(Math.max(input.featuredDays, 1), 30); // Clamp to 1-30
+      
+      await mktRpc("mkt_charge_featured", {
+        p_campaign_id: campaign.id,
+        p_days: featuredDays,
+        p_actor: userId,
+      });
+      
+      featuredApplied = true;
+    } catch (err) {
+      // Featured billing failed, but campaign is already submitted
+      // Return a warning instead of throwing
+      if (err instanceof MktRpcError) {
+        featuredError = humanMktError(err.code);
+      } else {
+        featuredError = "Featured placement failed due to an unexpected error.";
+      }
+    }
+  }
+
+  return {
+    campaignId: campaign.id,
+    status: "pending_review" as CampaignDbStatus,
+    ...(input.featured && { featuredApplied, featuredError }),
+  };
 }
 
 export type CampaignAction = "pause" | "resume" | "submit" | "complete" | "archive";
@@ -970,6 +920,10 @@ export function humanMktError(code: string): string {
     case "MKT_ADVERTISER_RESTRICTED":
     case "MKT_ADVERTISER_SUSPENDED":
       return "Your advertiser account is restricted. Contact support.";
+    case "MKT_DUPLICATE_FEATURED":
+      return "This campaign already has featured placement.";
+    case "MKT_INVALID_FEATURED":
+      return "Featured placement requires 1-30 days.";
     default:
       return "That didn't work. Please try again.";
   }

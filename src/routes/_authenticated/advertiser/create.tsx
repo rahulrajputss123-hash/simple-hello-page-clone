@@ -59,7 +59,11 @@ function CreateCampaignPage() {
   const rewardNum = Number(reward) || 0;
   const budgetNum = Number(budget) || 0;
   const conversions = Math.floor(budgetNum / (rewardNum || 1));
-  const featuredFee = useMemo(() => (featured ? Number(featuredDays) * 2 : 0), [featured, featuredDays]);
+  const featuredPricePerDay = overview?.settings?.featuredPricePerDay ?? 2;
+  const featuredFee = useMemo(
+    () => (featured ? Number(featuredDays) * featuredPricePerDay : 0),
+    [featured, featuredDays, featuredPricePerDay]
+  );
 
   const account = overview?.account;
   const totalCost = budgetNum + (featured ? featuredFee : 0);
@@ -85,7 +89,16 @@ function CreateCampaignPage() {
       }),
     onSuccess: async (result) => {
       await Promise.all([refreshOverview(), queryClient.invalidateQueries({ queryKey: ["my-campaigns"] })]);
-      toast.success("Campaign created! Submit it for approval when ready.");
+      
+      // Handle featured placement result
+      if (result.featuredApplied === false && result.featuredError) {
+        toast.warning(`Campaign submitted. Featured placement wasn't applied: ${result.featuredError}`);
+      } else if (result.featuredApplied === true) {
+        toast.success("Campaign submitted for review with featured placement");
+      } else {
+        toast.success("Campaign submitted for review");
+      }
+      
       navigate({ to: "/advertiser/campaigns" });
     },
     onError: (err) => {
