@@ -55,19 +55,27 @@ function mapCampaignToDisplay(c: any): DisplayCampaign {
   const countryFlag = c.countries?.[0] === "*" ? "🌍" : "🇺🇸";
   const countryLabel = c.countries?.[0] === "*" ? "Worldwide" : c.countries?.join(", ") || "Worldwide";
   
+  // Format estimated time with fallback
+  let estimatedTime = "5-10 min";
+  if (c.estimatedMinutes) {
+    estimatedTime = c.estimatedMinutes < 60 
+      ? `${c.estimatedMinutes} min` 
+      : `${Math.round(c.estimatedMinutes / 60)} hr`;
+  }
+  
   return {
     id: c.id,
     title: c.title,
     description: c.description,
     reward: c.reward,
     verification: c.verification,
-    featured: false, // TODO: Wire up when featured field exists in backend
-    estimatedTime: "5-10 min", // TODO: Wire up when estimatedMinutes exists
+    featured: c.featured || false, // Real featured status from backend
+    estimatedTime,
     countryFlag,
     country: countryLabel,
     device: c.verification === "auto" ? "Any device" : "Mobile",
     slotsLeft: c.slotsRemaining,
-    category: "General", // TODO: Wire up when category exists
+    category: c.category || "General", // Real category with fallback
     countries: c.countries || ["*"],
   };
 }

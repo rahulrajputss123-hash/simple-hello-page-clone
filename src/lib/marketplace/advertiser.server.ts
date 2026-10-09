@@ -72,6 +72,7 @@ export type SettingsView = {
   promoActive: boolean;
   promoEndsAt: string | null;
   firstDepositBonusPercent: number;
+  featuredPricePerDay: number;
   termsVersion: string;
   razorpayConfigured: boolean;
 };
@@ -170,6 +171,7 @@ function settingsView(s: MarketplaceSettingsRow): SettingsView {
     promoActive: Boolean(promoEnds && promoEnds.getTime() > Date.now()),
     promoEndsAt: s.promo_ends_at,
     firstDepositBonusPercent: num(s.first_deposit_bonus_percent),
+    featuredPricePerDay: num(s.featured_price_per_day),
     termsVersion: s.terms_version,
     razorpayConfigured: razorpayConfigured(),
   };
@@ -734,48 +736,98 @@ export const createCampaignInput = z.object({
   reward: z.number().positive().min(0.05).max(1000),
   budget: z.number().positive().min(10).max(100000),
   countries: z.array(z.string()).min(1).max(20),
+  categoryId: z.string().uuid(),
+  subcategoryId: z.string().uuid().optional(),
+  landingUrl: z.string().trim().url().max(2048).regex(/^https:\/\//, "Must be an HTTPS URL"),
+  estimatedMinutes: z.number().int().min(1).max(1440).optional(),
+  featured: z.boolean().optional(),
+  featuredDays: z.number().int().min(1).max(30).optional(),
 });
 export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
 
 /**
  * Creates a campaign in draft status, then submits it for review.
  * NOTE: mkt_create_campaign() doesn't exist - we INSERT then call mkt_submit_campaign()
+ * CRITICAL: campaigns_guard trigger only allows INSERT of empty draft (advertiser_cost
+ * and fee_percent must be NULL). Pricing is set by mkt_submit_campaign.
+ * 
+ * FEATURED PLACEMENT: If featured=true, charges the featured fee from advertiser balance
+ * atomically with campaign creation. Fee is calculated server-side only (never trust client).
  */
 export async function createCampaignImpl(
   userId: string,
   input: CreateCampaignInput,
-): Promise<{ campaignId: string; status: CampaignDbStatus }> {
+): Promise<{ campaignId: string; status: CampaignDbStatus; featuredApplied?: boolean; featuredError?: string }> {
   const account = await getAccount(userId);
   if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
   if (account.status !== "active") {
     throw new DepositError("ACCOUNT_RESTRICTED", "Your advertiser account cannot create campaigns.");
   }
 
-  // Calculate max completions and cost per completion
-  const maxCompletions = Math.floor(input.budget / input.reward);
-  const platformFee = (await loadMarketplaceSettings()).platform_fee_percent;
-  const feeMultiplier = 1 + num(platformFee) / 100;
-  const costPerCompletion = Math.round(input.reward * feeMultiplier * 100) / 100;
+  // Validate featured placement
+  if (input.featured) {
+    if (!input.featuredDays || input.featuredDays < 1 || input.featuredDays > 30) {
+      throw new DepositError(
+        "INVALID_FEATURED",
+        "Featured placement requires days between 1 and 30."
+      );
+    }
 
-  // Step 1: INSERT campaign in draft status (mkt_create_campaign doesn't exist!)
+    // Preflight check: ensure enough balance for budget + featured fee
+    const settings = await loadMarketplaceSettings();
+    const featuredFee = num(settings.featured_price_per_day) * input.featuredDays;
+    const totalCost = input.budget + featuredFee;
+    
+    if (account.spendable < totalCost) {
+      throw new DepositError(
+        "INSUFFICIENT_FUNDS",
+        `Not enough balance. Need $${totalCost.toFixed(2)} ($${input.budget.toFixed(2)} campaign + $${featuredFee.toFixed(2)} featured), have $${account.spendable.toFixed(2)}.`
+      );
+    }
+  }
+
+  // Validate category/subcategory relationship
+  if (input.subcategoryId) {
+    const { data: subcat, error: subcatErr } = await mktDb
+      .from("marketplace_subcategories")
+      .select("category_id")
+      .eq("id", input.subcategoryId)
+      .maybeSingle();
+    
+    if (subcatErr) throw new DepositError("INVALID_SUBCATEGORY", "Invalid subcategory.");
+    if (!subcat || subcat.category_id !== input.categoryId) {
+      throw new DepositError("CATEGORY_MISMATCH", "Subcategory does not belong to the selected category.");
+    }
+  }
+
+  // Calculate max completions
+  const maxCompletions = Math.floor(input.budget / input.reward);
+
+  // Step 1: INSERT campaign in draft status
+  // CRITICAL: Do NOT set featured fields here - campaigns_guard rejects them!
+  // Featured billing happens via mkt_charge_featured RPC after insert.
+  const campaignInsert: Record<string, any> = {
+    advertiser_id: userId,
+    type_key: "custom",
+    name: input.title,
+    summary: input.description.slice(0, 140),
+    description: input.description,
+    landing_url: input.landingUrl,
+    steps: [{ text: "Complete the task" }],
+    verification_mode: input.verification === "auto" ? "auto" : "manual_proof",
+    countries: input.countries,
+    publisher_reward: input.reward,
+    max_completions: maxCompletions,
+    proof_description: "Please upload proof of completion",
+    category_id: input.categoryId,
+    subcategory_id: input.subcategoryId || null,
+    estimated_minutes: input.estimatedMinutes || null,
+    status: "draft",
+  };
+
   const { data: campaign, error: insertError } = await mktDb
     .from("campaigns")
-    .insert({
-      advertiser_id: userId,
-      type_key: "custom", // From campaign_types table
-      name: input.title,
-      summary: input.description.slice(0, 140),
-      description: input.description,
-      landing_url: "https://example.com", // TODO: Get from input
-      steps: [{ text: "Complete the task" }], // Required field
-      verification_mode: input.verification === "auto" ? "auto" : "manual_proof",
-      countries: input.countries,
-      publisher_reward: input.reward,
-      advertiser_cost: costPerCompletion,
-      max_completions: maxCompletions,
-      proof_description: "Please upload proof of completion",
-      status: "draft",
-    })
+    .insert(campaignInsert)
     .select("id, status")
     .single();
 
@@ -783,21 +835,49 @@ export async function createCampaignImpl(
     throw new DepositError("CREATE_FAILED", `Failed to create campaign: ${insertError.message}`);
   }
 
-  // Step 2: Submit for review
+  // Step 2: Submit for review (allocates budget)
   try {
     await mktRpc("mkt_submit_campaign", {
       p_campaign_id: campaign.id,
       p_actor: userId,
     });
-
-    return {
-      campaignId: campaign.id,
-      status: "pending_review" as CampaignDbStatus,
-    };
   } catch (err) {
     if (err instanceof MktRpcError) throw new DepositError(err.code, humanMktError(err.code));
     throw err;
   }
+
+  // Step 3: If featured, charge the fee atomically via RPC
+  // Note: Campaign is already submitted, so if this fails we DON'T delete the campaign
+  let featuredApplied = false;
+  let featuredError: string | undefined;
+
+  if (input.featured && input.featuredDays && input.featuredDays > 0) {
+    try {
+      const featuredDays = Math.min(Math.max(input.featuredDays, 1), 30); // Clamp to 1-30
+      
+      await mktRpc("mkt_charge_featured", {
+        p_campaign_id: campaign.id,
+        p_days: featuredDays,
+        p_actor: userId,
+      });
+      
+      featuredApplied = true;
+    } catch (err) {
+      // Featured billing failed, but campaign is already submitted
+      // Return a warning instead of throwing
+      if (err instanceof MktRpcError) {
+        featuredError = humanMktError(err.code);
+      } else {
+        featuredError = "Featured placement failed due to an unexpected error.";
+      }
+    }
+  }
+
+  return {
+    campaignId: campaign.id,
+    status: "pending_review" as CampaignDbStatus,
+    ...(input.featured && { featuredApplied, featuredError }),
+  };
 }
 
 export type CampaignAction = "pause" | "resume" | "submit" | "complete" | "archive";
@@ -840,6 +920,10 @@ export function humanMktError(code: string): string {
     case "MKT_ADVERTISER_RESTRICTED":
     case "MKT_ADVERTISER_SUSPENDED":
       return "Your advertiser account is restricted. Contact support.";
+    case "MKT_DUPLICATE_FEATURED":
+      return "This campaign already has featured placement.";
+    case "MKT_INVALID_FEATURED":
+      return "Featured placement requires 1-30 days.";
     default:
       return "That didn't work. Please try again.";
   }
