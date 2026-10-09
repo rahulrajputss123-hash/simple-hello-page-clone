@@ -320,3 +320,12 @@ export const setPreferredRole = createServerFn({ method: "POST" })
     await setPreferredRoleImpl(context.userId, data.role);
     return { ok: true };
   });
+
+/* ------------------------------------------------------------ categories */
+
+export const listCategories = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { listCategoriesWithSubcategoriesImpl } = await import("./marketplace/categories.server");
+    return listCategoriesWithSubcategoriesImpl();
+  });

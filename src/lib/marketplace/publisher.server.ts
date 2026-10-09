@@ -31,6 +31,10 @@ export type PublisherCampaignView = {
   completionsCount: number;
   slotsRemaining: number | null;
   countries: string[];
+  category: string | null;
+  subcategory: string | null;
+  estimatedMinutes: number | null;
+  featured: boolean;
   createdAt: string;
 };
 
@@ -73,16 +77,25 @@ export type CampaignSubmissionRow = {
 /**
  * Lists campaigns that are active and visible to publishers (admin-approved).
  * Excludes campaigns the user already submitted proof for (one submission per campaign).
+ * Featured campaigns (not expired) are included and marked with featured=true.
  */
 export async function listActiveCampaignsImpl(userId: string): Promise<PublisherCampaignView[]> {
   const { data, error } = await mktDbPublisher
     .from("campaigns")
-    .select("id, name, summary, publisher_reward, verification_mode, max_completions, completions_count, countries, created_at")
+    .select(`
+      id, name, summary, publisher_reward, verification_mode, max_completions, completions_count, 
+      countries, category_id, subcategory_id, estimated_minutes, is_featured, featured_expires_at, created_at,
+      marketplace_categories:category_id (name),
+      marketplace_subcategories:subcategory_id (name)
+    `)
     .eq("status", "active")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`campaigns: ${error.message}`);
-  const campaigns = (data ?? []) as CampaignRow[];
+  const campaigns = (data ?? []) as (CampaignRow & { 
+    marketplace_categories: { name: string } | null; 
+    marketplace_subcategories: { name: string } | null;
+  })[];
 
   // Filter out campaigns user already submitted to
   const { data: existingSubmissions } = await mktDbPublisher
@@ -92,6 +105,7 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
 
   const submittedIds = new Set((existingSubmissions ?? []).map((s: { campaign_id: string }) => s.campaign_id));
 
+  const now = new Date();
   return campaigns
     .filter((c) => !submittedIds.has(c.id))
     .map((c) => ({
@@ -104,6 +118,11 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
       completionsCount: c.completions_count,
       slotsRemaining: c.max_completions > c.completions_count ? c.max_completions - c.completions_count : null,
       countries: c.countries ?? [],
+      category: c.marketplace_categories?.name || null,
+      subcategory: c.marketplace_subcategories?.name || null,
+      estimatedMinutes: c.estimated_minutes,
+      // Check featured status: must be featured AND not expired
+      featured: c.is_featured && c.featured_expires_at ? new Date(c.featured_expires_at) > now : false,
       createdAt: c.created_at,
     }));
 }

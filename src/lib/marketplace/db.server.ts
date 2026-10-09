@@ -129,8 +129,36 @@ export type CampaignRow = {
   review_note: string | null;
   review_source: "admin" | "auto" | null;
   submitted_at: string | null;
+  category_id: string | null;
+  subcategory_id: string | null;
+  estimated_minutes: number | null;
+  landing_url: string;
+  is_featured: boolean;
+  featured_started_at: string | null;
+  featured_expires_at: string | null;
+  featured_fee_paid: string | number;
   created_at: string;
   activated_at: string | null;
+};
+
+export type CategoryRow = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  icon: string | null;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type SubcategoryRow = {
+  id: string;
+  category_id: string;
+  slug: string;
+  name: string;
+  description: string;
+  sort_order: number;
+  is_active: boolean;
 };
 
 export type MarketplaceSettingsRow = {
@@ -143,6 +171,7 @@ export type MarketplaceSettingsRow = {
   promo_ends_at: string | null;
   first_deposit_bonus_percent: string | number;
   referral_bonus_split_percent: string | number;
+  featured_price_per_day: string | number;
   terms_version: string;
 };
 
@@ -186,7 +215,7 @@ export async function loadMarketplaceSettings(): Promise<MarketplaceSettingsRow>
   const { data, error } = await mktDb
     .from("marketplace_settings")
     .select(
-      "deposits_enabled, manual_deposits_enabled, min_deposit_usd, max_deposit_usd, inr_per_usd, platform_fee_percent, promo_ends_at, first_deposit_bonus_percent, referral_bonus_split_percent, terms_version",
+      "deposits_enabled, manual_deposits_enabled, min_deposit_usd, max_deposit_usd, inr_per_usd, platform_fee_percent, promo_ends_at, first_deposit_bonus_percent, referral_bonus_split_percent, featured_price_per_day, terms_version",
     )
     .eq("id", true)
     .maybeSingle();

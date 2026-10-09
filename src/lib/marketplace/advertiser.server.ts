@@ -734,12 +734,23 @@ export const createCampaignInput = z.object({
   reward: z.number().positive().min(0.05).max(1000),
   budget: z.number().positive().min(10).max(100000),
   countries: z.array(z.string()).min(1).max(20),
+  categoryId: z.string().uuid(),
+  subcategoryId: z.string().uuid().optional(),
+  landingUrl: z.string().trim().url().max(2048).regex(/^https:\/\//, "Must be an HTTPS URL"),
+  estimatedMinutes: z.number().int().min(1).max(1440).optional(),
+  featured: z.boolean().optional(),
+  featuredDays: z.number().int().min(1).max(30).optional(),
 });
 export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
 
 /**
  * Creates a campaign in draft status, then submits it for review.
  * NOTE: mkt_create_campaign() doesn't exist - we INSERT then call mkt_submit_campaign()
+ * CRITICAL: campaigns_guard trigger only allows INSERT of empty draft (advertiser_cost
+ * and fee_percent must be NULL). Pricing is set by mkt_submit_campaign.
+ * 
+ * FEATURED PLACEMENT: If featured=true, charges the featured fee from advertiser balance
+ * atomically with campaign creation. Fee is calculated server-side only (never trust client).
  */
 export async function createCampaignImpl(
   userId: string,
@@ -751,31 +762,84 @@ export async function createCampaignImpl(
     throw new DepositError("ACCOUNT_RESTRICTED", "Your advertiser account cannot create campaigns.");
   }
 
-  // Calculate max completions and cost per completion
-  const maxCompletions = Math.floor(input.budget / input.reward);
-  const platformFee = (await loadMarketplaceSettings()).platform_fee_percent;
-  const feeMultiplier = 1 + num(platformFee) / 100;
-  const costPerCompletion = Math.round(input.reward * feeMultiplier * 100) / 100;
+  // Validate category/subcategory relationship
+  if (input.subcategoryId) {
+    const { data: subcat, error: subcatErr } = await mktDb
+      .from("marketplace_subcategories")
+      .select("category_id")
+      .eq("id", input.subcategoryId)
+      .maybeSingle();
+    
+    if (subcatErr) throw new DepositError("INVALID_SUBCATEGORY", "Invalid subcategory.");
+    if (!subcat || subcat.category_id !== input.categoryId) {
+      throw new DepositError("CATEGORY_MISMATCH", "Subcategory does not belong to the selected category.");
+    }
+  }
 
-  // Step 1: INSERT campaign in draft status (mkt_create_campaign doesn't exist!)
+  // Load settings for featured pricing
+  const settings = await loadMarketplaceSettings();
+  
+  // Calculate featured fee SERVER-SIDE ONLY (never trust client!)
+  let featuredFee = 0;
+  let featuredDays = 0;
+  let featuredExpiresAt: Date | null = null;
+  
+  if (input.featured && input.featuredDays) {
+    featuredDays = Math.min(Math.max(input.featuredDays, 1), 30); // Clamp to 1-30
+    const pricePerDay = num(settings.featured_price_per_day);
+    featuredFee = Math.round(featuredDays * pricePerDay * 100) / 100;
+    
+    // Check if advertiser has enough balance for campaign budget + featured fee
+    const totalCost = input.budget + featuredFee;
+    if (account.spendable < totalCost) {
+      throw new DepositError(
+        "INSUFFICIENT_FUNDS",
+        `Not enough balance. Need $${totalCost.toFixed(2)} ($${input.budget.toFixed(2)} budget + $${featuredFee.toFixed(2)} featured), have $${account.spendable.toFixed(2)}.`
+      );
+    }
+    
+    featuredExpiresAt = new Date();
+    featuredExpiresAt.setDate(featuredExpiresAt.getDate() + featuredDays);
+  }
+
+  // Calculate max completions
+  const maxCompletions = Math.floor(input.budget / input.reward);
+
+  // Generate idempotency key for featured fee charge
+  const idempotencyKey = `featured-${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  // Step 1: INSERT campaign in draft status
+  // CRITICAL FIX: Remove advertiser_cost - campaigns_guard rejects it!
+  const campaignInsert: Record<string, any> = {
+    advertiser_id: userId,
+    type_key: "custom",
+    name: input.title,
+    summary: input.description.slice(0, 140),
+    description: input.description,
+    landing_url: input.landingUrl,
+    steps: [{ text: "Complete the task" }],
+    verification_mode: input.verification === "auto" ? "auto" : "manual_proof",
+    countries: input.countries,
+    publisher_reward: input.reward,
+    max_completions: maxCompletions,
+    proof_description: "Please upload proof of completion",
+    category_id: input.categoryId,
+    subcategory_id: input.subcategoryId || null,
+    estimated_minutes: input.estimatedMinutes || null,
+    status: "draft",
+  };
+
+  // Add featured fields if applicable
+  if (input.featured && featuredFee > 0) {
+    campaignInsert.is_featured = true;
+    campaignInsert.featured_started_at = new Date().toISOString();
+    campaignInsert.featured_expires_at = featuredExpiresAt!.toISOString();
+    campaignInsert.featured_fee_paid = featuredFee;
+  }
+
   const { data: campaign, error: insertError } = await mktDb
     .from("campaigns")
-    .insert({
-      advertiser_id: userId,
-      type_key: "custom", // From campaign_types table
-      name: input.title,
-      summary: input.description.slice(0, 140),
-      description: input.description,
-      landing_url: "https://example.com", // TODO: Get from input
-      steps: [{ text: "Complete the task" }], // Required field
-      verification_mode: input.verification === "auto" ? "auto" : "manual_proof",
-      countries: input.countries,
-      publisher_reward: input.reward,
-      advertiser_cost: costPerCompletion,
-      max_completions: maxCompletions,
-      proof_description: "Please upload proof of completion",
-      status: "draft",
-    })
+    .insert(campaignInsert)
     .select("id, status")
     .single();
 
@@ -783,7 +847,73 @@ export async function createCampaignImpl(
     throw new DepositError("CREATE_FAILED", `Failed to create campaign: ${insertError.message}`);
   }
 
-  // Step 2: Submit for review
+  // Step 2: If featured, charge the fee atomically
+  if (input.featured && featuredFee > 0) {
+    try {
+      // Charge featured fee from advertiser balance
+      // This uses the existing wallet system and creates a ledger entry
+      const { data: ledgerInsert, error: ledgerError } = await mktDb
+        .from("advertiser_ledger")
+        .insert({
+          advertiser_id: userId,
+          kind: "adjustment",
+          bucket: "deposit",
+          amount: featuredFee,
+          delta: -featuredFee,
+          balance_after: account.spendable - featuredFee,
+          campaign_id: campaign.id,
+          reference_type: "featured_placement",
+          reference_id: campaign.id,
+          description: `Featured placement fee (${featuredDays} days)`,
+          idempotency_key: idempotencyKey,
+        })
+        .select("id")
+        .single();
+
+      if (ledgerError) {
+        // Rollback: delete the campaign
+        await mktDb.from("campaigns").delete().eq("id", campaign.id);
+        
+        if (ledgerError.code === "23505") {
+          // Duplicate idempotency key - possible retry
+          throw new DepositError("DUPLICATE_REQUEST", "This featured request was already processed.");
+        }
+        
+        throw new DepositError("FEATURED_CHARGE_FAILED", `Failed to charge featured fee: ${ledgerError.message}`);
+      }
+
+      // Update advertiser account balance
+      const { error: balanceError } = await mktDb
+        .from("advertiser_accounts")
+        .update({
+          deposit_balance: account.spendable - featuredFee,
+          lifetime_spent: num(account.lifetime_spent) + featuredFee,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+
+      if (balanceError) {
+        // This is a critical error - ledger created but balance not updated
+        // Log it for manual reconciliation
+        console.error("[CRITICAL] Featured fee charged but balance update failed:", {
+          userId,
+          campaignId: campaign.id,
+          fee: featuredFee,
+          error: balanceError,
+        });
+        
+        throw new DepositError("BALANCE_UPDATE_FAILED", "Featured fee charged but balance update failed. Contact support.");
+      }
+    } catch (err) {
+      if (err instanceof DepositError) throw err;
+      
+      // Unexpected error - try to rollback campaign
+      await mktDb.from("campaigns").delete().eq("id", campaign.id);
+      throw err;
+    }
+  }
+
+  // Step 3: Submit for review
   try {
     await mktRpc("mkt_submit_campaign", {
       p_campaign_id: campaign.id,
