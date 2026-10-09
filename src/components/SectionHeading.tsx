@@ -73,8 +73,11 @@ export function SectionHeading({
                 alt=""
                 aria-hidden
                 data-testid={`section-heading-${slug}-icon`}
-                className={`relative z-20 shrink-0 rounded-xl object-contain shadow-sm ${bubbleImgSize}`}
+                className="relative z-20 size-9 shrink-0 rounded-xl object-contain shadow-sm"
                 decoding="async"
+                loading="lazy"
+                width={36}
+                height={36}
               />
             ) : (
               <span
@@ -126,8 +129,11 @@ export function SectionHeading({
             alt=""
             aria-hidden
             data-testid={`section-heading-${slug}-icon`}
-            className={`shrink-0 object-contain ${isPage ? "size-12" : "size-11"}`}
+            className="size-9 shrink-0 rounded-xl object-contain shadow-sm"
             decoding="async"
+            loading="lazy"
+            width={36}
+            height={36}
           />
         ) : (
           <span

@@ -255,7 +255,12 @@ function MicrotasksPage() {
       </div>
 
       <div ref={listRef} className="mt-5 flex items-end justify-between">
-        <SectionHeading variant="ribbon" icon={ListChecks} title="Available Tasks" />
+        <SectionHeading
+            variant="ribbon"
+            icon={ListChecks}
+            iconSrc="/icons/icon-task-checklist.png"
+            title="Available Tasks"
+          />
         <span className="mb-3 text-xs text-muted-foreground">{campaigns.isPending ? "..." : filtered.length} tasks</span>
       </div>
 

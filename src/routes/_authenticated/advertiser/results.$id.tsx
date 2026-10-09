@@ -52,7 +52,12 @@ function ResultsPage() {
         </div>
       </section>
 
-      <SectionHeading variant="ribbon" icon={BarChart3} title="Funnel" />
+      <SectionHeading
+        variant="ribbon"
+        icon={BarChart3}
+        iconSrc="/icons/icon-campaign-statistics.png"
+        title="Funnel"
+      />
       <div className="grid grid-cols-3 gap-2">
         <StatTile label="Clicks" value={r.clicks.toLocaleString()} />
         <StatTile label="Started" value={r.started.toLocaleString()} />
@@ -63,7 +68,12 @@ function ResultsPage() {
         {conversion}% of clicks completed the task
       </p>
 
-      <SectionHeading variant="ribbon" icon={CheckCircle2} title="Submissions" />
+      <SectionHeading
+        variant="ribbon"
+        icon={CheckCircle2}
+        iconSrc="/icons/icon-submission-review.png"
+        title="Submissions"
+      />
       <div className="surface-card divide-y divide-border">
         {[
           { icon: CheckCircle2, label: "Approved", value: r.approved, cls: "text-primary" },

@@ -43,7 +43,12 @@ function AdvertiserReferralPage() {
         </Link>
       </div>
 
-      <SectionHeading variant="ribbon" icon={Users} title="Your advertiser referrals" />
+      <SectionHeading
+          variant="ribbon"
+          icon={Users}
+          iconSrc="/icons/icon-user-referrals.png"
+          title="Your advertiser referrals"
+        />
       <div className="grid grid-cols-2 gap-3">
         <StatTile label="Referred advertisers" value={String(r.referredAdvertisers)} />
         <StatTile label="Qualifying activations" value={String(r.totalDeposits)} hint="Funded a first campaign" tone="mint" />

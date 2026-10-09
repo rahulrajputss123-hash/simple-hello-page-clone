@@ -321,7 +321,12 @@ function FundsPage() {
 
       {(recent.data?.length ?? 0) > 0 && (
         <>
-          <SectionHeading variant="ribbon" icon={Clock} title="Recent deposits" />
+          <SectionHeading
+          variant="ribbon"
+          icon={Clock}
+          iconSrc="/icons/icon-deposit-refund.png"
+          title="Recent deposits"
+        />
           <ul className="surface-card divide-y divide-border" data-testid="recent-deposits">
             {recent.data!.map((d) => (
               <li key={d.id} className="flex items-center justify-between p-3.5 text-sm">
