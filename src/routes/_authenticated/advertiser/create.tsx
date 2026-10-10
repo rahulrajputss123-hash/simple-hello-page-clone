@@ -14,8 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { BackLink } from "@/components/marketplace/Preview";
+import { PostbackSecretModal } from "@/components/marketplace/PostbackSecretModal";
 import { createCampaign, listCategories } from "@/lib/marketplace.functions";
 import { useRole } from "@/lib/marketplace/role";
+import { campaignTotals } from "@/lib/marketplace/pricing";
 
 export const Route = createFileRoute("/_authenticated/advertiser/create")({
   head: () => ({ meta: [{ title: "Create Campaign — CashGPT" }] }),
@@ -42,7 +44,7 @@ function CreateCampaignPage() {
   const [description, setDescription] = useState("");
   const [verification, setVerification] = useState<Verification>("proof");
   const [reward, setReward] = useState("0.50");
-  const [budget, setBudget] = useState("100");
+  const [slots, setSlots] = useState("50"); // Slots instead of budget
   const [country, setCountry] = useState("Worldwide");
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
@@ -50,6 +52,11 @@ function CreateCampaignPage() {
   const [estimatedMinutes, setEstimatedMinutes] = useState("");
   const [featured, setFeatured] = useState(false);
   const [featuredDays, setFeaturedDays] = useState("7");
+  const [trackingUrl, setTrackingUrl] = useState("");
+  const [ipAllowlist, setIpAllowlist] = useState("");
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [showPostback, setShowPostback] = useState(false);
+  const [postbackInfo, setPostbackInfo] = useState<{ url: string; secret: string } | null>(null);
 
   const selectedCategory = useMemo(
     () => categories.data?.find((c) => c.id === categoryId),
@@ -57,17 +64,33 @@ function CreateCampaignPage() {
   );
 
   const rewardNum = Number(reward) || 0;
-  const budgetNum = Number(budget) || 0;
-  const conversions = Math.floor(budgetNum / (rewardNum || 1));
+  const slotsNum = Number(slots) || 0;
+  const platformFeePercent = overview?.settings?.platformFeePercent ?? 5;
   const featuredPricePerDay = overview?.settings?.featuredPricePerDay ?? 2;
-  const featuredFee = useMemo(
-    () => (featured ? Number(featuredDays) * featuredPricePerDay : 0),
-    [featured, featuredDays, featuredPricePerDay]
+  const feesEnabled = overview?.settings?.feesEnabled ?? false;
+  const campaignFeeUsd = overview?.settings?.campaignFeeUsd ?? 0.5;
+  const campaignFeeType = overview?.settings?.campaignFeeType ?? "per_campaign";
+  
+  const featuredDaysNum = Number(featuredDays) || 0;
+  const featuredFee = featured && featuredDaysNum > 0 ? featuredDaysNum * featuredPricePerDay : 0;
+  
+  // Use pricing module for calculations
+  const totals = useMemo(
+    () =>
+      campaignTotals({
+        slots: slotsNum,
+        reward: rewardNum,
+        feePercent: platformFeePercent,
+        feesEnabled,
+        feeUsd: campaignFeeUsd,
+        feeType: campaignFeeType,
+        featuredFee,
+      }),
+    [slotsNum, rewardNum, platformFeePercent, feesEnabled, campaignFeeUsd, campaignFeeType, featuredFee]
   );
 
   const account = overview?.account;
-  const totalCost = budgetNum + (featured ? featuredFee : 0);
-  const canCreate = account?.status === "active" && account.spendable >= totalCost;
+  const canCreate = account?.status === "active" && account.spendable >= totals.total && slotsNum >= 15 && rulesAccepted;
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -77,7 +100,7 @@ function CreateCampaignPage() {
           description: description.trim(),
           verification,
           reward: rewardNum,
-          budget: budgetNum,
+          slots: slotsNum,
           countries: country === "Worldwide" ? ["*"] : [country],
           categoryId,
           subcategoryId: subcategoryId || undefined,
@@ -85,10 +108,19 @@ function CreateCampaignPage() {
           estimatedMinutes: estimatedMinutes ? Number(estimatedMinutes) : undefined,
           featured: featured,
           featuredDays: featured ? Number(featuredDays) : undefined,
+          trackingUrl: verification === "auto" && trackingUrl ? trackingUrl.trim() : undefined,
+          ipAllowlist: ipAllowlist ? ipAllowlist.split(",").map((ip) => ip.trim()).filter(Boolean) : undefined,
+          rulesAccepted,
         },
       }),
     onSuccess: async (result) => {
       await Promise.all([refreshOverview(), queryClient.invalidateQueries({ queryKey: ["my-campaigns"] })]);
+      
+      // Store postback info if returned
+      if (result.postbackUrl && result.postbackSecret) {
+        setPostbackInfo({ url: result.postbackUrl, secret: result.postbackSecret });
+        setShowPostback(true);
+      }
       
       // Handle featured placement result
       if (result.featuredApplied === false && result.featuredError) {
@@ -99,7 +131,10 @@ function CreateCampaignPage() {
         toast.success("Campaign submitted for review");
       }
       
-      navigate({ to: "/advertiser/campaigns" });
+      // Don't navigate if showing postback info
+      if (!result.postbackUrl) {
+        navigate({ to: "/advertiser/campaigns" });
+      }
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
@@ -125,8 +160,16 @@ function CreateCampaignPage() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!canCreate) {
+            if (slotsNum < 15) {
+              toast.error("Minimum 15 slots required");
+              return;
+            }
+            if (!rulesAccepted) {
+              toast.error("Accept offer rules to continue");
+              return;
+            }
             toast.error("Add funds first", {
-              description: `You need at least $${budgetNum.toFixed(2)} in your Campaign Balance.`,
+              description: `You need at least $${totals.total.toFixed(2)} in your Campaign Balance.`,
             });
             return;
           }
@@ -136,6 +179,14 @@ function CreateCampaignPage() {
           }
           if (!landingUrl.trim()) {
             toast.error("Enter a destination URL");
+            return;
+          }
+          if (verification === "auto" && !trackingUrl.trim()) {
+            toast.error("Enter tracking URL for auto verification");
+            return;
+          }
+          if (verification === "auto" && !trackingUrl.includes("{click_id}")) {
+            toast.error("Tracking URL must contain {click_id} placeholder");
             return;
           }
           mutation.mutate();
@@ -260,6 +311,36 @@ function CreateCampaignPage() {
           </div>
         </div>
 
+        {verification === "auto" && (
+          <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="c-tracking-url">Tracking URL *</Label>
+              <Input
+                id="c-tracking-url"
+                type="url"
+                maxLength={2048}
+                placeholder="https://yoursite.com/track?click_id={click_id}"
+                value={trackingUrl}
+                onChange={(e) => setTrackingUrl(e.target.value)}
+                required
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Must be HTTPS and include <code className="rounded bg-muted px-1">{"click_id"}</code> placeholder
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="c-ip-allowlist">IP Allowlist (optional)</Label>
+              <Input
+                id="c-ip-allowlist"
+                placeholder="192.168.1.1, 10.0.0.1"
+                value={ipAllowlist}
+                onChange={(e) => setIpAllowlist(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">Comma-separated IPs that can send postbacks</p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="c-reward">Reward per completion</Label>
@@ -275,22 +356,68 @@ function CreateCampaignPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="c-budget">Total budget</Label>
+            <Label htmlFor="c-slots">Number of slots</Label>
+            <div className="flex gap-2 mb-2">
+              {[15, 50, 100, 500].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setSlots(preset.toString())}
+                  className={`flex-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors ${
+                    Number(slots) === preset
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
             <Input
-              id="c-budget"
+              id="c-slots"
               type="number"
-              min={10}
-              step={5}
-              inputMode="decimal"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
+              min={15}
+              step={1}
+              inputMode="numeric"
+              value={slots}
+              onChange={(e) => setSlots(e.target.value)}
               required
             />
+            <p className="text-[11px] text-muted-foreground">Minimum 15 slots</p>
           </div>
         </div>
-        <p className="rounded-xl bg-mint/15 px-3 py-2 text-xs text-primary">
-          ≈ <strong>{conversions.toLocaleString()}</strong> completions at this reward.
-        </p>
+        <div className="rounded-xl bg-mint/15 px-3 py-2 text-xs text-primary space-y-1">
+          <div className="flex justify-between">
+            <span>Slots × Reward:</span>
+            <strong>${(slotsNum * rewardNum).toFixed(2)}</strong>
+          </div>
+          <div className="flex justify-between">
+            <span>Platform fee ({platformFeePercent}%):</span>
+            <strong>${((slotsNum * rewardNum * platformFeePercent) / 100).toFixed(2)}</strong>
+          </div>
+          <div className="flex justify-between border-t border-primary/20 pt-1 mt-1">
+            <span>Campaign budget:</span>
+            <strong>${totals.allocation.toFixed(2)}</strong>
+          </div>
+          {totals.campaignFee > 0 && (
+            <div className="flex justify-between">
+              <span>Campaign fee ({campaignFeeType === "per_campaign" ? "one-time" : `${slotsNum} slots`}):</span>
+              <strong>${totals.campaignFee.toFixed(2)}</strong>
+            </div>
+          )}
+          {totals.featuredFee > 0 && (
+            <div className="flex justify-between">
+              <span>Featured placement ({featuredDaysNum}d):</span>
+              <strong>${totals.featuredFee.toFixed(2)}</strong>
+            </div>
+          )}
+          {(totals.campaignFee > 0 || totals.featuredFee > 0) && (
+            <div className="flex justify-between border-t border-primary/20 pt-1 mt-1 font-semibold">
+              <span>Total cost:</span>
+              <strong>${totals.total.toFixed(2)}</strong>
+            </div>
+          )}
+        </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="c-country">Country targeting</Label>
@@ -342,10 +469,38 @@ function CreateCampaignPage() {
           )}
         </div>
 
+        <div className="space-y-3 rounded-xl border border-muted-foreground/20 bg-muted/30 p-4">
+          <div>
+            <h3 className="text-sm font-semibold mb-2">Offer Rules</h3>
+            <div className="space-y-2 text-xs text-muted-foreground">
+              <div>
+                <p className="font-medium text-foreground mb-1">✅ Allowed:</p>
+                <p>App install, signup, website visit, free/paid trial, purchase, lead form, survey, video watch, social actions with proof, app testing.</p>
+              </div>
+              <div>
+                <p className="font-medium text-foreground mb-1">❌ Not allowed:</p>
+                <p>Requests for card/ID/OTP, crypto wallet connect/seed phrase, adult/illegal/misleading offers, phishing/malware, APKs outside stores, fake reviews, impersonation.</p>
+              </div>
+            </div>
+          </div>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={rulesAccepted}
+              onChange={(e) => setRulesAccepted(e.target.checked)}
+              className="mt-0.5"
+              required
+            />
+            <span className="text-xs text-muted-foreground">
+              I have read and agree to follow the offer rules above
+            </span>
+          </label>
+        </div>
+
         {!canCreate && account && (
           <p className="rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            Not enough Campaign Balance. You have ${account.spendable.toFixed(2)}, need ${totalCost.toFixed(2)}
-            {featured && ` ($${budgetNum.toFixed(2)} budget + $${featuredFee.toFixed(2)} featured)`}.
+            Not enough Campaign Balance. You have ${account.spendable.toFixed(2)}, need ${totals.total.toFixed(2)}
+            {(totals.campaignFee > 0 || totals.featuredFee > 0) && ` ($${totals.allocation.toFixed(2)} budget${totals.campaignFee > 0 ? ` + $${totals.campaignFee.toFixed(2)} fee` : ""}${totals.featuredFee > 0 ? ` + $${totals.featuredFee.toFixed(2)} featured` : ""})`}.
           </p>
         )}
 
@@ -363,6 +518,17 @@ function CreateCampaignPage() {
           Campaign starts as a draft. You can edit it, then submit for review to go live.
         </p>
       </form>
+
+      {/* Postback Info Modal */}
+      <PostbackSecretModal
+        open={showPostback && postbackInfo !== null}
+        onClose={() => {
+          setShowPostback(false);
+          navigate({ to: "/advertiser/campaigns" });
+        }}
+        postbackUrl={postbackInfo?.url || ""}
+        postbackSecret={postbackInfo?.secret || ""}
+      />
     </AppShell>
   );
 }

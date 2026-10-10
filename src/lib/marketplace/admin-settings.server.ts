@@ -34,6 +34,11 @@ export interface MarketplaceSettings {
   auto_approve_enabled: boolean;
   auto_approve_after_minutes: number;
   auto_approve_skip_first_campaign: boolean;
+  // Fee settings
+  fees_enabled: boolean;
+  campaign_fee_usd: number;
+  campaign_fee_type: "per_campaign" | "per_slot";
+  featured_price_per_day: number;
 }
 
 export interface ReferralSettings {
@@ -101,6 +106,11 @@ const updateMarketplaceSettingsInput = z.object({
   auto_approve_enabled: z.boolean().optional(),
   auto_approve_after_minutes: z.number().int().min(1).max(120).optional(),
   auto_approve_skip_first_campaign: z.boolean().optional(),
+  // Fee settings
+  fees_enabled: z.boolean().optional(),
+  campaign_fee_usd: z.number().min(0).max(100).optional(),
+  campaign_fee_type: z.enum(["per_campaign", "per_slot"]).optional(),
+  featured_price_per_day: z.number().min(0).max(1000).optional(),
 });
 
 export const updateMarketplaceSettingsImpl = async (

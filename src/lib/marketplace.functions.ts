@@ -172,6 +172,25 @@ export const campaignAction = createServerFn({ method: "POST" })
     }
   });
 
+export const rotateCampaignSecret = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        campaignId: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { rotateCampaignSecretImpl, DepositError } = await import("./marketplace/advertiser.server");
+    try {
+      return await rotateCampaignSecretImpl(context.userId, data.campaignId);
+    } catch (err) {
+      if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
+      throw err;
+    }
+  });
+
 /* ---------------------------------------------------------------- publisher */
 
 export const listActiveCampaigns = createServerFn({ method: "POST" })

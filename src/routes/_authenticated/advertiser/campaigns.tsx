@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronRight, Loader2, Megaphone, Pause, Play } from "lucide-react";
+import { ChevronRight, Key, Loader2, Megaphone, Pause, Play } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -10,9 +10,10 @@ import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackLink, VerificationBadge } from "@/components/marketplace/Preview";
+import { PostbackSecretModal } from "@/components/marketplace/PostbackSecretModal";
 import { useAuth } from "@/lib/auth";
 import { formatMoney } from "@/lib/coinquest";
-import { campaignAction, listMyCampaigns } from "@/lib/marketplace.functions";
+import { campaignAction, listMyCampaigns, rotateCampaignSecret } from "@/lib/marketplace.functions";
 import type { CampaignView } from "@/lib/marketplace/advertiser.server";
 import { useRole } from "@/lib/marketplace/role";
 
@@ -54,7 +55,10 @@ function MyCampaignsPage() {
   const queryClient = useQueryClient();
   const list = useServerFn(listMyCampaigns);
   const act = useServerFn(campaignAction);
+  const rotate = useServerFn(rotateCampaignSecret);
   const [tab, setTab] = useState<Group>("active");
+  const [showRotateModal, setShowRotateModal] = useState(false);
+  const [rotatedInfo, setRotatedInfo] = useState<{ url: string; secret: string } | null>(null);
 
   const key = ["my-campaigns", session?.user.id];
   const campaigns = useQuery({
@@ -84,6 +88,19 @@ function MyCampaignsPage() {
     },
     onError: (err) =>
       toast.error("Couldn't update the campaign", {
+        description: err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : undefined,
+      }),
+  });
+
+  const rotateMutation = useMutation({
+    mutationFn: (campaignId: string) => rotate({ data: { campaignId } }),
+    onSuccess: (result) => {
+      setRotatedInfo({ url: result.url, secret: result.secret });
+      setShowRotateModal(true);
+      toast.success("Secret rotated successfully");
+    },
+    onError: (err) =>
+      toast.error("Couldn't rotate secret", {
         description: err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : undefined,
       }),
   });
@@ -230,6 +247,24 @@ function MyCampaignsPage() {
                       {pending ? <Loader2 className="size-4 animate-spin" /> : null} Submit for approval
                     </Button>
                   )}
+                  {c.verification === "auto" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={rotateMutation.isPending && rotateMutation.variables === c.id}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        rotateMutation.mutate(c.id);
+                      }}
+                      title="Rotate postback secret"
+                    >
+                      {rotateMutation.isPending && rotateMutation.variables === c.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Key className="size-4" />
+                      )}
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" asChild>
                     <Link to="/advertiser/results/$id" params={{ id: c.id }}>
                       Results <ChevronRight className="size-4" />
@@ -241,6 +276,17 @@ function MyCampaignsPage() {
           })}
         </ul>
       )}
+      
+      <PostbackSecretModal
+        open={showRotateModal && rotatedInfo !== null}
+        onClose={() => {
+          setShowRotateModal(false);
+          setRotatedInfo(null);
+        }}
+        postbackUrl={rotatedInfo?.url || ""}
+        postbackSecret={rotatedInfo?.secret || ""}
+        isRotation={true}
+      />
     </AppShell>
   );
 }

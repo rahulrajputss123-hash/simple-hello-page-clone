@@ -1,9 +1,11 @@
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import {
   type AdvertiserAccountRow,
   type AdvertiserDepositRow,
   type CampaignRow,
+  type CampaignDbStatus,
   type LedgerRow,
   type MarketplaceSettingsRow,
   MktRpcError,
@@ -12,6 +14,7 @@ import {
   mktRpc,
   num,
 } from "./db.server";
+import { campaignTotals, hasSufficientFunds } from "./pricing";
 import {
   type RazorpayWebhookEvent,
   createRazorpayOrder,
@@ -20,6 +23,26 @@ import {
   verifyCheckoutSignature,
   verifyWebhookSignature,
 } from "./razorpay.server";
+
+/**
+ * Gets the site URL for postback URLs, preferring SITE_URL env var,
+ * falling back to request origin.
+ */
+function getSiteUrl(): string {
+  const envUrl = process.env['SITE_URL'];
+  if (envUrl) return envUrl.replace(/\/$/, ''); // remove trailing slash
+  
+  const request = getRequest();
+  if (request?.headers) {
+    const origin = request.headers.get('origin') || 
+                   request.headers.get('referer')?.split('/').slice(0, 3).join('/') ||
+                   '';
+    if (origin) return origin.replace(/\/$/, '');
+  }
+  
+  // Fallback to empty string (will produce relative URL)
+  return '';
+}
 
 /**
  * Phase 2 — advertiser activation, Razorpay deposits, dashboard reads.
@@ -73,6 +96,9 @@ export type SettingsView = {
   promoEndsAt: string | null;
   firstDepositBonusPercent: number;
   featuredPricePerDay: number;
+  feesEnabled: boolean;
+  campaignFeeUsd: number;
+  campaignFeeType: "per_campaign" | "per_slot";
   termsVersion: string;
   razorpayConfigured: boolean;
 };
@@ -172,6 +198,9 @@ function settingsView(s: MarketplaceSettingsRow): SettingsView {
     promoEndsAt: s.promo_ends_at,
     firstDepositBonusPercent: num(s.first_deposit_bonus_percent),
     featuredPricePerDay: num(s.featured_price_per_day),
+    feesEnabled: s.fees_enabled,
+    campaignFeeUsd: num(s.campaign_fee_usd),
+    campaignFeeType: s.campaign_fee_type,
     termsVersion: s.terms_version,
     razorpayConfigured: razorpayConfigured(),
   };
@@ -734,7 +763,7 @@ export const createCampaignInput = z.object({
   description: z.string().trim().min(10).max(1000),
   verification: z.enum(["auto", "proof"]),
   reward: z.number().positive().min(0.05).max(1000),
-  budget: z.number().positive().min(10).max(100000),
+  slots: z.number().int().min(15).max(100000), // Slots-first budgeting (min 15)
   countries: z.array(z.string()).min(1).max(20),
   categoryId: z.string().uuid(),
   subcategoryId: z.string().uuid().optional(),
@@ -742,48 +771,95 @@ export const createCampaignInput = z.object({
   estimatedMinutes: z.number().int().min(1).max(1440).optional(),
   featured: z.boolean().optional(),
   featuredDays: z.number().int().min(1).max(30).optional(),
+  // Auto verification fields
+  trackingUrl: z.string().trim().url().max(2048).regex(/^https:\/\//, "Must be an HTTPS URL").optional(),
+  ipAllowlist: z.array(z.string()).max(50).optional(),
+  // Offer rules confirmation
+  rulesAccepted: z.boolean(),
 });
 export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
 
 /**
  * Creates a campaign in draft status, then submits it for review.
- * NOTE: mkt_create_campaign() doesn't exist - we INSERT then call mkt_submit_campaign()
+ * NOTE: mkt_create_campaign() doesn't exist - we INSERT then call mkt_submit_campaign_with_fee()
  * CRITICAL: campaigns_guard trigger only allows INSERT of empty draft (advertiser_cost
  * and fee_percent must be NULL). Pricing is set by mkt_submit_campaign.
  * 
+ * CAMPAIGN FEES: If fees_enabled=true, mkt_submit_campaign_with_fee charges the fee once
+ * before submitting, using pricing.ts for preflight validation.
+ * 
  * FEATURED PLACEMENT: If featured=true, charges the featured fee from advertiser balance
  * atomically with campaign creation. Fee is calculated server-side only (never trust client).
+ * 
+ * SLOTS-FIRST BUDGETING: Budget = slots × reward × (1 + platform_fee_percent/100).
+ * Server calculates budget; never trust client amounts.
  */
 export async function createCampaignImpl(
   userId: string,
   input: CreateCampaignInput,
-): Promise<{ campaignId: string; status: CampaignDbStatus; featuredApplied?: boolean; featuredError?: string }> {
+): Promise<{ 
+  campaignId: string; 
+  status: CampaignDbStatus; 
+  featuredApplied?: boolean; 
+  featuredError?: string;
+  postbackUrl?: string;
+  postbackSecret?: string;
+}> {
   const account = await getAccount(userId);
   if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
   if (account.status !== "active") {
     throw new DepositError("ACCOUNT_RESTRICTED", "Your advertiser account cannot create campaigns.");
   }
 
-  // Validate featured placement
-  if (input.featured) {
-    if (!input.featuredDays || input.featuredDays < 1 || input.featuredDays > 30) {
-      throw new DepositError(
-        "INVALID_FEATURED",
-        "Featured placement requires days between 1 and 30."
-      );
-    }
+  // Validate offer rules acceptance
+  if (!input.rulesAccepted) {
+    throw new DepositError("RULES_NOT_ACCEPTED", "You must accept the offer rules before creating a campaign.");
+  }
 
-    // Preflight check: ensure enough balance for budget + featured fee
-    const settings = await loadMarketplaceSettings();
-    const featuredFee = num(settings.featured_price_per_day) * input.featuredDays;
-    const totalCost = input.budget + featuredFee;
-    
-    if (account.spendable < totalCost) {
-      throw new DepositError(
-        "INSUFFICIENT_FUNDS",
-        `Not enough balance. Need $${totalCost.toFixed(2)} ($${input.budget.toFixed(2)} campaign + $${featuredFee.toFixed(2)} featured), have $${account.spendable.toFixed(2)}.`
-      );
+  // Validate auto verification requirements
+  if (input.verification === "auto") {
+    if (!input.trackingUrl) {
+      throw new DepositError("TRACKING_URL_REQUIRED", "Tracking URL is required for auto verification.");
     }
+    if (!input.trackingUrl.includes("{click_id}")) {
+      throw new DepositError("INVALID_TRACKING_URL", "Tracking URL must contain {click_id} placeholder.");
+    }
+  }
+
+  // Load settings for budget calculation and featured pricing
+  const settings = await loadMarketplaceSettings();
+  
+  // Calculate totals using pricing module
+  const featuredDays = input.featured && input.featuredDays ? input.featuredDays : 0;
+  const featuredFee = featuredDays > 0 ? num(settings.featured_price_per_day) * featuredDays : 0;
+  
+  const totals = campaignTotals({
+    slots: input.slots,
+    reward: input.reward,
+    feePercent: num(settings.platform_fee_percent),
+    feesEnabled: settings.fees_enabled,
+    feeUsd: num(settings.campaign_fee_usd),
+    feeType: settings.campaign_fee_type,
+    featuredFee,
+  });
+
+  // Calculate spendable balance
+  const spendable = Math.round((num(account.deposit_balance) + num(account.bonus_available)) * 100) / 100;
+
+  // Preflight check using pricing module
+  if (!hasSufficientFunds({
+    spendable,
+    deposit: num(account.deposit_balance),
+    totals,
+  })) {
+    throw new DepositError(
+      "INSUFFICIENT_FUNDS",
+      `Not enough balance. Need $${totals.total.toFixed(2)} (campaign: $${totals.allocation.toFixed(2)}${
+        totals.campaignFee > 0 ? `, fee: $${totals.campaignFee.toFixed(2)}` : ""
+      }${
+        totals.featuredFee > 0 ? `, featured: $${totals.featuredFee.toFixed(2)}` : ""
+      }), have $${spendable.toFixed(2)}.`
+    );
   }
 
   // Validate category/subcategory relationship
@@ -800,8 +876,18 @@ export async function createCampaignImpl(
     }
   }
 
-  // Calculate max completions
-  const maxCompletions = Math.floor(input.budget / input.reward);
+  // Calculate max completions from slots
+  const maxCompletions = input.slots;
+  const budget = totals.allocation; // Use allocation as budget
+
+  // Generate postback secret for auto verification (32+ chars)
+  let postbackSecret: string | undefined;
+  if (input.verification === "auto") {
+    // Generate cryptographically secure 32-character hex string
+    postbackSecret = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
 
   // Step 1: INSERT campaign in draft status
   // CRITICAL: Do NOT set featured fields here - campaigns_guard rejects them!
@@ -818,10 +904,14 @@ export async function createCampaignImpl(
     countries: input.countries,
     publisher_reward: input.reward,
     max_completions: maxCompletions,
+    budget_allocated: budget,
     proof_description: "Please upload proof of completion",
     category_id: input.categoryId,
     subcategory_id: input.subcategoryId || null,
     estimated_minutes: input.estimatedMinutes || null,
+    ...(input.verification === "auto" && input.trackingUrl && {
+      tracking_url: input.trackingUrl,
+    }),
     status: "draft",
   };
 
@@ -835,9 +925,28 @@ export async function createCampaignImpl(
     throw new DepositError("CREATE_FAILED", `Failed to create campaign: ${insertError.message}`);
   }
 
-  // Step 2: Submit for review (allocates budget)
+  // Step 1.5: Store postback secret if auto verification
+  if (input.verification === "auto" && postbackSecret) {
+    const { error: secretError } = await mktDb
+      .from("campaign_secrets")
+      .insert({
+        campaign_id: campaign.id,
+        auth_mode: "token",
+        secret: postbackSecret,
+        ip_allowlist: input.ipAllowlist || [],
+      });
+
+    if (secretError) {
+      // Rollback: delete the campaign
+      await mktDb.from("campaigns").delete().eq("id", campaign.id);
+      throw new DepositError("SECRET_FAILED", `Failed to store postback secret: ${secretError.message}`);
+    }
+  }
+
+  // Step 2: Submit for review (allocates budget, charges fee if enabled)
+  // Always use mkt_submit_campaign_with_fee (fee is 0 when fees are disabled)
   try {
-    await mktRpc("mkt_submit_campaign", {
+    await mktRpc("mkt_submit_campaign_with_fee", {
       p_campaign_id: campaign.id,
       p_actor: userId,
     });
@@ -873,10 +982,12 @@ export async function createCampaignImpl(
     }
   }
 
+  const siteUrl = getSiteUrl();
   return {
     campaignId: campaign.id,
     status: "pending_review" as CampaignDbStatus,
-    ...(input.featured && { featuredApplied, featuredError }),
+    ...(input.featured ? { featuredApplied: featuredApplied || undefined, featuredError: featuredError || undefined } : {}),
+    ...(postbackSecret ? { postbackUrl: `${siteUrl}/api/public/marketplace-postback?click_id={click_id}&token=${postbackSecret}&txn_id={transaction_id}`, postbackSecret } : {}),
   };
 }
 
@@ -886,7 +997,8 @@ export async function campaignActionImpl(userId: string, campaignId: string, act
   try {
     switch (action) {
       case "submit":
-        return await mktRpc("mkt_submit_campaign", { p_campaign_id: campaignId, p_actor: userId });
+        // Always use mkt_submit_campaign_with_fee (fee is 0 when fees are disabled)
+        return await mktRpc("mkt_submit_campaign_with_fee", { p_campaign_id: campaignId, p_actor: userId });
       case "pause":
       case "resume":
       case "complete":
@@ -924,7 +1036,59 @@ export function humanMktError(code: string): string {
       return "This campaign already has featured placement.";
     case "MKT_INVALID_FEATURED":
       return "Featured placement requires 1-30 days.";
+    case "MKT_NO_ACCOUNT":
+      return "Your advertiser account was not found.";
+    case "MKT_DUPLICATE_FEE":
+      return "This campaign fee has already been charged.";
     default:
       return "That didn't work. Please try again.";
   }
+}
+
+/**
+ * Rotate postback secret for an auto-verified campaign.
+ * Only owner can rotate. Returns new secret (shown once).
+ */
+export async function rotateCampaignSecretImpl(
+  userId: string,
+  campaignId: string,
+): Promise<{ secret: string; url: string }> {
+  // Verify ownership
+  const { data: campaign, error: campErr } = await mktDb
+    .from("campaigns")
+    .select("advertiser_id, verification_mode")
+    .eq("id", campaignId)
+    .maybeSingle();
+
+  if (campErr || !campaign) {
+    throw new DepositError("NOT_FOUND", "Campaign not found.");
+  }
+
+  if (campaign.advertiser_id !== userId) {
+    throw new DepositError("NOT_OWNER", "That campaign isn't yours.");
+  }
+
+  if (campaign.verification_mode !== "auto") {
+    throw new DepositError("NOT_AUTO", "Only auto-verified campaigns have postback secrets.");
+  }
+
+  // Generate new secret
+  const newSecret = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  // Update secret
+  const { error: updateErr } = await mktDb
+    .from("campaign_secrets")
+    .update({ secret: newSecret })
+    .eq("campaign_id", campaignId);
+
+  if (updateErr) {
+    throw new DepositError("UPDATE_FAILED", `Failed to rotate secret: ${updateErr.message}`);
+  }
+
+  const siteUrl = getSiteUrl();
+  const url = `${siteUrl}/api/public/marketplace-postback?click_id={click_id}&token=${newSecret}&txn_id={transaction_id}`;
+
+  return { secret: newSecret, url };
 }
