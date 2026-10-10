@@ -20,9 +20,8 @@ export const getPreferredRoleImpl = async (
   input: z.infer<typeof getPreferredRoleInput>
 ): Promise<UserRole | null> => {
   const { userId } = getPreferredRoleInput.parse(input);
-  const supabase = supabaseAdmin();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("preferred_role")
     .eq("id", userId)
@@ -49,9 +48,8 @@ export const setPreferredRoleImpl = async (
   input: z.infer<typeof setPreferredRoleInput>
 ): Promise<{ success: boolean }> => {
   const { userId, role } = setPreferredRoleInput.parse(input);
-  const supabase = supabaseAdmin();
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("profiles")
     .update({ preferred_role: role })
     .eq("id", userId);

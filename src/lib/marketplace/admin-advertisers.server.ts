@@ -29,10 +29,8 @@ export interface AdvertiserAccount {
  * List all advertiser accounts with their campaign counts
  */
 export const listAdvertisersImpl = async (): Promise<AdvertiserAccount[]> => {
-  const supabase = supabaseAdmin();
-
   // Get all advertiser accounts
-  const { data: advertisers, error } = await supabase
+  const { data: advertisers, error } = await supabaseAdmin
     .from("advertiser_accounts")
     .select("*")
     .order("created_at", { ascending: false });
@@ -42,7 +40,7 @@ export const listAdvertisersImpl = async (): Promise<AdvertiserAccount[]> => {
   // For each advertiser, get campaign count
   const advertisersWithCounts = await Promise.all(
     (advertisers ?? []).map(async (advertiser) => {
-      const { count } = await supabase
+      const { count } = await supabaseAdmin
         .from("campaigns")
         .select("*", { count: "exact", head: true })
         .eq("advertiser_id", advertiser.user_id);
@@ -74,9 +72,8 @@ export const setAdvertiserStatusImpl = async (
   input: z.infer<typeof setAdvertiserStatusInput>
 ): Promise<{ status: string }> => {
   const { advertiserId, adminId, status, reason } = setAdvertiserStatusInput.parse(input);
-  const supabase = supabaseAdmin();
 
-  const { data, error } = await supabase.rpc("mkt_set_advertiser_status", {
+  const { data, error } = await supabaseAdmin.rpc("mkt_set_advertiser_status", {
     p_advertiser: advertiserId,
     p_admin: adminId,
     p_status: status,
@@ -106,9 +103,8 @@ export const clearAdvertiserFlagImpl = async (
   input: z.infer<typeof clearAdvertiserFlagInput>
 ): Promise<{ cleared: boolean }> => {
   const { advertiserId, adminId, note } = clearAdvertiserFlagInput.parse(input);
-  const supabase = supabaseAdmin();
 
-  const { data, error } = await supabase.rpc("mkt_clear_advertiser_flag", {
+  const { data, error } = await supabaseAdmin.rpc("mkt_clear_advertiser_flag", {
     p_advertiser: advertiserId,
     p_admin: adminId,
     p_note: note,

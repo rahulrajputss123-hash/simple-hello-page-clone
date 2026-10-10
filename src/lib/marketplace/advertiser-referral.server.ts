@@ -30,10 +30,9 @@ export const getAdvertiserReferralStatsImpl = async (
   input: z.infer<typeof getAdvertiserReferralStatsInput>
 ): Promise<AdvertiserReferralStats> => {
   const { userId } = getAdvertiserReferralStatsInput.parse(input);
-  const supabase = supabaseAdmin();
 
   // Get all referrals where this user is the referrer
-  const { data: referrals, error: referralsError } = await supabase
+  const { data: referrals, error: referralsError } = await supabaseAdmin
     .from("referrals")
     .select("referred_id")
     .eq("referrer_id", userId);
@@ -52,7 +51,7 @@ export const getAdvertiserReferralStatsImpl = async (
   const referredIds = referrals.map((r) => r.referred_id);
 
   // Check which referred users have advertiser accounts
-  const { data: advertiserAccounts, error: accountsError } = await supabase
+  const { data: advertiserAccounts, error: accountsError } = await supabaseAdmin
     .from("advertiser_accounts")
     .select("user_id")
     .in("user_id", referredIds);
@@ -73,7 +72,7 @@ export const getAdvertiserReferralStatsImpl = async (
   const advertiserIds = advertiserAccounts?.map((a) => a.user_id) ?? [];
 
   // Check which advertisers have credited deposits (qualifying activation)
-  const { data: creditedDeposits, error: depositsError} = await supabase
+  const { data: creditedDeposits, error: depositsError} = await supabaseAdmin
     .from("advertiser_deposits")
     .select("advertiser_id")
     .in("advertiser_id", advertiserIds)

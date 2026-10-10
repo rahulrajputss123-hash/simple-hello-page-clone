@@ -21,11 +21,9 @@ interface FinancialOverview {
  * Pulls from advertiser_ledger and campaign_submissions tables
  */
 export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => {
-  const supabase = supabaseAdmin();
-
   try {
     // Get total deposits from advertiser_ledger (kind = 'deposit')
-    const { data: deposits, error: depositError } = await supabase
+    const { data: deposits, error: depositError } = await supabaseAdmin
       .from("advertiser_ledger")
       .select("amount")
       .eq("kind", "deposit");
@@ -35,7 +33,7 @@ export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => 
     const totalDeposits = deposits?.reduce((sum, row) => sum + Number(row.amount), 0) ?? 0;
 
     // Get total campaign spend from advertiser_ledger (kind = 'conversion_charge')
-    const { data: charges, error: chargeError } = await supabase
+    const { data: charges, error: chargeError } = await supabaseAdmin
       .from("advertiser_ledger")
       .select("amount")
       .eq("kind", "conversion_charge");
@@ -45,7 +43,7 @@ export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => 
     const totalCampaignSpend = charges?.reduce((sum, row) => sum + Number(row.amount), 0) ?? 0;
 
     // Get total publisher payouts from campaign_submissions (status approved/appeal_approved, sum reward_amount)
-    const { data: payouts, error: payoutError } = await supabase
+    const { data: payouts, error: payoutError } = await supabaseAdmin
       .from("campaign_submissions")
       .select("reward_amount")
       .in("status", ["approved", "appeal_approved"]);
@@ -58,7 +56,7 @@ export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => 
     const platformFeeCollected = totalCampaignSpend - totalPublisherPayouts;
 
     // Get active advertisers count
-    const { count: activeAdvertisers, error: advertiserError } = await supabase
+    const { count: activeAdvertisers, error: advertiserError } = await supabaseAdmin
       .from("advertiser_accounts")
       .select("*", { count: "exact", head: true })
       .eq("status", "active");
@@ -66,7 +64,7 @@ export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => 
     if (advertiserError) throw new Error(`Failed to fetch advertisers: ${advertiserError.message}`);
 
     // Get active campaigns count
-    const { count: activeCampaigns, error: campaignError } = await supabase
+    const { count: activeCampaigns, error: campaignError } = await supabaseAdmin
       .from("campaigns")
       .select("*", { count: "exact", head: true })
       .eq("status", "active");
@@ -74,7 +72,7 @@ export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => 
     if (campaignError) throw new Error(`Failed to fetch campaigns: ${campaignError.message}`);
 
     // Get pending submissions count
-    const { count: pendingSubmissions, error: submissionError } = await supabase
+    const { count: pendingSubmissions, error: submissionError } = await supabaseAdmin
       .from("campaign_submissions")
       .select("*", { count: "exact", head: true })
       .in("status", ["pending", "appealed"]);
