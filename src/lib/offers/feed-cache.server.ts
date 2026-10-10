@@ -22,6 +22,18 @@ import { normalizeCountry } from "./geo.server";
  *    offers ranked by (network weight * reward_amount).
  */
 
+// In-memory cache for assembled (non-user-specific) offer list (30-60s)
+type AssembledCacheEntry = {
+  offers: (FeaturedOffer & { _tagsManual?: boolean })[];
+  expires: number;
+};
+const _assembledCache = new Map<string, AssembledCacheEntry>();
+const ASSEMBLED_CACHE_TTL_MS = 45_000; // 45 seconds
+
+// In-memory TTL cache for enabled providers (60s)
+let _enabledProvidersCache: { data: OfferProvider[]; expires: number } | null = null;
+const PROVIDERS_CACHE_TTL_MS = 60_000;
+
 type CachedOffer = {
   id: string;
   externalOfferId: string | null;
@@ -217,6 +229,23 @@ async function getOrRefreshProviderCountry(
   const fresh = existing && new Date(existing.expires_at).getTime() > Date.now();
   if (fresh) return (existing.offers as unknown as CachedOffer[]) ?? [];
 
+  // Stale-while-revalidate: if we have stale data, return it immediately and refresh in background
+  if (existing?.offers) {
+    const staleOffers = (existing.offers as unknown as CachedOffer[]) ?? [];
+    // Trigger refresh in background (don't await)
+    refreshProviderCountry(provider, country, settings, ip).catch((err) => {
+      const message = err instanceof Error ? err.message : "feed refresh failed";
+      supabaseAdmin
+        .from("offer_feed_cache")
+        .update({ sync_error: message } as never)
+        .eq("provider_id", provider.id)
+        .eq("country", country)
+        .then(() => {});
+    });
+    return staleOffers;
+  }
+
+  // No cache at all - must block and wait for refresh
   try {
     return await refreshProviderCountry(provider, country, settings, ip);
   } catch (err) {
@@ -227,18 +256,31 @@ async function getOrRefreshProviderCountry(
       .update({ sync_error: message } as never)
       .eq("provider_id", provider.id)
       .eq("country", country);
-    if (existing?.offers) return (existing.offers as unknown as CachedOffer[]) ?? [];
     return [];
   }
 }
 
 async function enabledProviders(): Promise<OfferProvider[]> {
+  // Check in-memory cache
+  if (_enabledProvidersCache && _enabledProvidersCache.expires > Date.now()) {
+    return _enabledProvidersCache.data;
+  }
+
   const { data, error } = await supabaseAdmin
     .from("offer_providers")
     .select("*")
     .eq("enabled", true);
   if (error) throw error;
-  return (data ?? []) as unknown as OfferProvider[];
+  
+  const providers = (data ?? []) as unknown as OfferProvider[];
+  
+  // Cache for 60s
+  _enabledProvidersCache = { 
+    data: providers, 
+    expires: Date.now() + PROVIDERS_CACHE_TTL_MS 
+  };
+  
+  return providers;
 }
 
 /** Assemble the geo-targeted, ranked Featured Offers list for a given country. */
@@ -252,98 +294,122 @@ export async function assembleFeaturedImpl(
   const settings = presetSettings ?? (await getFeedSettingsImpl());
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
 
-  const providers = await enabledProviders();
-  const hasImageUrl = await offersHasImageUrl();
+  // Check assembled cache (non-user-specific)
+  const cacheKey = `${country}:${scope}`;
+  const cached = _assembledCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    // Apply per-user filtering on cached list
+    const visible = userId ? await filterUserHiddenOffers(cached.offers, userId) : cached.offers;
+    if (scope === "home") return visible.slice(0, settings.featuredSlots);
+    return visible;
+  }
+
+  const [providers, hasImageUrl] = await Promise.all([
+    enabledProviders(),
+    offersHasImageUrl(),
+  ]);
+
   const weightByProviderId = new Map(
     providers.map((p) => [p.id, readNetworkFeedConfig(p.slug, p.sync_config).weight]),
   );
   const slugByProviderId = new Map(providers.map((p) => [p.id, p.slug]));
 
-  // Gather network offer ids per provider for this country (refresh on miss/expiry).
+  // Gather network offer ids per provider for this country (refresh on miss/expiry) - IN PARALLEL
   const collected = new Map<string, number>(); // offerId -> highest provider weight
-  for (const provider of providers) {
-    let list = await getOrRefreshProviderCountry(provider, country, settings, ip);
-    if (
-      list.length === 0 &&
-      settings.fallbackBehavior === "default_country" &&
-      country !== settings.defaultCountry
-    ) {
-      list = await getOrRefreshProviderCountry(provider, settings.defaultCountry, settings, ip);
-    }
+  
+  const providerResults = await Promise.all(
+    providers.map(async (provider) => {
+      let list = await getOrRefreshProviderCountry(provider, country, settings, ip);
+      if (
+        list.length === 0 &&
+        settings.fallbackBehavior === "default_country" &&
+        country !== settings.defaultCountry
+      ) {
+        list = await getOrRefreshProviderCountry(provider, settings.defaultCountry, settings, ip);
+      }
+      return { provider, list };
+    })
+  );
+
+  // Collect results
+  for (const { provider, list } of providerResults) {
     const weight = weightByProviderId.get(provider.id) ?? 1;
     for (const item of list) {
       collected.set(item.id, Math.max(collected.get(item.id) ?? 0, weight));
     }
   }
 
-  // Load live offer rows (respects admin edits / active state).
-  let networkOffers: FeaturedOffer[] = [];
-  if (collected.size) {
-    const { data } = await supabaseAdmin
+  // Load network offers and manual featured offers IN PARALLEL
+  const [networkOffersData, manualRowsData] = await Promise.all([
+    // Network offers query
+    collected.size > 0
+      ? supabaseAdmin
+          .from("offers")
+          .select(
+            "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
+              imageCol(hasImageUrl),
+          )
+          .in("id", [...collected.keys()])
+          .eq("is_active", true)
+      : Promise.resolve({ data: [] }),
+    // Manual featured offers query
+    supabaseAdmin
       .from("offers")
       .select(
-        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
+        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
           imageCol(hasImageUrl),
       )
-      .in("id", [...collected.keys()])
-      .eq("is_active", true);
-    const now = Date.now();
-    networkOffers = ((data ?? []) as any[])
-      .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
-      .map((o) => ({
-        id: o.id,
-        external_offer_id: o.external_offer_id ?? null,
-        title: o.title,
-        description: o.description,
-        requirements: o.requirements,
-        not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
-        icon: o.icon,
-        image_url: pickImageUrl(o as { image_url?: string | null; icon?: string | null }),
-        reward_amount: Number(o.reward_amount),
-        display_price: (o as { display_price?: string | null }).display_price ?? null,
-        display_percent:
-          (o as { display_percent?: number | null }).display_percent != null
-            ? Number((o as { display_percent?: number }).display_percent)
-            : null,
-        click_url: o.click_url,
-        source: o.source,
-        provider_id: o.provider_id,
-        provider_slug: o.provider_id ? (slugByProviderId.get(o.provider_id) ?? null) : null,
-        is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
-        deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
-        actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
-        payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
-        max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
-        payout_mode: ((o as { payout_mode?: string }).payout_mode ??
-          "manual") as FeaturedOffer["payout_mode"],
-        category: (o as { category?: string | null }).category ?? null,
-        tags: normalizeStoredTags((o as { tags?: string[] }).tags),
-        _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),
-      }))
-      .sort((a, b) => {
-        const wa = collected.get(a.id) ?? 1;
-        const wb = collected.get(b.id) ?? 1;
-        const score = wb * b.reward_amount - wa * a.reward_amount;
-        if (score !== 0) return score;
-        return a.id.localeCompare(b.id);
-      });
-  }
+      .eq("source", "manual")
+      .eq("is_featured", true)
+      .eq("is_active", true)
+      .order("admin_priority", { ascending: false })
+      .order("sort_order", { ascending: true }),
+  ]);
 
-  // Manual admin-"Featured" offers always rank first, filtered by country.
-  const { data: manualRows } = await supabaseAdmin
-    .from("offers")
-    .select(
-      "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
-        imageCol(hasImageUrl),
-    )
-    .eq("source", "manual")
-    .eq("is_featured", true)
-    .eq("is_active", true)
-    .order("admin_priority", { ascending: false })
-    .order("sort_order", { ascending: true });
-
+  // Process network offers
   const now = Date.now();
-  const manualOffers: FeaturedOffer[] = ((manualRows ?? []) as any[])
+  const networkOffers: FeaturedOffer[] = ((networkOffersData.data ?? []) as any[])
+    .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
+    .map((o) => ({
+      id: o.id,
+      external_offer_id: o.external_offer_id ?? null,
+      title: o.title,
+      description: o.description,
+      requirements: o.requirements,
+      not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
+      icon: o.icon,
+      image_url: pickImageUrl(o as { image_url?: string | null; icon?: string | null }),
+      reward_amount: Number(o.reward_amount),
+      display_price: (o as { display_price?: string | null }).display_price ?? null,
+      display_percent:
+        (o as { display_percent?: number | null }).display_percent != null
+          ? Number((o as { display_percent?: number }).display_percent)
+          : null,
+      click_url: o.click_url,
+      source: o.source,
+      provider_id: o.provider_id,
+      provider_slug: o.provider_id ? (slugByProviderId.get(o.provider_id) ?? null) : null,
+      is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
+      deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
+      actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
+      payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
+      max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
+      payout_mode: ((o as { payout_mode?: string }).payout_mode ??
+        "manual") as FeaturedOffer["payout_mode"],
+      category: (o as { category?: string | null }).category ?? null,
+      tags: normalizeStoredTags((o as { tags?: string[] }).tags),
+      _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),
+    }))
+    .sort((a, b) => {
+      const wa = collected.get(a.id) ?? 1;
+      const wb = collected.get(b.id) ?? 1;
+      const score = wb * b.reward_amount - wa * a.reward_amount;
+      if (score !== 0) return score;
+      return a.id.localeCompare(b.id);
+    });
+
+  // Process manual featured offers
+  const manualOffers: FeaturedOffer[] = ((manualRowsData.data ?? []) as any[])
     .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
     .filter((o) => {
       const countries = (o.countries ?? []) as string[];
@@ -383,11 +449,14 @@ export async function assembleFeaturedImpl(
   const combined = [...manualOffers, ...networkOffers];
   // Overlay auto-tags for offers that don't have admin-locked tags.
   await applyAutoTags(combined);
-  // Hide offers this user has already COMPLETED (offer_claims.status = 'approved' —
-  // covers both admin-approved and auto_postback credited claims). Pending / rejected
-  // claims are intentionally kept so the offer stays available (and re-tryable).
-  // Also mirror the limited-deal "one per deal_group" visual hide that used to live in
-  // the offers RLS policy (moved here so the policy no longer self-references offers).
+
+  // Cache the assembled list (non-user-specific)
+  _assembledCache.set(cacheKey, {
+    offers: combined,
+    expires: Date.now() + ASSEMBLED_CACHE_TTL_MS,
+  });
+
+  // Apply per-user filtering
   const visible = userId ? await filterUserHiddenOffers(combined, userId) : combined;
   if (scope === "home") return visible.slice(0, settings.featuredSlots);
   return visible;
