@@ -55,16 +55,21 @@ export interface ReferralSettings {
 export const getMarketplaceSettingsImpl = async (): Promise<MarketplaceSettings> => {
   const supabase = supabaseAdmin();
 
-  const { data, error } = await supabase
-    .from("marketplace_settings")
-    .select("*")
-    .eq("id", true)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from("marketplace_settings")
+      .select("*")
+      .eq("id", true)
+      .single();
 
-  if (error) throw new Error(`Failed to fetch marketplace settings: ${error.message}`);
-  if (!data) throw new Error("Marketplace settings not found");
+    if (error) throw new Error(`Failed to fetch marketplace settings: ${error.message}`);
+    if (!data) throw new Error("Marketplace settings not found");
 
-  return data as MarketplaceSettings;
+    return data as MarketplaceSettings;
+  } catch (error) {
+    console.error("[getMarketplaceSettings] Error:", error);
+    throw error;
+  }
 };
 
 export const getMarketplaceSettings = createServerFn({ method: "GET" }).handler(

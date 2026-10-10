@@ -67,7 +67,7 @@ export async function listPendingCampaignsImpl(): Promise<AdminCampaignView[]> {
     .from("campaigns")
     .select("*, advertiser_accounts(display_name, user_id)")
     .eq("status", "pending_review")
-    .order("submitted_at", { ascending: false });
+    .order("created_at", { ascending: false });
 
   if (error) throw new Error(`campaigns: ${error.message}`);
 
@@ -170,7 +170,7 @@ export async function listPendingProofsImpl(): Promise<AdminProofView[]> {
     .from("campaign_submissions")
     .select("*, campaigns(name), profiles(name)")
     .in("status", ["pending", "appealed"])
-    .order("submitted_at", { ascending: false });
+    .order("created_at", { ascending: false });
 
   if (error) throw new Error(`campaign_submissions: ${error.message}`);
 
@@ -190,7 +190,7 @@ export async function listPendingProofsImpl(): Promise<AdminProofView[]> {
     rejectionReason: s.rejection_reason,
     appealText: s.appeal_text,
     reward: num(s.reward_amount),
-    submittedAt: s.submitted_at,
+    submittedAt: s.created_at,
   }));
 }
 

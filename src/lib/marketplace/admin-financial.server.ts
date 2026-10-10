@@ -23,72 +23,77 @@ interface FinancialOverview {
 export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => {
   const supabase = supabaseAdmin();
 
-  // Get total deposits from advertiser_ledger (kind = 'deposit')
-  const { data: deposits, error: depositError } = await supabase
-    .from("advertiser_ledger")
-    .select("amount")
-    .eq("kind", "deposit");
+  try {
+    // Get total deposits from advertiser_ledger (kind = 'deposit')
+    const { data: deposits, error: depositError } = await supabase
+      .from("advertiser_ledger")
+      .select("amount")
+      .eq("kind", "deposit");
 
-  if (depositError) throw new Error(`Failed to fetch deposits: ${depositError.message}`);
+    if (depositError) throw new Error(`Failed to fetch deposits: ${depositError.message}`);
 
-  const totalDeposits = deposits?.reduce((sum, row) => sum + Number(row.amount), 0) ?? 0;
+    const totalDeposits = deposits?.reduce((sum, row) => sum + Number(row.amount), 0) ?? 0;
 
-  // Get total campaign spend from advertiser_ledger (kind = 'conversion_charge')
-  const { data: charges, error: chargeError } = await supabase
-    .from("advertiser_ledger")
-    .select("amount")
-    .eq("kind", "conversion_charge");
+    // Get total campaign spend from advertiser_ledger (kind = 'conversion_charge')
+    const { data: charges, error: chargeError } = await supabase
+      .from("advertiser_ledger")
+      .select("amount")
+      .eq("kind", "conversion_charge");
 
-  if (chargeError) throw new Error(`Failed to fetch campaign spend: ${chargeError.message}`);
+    if (chargeError) throw new Error(`Failed to fetch campaign spend: ${chargeError.message}`);
 
-  const totalCampaignSpend = charges?.reduce((sum, row) => sum + Number(row.amount), 0) ?? 0;
+    const totalCampaignSpend = charges?.reduce((sum, row) => sum + Number(row.amount), 0) ?? 0;
 
-  // Get total publisher payouts from campaign_submissions (status approved/appeal_approved, sum reward_amount)
-  const { data: payouts, error: payoutError } = await supabase
-    .from("campaign_submissions")
-    .select("reward_amount")
-    .in("status", ["approved", "appeal_approved"]);
+    // Get total publisher payouts from campaign_submissions (status approved/appeal_approved, sum reward_amount)
+    const { data: payouts, error: payoutError } = await supabase
+      .from("campaign_submissions")
+      .select("reward_amount")
+      .in("status", ["approved", "appeal_approved"]);
 
-  if (payoutError) throw new Error(`Failed to fetch payouts: ${payoutError.message}`);
+    if (payoutError) throw new Error(`Failed to fetch payouts: ${payoutError.message}`);
 
-  const totalPublisherPayouts = payouts?.reduce((sum, row) => sum + Number(row.reward_amount), 0) ?? 0;
+    const totalPublisherPayouts = payouts?.reduce((sum, row) => sum + Number(row.reward_amount), 0) ?? 0;
 
-  // Calculate platform fee: total campaign spend minus total publisher payouts
-  const platformFeeCollected = totalCampaignSpend - totalPublisherPayouts;
+    // Calculate platform fee: total campaign spend minus total publisher payouts
+    const platformFeeCollected = totalCampaignSpend - totalPublisherPayouts;
 
-  // Get active advertisers count
-  const { count: activeAdvertisers, error: advertiserError } = await supabase
-    .from("advertiser_accounts")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "active");
+    // Get active advertisers count
+    const { count: activeAdvertisers, error: advertiserError } = await supabase
+      .from("advertiser_accounts")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "active");
 
-  if (advertiserError) throw new Error(`Failed to fetch advertisers: ${advertiserError.message}`);
+    if (advertiserError) throw new Error(`Failed to fetch advertisers: ${advertiserError.message}`);
 
-  // Get active campaigns count
-  const { count: activeCampaigns, error: campaignError } = await supabase
-    .from("campaigns")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "active");
+    // Get active campaigns count
+    const { count: activeCampaigns, error: campaignError } = await supabase
+      .from("campaigns")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "active");
 
-  if (campaignError) throw new Error(`Failed to fetch campaigns: ${campaignError.message}`);
+    if (campaignError) throw new Error(`Failed to fetch campaigns: ${campaignError.message}`);
 
-  // Get pending submissions count
-  const { count: pendingSubmissions, error: submissionError } = await supabase
-    .from("campaign_submissions")
-    .select("*", { count: "exact", head: true })
-    .in("status", ["pending", "appealed"]);
+    // Get pending submissions count
+    const { count: pendingSubmissions, error: submissionError } = await supabase
+      .from("campaign_submissions")
+      .select("*", { count: "exact", head: true })
+      .in("status", ["pending", "appealed"]);
 
-  if (submissionError) throw new Error(`Failed to fetch submissions: ${submissionError.message}`);
+    if (submissionError) throw new Error(`Failed to fetch submissions: ${submissionError.message}`);
 
-  return {
-    totalDeposits,
-    totalCampaignSpend,
-    totalPublisherPayouts,
-    platformFeeCollected,
-    activeAdvertisers: activeAdvertisers ?? 0,
-    activeCampaigns: activeCampaigns ?? 0,
-    pendingSubmissions: pendingSubmissions ?? 0,
-  };
+    return {
+      totalDeposits,
+      totalCampaignSpend,
+      totalPublisherPayouts,
+      platformFeeCollected,
+      activeAdvertisers: activeAdvertisers ?? 0,
+      activeCampaigns: activeCampaigns ?? 0,
+      pendingSubmissions: pendingSubmissions ?? 0,
+    };
+  } catch (error) {
+    console.error("[getFinancialOverview] Error:", error);
+    throw error;
+  }
 };
 
 export const getFinancialOverview = createServerFn({ method: "GET" }).handler(getFinancialOverviewImpl);

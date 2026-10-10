@@ -890,8 +890,12 @@ export async function createCampaignImpl(
   }
 
   // Step 1: INSERT campaign in draft status
-  // CRITICAL: Do NOT set featured fields here - campaigns_guard rejects them!
-  // Featured billing happens via mkt_charge_featured RPC after insert.
+  // CRITICAL: The mkt__guard_campaigns INSERT guard ONLY allows:
+  // status='draft', all budget columns=0, completions_count=0,
+  // advertiser_cost=NULL, fee_percent=NULL, needs_review=false,
+  // paused_by=NULL, is_featured=false, featured_fee_paid=0,
+  // featured_started_at/featured_expires_at=NULL
+  // Budget is allocated later by mkt_submit_campaign_with_fee RPC.
   const campaignInsert: Record<string, any> = {
     advertiser_id: userId,
     type_key: "custom",
@@ -904,7 +908,7 @@ export async function createCampaignImpl(
     countries: input.countries,
     publisher_reward: input.reward,
     max_completions: maxCompletions,
-    budget_allocated: budget,
+    // Do NOT set budget_allocated - RPC does it
     proof_description: "Please upload proof of completion",
     category_id: input.categoryId,
     subcategory_id: input.subcategoryId || null,
