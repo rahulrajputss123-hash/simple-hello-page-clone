@@ -95,6 +95,7 @@ export function FeaturedOffers({
       setBurstOfferId(input.offerId);
       window.setTimeout(() => setBurstOfferId(null), 900);
       await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
     onError: (err: Error) => toast.error(err.message || "Could not submit that claim. Try again."),
   });

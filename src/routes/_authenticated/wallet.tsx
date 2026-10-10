@@ -154,6 +154,7 @@ function WalletPage() {
       window.setTimeout(() => setBurstKey(0), 900);
       void queryClient.invalidateQueries({ queryKey: ["withdrawals", session?.user.id] });
       void queryClient.invalidateQueries({ queryKey: ["transactions", session?.user.id] });
+      void queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
     onError: (error: Error) => toast.error(error.message || "Withdrawal failed."),
   });
@@ -164,6 +165,7 @@ function WalletPage() {
       toast.success("Request cancelled and funds returned.");
       void queryClient.invalidateQueries({ queryKey: ["withdrawals", session?.user.id] });
       void queryClient.invalidateQueries({ queryKey: ["transactions", session?.user.id] });
+      void queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
     onError: (error: Error) => toast.error(error.message || "Couldn't cancel that request."),
   });

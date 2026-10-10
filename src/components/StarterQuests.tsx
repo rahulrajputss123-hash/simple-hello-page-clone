@@ -57,6 +57,10 @@ export function StarterQuests() {
       else toast.success("Ad verified. Keep going!");
       void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
       void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
+      void queryClient.invalidateQueries({ queryKey: ["profile"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+      void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      void queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
     },
     onError: (error: Error) => toast.error(error.message || "That ad couldn't be verified."),
     onSettled: () => setBusy(null),
