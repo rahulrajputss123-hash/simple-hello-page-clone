@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ExternalLink, Home, Loader2, XCircle } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { completeShortlinkStep, startShortlinkStep } from "@/lib/quests.functions";
 import { formatMoney } from "@/lib/coinquest";
+import { useAuth } from "@/lib/auth";
 
 /**
  * Return page from a shortlink network. Auto-runs completeShortlinkStep on mount.
@@ -42,6 +44,8 @@ function GoPage() {
   const openNext = useServerFn(startShortlinkStep);
   const [state, setState] = useState<State>({ kind: "loading" });
   const [openingNext, setOpeningNext] = useState(false);
+  const queryClient = useQueryClient();
+  const { session } = useAuth();
   const stepNum = Number(step);
 
   useEffect(() => {
@@ -51,6 +55,15 @@ function GoPage() {
         const result = await complete({ data: { questKey, step: stepNum } });
         if (cancelled) return;
         setState({ kind: "success", ...result });
+        
+        // If quest is completed and credited, invalidate queries
+        if (result.completed && result.credited) {
+          void queryClient.invalidateQueries({ queryKey: ["profile"] });
+          void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
+          void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
+          void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+          void queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+        }
       } catch (err) {
         if (cancelled) return;
         const message =
@@ -61,7 +74,7 @@ function GoPage() {
     return () => {
       cancelled = true;
     };
-  }, [complete, questKey, stepNum]);
+  }, [complete, questKey, stepNum, queryClient, session?.user.id]);
 
   const goHome = () => navigate({ to: "/home" });
 

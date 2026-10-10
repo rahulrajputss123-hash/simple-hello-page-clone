@@ -7,7 +7,7 @@ export const getRouter = () => {
     defaultOptions: {
       queries: {
         staleTime: 30_000, // 30 seconds
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true, // Refetch to show background credits
         retry: 1,
       },
     },
