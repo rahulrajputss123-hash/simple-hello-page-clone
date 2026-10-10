@@ -43,14 +43,25 @@ export function FeaturedOffers({
   const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Prefetch the "all" feed when "home" scope mounts
+  // Prefetch the "all" feed when "home" scope mounts - delayed to avoid competing with first load
   useEffect(() => {
     if (scope === "home") {
-      queryClient.prefetchQuery({
-        queryKey: ["featured-feed", "all"],
-        queryFn: () => fetchFeed({ data: { scope: "all" } }),
-        staleTime: 5 * 60 * 1000,
-      });
+      const prefetch = () => {
+        queryClient.prefetchQuery({
+          queryKey: ["featured-feed", "all"],
+          queryFn: () => fetchFeed({ data: { scope: "all" } }),
+          staleTime: 5 * 60 * 1000,
+        });
+      };
+
+      // Use requestIdleCallback with setTimeout fallback
+      if (typeof requestIdleCallback !== "undefined") {
+        const id = requestIdleCallback(prefetch);
+        return () => cancelIdleCallback(id);
+      } else {
+        const timeout = setTimeout(prefetch, 2500);
+        return () => clearTimeout(timeout);
+      }
     }
   }, [scope, queryClient, fetchFeed]);
 

@@ -154,7 +154,7 @@ function TaskPage() {
     mutationFn: (taskId: string) => complete({ data: { taskId } }),
     onSuccess: (result) => {
       toast.success(result.completed ? "Task completed — reward added!" : "Progress saved.");
-      void queryClient.invalidateQueries();
+      void queryClient.invalidateQueries({ queryKey: ["user-tasks"] });
     },
     onError: (error: Error) => toast.error(error.message || "Couldn't update that task."),
   });

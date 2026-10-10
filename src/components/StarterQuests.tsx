@@ -55,7 +55,8 @@ export function StarterQuests() {
       const r = result as { credited?: boolean };
       if (r.credited) toast.success("Quest complete — wallet credited!");
       else toast.success("Ad verified. Keep going!");
-      void queryClient.invalidateQueries();
+      void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
+      void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
     },
     onError: (error: Error) => toast.error(error.message || "That ad couldn't be verified."),
     onSettled: () => setBusy(null),

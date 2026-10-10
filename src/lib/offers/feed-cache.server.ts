@@ -562,6 +562,11 @@ export async function getFeaturedFeedImpl(
   return { country, offers };
 }
 
+/** Clear the assembled feed cache (call after admin offer edits) */
+export function clearAssembledCache() {
+  _assembledCache.clear();
+}
+
 export type FeedRefreshSummary = {
   refreshed: { provider: string; country: string; count: number }[];
   errors: { provider: string; country: string; message: string }[];
@@ -622,6 +627,10 @@ export async function adminRefreshProviderImpl(providerId: string, country?: str
   if (!provider.enabled) throw new Error("Provider is disabled.");
   const target = normalizeCountry(country) ?? settings.defaultCountry;
   const list = await refreshProviderCountry(provider as unknown as OfferProvider, target, settings);
+  
+  // Clear assembled cache after provider sync
+  clearAssembledCache();
+  
   return { provider: provider.slug, country: target, count: list.length };
 }
 
