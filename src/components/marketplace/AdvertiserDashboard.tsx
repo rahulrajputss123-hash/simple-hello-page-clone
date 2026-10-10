@@ -141,7 +141,7 @@ export function AdvertiserDashboard() {
       <SectionHeading
         variant="ribbon"
         icon={Megaphone}
-        iconSrc="/icons/icon-adv-quick-actions.png"
+        iconSrc="/icons/icon-adv-quick-actions-v2.png"
         title="Quick Actions"
       />
       <div className="stagger-children space-y-2.5">
@@ -165,7 +165,7 @@ export function AdvertiserDashboard() {
       <SectionHeading
         variant="ribbon"
         icon={CheckCircle2}
-        iconSrc="/icons/icon-live-right-now.png"
+        iconSrc="/icons/icon-live-right-now-v2.png"
         title="Live right now"
         action={
           <Link

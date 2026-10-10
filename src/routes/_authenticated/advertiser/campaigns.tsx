@@ -98,7 +98,7 @@ function MyCampaignsPage() {
         variant="ribbon"
         size="page"
         icon={Megaphone}
-        iconSrc="/icons/icon-my-campaign.png"
+        iconSrc="/icons/icon-my-campaign-v2.png"
         title="My Campaigns"
         subtitle="Tap a campaign to see its results."
         className="mb-2"
