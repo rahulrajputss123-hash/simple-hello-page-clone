@@ -67,7 +67,7 @@ export async function listPendingCampaignsImpl(): Promise<AdminCampaignView[]> {
     .from("campaigns")
     .select("*, advertiser_accounts(display_name, user_id)")
     .eq("status", "pending_review")
-    .order("submitted_at", { ascending: false });
+    .order("created_at", { ascending: false });
 
   if (error) throw new Error(`campaigns: ${error.message}`);
 
@@ -166,31 +166,45 @@ export async function listPendingCampaignsImpl(): Promise<AdminCampaignView[]> {
  * Lists proof submissions pending admin review (status = pending or appealed).
  */
 export async function listPendingProofsImpl(): Promise<AdminProofView[]> {
+  // Fetch submissions first
   const { data, error } = await mktDbAdmin
     .from("campaign_submissions")
-    .select("*, campaigns(name), profiles(name)")
+    .select("*, campaigns(name)")
     .in("status", ["pending", "appealed"])
-    .order("submitted_at", { ascending: false });
+    .order("created_at", { ascending: false });
 
   if (error) throw new Error(`campaign_submissions: ${error.message}`);
 
+  if (!data || data.length === 0) return [];
+
+  // Fetch profiles for user_ids
+  const userIds = [...new Set(data.map((s) => s.user_id))];
+  const { data: profiles, error: profileError } = await mktDbAdmin
+    .from("profiles")
+    .select("id, name")
+    .in("id", userIds);
+
+  if (profileError) throw new Error(`profiles: ${profileError.message}`);
+
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+
   return (
     (data ?? []) as Array<
-      CampaignSubmissionRow & { campaigns: { name: string } | null; profiles: { name: string } | null }
+      CampaignSubmissionRow & { campaigns: { name: string } | null }
     >
   ).map((s) => ({
     id: s.id,
     campaignId: s.campaign_id,
     campaignTitle: s.campaigns?.name ?? "Campaign",
     publisherId: s.user_id, // NOT publisher_id!
-    publisherName: s.profiles?.name ?? "User",
+    publisherName: profileMap.get(s.user_id)?.name ?? "User",
     proofPaths: s.proof_paths, // Array!
     userNote: s.user_note,
     status: s.status,
     rejectionReason: s.rejection_reason,
     appealText: s.appeal_text,
     reward: num(s.reward_amount),
-    submittedAt: s.submitted_at,
+    submittedAt: s.created_at,
   }));
 }
 

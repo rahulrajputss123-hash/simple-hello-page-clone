@@ -44,35 +44,9 @@ export class ConversionError extends Error {
 }
 
 /**
- * Verifies postback signature for auto-conversion campaigns.
- * Returns true if signature is valid, false otherwise.
- */
-export function verifyPostbackSignature(
-  params: Record<string, any>,
-  signature: string | null,
-  secret: string,
-): boolean {
-  if (!signature) return false;
-
-  // Build signature string from sorted params (excluding signature itself)
-  const { signature: _, ...dataToSign } = params;
-  const sortedKeys = Object.keys(dataToSign).sort();
-  const signatureString = sortedKeys.map((key) => `${key}=${dataToSign[key]}`).join("&");
-
-  // HMAC-SHA256
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(signatureString)
-    .digest("hex");
-
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
-}
-
-/**
  * Records a conversion from a postback webhook.
+ * 
+ * Authentication and IP verification are performed by postback.ts before calling this.
  * 
  * Uses mkt_record_conversion which:
  * - Validates campaign is auto mode
@@ -122,11 +96,11 @@ export async function recordConversionImpl(
 
     return {
       recorded: result.recorded,
-      status: result.status,
-      conversionId: result.conversion_id,
-      userId: result.user_id,
-      holdReason: result.hold_reason,
-      reason: result.reason,
+      ...( result.status ? { status: result.status } : {}),
+      ...(result.conversion_id ? { conversionId: result.conversion_id } : {}),
+      ...(result.user_id ? { userId: result.user_id } : {}),
+      ...(result.hold_reason !== undefined ? { holdReason: result.hold_reason } : {}),
+      ...(result.reason ? { reason: result.reason } : {}),
     };
   } catch (err) {
     if (err instanceof MktRpcError) {

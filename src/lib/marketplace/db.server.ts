@@ -172,6 +172,9 @@ export type MarketplaceSettingsRow = {
   first_deposit_bonus_percent: string | number;
   referral_bonus_split_percent: string | number;
   featured_price_per_day: string | number;
+  fees_enabled: boolean;
+  campaign_fee_usd: string | number;
+  campaign_fee_type: "per_campaign" | "per_slot";
   terms_version: string;
 };
 
@@ -215,7 +218,7 @@ export async function loadMarketplaceSettings(): Promise<MarketplaceSettingsRow>
   const { data, error } = await mktDb
     .from("marketplace_settings")
     .select(
-      "deposits_enabled, manual_deposits_enabled, min_deposit_usd, max_deposit_usd, inr_per_usd, platform_fee_percent, promo_ends_at, first_deposit_bonus_percent, referral_bonus_split_percent, featured_price_per_day, terms_version",
+      "deposits_enabled, manual_deposits_enabled, min_deposit_usd, max_deposit_usd, inr_per_usd, platform_fee_percent, promo_ends_at, first_deposit_bonus_percent, referral_bonus_split_percent, featured_price_per_day, fees_enabled, campaign_fee_usd, campaign_fee_type, terms_version",
     )
     .eq("id", true)
     .maybeSingle();

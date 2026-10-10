@@ -64,11 +64,10 @@ export type CampaignSubmissionRow = {
   rejection_reason: string | null;
   appeal_text: string | null;
   reward_amount: string | number;
-  submitted_at: string;
+  created_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
   wallet_transaction_id: string | null;
-  created_at: string;
   updated_at: string;
 };
 
@@ -135,7 +134,7 @@ export async function listMySubmissionsImpl(userId: string): Promise<SubmissionV
     .from("campaign_submissions")
     .select("*, campaigns(name)")
     .eq("user_id", userId) // NOT publisher_id!
-    .order("submitted_at", { ascending: false});
+    .order("created_at", { ascending: false});
 
   if (error) throw new Error(`campaign_submissions: ${error.message}`);
 
@@ -149,7 +148,7 @@ export async function listMySubmissionsImpl(userId: string): Promise<SubmissionV
     rejectionReason: s.rejection_reason,
     appealText: s.appeal_text,
     reward: num(s.reward_amount),
-    submittedAt: s.submitted_at,
+    submittedAt: s.created_at,
     reviewedAt: s.reviewed_at,
   }));
 }

@@ -405,7 +405,7 @@ export function FinancialOverview() {
 
   const overview = useQuery({
     queryKey: ["admin-financial-overview"],
-    queryFn: () => fetchOverview({}),
+    queryFn: () => fetchOverview(),
   });
 
   if (overview.isPending) {
@@ -418,7 +418,12 @@ export function FinancialOverview() {
   }
 
   if (overview.isError) {
-    return <p className="surface-card p-4 text-sm text-destructive">Couldn't load financial overview.</p>;
+    return (
+      <p className="surface-card p-4 text-sm text-destructive">
+        Couldn't load financial overview.
+        {overview.error && <><br/>{String(overview.error)}</>}
+      </p>
+    );
   }
 
   const data = overview.data;
