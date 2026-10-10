@@ -29,7 +29,13 @@ function FeaturedPage() {
   return (
     <AppShell subtitle="All offers" mainClass="page-fade-in">
       {/* Same heading/icon as the Offers page section — both render scope="all". */}
-      <SectionHeading variant="ribbon" size="page" icon={LayoutGrid} title="All Offers" />
+      <SectionHeading
+        variant="ribbon"
+        size="page"
+        icon={LayoutGrid}
+        iconSrc="/icons/icon-offer-filter.png"
+        title="All Offers"
+      />
       <FeaturedOffers scope="all" />
     </AppShell>
   );

@@ -128,12 +128,6 @@ export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?
             <span className="block truncate font-display text-lg leading-tight">{firstName}</span>
           </span>
         </Link>
-        {home && (
-          <div className="-ml-1 mr-auto shrink-0">
-            <RoleSwitcher />
-          </div>
-        )}
-
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {home && (
             <Link
@@ -184,6 +178,11 @@ export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?
           )}
         </div>
       </div>
+      {home && (
+        <div className="mx-auto w-full max-w-lg px-4 py-2">
+          <RoleSwitcher />
+        </div>
+      )}
     </header>
   );
 }

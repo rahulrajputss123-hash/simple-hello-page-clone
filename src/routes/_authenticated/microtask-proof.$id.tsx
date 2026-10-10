@@ -73,7 +73,12 @@ function ProofSubmissionPage() {
         <p className="text-amount text-sm text-gold-dark">{formatMoney(c.reward)} on approval</p>
       </div>
 
-      <SectionHeading variant="ribbon" icon={Camera} title="Upload your proof" />
+      <SectionHeading
+        variant="ribbon"
+        icon={Camera}
+        iconSrc="/icons/icon-cloud-upload.png"
+        title="Upload your proof"
+      />
       <form
         className="surface-card space-y-4 p-4"
         data-testid="proof-form"
