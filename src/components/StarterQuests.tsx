@@ -82,7 +82,7 @@ export function StarterQuests() {
       } else {
         toast.error("This step has no URL configured.");
       }
-      void queryClient.invalidateQueries({ queryKey: ["quest-sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
     },
     onError: (error: Error) => toast.error(error.message || "Could not start this step."),
     onSettled: () => setBusy(null),
@@ -105,7 +105,7 @@ export function StarterQuests() {
       } else {
         toast.error("This locker has no URL configured.");
       }
-      void queryClient.invalidateQueries({ queryKey: ["quest-sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
     },
     onError: (error: Error) => toast.error(error.message || "Could not open this locker."),
     onSettled: () => setBusy(null),

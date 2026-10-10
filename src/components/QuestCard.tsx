@@ -33,7 +33,7 @@ const CARD_W = 240;
 const CARD_H = 340;
 
 /** Display font already loaded in __root.tsx — geometric, for premium onboarding only. */
-const DISPLAY_FONT = '"Outfit", "Inter", ui-sans-serif, system-ui, sans-serif';
+const DISPLAY_FONT = '"Manrope", "Inter", ui-sans-serif, system-ui, sans-serif';
 
 /* Neutral palette, warm-tinted to sit on the app's cream background. */
 const INK = "#0B2B28"; // deep jade, primary text
