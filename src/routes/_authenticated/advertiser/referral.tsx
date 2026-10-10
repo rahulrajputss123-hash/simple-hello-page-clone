@@ -1,11 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Link2, Users } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
 import { BackLink, PreviewNotice, StatTile } from "@/components/marketplace/Preview";
 import { formatMoney } from "@/lib/coinquest";
-import { ADVERTISER_REFERRAL } from "@/lib/marketplace/data";
+import { getAdvertiserReferralStats } from "@/lib/marketplace/advertiser-referral.server";
+import { useAuth } from "@/lib/auth";
+import { ADVERTISER_REFERRAL_PERCENT } from "@/lib/referral-program";
 
 export const Route = createFileRoute("/_authenticated/advertiser/referral")({
   head: () => ({ meta: [{ title: "Advertiser Referral — CashGPT" }] }),
@@ -13,7 +17,22 @@ export const Route = createFileRoute("/_authenticated/advertiser/referral")({
 });
 
 function AdvertiserReferralPage() {
-  const r = ADVERTISER_REFERRAL;
+  const { session } = useAuth();
+  const fetchAdvertiserStats = useServerFn(getAdvertiserReferralStats);
+
+  const advertiserStats = useQuery({
+    queryKey: ["advertiser-referral-stats", session?.user.id],
+    enabled: Boolean(session?.user.id),
+    queryFn: () => fetchAdvertiserStats({ data: { userId: session!.user.id } }),
+  });
+
+  const r = advertiserStats.data ?? {
+    referredAdvertisers: 0,
+    totalDeposits: 0,
+    rewardsEarned: 0,
+    referralPercent: ADVERTISER_REFERRAL_PERCENT,
+  };
+
   return (
     <AppShell subtitle="Advertiser" mainClass="page-fade-in">
       <BackLink to="/home" label="Back to dashboard" />

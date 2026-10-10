@@ -159,6 +159,7 @@ export type AdvertiserOverview = {
   stats: { activeCampaigns: number; completedConversions: number; pendingReviews: number };
   liveCampaigns: CampaignView[];
   recentDeposits: DepositView[];
+  userBonusPercent: number; // Effective first deposit bonus for this user
 };
 
 /* -------------------------------------------------------------- mappers */
@@ -321,12 +322,26 @@ export async function listCampaignsImpl(userId: string): Promise<CampaignView[]>
 
 export async function getOverviewImpl(userId: string): Promise<AdvertiserOverview> {
   const [account, settings] = await Promise.all([getAccount(userId), loadMarketplaceSettings()]);
+  
+  // Calculate user's effective bonus (first_deposit_bonus - referral_split if they have a referrer)
+  const { data: referralData } = await mktDb
+    .from("referrals")
+    .select("referrer_id")
+    .eq("referred_id", userId)
+    .maybeSingle();
+  
+  const hasReferrer = Boolean(referralData?.referrer_id);
+  const userBonusPercent = hasReferrer
+    ? num(settings.first_deposit_bonus_percent) - num(settings.referral_bonus_split_percent)
+    : num(settings.first_deposit_bonus_percent);
+  
   const base: AdvertiserOverview = {
     account: account ? accountView(account) : null,
     settings: settingsView(settings),
     stats: { activeCampaigns: 0, completedConversions: 0, pendingReviews: 0 },
     liveCampaigns: [],
     recentDeposits: [],
+    userBonusPercent,
   };
   if (!account) return base;
 

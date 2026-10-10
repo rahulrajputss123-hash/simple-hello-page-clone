@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 import { BrandLogo } from "@/components/AppShell";
 import { GoogleIcon } from "@/components/GoogleIcon";
@@ -6,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthForm } from "@/hooks/useAuthForm";
+import { getMarketplaceSettings } from "@/lib/marketplace/admin-settings.server";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -28,6 +31,15 @@ function AuthPage() {
   const auth = useAuthForm({ initialMode: "signin", collectName: true });
   const { mode, busy, googleBusy, disabled } = auth;
 
+  const fetchMarketplaceSettings = useServerFn(getMarketplaceSettings);
+  const marketplaceSettings = useQuery({
+    queryKey: ["marketplace-settings"],
+    queryFn: () => fetchMarketplaceSettings(),
+  });
+
+  const hasReferralCode = Boolean(auth.referralCode);
+  const bonusPercent = marketplaceSettings.data?.first_deposit_bonus_percent ?? 0;
+
   return (
     <main
       className="auth-bg relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-4 py-10"
@@ -49,6 +61,11 @@ function AuthPage() {
             <p className="text-sm text-muted-foreground">
               Watch, complete, cash out — real rewards in your wallet.
             </p>
+            {hasReferralCode && mode === "signup" && bonusPercent > 0 && (
+              <p className="mt-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">
+                🎉 You were invited — {bonusPercent}% bonus on your first deposit
+              </p>
+            )}
           </div>
         </div>
 

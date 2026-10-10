@@ -58,7 +58,16 @@ function HomePage() {
   const communityStat = useCountUpOnVisible(50000);
   // Marketplace preview: advertiser mode swaps the Home content for the dashboard.
   // Local state only — see src/lib/marketplace/role.tsx.
-  const { role } = useRole();
+  const { role, overview: advertiserOverview } = useRole();
+  const [advertiserBannerDismissed, setAdvertiserBannerDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return safeStorage.getItem("coinquest.advertiser_banner_dismissed") === "true";
+  });
+
+  const dismissAdvertiserBanner = () => {
+    setAdvertiserBannerDismissed(true);
+    safeStorage.setItem("coinquest.advertiser_banner_dismissed", "true");
+  };
 
   useEffect(() => {
     if (!profile || profile.onboarded) return;
@@ -119,6 +128,38 @@ function HomePage() {
       <SimulatedLiveActivity />
 
       <SectionBanner section="home" />
+
+      {/* Advertiser promotion banner */}
+      {!advertiserBannerDismissed && 
+       role === "publisher" && 
+       advertiserOverview?.settings.promoActive && 
+       !advertiserOverview?.account && (
+        <div className="surface-card relative mt-3 overflow-hidden p-4">
+          <button
+            onClick={dismissAdvertiserBanner}
+            className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-jade-gradient">
+              <Sparkles className="size-5 text-primary-foreground" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">Run your own campaign</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                First deposit bonus {advertiserOverview?.userBonusPercent ?? advertiserOverview?.settings.firstDepositBonusPercent}% · Launch your offer and reach thousands of earners
+              </p>
+              <Link to="/advertiser/create">
+                <Button size="sm" variant="jade" className="mt-3">
+                  Become Advertiser
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section id="tour-starter-quests" className="rise-in">
         <SectionHeading
