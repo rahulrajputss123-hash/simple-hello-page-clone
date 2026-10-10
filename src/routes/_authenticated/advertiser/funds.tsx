@@ -285,7 +285,7 @@ function FundsPage() {
         </div>
         {settings?.promoActive && account && account.lifetimeDeposited === 0 && (
           <p className="rounded-xl bg-gold/10 p-3 text-xs font-semibold text-gold-dark">
-            🎁 Launch offer: your first deposit gets a {settings.firstDepositBonusPercent}% bonus that
+            🎁 Launch offer: your first deposit gets a {overview?.userBonusPercent ?? settings.firstDepositBonusPercent}% bonus that
             unlocks as you spend.
           </p>
         )}

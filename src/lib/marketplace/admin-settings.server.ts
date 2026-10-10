@@ -53,10 +53,8 @@ export interface ReferralSettings {
  * Get current marketplace settings
  */
 export const getMarketplaceSettingsImpl = async (): Promise<MarketplaceSettings> => {
-  const supabase = supabaseAdmin();
-
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("marketplace_settings")
       .select("*")
       .eq("id", true)
@@ -80,9 +78,7 @@ export const getMarketplaceSettings = createServerFn({ method: "GET" }).handler(
  * Get current referral settings
  */
 export const getReferralSettingsImpl = async (): Promise<ReferralSettings> => {
-  const supabase = supabaseAdmin();
-
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("referral_settings")
     .select("*")
     .eq("id", true)
@@ -122,9 +118,8 @@ export const updateMarketplaceSettingsImpl = async (
   input: z.infer<typeof updateMarketplaceSettingsInput>
 ): Promise<MarketplaceSettings> => {
   const validated = updateMarketplaceSettingsInput.parse(input);
-  const supabase = supabaseAdmin();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("marketplace_settings")
     .update(validated)
     .eq("id", true)
@@ -154,9 +149,8 @@ export const updateReferralSettingsImpl = async (
   input: z.infer<typeof updateReferralSettingsInput>
 ): Promise<ReferralSettings> => {
   const validated = updateReferralSettingsInput.parse(input);
-  const supabase = supabaseAdmin();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("referral_settings")
     .update(validated)
     .eq("id", true)

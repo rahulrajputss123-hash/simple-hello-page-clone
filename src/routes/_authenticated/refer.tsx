@@ -37,6 +37,7 @@ import {
   type ReferralRewardState,
 } from "@/lib/referral-progress";
 import { getAdvertiserReferralStats } from "@/lib/marketplace/advertiser-referral.server";
+import { getMarketplaceSettings } from "@/lib/marketplace/admin-settings.server";
 import {
   ADVERTISER_REFERRAL_PERCENT,
   ADVERTISER_REFERRAL_RULES,
@@ -225,6 +226,12 @@ export function ReferPage() {
   const link = typeof window === "undefined" ? "" : `${window.location.origin}/auth?ref=${code}`;
   
   const fetchAdvertiserStats = useServerFn(getAdvertiserReferralStats);
+  const fetchMarketplaceSettings = useServerFn(getMarketplaceSettings);
+
+  const marketplaceSettings = useQuery({
+    queryKey: ["marketplace-settings"],
+    queryFn: () => fetchMarketplaceSettings(),
+  });
 
   const referrals = useQuery({
     queryKey: ["referrals", session?.user.id],
@@ -258,6 +265,19 @@ export function ReferPage() {
     rewardsEarned: 0,
     referralPercent: ADVERTISER_REFERRAL_PERCENT,
   };
+
+  // Generate advertiser referral rules dynamically from settings
+  const settings = marketplaceSettings.data;
+  const dynamicAdvertiserRules = settings ? [
+    "Your invite link works for two separate programs: publisher referral and advertiser referral. Advertiser rewards are added on top of publisher rewards.",
+    `When a friend you invited becomes an advertiser and makes their first deposit, you earn ${settings.referral_bonus_split_percent}% of that deposit.`,
+    `Example: if your friend deposits $100, you earn ${formatMoney(100 * settings.referral_bonus_split_percent / 100)}.`,
+    `The bonus shows as Pending for ${settings.referrer_bonus_hold_days} days after the deposit clears, then it is Credited to your main wallet.`,
+    "If a deposit is refunded, reversed or charged back, the related bonus is cancelled, and deducted if it was already credited.",
+    "Bonuses are paid only on real, successful deposits, not on promotional or bonus credit.",
+    "Self-referrals, duplicate or linked accounts, and fraudulent activity void the bonus.",
+    "Program rules may change; changes apply to new deposits only.",
+  ] : ADVERTISER_REFERRAL_RULES;
 
   return (
     <AppShell subtitle="Refer">
@@ -630,7 +650,7 @@ Deposits
               <span>Advertiser referral</span><ChevronDown className="size-4 transition-transform group-open:rotate-180" />
             </summary>
             <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs leading-relaxed text-muted-foreground">
-              {ADVERTISER_REFERRAL_RULES.map((rule) => <li key={rule}>{rule}</li>)}
+              {dynamicAdvertiserRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ol>
           </details>
           <Link to="/referral-rules" className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary" data-testid="refer-view-rules">

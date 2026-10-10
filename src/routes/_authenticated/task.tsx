@@ -296,6 +296,19 @@ function MicrotasksPage() {
               <TaskCard campaign={campaign} />
             </li>
           ))}
+          {/* Advertiser promotion card */}
+          <li>
+            <Link to="/advertiser/create" className="surface-card flex items-center gap-3 p-4">
+              <span className="grid size-10 place-items-center rounded-xl bg-jade-gradient text-primary-foreground">
+                <Star className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <b className="block text-sm">Want your offer here?</b>
+                <span className="text-xs text-muted-foreground">Become an advertiser</span>
+              </span>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </Link>
+          </li>
         </ol>
       )}
 
