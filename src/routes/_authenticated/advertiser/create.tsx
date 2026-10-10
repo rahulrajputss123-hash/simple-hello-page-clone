@@ -81,6 +81,7 @@ function CreateCampaignPage() {
         variant="ribbon"
         size="page"
         icon={PlusCircle}
+        iconSrc="/icons/icon-create-campaign.png"
         title="Create Campaign"
         subtitle="Describe the task publishers will complete."
         className="mb-2"

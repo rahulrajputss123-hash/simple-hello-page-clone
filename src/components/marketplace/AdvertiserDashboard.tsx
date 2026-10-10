@@ -138,7 +138,12 @@ export function AdvertiserDashboard() {
         <StatTile label="Lifetime deposited" value={formatMoney(account.lifetimeDeposited)} />
       </div>
 
-      <SectionHeading variant="ribbon" icon={Megaphone} title="Quick Actions" />
+      <SectionHeading
+        variant="ribbon"
+        icon={Megaphone}
+        iconSrc="/icons/icon-adv-quick-actions.png"
+        title="Quick Actions"
+      />
       <div className="stagger-children space-y-2.5">
         <QuickAction to="/advertiser/funds" icon={Wallet} label="Add Funds" hint="Top up your campaign balance" testId="qa-add-funds" />
         <QuickAction to="/advertiser/create" icon={PlusCircle} label="Create Campaign" hint="Launch a new task for publishers" testId="qa-create-campaign" />
@@ -160,6 +165,7 @@ export function AdvertiserDashboard() {
       <SectionHeading
         variant="ribbon"
         icon={CheckCircle2}
+        iconSrc="/icons/icon-live-right-now.png"
         title="Live right now"
         action={
           <Link

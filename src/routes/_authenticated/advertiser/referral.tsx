@@ -21,7 +21,7 @@ function AdvertiserReferralPage() {
         variant="ribbon"
         size="page"
         icon={Users}
-        iconSrc="/icons/icon-referral.png"
+        iconSrc="/icons/icon-advertiser-referral.png"
         title="Advertiser Referral"
         subtitle="Earn when people you invite run campaigns."
         className="mb-2"

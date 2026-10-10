@@ -55,7 +55,7 @@ function ResultsPage() {
       <SectionHeading
         variant="ribbon"
         icon={BarChart3}
-        iconSrc="/icons/icon-campaign-statistics.png"
+        iconSrc="/icons/icon-adv-campaign-statistics.png"
         title="Funnel"
       />
       <div className="grid grid-cols-3 gap-2">
