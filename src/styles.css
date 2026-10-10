@@ -733,11 +733,11 @@
     radial-gradient(72% 52% at 50% 0%, oklch(0.784 0.163 161.4 / 0.1), transparent 76%);
 }
 
-/* Home hero orbs — reuse .premium-orb for the blur/radius/opacity base and
- * only override size, position and tint here. */
+/* Home hero orbs — static decorative backgrounds without animation */
 .home-orb {
   z-index: -1;
-  animation: premium-art-float 9s ease-in-out infinite;
+  position: absolute;
+  pointer-events: none;
 }
 .home-orb-jade {
   width: 210px;
@@ -752,12 +752,6 @@
   right: -95px;
   top: 34px;
   background: radial-gradient(circle, oklch(0.824 0.163 77.8 / 0.22), transparent 68%);
-  animation-duration: 11s;
-  animation-delay: -3s;
-}
-/* Coin glyph in the shared header floats on Home only. */
-.home-page-bg .app-header-coin {
-  animation: premium-art-float 5s ease-in-out infinite;
 }
 
 /* --- Wallet: gold glow behind the balance card only ----------------------- */
