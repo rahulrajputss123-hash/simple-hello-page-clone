@@ -29,7 +29,7 @@ export function MarketplaceSettingsPanel() {
 
   const settings = useQuery({
     queryKey: ["marketplace-settings"],
-    queryFn: () => fetchSettings({}),
+    queryFn: () => fetchSettings(),
   });
 
   const [localAutoApproveEnabled, setLocalAutoApproveEnabled] = useState<boolean | null>(null);
@@ -90,7 +90,10 @@ export function MarketplaceSettingsPanel() {
           <Settings className="size-5" />
           Auto-approval settings
         </SectionTitle>
-        <p className="surface-card p-4 text-sm text-destructive">Failed to load settings.</p>
+        <p className="surface-card p-4 text-sm text-destructive">
+          Failed to load settings.
+          {settings.error && <><br/>{String(settings.error)}</>}
+        </p>
       </div>
     );
   }
