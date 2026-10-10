@@ -121,7 +121,7 @@ export function AdvertiserDashboard() {
         </Link>
       </section>
 
-      <SectionHeading variant="ribbon" icon={BarChart3} title="Campaign Statistics" />
+      <SectionHeading variant="ribbon" icon={BarChart3} iconSrc="/icons/icon-adv-campaign-statistics-v2.png" title="Campaign Statistics" />
       <div className="grid grid-cols-2 gap-3">
         <StatTile label="Active campaigns" value={String(stats.activeCampaigns)} />
         <StatTile
