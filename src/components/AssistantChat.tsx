@@ -68,6 +68,8 @@ export function AssistantMascot({ className = "" }: { className?: string }) {
       <img
         src="/assistant-mascot.webp"
         alt="CashGPT Assistant"
+        width={80}
+        height={80}
         className="h-full w-full scale-110 object-cover"
         loading="eager"
         decoding="async"

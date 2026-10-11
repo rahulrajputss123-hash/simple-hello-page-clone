@@ -296,25 +296,29 @@ function CustomBannerCard({ b }: { b: EligibleBanner }) {
   // Pure-image: image present but no text at all — no overlay, no text layer.
   const pureImage = hasImage && !hasText;
 
-  const bg = hasImage
-    ? {
-        backgroundImage: `url(${b.image_url})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }
-    : undefined;
-
   // No-image (text-only) banners keep content-driven height via padding.
   // Image banners get a fixed 2:1 aspect-ratio container so the image is never
   // distorted by text length.
   const outerClass = hasImage
-    ? `surface-card relative aspect-[2/1] w-full overflow-hidden text-center shadow-lift${
-        hasImage ? "" : " bg-jade-gradient text-primary-foreground"
-      }`
+    ? `surface-card relative aspect-[2/1] w-full overflow-hidden text-center shadow-lift`
     : `surface-card relative overflow-hidden p-5 text-center shadow-lift bg-jade-gradient text-primary-foreground`;
 
   return (
-    <article className={outerClass} style={bg} data-testid={`banner-custom-${b.id}`}>
+    <article className={outerClass} data-testid={`banner-custom-${b.id}`}>
+      {/* Image layer - use proper img tag for better loading control */}
+      {hasImage && (
+        <img
+          src={b.image_url!}
+          alt={b.title || "Banner"}
+          width={1200}
+          height={600}
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
+          className="absolute inset-0 size-full object-cover"
+        />
+      )}
+
       {/* Gradient overlay: only when image + text coexist (contrast needed). */}
       {hasImage && hasText && (
         <span

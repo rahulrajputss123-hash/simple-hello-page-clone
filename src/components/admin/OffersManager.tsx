@@ -38,6 +38,7 @@ import {
   saveManualOffer,
   updateOfferControls,
 } from "@/lib/offers.functions";
+import { resizeAndConvertToWebP } from "@/lib/image-resize";
 
 type SourceTab = "all" | "manual" | "network";
 type StatusFilter = "all" | "active" | "inactive" | "featured" | "expired";
@@ -136,24 +137,28 @@ export function OffersManager() {
    */
   const handleFile = async (file: File) => {
     if (!form) return;
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error("Image must be under 3 MB.");
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image must be under 10 MB.");
       return;
     }
     setUploading(true);
     try {
+      // Resize to max 1200px wide and convert to WebP at 82% quality
+      toast.info("Resizing and converting to WebP...");
+      const optimizedFile = await resizeAndConvertToWebP(file, 1200, 0.82);
+      
       const { uploadUrl, token, publicUrl } = await requestUpload({
-        data: { filename: file.name.slice(0, 120), target: "offers" },
+        data: { filename: optimizedFile.name.slice(0, 120), target: "offers" },
       });
       const res = await fetch(uploadUrl, {
         method: "PUT",
         headers: {
-          "Content-Type": file.type || "application/octet-stream",
+          "Content-Type": optimizedFile.type || "application/octet-stream",
           // Unique, never-overwritten upload path -> safe to cache for a year.
           "cache-control": "max-age=31536000",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: file,
+        body: optimizedFile,
       });
       if (!res.ok) throw new Error(`Upload failed (${res.status})`);
       setForm({ ...form, icon: publicUrl });
