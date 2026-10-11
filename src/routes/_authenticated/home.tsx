@@ -165,7 +165,7 @@ function HomePage() {
         <SectionHeading
           variant="ribbon"
           icon={Rocket}
-          iconSrc="/icons/icon-starter-quest.png"
+          iconSrc="/icons/icon-starter-quest.webp"
           title="Starter Quests"
           subtitle="Complete simple quests and earn rewards!"
         />
@@ -176,7 +176,7 @@ function HomePage() {
         <SectionHeading
           variant="ribbon"
           icon={Star}
-          iconSrc="/icons/icon-featured-offers.png"
+          iconSrc="/icons/icon-featured-offers.webp"
           title="Featured Offers"
           action={
             <Link
@@ -195,7 +195,7 @@ function HomePage() {
       <SectionHeading
         variant="ribbon"
         icon={Layers}
-        iconSrc="/icons/icon-offerwall.png"
+        iconSrc="/icons/icon-offerwall.webp"
         title="Offerwall"
       />
       <OfferwallSlot limit={6} />

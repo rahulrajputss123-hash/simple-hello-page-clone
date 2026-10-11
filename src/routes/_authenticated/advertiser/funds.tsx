@@ -187,7 +187,7 @@ function FundsPage() {
         variant="ribbon"
         size="page"
         icon={Wallet}
-        iconSrc="/icons/icon-wallet.png"
+        iconSrc="/icons/icon-wallet.webp"
         title="Add Campaign Funds"
         subtitle="Top up the balance your campaigns spend from."
         className="mb-2"

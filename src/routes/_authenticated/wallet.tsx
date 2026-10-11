@@ -203,7 +203,7 @@ function WalletPage() {
       <SectionHeading
         variant="ribbon"
         icon={Wallet}
-        iconSrc="/icons/icon-wallet.png"
+        iconSrc="/icons/icon-wallet.webp"
         title="Withdraw"
         action={
           <Dialog open={methodOpen} onOpenChange={setMethodOpen}>

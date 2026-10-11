@@ -91,7 +91,7 @@ function SupportPage() {
         variant="ribbon"
         size="page"
         icon={LifeBuoy}
-        iconSrc="/icons/icon-support.png"
+        iconSrc="/icons/icon-support.webp"
         title="Help centre"
       />
 
@@ -100,7 +100,7 @@ function SupportPage() {
       <SectionHeading
         variant="ribbon"
         icon={Lightbulb}
-        iconSrc="/icons/icon-tips.png"
+        iconSrc="/icons/icon-tips.webp"
         title="Tips"
       />
       <div className="surface-card flex items-center justify-between gap-3 p-4">
@@ -125,7 +125,7 @@ function SupportPage() {
       <SectionHeading
         variant="ribbon"
         icon={HelpCircle}
-        iconSrc="/icons/icon-faq.png"
+        iconSrc="/icons/icon-faq.webp"
         title="FAQ"
       />
       <div className="surface-card px-4">
@@ -144,7 +144,7 @@ function SupportPage() {
       <SectionHeading
         variant="ribbon"
         icon={Mail}
-        iconSrc="/icons/icon-contact-us.png"
+        iconSrc="/icons/icon-contact-us.webp"
         title="Contact us"
       />
       <form
@@ -178,7 +178,7 @@ function SupportPage() {
       <SectionHeading
         variant="ribbon"
         icon={Ticket}
-        iconSrc="/icons/icon-your-tickets.png"
+        iconSrc="/icons/icon-your-tickets.webp"
         title="Your tickets"
       />
       {!tickets.data?.length ? (

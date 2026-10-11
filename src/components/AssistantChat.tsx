@@ -66,7 +66,7 @@ export function AssistantMascot({ className = "" }: { className?: string }) {
       )}
     >
       <img
-        src="/assistant-mascot.png"
+        src="/assistant-mascot.webp"
         alt="CashGPT Assistant"
         className="h-full w-full scale-110 object-cover"
         loading="eager"
@@ -297,7 +297,7 @@ export function AiAssistant() {
             )}
             <span className="absolute inset-1 overflow-hidden rounded-full">
               <img
-                src="/assistant-mascot.png"
+                src="/assistant-mascot.webp"
                 alt=""
                 className="h-full w-full scale-110 object-cover"
                 draggable={false}

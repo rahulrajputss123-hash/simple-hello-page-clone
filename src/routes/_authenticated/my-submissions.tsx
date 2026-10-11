@@ -154,7 +154,7 @@ function MySubmissionsPage() {
         variant="ribbon"
         size="page"
         icon={Clock}
-        iconSrc="/icons/icon-your-task.png"
+        iconSrc="/icons/icon-your-task.webp"
         title="My Submissions"
         subtitle="Track proof you've sent for review."
         className="mb-2"

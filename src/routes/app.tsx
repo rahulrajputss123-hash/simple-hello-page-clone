@@ -62,7 +62,7 @@ function AppLandingPage() {
 
         <div className="relative mx-auto w-full max-w-5xl px-4 pb-16 pt-6 sm:px-6 sm:pb-20 sm:pt-8">
           <img
-            src="/logo-horizontal-dark.png"
+            src="/logo-horizontal-dark.webp"
             alt="CashGPT — Earn · Complete · Cashout"
             className="h-9 w-auto select-none sm:h-10"
             draggable={false}
@@ -121,7 +121,7 @@ function AppLandingPage() {
       <footer className="bg-jade-gradient px-4 py-8 pb-28 sm:px-6 md:pb-8">
         <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-3 text-center">
           <img
-            src="/logo-horizontal-dark.png"
+            src="/logo-horizontal-dark.webp"
             alt="CashGPT"
             className="h-8 w-auto select-none"
             draggable={false}

@@ -60,21 +60,21 @@ function PreviewSectionHeading() {
           variant="ribbon"
           size="page"
           icon={Tag}
-          iconSrc="/icons/icon-offers.png"
+          iconSrc="/icons/icon-offers.webp"
           title="Offers"
           subtitle="Complete partner offers for bigger payouts."
         />
         <SectionHeading
           variant="ribbon"
           icon={Star}
-          iconSrc="/icons/icon-featured-offers.png"
+          iconSrc="/icons/icon-featured-offers.webp"
           title="Featured Offers"
         />
         <Filler />
         <SectionHeading
           variant="ribbon"
           icon={Layers}
-          iconSrc="/icons/icon-offerwall.png"
+          iconSrc="/icons/icon-offerwall.webp"
           title="Offerwall"
         />
         <Filler />
@@ -83,7 +83,7 @@ function PreviewSectionHeading() {
         <SectionHeading
           variant="ribbon"
           icon={Rocket}
-          iconSrc="/icons/icon-starter-quest.png"
+          iconSrc="/icons/icon-starter-quest.webp"
           title="Starter Quests"
           subtitle="Complete simple quests and earn rewards!"
         />
@@ -93,7 +93,7 @@ function PreviewSectionHeading() {
         <SectionHeading
           variant="ribbon"
           icon={Wallet}
-          iconSrc="/icons/icon-wallet.png"
+          iconSrc="/icons/icon-wallet.webp"
           title="Withdraw"
           action={
             <Button size="sm" variant="outline" className="gap-1">
@@ -108,7 +108,7 @@ function PreviewSectionHeading() {
           <SectionHeading
             variant="ribbon"
             icon={Wallet}
-            iconSrc="/icons/icon-wallet.png"
+            iconSrc="/icons/icon-wallet.webp"
             title="Withdraw"
             action={
               <Button size="sm" variant="outline" className="gap-1">
@@ -123,7 +123,7 @@ function PreviewSectionHeading() {
           variant="ribbon"
           size="page"
           icon={ListChecks}
-          iconSrc="/icons/icon-your-task.png"
+          iconSrc="/icons/icon-your-task.webp"
           title="Your tasks"
           subtitle="Work through the list to unlock rewards. This subtitle is deliberately long so you can confirm it wraps cleanly instead of being cut off."
         />
@@ -134,14 +134,14 @@ function PreviewSectionHeading() {
           variant="ribbon"
           size="page"
           icon={Users}
-          iconSrc="/icons/icon-referral.png"
+          iconSrc="/icons/icon-referral.webp"
           title="Refer & Earn"
           subtitle="Invite friends, get rewarded together"
         />
         <SectionHeading
           variant="ribbon"
           icon={Gift}
-          iconSrc="/icons/icon-how-you-earn.png"
+          iconSrc="/icons/icon-how-you-earn.webp"
           title="How you earn $3.00"
         />
         <Filler />
@@ -157,37 +157,37 @@ function PreviewSectionHeading() {
           variant="ribbon"
           size="page"
           icon={LifeBuoy}
-          iconSrc="/icons/icon-support.png"
+          iconSrc="/icons/icon-support.webp"
           title="Help centre"
         />
         <SectionHeading
           variant="ribbon"
           icon={HelpCircle}
-          iconSrc="/icons/icon-faq.png"
+          iconSrc="/icons/icon-faq.webp"
           title="FAQ"
         />
         <SectionHeading
           variant="ribbon"
           icon={Mail}
-          iconSrc="/icons/icon-contact-us.png"
+          iconSrc="/icons/icon-contact-us.webp"
           title="Contact us"
         />
         <SectionHeading
           variant="ribbon"
           icon={Ticket}
-          iconSrc="/icons/icon-your-tickets.png"
+          iconSrc="/icons/icon-your-tickets.webp"
           title="Your tickets"
         />
         <SectionHeading
           variant="ribbon"
           icon={Settings}
-          iconSrc="/icons/icon-profile.png"
+          iconSrc="/icons/icon-profile.webp"
           title="Settings"
         />
         <SectionHeading
           variant="ribbon"
           icon={FileText}
-          iconSrc="/icons/icon-terms-conditions.png"
+          iconSrc="/icons/icon-terms-conditions.webp"
           title="Terms & conditions"
         />
         <Filler />
@@ -206,7 +206,7 @@ function PreviewSectionHeading() {
         <Label>Old default variant, kept for comparison (still in the code)</Label>
         <SectionHeading
           icon={Rocket}
-          iconSrc="/icons/icon-starter-quest.png"
+          iconSrc="/icons/icon-starter-quest.webp"
           title="Starter Quests"
           subtitle="Complete simple quests and earn rewards!"
         />

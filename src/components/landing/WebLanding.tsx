@@ -92,7 +92,7 @@ export function WebLanding() {
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <a href="/" aria-label="CashGPT home" className="shrink-0">
             <img
-              src="/logo-horizontal-light.png"
+              src="/logo-horizontal-light.webp"
               alt="CashGPT"
               width={150}
               height={36}
@@ -371,7 +371,7 @@ function Footer() {
     <footer className="border-t border-border/70 bg-background-alt px-4 py-8 pb-24 sm:px-6 lg:pb-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-5 text-center">
         <img
-          src="/logo-horizontal-light.png"
+          src="/logo-horizontal-light.webp"
           alt="CashGPT"
           width={140}
           height={34}
