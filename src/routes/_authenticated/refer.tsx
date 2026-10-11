@@ -286,7 +286,7 @@ export function ReferPage() {
           variant="ribbon"
           size="page"
           icon={Users}
-          iconSrc="/icons/icon-referral.png"
+          iconSrc="/icons/icon-referral.webp"
           title="Refer & Earn"
           subtitle="Invite friends, get rewarded together"
           className="mb-4"
@@ -416,7 +416,7 @@ export function ReferPage() {
         <SectionHeading
           variant="ribbon"
           icon={Wallet}
-          iconSrc="/icons/icon-wallet.png"
+          iconSrc="/icons/icon-wallet.webp"
           title="Publisher Referral"
           subtitle="Rewards when friends earn as publishers"
         />
@@ -518,7 +518,7 @@ Deposits
         <SectionHeading
           variant="ribbon"
           icon={Gift}
-          iconSrc="/icons/icon-how-you-earn.png"
+          iconSrc="/icons/icon-how-you-earn.webp"
           title={`How you earn ${formatMoney(REFERRAL_MAX_BONUS)}`}
         />
         <ol className="surface-card space-y-1 p-4">
@@ -547,7 +547,7 @@ Deposits
         <SectionHeading
           variant="ribbon"
           icon={Users}
-          iconSrc="/icons/icon-your-referrals.png"
+          iconSrc="/icons/icon-your-referrals.webp"
           title="Your referrals"
         />
         {mine.length > 0 && (
@@ -633,7 +633,7 @@ Deposits
         <SectionHeading
           variant="ribbon"
           icon={FileText}
-          iconSrc="/icons/icon-terms-conditions.png"
+          iconSrc="/icons/icon-terms-conditions.webp"
           title="Terms & conditions"
         />
         <div className="surface-card p-3" data-testid="refer-rules-accordion">

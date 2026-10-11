@@ -164,7 +164,7 @@ function ProfilePage() {
       <SectionHeading
         variant="ribbon"
         icon={Settings}
-        iconSrc="/icons/icon-profile.png"
+        iconSrc="/icons/icon-profile.webp"
         title="Settings"
       />
       <div className="surface-card divide-y divide-border">
@@ -243,7 +243,7 @@ function ProfilePage() {
         }}
       >
         <img
-          src="/icons/icon-logout.png"
+          src="/icons/icon-logout.webp"
           alt=""
           aria-hidden
           className="size-6 object-contain"

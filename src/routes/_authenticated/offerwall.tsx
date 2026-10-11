@@ -30,7 +30,7 @@ function OfferwallPage() {
         variant="ribbon"
         size="page"
         icon={Layers}
-        iconSrc="/icons/icon-offerwall.png"
+        iconSrc="/icons/icon-offerwall.webp"
         title="Offerwall"
       />
       <SectionBanner section="offerwall" />

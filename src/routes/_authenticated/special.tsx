@@ -167,7 +167,7 @@ function TaskPage() {
         variant="ribbon"
         size="page"
         icon={ListChecks}
-        iconSrc="/icons/icon-your-task.png"
+        iconSrc="/icons/icon-your-task.webp"
         title="Your tasks"
         subtitle="Work through the list to unlock rewards."
         className="mb-4"

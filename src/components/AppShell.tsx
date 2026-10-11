@@ -17,7 +17,7 @@ export function BrandMark({ className = "" }: { className?: string }) {
       className={`inline-grid place-items-center overflow-hidden rounded-2xl bg-jade-gradient shadow-lift ${className || "size-10"}`}
     >
       <img
-        src="/icon-512.png"
+        src="/icon-128.webp"
         alt="CashGPT"
         className="h-full w-full object-cover"
         loading="eager"
@@ -41,7 +41,7 @@ export function BrandLogo({
   if (variant === "light") {
     return (
       <img
-        src="/logo-horizontal-light.png"
+        src="/logo-horizontal-light.webp"
         alt="CashGPT — Earn · Complete · Cashout"
         className={`h-auto w-auto select-none ${className}`}
         draggable={false}
@@ -52,7 +52,7 @@ export function BrandLogo({
   if (variant === "dark") {
     return (
       <img
-        src="/logo-horizontal-dark.png"
+        src="/logo-horizontal-dark.webp"
         alt="CashGPT — Earn · Complete · Cashout"
         className={`h-auto w-auto select-none ${className}`}
         draggable={false}
@@ -62,9 +62,9 @@ export function BrandLogo({
   }
   return (
     <picture className={`inline-block ${className}`}>
-      <source srcSet="/logo-horizontal-dark.png" media="(prefers-color-scheme: dark)" />
+      <source srcSet="/logo-horizontal-dark.webp" media="(prefers-color-scheme: dark)" />
       <img
-        src="/logo-horizontal-light.png"
+        src="/logo-horizontal-light.webp"
         alt="CashGPT — Earn · Complete · Cashout"
         className="h-auto w-auto select-none"
         draggable={false}

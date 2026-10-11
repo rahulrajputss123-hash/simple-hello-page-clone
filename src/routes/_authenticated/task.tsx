@@ -199,7 +199,7 @@ function MicrotasksPage() {
         variant="ribbon"
         size="page"
         icon={Grid2X2}
-        iconSrc="/icons/icon-your-task.png"
+        iconSrc="/icons/icon-your-task.webp"
         title="Microtasks"
         subtitle="Complete simple tasks posted by advertisers and earn rewards."
         className="mb-2"

@@ -43,7 +43,7 @@ function OffersPage() {
         variant="ribbon"
         size="page"
         icon={Tag}
-        iconSrc="/icons/icon-offers.png"
+        iconSrc="/icons/icon-offers.webp"
         title="Offers"
         subtitle="Complete partner offers for bigger payouts."
       />
@@ -68,7 +68,7 @@ function OffersPage() {
       <SectionHeading
         variant="ribbon"
         icon={Layers}
-        iconSrc="/icons/icon-offerwall.png"
+        iconSrc="/icons/icon-offerwall.webp"
         title="Offerwall"
       />
       <OfferwallSlot limit={6} />
