@@ -4,6 +4,7 @@ import { Megaphone } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { AdvertiserOnboarding, advertiserOnboardingSeen } from "@/components/marketplace/AdvertiserOnboarding";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -39,6 +40,7 @@ export function BecomeAdvertiserDialog({
   const [contactEmail, setContactEmail] = useState(session?.user.email ?? "");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [accepted, setAccepted] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -54,6 +56,9 @@ export function BecomeAdvertiserDialog({
       await refreshOverview();
       setRole("advertiser");
       onOpenChange(false);
+      if (created && session?.user.id && !advertiserOnboardingSeen(session.user.id)) {
+        setShowOnboarding(true);
+      }
       toast.success(created ? "You're an advertiser now" : "Advertiser mode on", {
         description: created ? "Add Campaign Funds to launch your first task." : undefined,
       });
@@ -69,7 +74,8 @@ export function BecomeAdvertiserDialog({
   const terms = overview?.settings.termsVersion ?? "v1";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm rounded-3xl" data-testid="become-advertiser-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -143,6 +149,14 @@ export function BecomeAdvertiserDialog({
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+      {showOnboarding && session?.user.id && (
+        <AdvertiserOnboarding
+          userId={session.user.id}
+          overview={overview}
+          onComplete={() => setShowOnboarding(false)}
+        />
+      )}
+    </>
   );
 }
