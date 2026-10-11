@@ -128,38 +128,6 @@ export function WebLanding() {
       {/* 2 — Hero: headline + offers on the left, inline auth on the right    */}
       {/* ------------------------------------------------------------------ */}
       <section className="relative isolate overflow-hidden" aria-labelledby="landing-h1">
-        {/* Ambient background: soft jade/gold glow, faint blurred offer art and a
-            couple of slowly drifting coins. Decorative only. */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div
-            className="ambient-drift absolute -left-24 -top-32 size-[28rem] rounded-full opacity-[0.18] blur-3xl"
-            style={{
-              background: "radial-gradient(closest-side, var(--color-mint), transparent)",
-            }}
-          />
-          <div
-            className="ambient-drift-slow absolute -right-28 top-10 size-[30rem] rounded-full opacity-[0.16] blur-3xl"
-            style={{
-              background: "radial-gradient(closest-side, var(--color-gold), transparent)",
-            }}
-          />
-          <img
-            src={SHOWCASE_OFFERS[1]!.image}
-            alt=""
-            loading="lazy"
-            className="absolute -left-16 bottom-0 w-64 rotate-[-8deg] opacity-[0.05] blur-2xl"
-          />
-          <img
-            src={SHOWCASE_OFFERS[2]!.image}
-            alt=""
-            loading="lazy"
-            className="absolute -right-10 -bottom-16 w-72 rotate-[10deg] opacity-[0.05] blur-2xl"
-          />
-          <Coins className="coin-float absolute left-[12%] top-[38%] size-8 text-gold opacity-20" />
-          <Coins className="coin-float-b absolute right-[8%] top-[22%] size-6 text-gold opacity-[0.15]" />
-          <Coins className="coin-float-c absolute left-[62%] bottom-[12%] size-7 text-gold opacity-[0.12] lg:left-[46%]" />
-        </div>
-
         <div className="mx-auto w-full max-w-6xl px-4 pb-10 pt-5 sm:px-6 sm:pb-14 sm:pt-12">
           <div className="grid items-center gap-5 lg:grid-cols-[1.05fr_minmax(350px,400px)] lg:gap-12">
             {/* Left column */}
@@ -261,7 +229,7 @@ export function WebLanding() {
         <Button
           variant="gold"
           size="lg"
-          className="shimmer-sweep w-full"
+          className="w-full"
           onClick={() => goToAuth("signup")}
           data-testid="sticky-start-btn"
         >
@@ -373,17 +341,6 @@ function FinalCta({ onStart }: { onStart: () => void }) {
       aria-labelledby="final-cta-heading"
       className="relative isolate overflow-hidden rounded-[1.75rem] bg-jade-gradient px-5 py-10 text-center shadow-lift sm:px-10 sm:py-14"
     >
-      <div
-        aria-hidden
-        className="ambient-drift pointer-events-none absolute -left-16 -top-20 size-56 rounded-full opacity-40 blur-3xl"
-        style={{ background: "radial-gradient(closest-side, var(--color-gold), transparent)" }}
-      />
-      <div
-        aria-hidden
-        className="ambient-drift-slow pointer-events-none absolute -bottom-24 -right-16 size-56 rounded-full opacity-30 blur-3xl"
-        style={{ background: "radial-gradient(closest-side, var(--color-mint), transparent)" }}
-      />
-
       <div className="relative">
         <h2
           id="final-cta-heading"
@@ -397,7 +354,7 @@ function FinalCta({ onStart }: { onStart: () => void }) {
         <Button
           variant="gold"
           size="lg"
-          className="shimmer-sweep mt-7 px-8"
+          className="mt-7 px-8"
           onClick={onStart}
           data-testid="final-cta-btn"
         >

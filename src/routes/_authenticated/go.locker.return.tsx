@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Home, Loader2, XCircle } from "lucide-react";
 import { z } from "zod";
 
@@ -8,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { completeLockerQuest } from "@/lib/quests.functions";
 import { formatMoney } from "@/lib/coinquest";
+import { useAuth } from "@/lib/auth";
 
 /**
  * Return page for Content Locker quests.
@@ -46,6 +48,8 @@ function LockerReturnPage() {
   const navigate = useNavigate();
   const complete = useServerFn(completeLockerQuest);
   const [state, setState] = useState<State>({ kind: "loading" });
+  const queryClient = useQueryClient();
+  const { session } = useAuth();
 
   useEffect(() => {
     if (!questKey) {
@@ -79,6 +83,14 @@ function LockerReturnPage() {
         }
 
         setState({ kind: "success", reward: result.reward });
+        
+        // Invalidate queries to show wallet credit immediately
+        void queryClient.invalidateQueries({ queryKey: ["profile"] });
+        void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
+        void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
+        void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        void queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+        
         // Auto-redirect to home after 3 seconds.
         setTimeout(() => {
           if (!cancelled) void navigate({ to: "/home" });

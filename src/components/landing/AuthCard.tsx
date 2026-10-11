@@ -90,7 +90,7 @@ export function AuthCard({ auth, id = "auth" }: { auth: AuthFormApi; id?: string
           type="submit"
           variant="gold"
           size="lg"
-          className="shimmer-sweep mt-1 w-full"
+          className="mt-1 w-full"
           disabled={disabled}
           data-testid="landing-auth-submit"
         >

@@ -55,7 +55,12 @@ export function StarterQuests() {
       const r = result as { credited?: boolean };
       if (r.credited) toast.success("Quest complete — wallet credited!");
       else toast.success("Ad verified. Keep going!");
-      void queryClient.invalidateQueries();
+      void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
+      void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
+      void queryClient.invalidateQueries({ queryKey: ["profile"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+      void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      void queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
     },
     onError: (error: Error) => toast.error(error.message || "That ad couldn't be verified."),
     onSettled: () => setBusy(null),
@@ -77,7 +82,7 @@ export function StarterQuests() {
       } else {
         toast.error("This step has no URL configured.");
       }
-      void queryClient.invalidateQueries({ queryKey: ["quest-sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
     },
     onError: (error: Error) => toast.error(error.message || "Could not start this step."),
     onSettled: () => setBusy(null),
@@ -100,7 +105,7 @@ export function StarterQuests() {
       } else {
         toast.error("This locker has no URL configured.");
       }
-      void queryClient.invalidateQueries({ queryKey: ["quest-sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
     },
     onError: (error: Error) => toast.error(error.message || "Could not open this locker."),
     onSettled: () => setBusy(null),

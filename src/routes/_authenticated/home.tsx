@@ -121,9 +121,9 @@ function HomePage() {
         <AdvertiserDashboard />
       ) : (
         <>
-      {/* Decorative hero orbs — reuse the onboarding orb base, Home-specific tint/position. */}
-      <div aria-hidden className="premium-orb home-orb home-orb-jade" />
-      <div aria-hidden className="premium-orb home-orb home-orb-gold" />
+      {/* Decorative hero orbs — static background gradients */}
+      <div aria-hidden className="home-orb home-orb-jade" />
+      <div aria-hidden className="home-orb home-orb-gold" />
 
       <SimulatedLiveActivity />
 
@@ -238,7 +238,8 @@ function HomePage() {
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-mint/10 blur-2xl"
+          className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full"
+          style={{ background: "radial-gradient(circle, oklch(0.33 0.048 197.2 / 0.1), transparent 68%)" }}
         />
         <span className="inline-flex items-center gap-1.5 rounded-full bg-mint/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary ring-1 ring-inset ring-mint/25">
           <span className="relative grid size-1.5 place-items-center">
@@ -300,13 +301,13 @@ function HomePage() {
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-14 -top-16 size-48 rounded-full opacity-40 blur-3xl"
-          style={{ background: "radial-gradient(closest-side, var(--color-gold), transparent)" }}
+          className="pointer-events-none absolute -right-14 -top-16 size-48 rounded-full"
+          style={{ background: "radial-gradient(circle, oklch(0.824 0.163 77.8 / 0.25), transparent 70%)" }}
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-20 -left-12 size-44 rounded-full opacity-30 blur-3xl"
-          style={{ background: "radial-gradient(closest-side, var(--color-mint), transparent)" }}
+          className="pointer-events-none absolute -bottom-20 -left-12 size-44 rounded-full"
+          style={{ background: "radial-gradient(circle, oklch(0.33 0.048 197.2 / 0.2), transparent 70%)" }}
         />
 
         <div className="relative">
@@ -327,7 +328,7 @@ function HomePage() {
             <div
               data-testid="payout-method-paypal"
               style={{ animationDelay: "60ms" }}
-              className="payout-card relative flex items-center gap-4 overflow-hidden rounded-2xl bg-card/95 p-4 backdrop-blur"
+              className="payout-card relative flex items-center gap-4 overflow-hidden rounded-2xl bg-card/95 p-4"
             >
               <span
                 className="grid size-14 shrink-0 place-items-center rounded-2xl text-white shadow-lg"
@@ -355,7 +356,7 @@ function HomePage() {
               <div
                 data-testid="payout-method-crypto"
                 style={{ animationDelay: "140ms" }}
-                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4 backdrop-blur"
+                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4"
               >
                 <span
                   className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
@@ -370,7 +371,7 @@ function HomePage() {
               <div
                 data-testid="payout-method-giftcards"
                 style={{ animationDelay: "220ms" }}
-                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4 backdrop-blur"
+                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4"
               >
                 <span
                   className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
@@ -476,7 +477,7 @@ function PaidOutThisWeek() {
   return (
     <div
       data-testid="payout-proof-strip"
-      className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary-foreground/15 bg-primary-foreground/10 py-1.5 pl-2.5 pr-3.5 backdrop-blur"
+      className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary-foreground/15 bg-primary-foreground/10 py-1.5 pl-2.5 pr-3.5"
     >
       <span className="relative grid size-2.5 place-items-center">
         <span className="payout-live-dot absolute inset-0 rounded-full bg-mint" />

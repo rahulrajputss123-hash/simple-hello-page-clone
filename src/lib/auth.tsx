@@ -37,7 +37,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(next);
       setLoading(false);
       if (event === "SIGNED_IN" || event === "USER_UPDATED") {
-        queryClient.invalidateQueries();
+        // Invalidate profile and roles on auth changes
+        queryClient.invalidateQueries({ queryKey: ["profile"] });
+        queryClient.invalidateQueries({ queryKey: ["roles"] });
       }
       if (event === "SIGNED_OUT") queryClient.clear();
     });

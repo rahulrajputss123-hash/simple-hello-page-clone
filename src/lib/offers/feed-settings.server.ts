@@ -2,6 +2,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 /** Global + per-network configuration for offer-feed automation. */
 
+// In-memory TTL cache for feed settings (60s)
+let _feedSettingsCache: { data: FeedSettings; expires: number } | null = null;
+const SETTINGS_CACHE_TTL_MS = 60_000;
+
 export type FallbackBehavior = "none" | "default_country";
 
 export type FeedSettings = {
@@ -19,19 +23,28 @@ const DEFAULTS: FeedSettings = {
 };
 
 export async function getFeedSettingsImpl(): Promise<FeedSettings> {
+  // Check in-memory cache
+  if (_feedSettingsCache && _feedSettingsCache.expires > Date.now()) {
+    return _feedSettingsCache.data;
+  }
+
   const { data, error } = await supabaseAdmin
     .from("offer_feed_settings")
     .select("refresh_interval_hours, default_country, fallback_behavior, featured_slots")
     .eq("id", true)
     .maybeSingle();
   if (error) throw error;
-  if (!data) return { ...DEFAULTS };
-  return {
+  
+  const settings: FeedSettings = !data ? { ...DEFAULTS } : {
     refreshIntervalHours: Number(data.refresh_interval_hours) || DEFAULTS.refreshIntervalHours,
     defaultCountry: (data.default_country || DEFAULTS.defaultCountry).toUpperCase(),
     fallbackBehavior: (data.fallback_behavior as FallbackBehavior) ?? DEFAULTS.fallbackBehavior,
     featuredSlots: Number(data.featured_slots) || DEFAULTS.featuredSlots,
   };
+
+  // Cache for 60s
+  _feedSettingsCache = { data: settings, expires: Date.now() + SETTINGS_CACHE_TTL_MS };
+  return settings;
 }
 
 export async function updateFeedSettingsImpl(input: {
@@ -51,6 +64,10 @@ export async function updateFeedSettingsImpl(input: {
     .from("offer_feed_settings")
     .upsert(row as never, { onConflict: "id" });
   if (error) throw error;
+  
+  // Clear cache when admin updates settings
+  _feedSettingsCache = null;
+  
   return getFeedSettingsImpl();
 }
 
@@ -114,5 +131,15 @@ export async function updateNetworkFeedSettingsImpl(input: {
     .update({ enabled: input.enabled, sync_config: nextConfig as never })
     .eq("id", input.providerId);
   if (updateError) throw updateError;
+  
+  // Clear provider cache when admin updates - import and clear it
+  const feedCacheModule = await import("./feed-cache.server");
+  (feedCacheModule as any)._enabledProvidersCache = null;
+  
   return { ok: true, maxOffers, weight, enabled: input.enabled };
+}
+
+// Export helper to clear caches when needed
+export function clearFeedCaches() {
+  _feedSettingsCache = null;
 }

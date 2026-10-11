@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&family=Outfit:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&family=Inter:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -24,7 +24,6 @@
   --font-section: "Baloo 2", ui-rounded, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-premium: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --font-outfit: "Outfit", ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-background-alt: var(--background-alt);
@@ -392,7 +391,7 @@
 .premium-shell h1,
 .premium-shell h2,
 .premium-shell h3 {
-  font-family: "Outfit", var(--font-display);
+  font-family: var(--font-premium);
 }
 .premium-frame {
   isolation: isolate;
@@ -734,11 +733,11 @@
     radial-gradient(72% 52% at 50% 0%, oklch(0.784 0.163 161.4 / 0.1), transparent 76%);
 }
 
-/* Home hero orbs — reuse .premium-orb for the blur/radius/opacity base and
- * only override size, position and tint here. */
+/* Home hero orbs — static decorative backgrounds without animation */
 .home-orb {
   z-index: -1;
-  animation: premium-art-float 9s ease-in-out infinite;
+  position: absolute;
+  pointer-events: none;
 }
 .home-orb-jade {
   width: 210px;
@@ -753,12 +752,6 @@
   right: -95px;
   top: 34px;
   background: radial-gradient(circle, oklch(0.824 0.163 77.8 / 0.22), transparent 68%);
-  animation-duration: 11s;
-  animation-delay: -3s;
-}
-/* Coin glyph in the shared header floats on Home only. */
-.home-page-bg .app-header-coin {
-  animation: premium-art-float 5s ease-in-out infinite;
 }
 
 /* --- Wallet: gold glow behind the balance card only ----------------------- */
@@ -970,76 +963,6 @@
 }
 .reveal-stagger > *:nth-child(n + 5) {
   transition-delay: 280ms;
-}
-
-/* --- Primary button shimmer sweep ------------------------------------------ */
-@keyframes shimmer-sweep {
-  0% {
-    transform: translateX(-130%) skewX(-16deg);
-  }
-  55%,
-  100% {
-    transform: translateX(240%) skewX(-16deg);
-  }
-}
-.shimmer-sweep {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-}
-.shimmer-sweep::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 45%;
-  background: linear-gradient(
-    100deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.5) 50%,
-    transparent 100%
-  );
-  transform: translateX(-130%) skewX(-16deg);
-  animation: shimmer-sweep 5s ease-in-out infinite;
-  pointer-events: none;
-}
-
-/* --- Hero ambient glow drift ----------------------------------------------- */
-@keyframes ambient-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(3%, -4%, 0) scale(1.07);
-  }
-}
-.ambient-drift {
-  animation: ambient-drift 20s ease-in-out infinite;
-}
-.ambient-drift-slow {
-  animation: ambient-drift 28s ease-in-out infinite reverse;
-}
-
-/* --- Softly floating coins behind the hero --------------------------------- */
-@keyframes coin-float {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(0, -16px, 0);
-  }
-}
-.coin-float {
-  animation: coin-float 7s ease-in-out infinite;
-}
-.coin-float-b {
-  animation: coin-float 9.5s ease-in-out infinite reverse;
-}
-.coin-float-c {
-  animation: coin-float 8.2s ease-in-out infinite;
 }
 
 /* --- Offer card press feedback (touch) ------------------------------------- */
