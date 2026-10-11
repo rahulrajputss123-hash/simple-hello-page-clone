@@ -1048,3 +1048,59 @@ html[data-native="1"] [data-web-only] {
     opacity: 0;
   }
 }
+
+/* --- Landing phone preview (HeroPhone) --------------------------------------
+ * Transform/opacity only. Everything pauses while the preview is off-screen
+ * (data-running="false") and is switched off under prefers-reduced-motion.
+ */
+@keyframes hp-bob {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50% { transform: translate3d(0, -10px, 0) rotate(4deg); }
+}
+.hp-bob-a { animation: hp-bob 6.5s ease-in-out infinite; }
+.hp-bob-b { animation: hp-bob 8s ease-in-out infinite reverse; }
+.hp-bob-c { animation: hp-bob 7.2s ease-in-out -2s infinite; }
+
+@keyframes hp-toast {
+  0% { opacity: 0; transform: translateY(-14px) scale(0.97); }
+  8%, 86% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(6px) scale(0.98); }
+}
+.hp-toast { animation: hp-toast 5.2s ease-in-out both; }
+
+@keyframes hp-fill {
+  0% { transform: scaleX(0.08); }
+  55%, 85% { transform: scaleX(0.62); }
+  100% { transform: scaleX(0.08); }
+}
+.hp-fill { animation: hp-fill 6s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+
+@keyframes hp-pop {
+  0%, 50%, 100% { transform: scale(1) rotate(0deg); }
+  60% { transform: scale(1.25) rotate(-8deg); }
+  72% { transform: scale(0.95) rotate(4deg); }
+  84% { transform: scale(1.05) rotate(0deg); }
+}
+.hp-pop { animation: hp-pop 6s ease-in-out infinite; }
+
+@keyframes hp-grow {
+  0%, 100% { transform: scaleY(0.35); }
+  45%, 80% { transform: scaleY(1); }
+}
+.hp-grow { animation: hp-grow 4.2s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+
+.hp-parallax {
+  transform: translate3d(calc(var(--mx, 0) * var(--depth, 0px)), calc(var(--my, 0) * var(--depth, 0px)), 0);
+  transition: transform 300ms ease-out;
+}
+.hp-tilt-wrap { perspective: 1100px; }
+.hp-tilt {
+  transform: rotateY(calc(var(--mx, 0) * 7deg)) rotateX(calc(var(--my, 0) * -5deg));
+  transition: transform 300ms ease-out;
+}
+.hp-root[data-running="false"] .hp-anim { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hp-anim { animation: none !important; }
+  .hp-parallax, .hp-tilt { transform: none !important; transition: none !important; }
+}
