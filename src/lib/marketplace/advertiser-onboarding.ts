@@ -35,3 +35,13 @@ export function getAdvertiserOnboardingContent(overview: AdvertiserOnboardingOve
 export function advertiserOnboardingStorageKey(userId: string) {
   return `cashgpt.advertiser_onboarding_seen.${userId}`;
 }
+
+export function advertiserOnboardingActivationKey(userId: string) {
+  return `cashgpt.advertiser_onboarding_activation.${userId}`;
+}
+
+export function advertiserAccountIsNew(createdAt: string | null | undefined, now = Date.now()) {
+  if (!createdAt) return false;
+  const created = new Date(createdAt).getTime();
+  return Number.isFinite(created) && created <= now && now - created < 24 * 60 * 60 * 1000;
+}

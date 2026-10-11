@@ -29,8 +29,13 @@ import { getDeviceId } from "@/lib/ads";
 import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
 import { simulatedPayoutSnapshot } from "@/lib/payout-simulation";
 import { AdvertiserDashboard } from "@/components/marketplace/AdvertiserDashboard";
+import { AdvertiserOnboarding, advertiserOnboardingSeen } from "@/components/marketplace/AdvertiserOnboarding";
 import { useRole } from "@/lib/marketplace/role";
 import { safeStorage } from "@/lib/safe-storage";
+import {
+  advertiserAccountIsNew,
+  advertiserOnboardingActivationKey,
+} from "@/lib/marketplace/advertiser-onboarding";
 
 const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
 
@@ -59,6 +64,7 @@ function HomePage() {
   // Marketplace preview: advertiser mode swaps the Home content for the dashboard.
   // Local state only — see src/lib/marketplace/role.tsx.
   const { role, overview: advertiserOverview } = useRole();
+  const [showAdvertiserOnboarding, setShowAdvertiserOnboarding] = useState(false);
   const [advertiserBannerDismissed, setAdvertiserBannerDismissed] = useState(() => {
     if (typeof window === "undefined") return false;
     return safeStorage.getItem("coinquest.advertiser_banner_dismissed") === "true";
@@ -68,6 +74,18 @@ function HomePage() {
     setAdvertiserBannerDismissed(true);
     safeStorage.setItem("coinquest.advertiser_banner_dismissed", "true");
   };
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    const account = advertiserOverview?.account;
+    if (role !== "advertiser" || !userId || !account || advertiserOnboardingSeen(userId)) return;
+
+    const activationAt = safeStorage.getItem(advertiserOnboardingActivationKey(userId));
+    const wasJustActivated = advertiserAccountIsNew(activationAt);
+    if (wasJustActivated || advertiserAccountIsNew(account.createdAt)) {
+      setShowAdvertiserOnboarding(true);
+    }
+  }, [advertiserOverview, role, session?.user.id]);
 
   useEffect(() => {
     if (!profile || profile.onboarded) return;
@@ -116,10 +134,19 @@ function HomePage() {
     void navigate({ to: "/onboarding", replace: true });
   }, [profile, session, navigate, queryClient, save]);
   return (
-    <AppShell subtitle="Earn as you go" bgClass="home-page-bg" home>
-      {role === "advertiser" ? (
-        <AdvertiserDashboard />
-      ) : (
+  <AppShell subtitle="Earn as you go" bgClass="home-page-bg" home>
+  {role === "advertiser" ? (
+  <>
+    <AdvertiserDashboard />
+    {showAdvertiserOnboarding && session?.user.id && advertiserOverview && (
+      <AdvertiserOnboarding
+        userId={session.user.id}
+        overview={advertiserOverview}
+        onComplete={() => setShowAdvertiserOnboarding(false)}
+      />
+    )}
+  </>
+  ) : (
         <>
       {/* Decorative hero orbs — static background gradients */}
       <div aria-hidden className="home-orb home-orb-jade" />
