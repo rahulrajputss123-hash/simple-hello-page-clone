@@ -119,7 +119,12 @@ function MicrotaskDetailPage() {
         </div>
       </section>
 
-      <SectionHeading variant="ribbon" icon={Info} title="About This Task" />
+      <SectionHeading
+          variant="ribbon"
+          icon={Info}
+          iconSrc="/icons/icon-document-info.png"
+          title="About This Task"
+        />
       <div className="surface-card p-4 text-sm leading-relaxed text-muted-foreground">{c.description}</div>
 
       <div className="surface-card mt-3 p-4">

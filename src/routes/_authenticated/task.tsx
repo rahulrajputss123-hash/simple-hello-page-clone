@@ -205,26 +205,32 @@ function MicrotasksPage() {
         className="mb-2"
       />
 
-      <div className="surface-card mt-3 grid grid-cols-2 divide-x divide-border bg-mint/10">
-        <button className="flex items-center gap-3 p-4 text-left" onClick={() => listRef.current?.scrollIntoView({ behavior: "smooth" })}>
-          <span className="grid size-10 place-items-center rounded-full bg-mint/30 text-primary">
-            <ListChecks className="size-5" />
+      <div className="mt-3 grid grid-cols-2 divide-x divide-primary-foreground/15 rounded-3xl bg-jade-gradient p-2 text-primary-foreground shadow-lift">
+        <button
+          className="flex min-w-0 items-center gap-2 rounded-2xl p-3 text-left transition-transform active:scale-[0.98]"
+          onClick={() => listRef.current?.scrollIntoView({ behavior: "smooth" })}
+        >
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gold/20 text-gold">
+            <ListChecks className="size-4" />
           </span>
-          <span>
-            <b className="block text-sm">Available tasks</b>
-            <span className="text-lg font-extrabold">{campaigns.isPending ? "..." : filtered.length}</span>
+          <span className="min-w-0 flex-1">
+            <b className="block truncate whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider opacity-75">Available</b>
+            <span className="block truncate whitespace-nowrap text-lg font-extrabold">{campaigns.isPending ? "..." : filtered.length}</span>
           </span>
-          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+          <ChevronRight className="size-4 shrink-0 text-primary-foreground/60" />
         </button>
-        <Link to="/my-submissions" className="flex items-center gap-3 p-4">
-          <span className="grid size-10 place-items-center rounded-full bg-primary/10 text-primary">
-            <Check className="size-5" />
+        <Link to="/my-submissions" className="flex min-w-0 items-center gap-2 rounded-2xl p-3 transition-transform active:scale-[0.98]">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gold/20 text-gold">
+            <Check className="size-4" />
           </span>
-          <span>
-            <b className="block text-sm">My submissions</b>
-            <span className="text-lg font-extrabold">{submissions.isPending ? "..." : pending} pending</span>
+          <span className="min-w-0 flex-1">
+            <b className="block truncate whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider opacity-75">My submissions</b>
+            <span className="flex items-center gap-1.5 whitespace-nowrap text-lg font-extrabold">
+              <span>{submissions.isPending ? "..." : pending}</span>
+              <span className="rounded-full bg-gold/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gold">pending</span>
+            </span>
           </span>
-          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+          <ChevronRight className="size-4 shrink-0 text-primary-foreground/60" />
         </Link>
       </div>
 
@@ -263,7 +269,12 @@ function MicrotasksPage() {
       </div>
 
       <div ref={listRef} className="mt-5 flex items-end justify-between">
-        <SectionHeading variant="ribbon" icon={ListChecks} title="Available Tasks" />
+        <SectionHeading
+            variant="ribbon"
+            icon={ListChecks}
+            iconSrc="/icons/icon-task-checklist.png"
+            title="Available Tasks"
+          />
         <span className="mb-3 text-xs text-muted-foreground">{campaigns.isPending ? "..." : filtered.length} tasks</span>
       </div>
 
