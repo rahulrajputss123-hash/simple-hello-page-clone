@@ -39,6 +39,7 @@ import {
 import type { BannerCtaKind, BannerRow, BannerSection } from "@/lib/banners/server";
 import { SMART_BANNER_TEMPLATES } from "@/lib/banners/smart";
 import { formatDateTime } from "@/lib/coinquest";
+import { resizeAndConvertToWebP } from "@/lib/image-resize";
 
 const SECTIONS: readonly [BannerSection, string][] = [
   ["home", "Home"],
@@ -196,26 +197,30 @@ export function BannersManager() {
 
   const handleFile = async (file: File) => {
     if (!form) return;
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error("Image must be under 3 MB.");
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image must be under 10 MB.");
       return;
     }
     setUploading(true);
     try {
+      // Resize to max 1200px wide and convert to WebP at 82% quality
+      toast.info("Resizing and converting to WebP...");
+      const optimizedFile = await resizeAndConvertToWebP(file, 1200, 0.82);
+      
       const { uploadUrl, token, publicUrl } = await requestUpload({
-        data: { filename: file.name.slice(0, 120) },
+        data: { filename: optimizedFile.name.slice(0, 120) },
       });
       const res = await fetch(uploadUrl, {
         method: "PUT",
         headers: {
-          "Content-Type": file.type || "application/octet-stream",
+          "Content-Type": optimizedFile.type || "application/octet-stream",
           // Storage persists this as the object's cache-control. Upload paths are
           // unique per upload and never overwritten in place, so a 1-year cache is
           // safe and stops repeat visits re-downloading the same asset.
           "cache-control": "max-age=31536000",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: file,
+        body: optimizedFile,
       });
       if (!res.ok) throw new Error(`Upload failed (${res.status})`);
       setForm({ ...form, imageUrl: publicUrl });

@@ -72,6 +72,8 @@ export const OfferCard = memo(function OfferCard({
           <img
             src={imageSrc!}
             alt={title}
+            width={360}
+            height={270}
             loading={isEager ? "eager" : "lazy"}
             fetchPriority={isPriority ? "high" : undefined}
             decoding="async"
