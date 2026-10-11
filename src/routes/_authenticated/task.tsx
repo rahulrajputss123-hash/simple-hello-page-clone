@@ -272,7 +272,7 @@ function MicrotasksPage() {
         <SectionHeading
             variant="ribbon"
             icon={ListChecks}
-            iconSrc="/icons/icon-task-checklist.png"
+            iconSrc="/icons/icon-task-checklist.webp"
             title="Available Tasks"
           />
         <span className="mb-3 text-xs text-muted-foreground">{campaigns.isPending ? "..." : filtered.length} tasks</span>

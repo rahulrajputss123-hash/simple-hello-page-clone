@@ -618,7 +618,7 @@ function FeaturePreview({
             Grab limited-time deals and promotional offers with high rewards.
           </span>
         </span>
-        <span className="rounded-full bg-[#f25d4b] px-2 py-1 text-[8px] font-black uppercase text-white">
+        <span className="rounded-full bg-[#f25d4b] px-2 py-1 text-[8px] font-extrabold uppercase text-white">
           Hot
         </span>
       </div>

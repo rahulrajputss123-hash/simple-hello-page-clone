@@ -54,7 +54,7 @@ function NotificationsPage() {
         variant="ribbon"
         size="page"
         icon={Bell}
-        iconSrc="/icons/icon-notifications.png"
+        iconSrc="/icons/icon-notifications.webp"
         title="Notifications"
       />
       {!notifications.data?.length ? (

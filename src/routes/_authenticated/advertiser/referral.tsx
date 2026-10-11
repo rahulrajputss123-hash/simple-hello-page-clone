@@ -40,7 +40,7 @@ function AdvertiserReferralPage() {
         variant="ribbon"
         size="page"
         icon={Users}
-        iconSrc="/icons/icon-advertiser-referral-v2.png"
+        iconSrc="/icons/icon-advertiser-referral-v2.webp"
         title="Advertiser Referral"
         subtitle="Earn when people you invite run campaigns."
         className="mb-2"
@@ -65,7 +65,7 @@ function AdvertiserReferralPage() {
       <SectionHeading
           variant="ribbon"
           icon={Users}
-          iconSrc="/icons/icon-user-referrals.png"
+          iconSrc="/icons/icon-user-referrals.webp"
           title="Your advertiser referrals"
         />
       <div className="grid grid-cols-2 gap-3">

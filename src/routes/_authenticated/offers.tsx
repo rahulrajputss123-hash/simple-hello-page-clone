@@ -58,7 +58,7 @@ function OffersPage() {
       <SectionHeading
         variant="ribbon"
         icon={LayoutGrid}
-        iconSrc="/icons/icon-offer-filter.png"
+        iconSrc="/icons/icon-offer-filter.webp"
         title="All Offers"
         className="!mt-4"
         action={<OfferFilterButton value={filter} onChange={setFilter} />}
