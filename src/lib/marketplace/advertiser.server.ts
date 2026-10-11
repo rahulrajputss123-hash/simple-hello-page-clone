@@ -928,9 +928,7 @@ export async function createCampaignImpl(
     category_id: input.categoryId,
     subcategory_id: input.subcategoryId || null,
     estimated_minutes: input.estimatedMinutes || null,
-    ...(input.verification === "auto" && input.trackingUrl && {
-      tracking_url: input.trackingUrl,
-    }),
+    ...(input.verification === "auto" ? { tracking_url: input.trackingUrl } : {}),
     status: "draft",
   };
 

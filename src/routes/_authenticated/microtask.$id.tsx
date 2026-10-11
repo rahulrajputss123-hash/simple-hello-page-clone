@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Camera, Check, Globe, Info, ListOrdered, Smartphone } from "lucide-react";
 import { toast } from "sonner";
+import { useRef, useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
@@ -53,22 +54,29 @@ function MicrotaskDetailPage() {
     enabled: Boolean(session),
   });
 
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+  const popupRef = useRef<Window | null>(null);
+
   const clickMutation = useMutation({
     mutationFn: () =>
       clickFn({
         data: {
           campaignId: id,
-          ipAddress: "0.0.0.0", // Server will hash this
           userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
         },
       }),
     onSuccess: (result) => {
-      // For auto-verified, the advertiser's tracking URL would include this click_id
-      // In a real implementation, open the advertiser's landing page with ?click_id=...
-      // For now, show a success message
-      toast.success("Task started! Complete it and your reward will be credited automatically.");
-      // TODO: Navigate to advertiser's landing page with click_id
-      console.log("[microtask] click_id:", result.clickId);
+      setRedirectUrl(result.redirectUrl ?? null);
+      if (result.redirectUrl) {
+        if (popupRef.current && !popupRef.current.closed) {
+          popupRef.current.location.href = result.redirectUrl;
+        } else {
+          window.location.href = result.redirectUrl;
+        }
+        toast.success("Offer opened. Complete it to earn your reward.");
+      } else {
+        toast.success("Task started! Complete it and your reward will be credited automatically.");
+      }
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message : "Something went wrong";
@@ -151,16 +159,31 @@ function MicrotaskDetailPage() {
             Start & Complete
           </Button>
         ) : (
+          <>
           <Button
             variant="jade"
             size="lg"
             className="w-full"
             data-testid="start-task-btn"
-            onClick={() => clickMutation.mutate()}
+            onClick={() => {
+              popupRef.current = c.verification === "auto" ? window.open("about:blank", "_blank") : null;
+              clickMutation.mutate();
+            }}
             disabled={clickMutation.isPending}
           >
             {clickMutation.isPending ? "Starting..." : "Start Task"}
           </Button>
+          {redirectUrl && (
+            <a
+              href={redirectUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 block text-center text-sm font-semibold text-primary underline"
+            >
+              Open offer
+            </a>
+          )}
+          </>
         )}
       </div>
 

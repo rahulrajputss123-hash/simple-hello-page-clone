@@ -1,3 +1,4 @@
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import crypto from "crypto";
 
@@ -172,11 +173,12 @@ export class SubmissionError extends Error {
 export async function startCampaignImpl(
   userId: string,
   campaignId: string,
-  ipAddress: string,
   userAgent: string | null = null,
-): Promise<{ clickId: string; expiresAt: string }> {
-  // CRITICAL: Hash the IP before storing!
-  const ipHash = crypto.createHash("sha256").update(ipAddress).digest("hex");
+): Promise<{ clickId: string; expiresAt: string; redirectUrl?: string }> {
+  const request = getRequest();
+  const forwarded = request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const clientIp = forwarded || request?.headers.get("x-real-ip") || "unknown";
+  const ipHash = crypto.createHash("sha256").update(clientIp).digest("hex");
 
   try {
     const result = await mktRpc<{ click_id: string; expires_at: string }>("mkt_start", {
@@ -189,9 +191,19 @@ export async function startCampaignImpl(
       },
     });
 
+    const { data: campaign, error: campaignError } = await mktDbPublisher
+      .from("campaigns")
+      .select("verification_mode, tracking_url")
+      .eq("id", campaignId)
+      .single();
+    if (campaignError) throw new Error(`campaign: ${campaignError.message}`);
+
     return {
       clickId: result.click_id,
       expiresAt: result.expires_at,
+      ...(campaign?.verification_mode === "auto" && campaign.tracking_url
+        ? { redirectUrl: campaign.tracking_url.split("{click_id}").join(encodeURIComponent(result.click_id)) }
+        : {}),
     };
   } catch (err) {
     if (err instanceof MktRpcError) {

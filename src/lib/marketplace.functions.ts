@@ -309,14 +309,13 @@ export const startCampaign = createServerFn({ method: "POST" })
     z
       .object({
         campaignId: z.string().uuid(),
-        ipAddress: z.string().max(45),
         userAgent: z.string().max(500).nullable(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { startCampaignImpl } = await import("./marketplace/publisher.server");
-    return startCampaignImpl(context.userId, data.campaignId, data.ipAddress, data.userAgent);
+    return startCampaignImpl(context.userId, data.campaignId, data.userAgent);
   });
 
 // Legacy alias for backward compatibility

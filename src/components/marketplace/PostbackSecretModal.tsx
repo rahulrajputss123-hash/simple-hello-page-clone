@@ -97,6 +97,11 @@ export function PostbackSecretModal({
             </p>
           </div>
 
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+            <p className="font-semibold text-foreground">Network setup</p>
+            <p className="mt-1">Pass <code className="rounded bg-muted px-1">{"{click_id}"}</code> in your network's sub-id parameter of the tracking URL, then set the network postback to the URL above using the network's click ID and transaction ID macros.</p>
+          </div>
+
           <div>
             <label className="mb-1.5 block text-sm font-semibold">Secret Token</label>
             <div className="flex gap-2">
