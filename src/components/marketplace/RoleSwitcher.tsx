@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   DropdownMenu,
@@ -10,14 +10,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { BecomeAdvertiserDialog } from "@/components/marketplace/BecomeAdvertiserDialog";
+import { clearAdvertiserIntent, hasAdvertiserIntent } from "@/lib/marketplace/intent";
 import { useRole } from "@/lib/marketplace/role";
 
 /** "🟢 Publisher ▾" chip in the Home header. */
 export function RoleSwitcher() {
-  const { role, setRole, advertiserActivated, marketplaceAvailable, overviewLoading, overview } = useRole();
+  const { role, setRole, advertiserActivated, marketplaceAvailable, overviewLoading } = useRole();
   const [dialogOpen, setDialogOpen] = useState(false);
   const isAdvertiser = role === "advertiser";
-  const showNewBadge = overview?.settings.promoActive && !advertiserActivated;
+
+  // Visitors who clicked "Start advertising" on the landing page land here after
+  // signing in; open the activation dialog once, then forget the intent.
+  useEffect(() => {
+    if (overviewLoading || !hasAdvertiserIntent()) return;
+    if (advertiserActivated) {
+      clearAdvertiserIntent();
+    } else if (marketplaceAvailable) {
+      clearAdvertiserIntent();
+      setDialogOpen(true);
+    }
+  }, [overviewLoading, advertiserActivated, marketplaceAvailable]);
 
   return (
     <>
@@ -73,11 +85,6 @@ export function RoleSwitcher() {
             <div className="px-2 py-2">
               <p className="flex items-center gap-2 text-sm font-semibold">
                 <span aria-hidden>🔵</span> Advertise
-                {showNewBadge && (
-                  <span className="rounded-full bg-jade-gradient px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
-                    NEW
-                  </span>
-                )}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {marketplaceAvailable

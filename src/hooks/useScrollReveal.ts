@@ -26,8 +26,20 @@ export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(threshol
       return;
     }
 
+    // Fail-safe: this hook hides content (opacity 0) until the observer fires. In
+    // sandboxed previews or very old browsers the observer can be missing or never
+    // call back, which would leave every revealed section permanently invisible.
+    if (typeof IntersectionObserver === "undefined") {
+      setShown(true);
+      return;
+    }
+
+    let responded = false;
     const observer = new IntersectionObserver(
       (entries) => {
+        // A working observer always reports once right after observe(), even when
+        // the element is off-screen.
+        responded = true;
         if (!entries[0]?.isIntersecting) return;
         setShown(true);
         observer.disconnect();
@@ -35,7 +47,13 @@ export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(threshol
       { threshold, rootMargin: "0px 0px -8% 0px" },
     );
     observer.observe(node);
-    return () => observer.disconnect();
+    const fallback = window.setTimeout(() => {
+      if (!responded) setShown(true);
+    }, 1500);
+    return () => {
+      window.clearTimeout(fallback);
+      observer.disconnect();
+    };
   }, [shown, threshold]);
 
   return { ref, shown };

@@ -290,6 +290,11 @@ export const FAQ_ITEMS: FaqItem[] = [
       "We never ask for your bank login or card details, and you only share what a given offer needs. Accounts are secured through Supabase authentication, and you can read exactly how your data is handled in our privacy policy.",
   },
   {
+    question: "Can I advertise my app or offer on CashGPT?",
+    answer:
+      "Yes. Create a free account, switch to Advertise mode and set up a campaign. Members complete your task and you are only charged for completed tasks. Each new campaign is reviewed by our team, usually within one business day.",
+  },
+  {
     question: "What is the minimum payout?",
     answer:
       "$1. We keep the threshold deliberately low so you can test a real withdrawal early instead of grinding towards a large minimum.",

@@ -1,8 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Coins, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowRight, Coins, Megaphone, ShieldCheck, Wallet } from "lucide-react";
 
+import {
+  ADVERTISER_ANCHOR_ID,
+  AdvertiserSection,
+} from "@/components/landing/AdvertiserSection";
 import { AuthCard } from "@/components/landing/AuthCard";
+import { AppPreviewSection } from "@/components/landing/HeroPhone";
 import { EarnWaysSection } from "@/components/landing/EarnWaysSection";
 import { LiveEarningsFeed } from "@/components/landing/LiveEarningsFeed";
 import { OffersShowcase } from "@/components/landing/OffersShowcase";
@@ -17,6 +22,7 @@ import {
 } from "@/components/landing/landing-data";
 import { Button } from "@/components/ui/button";
 import { useAuthForm, type AuthMode } from "@/hooks/useAuthForm";
+import { rememberAdvertiserIntent } from "@/lib/marketplace/intent";
 
 const AUTH_ANCHOR_ID = "auth";
 
@@ -82,6 +88,11 @@ export function WebLanding() {
     [auth],
   );
 
+  const startAsAdvertiser = useCallback(() => {
+    rememberAdvertiserIntent();
+    goToAuth("signup");
+  }, [goToAuth]);
+
   return (
     // data-web-only lets the native shell hide this pre-hydration (see __root.tsx).
     <div className="min-h-screen bg-background" data-web-only>
@@ -100,6 +111,25 @@ export function WebLanding() {
               draggable={false}
             />
           </a>
+
+          <nav
+            className="hidden items-center gap-1 text-sm font-semibold text-muted-foreground md:flex"
+            aria-label="Sections"
+          >
+            <a href="#how-it-works" className="rounded-lg px-3 py-2 hover:text-foreground">
+              How it works
+            </a>
+            <a
+              href={`#${ADVERTISER_ANCHOR_ID}`}
+              className="rounded-lg px-3 py-2 hover:text-foreground"
+              data-testid="header-advertisers"
+            >
+              For advertisers
+            </a>
+            <a href="#faq" className="rounded-lg px-3 py-2 hover:text-foreground">
+              FAQ
+            </a>
+          </nav>
 
           <nav className="flex items-center gap-2" aria-label="Account">
             <Button
@@ -128,10 +158,52 @@ export function WebLanding() {
       {/* 2 — Hero: headline + offers on the left, inline auth on the right    */}
       {/* ------------------------------------------------------------------ */}
       <section className="relative isolate overflow-hidden" aria-labelledby="landing-h1">
+        {/* Ambient background: soft jade/gold glow, faint blurred offer art and a
+            couple of slowly drifting coins. Decorative only. */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div
+            className="ambient-drift absolute -left-24 -top-32 size-[28rem] rounded-full opacity-[0.18] blur-3xl"
+            style={{
+              background: "radial-gradient(closest-side, var(--color-mint), transparent)",
+            }}
+          />
+          <div
+            className="ambient-drift-slow absolute -right-28 top-10 size-[30rem] rounded-full opacity-[0.16] blur-3xl"
+            style={{
+              background: "radial-gradient(closest-side, var(--color-gold), transparent)",
+            }}
+          />
+          <img
+            src={SHOWCASE_OFFERS[1]!.image}
+            alt=""
+            loading="lazy"
+            className="absolute -left-16 bottom-0 w-64 rotate-[-8deg] opacity-[0.05] blur-2xl"
+          />
+          <img
+            src={SHOWCASE_OFFERS[2]!.image}
+            alt=""
+            loading="lazy"
+            className="absolute -right-10 -bottom-16 w-72 rotate-[10deg] opacity-[0.05] blur-2xl"
+          />
+          <Coins className="coin-float absolute left-[12%] top-[38%] size-8 text-gold opacity-20" />
+          <Coins className="coin-float-b absolute right-[8%] top-[22%] size-6 text-gold opacity-[0.15]" />
+          <Coins className="coin-float-c absolute left-[62%] bottom-[12%] size-7 text-gold opacity-[0.12] lg:left-[46%]" />
+        </div>
+
         <div className="mx-auto w-full max-w-6xl px-4 pb-10 pt-5 sm:px-6 sm:pb-14 sm:pt-12">
           <div className="grid items-center gap-5 lg:grid-cols-[1.05fr_minmax(350px,400px)] lg:gap-12">
             {/* Left column */}
             <div>
+              {/* Small door for the other audience, without competing with the signup. */}
+              <a
+                href={`#${ADVERTISER_ANCHOR_ID}`}
+                data-testid="hero-advertiser-pill"
+                className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-sky-500/10 px-3 py-1 text-[11px] font-semibold text-sky-700 transition-colors hover:bg-sky-500/15 sm:mb-4 sm:text-xs"
+              >
+                <Megaphone className="size-3.5" aria-hidden />
+                Run a brand or app? Advertise on CashGPT
+                <ArrowRight className="size-3" aria-hidden />
+              </a>
               <h1
                 id="landing-h1"
                 className="font-display text-[1.72rem] leading-[1.12] text-foreground sm:text-[2.6rem] lg:text-[3.1rem]"
@@ -190,29 +262,40 @@ export function WebLanding() {
       </section>
 
       <main className="mx-auto w-full max-w-6xl space-y-16 px-4 pb-16 sm:space-y-20 sm:px-6 sm:pb-20">
-        {/* 4 — Trust + 8 ways to earn */}
+        {/* 4 — Inside the app (animated phone preview) */}
         <Reveal>
-          <TrustSection />
+          <AppPreviewSection />
         </Reveal>
 
+        {/* 5 — 8 ways to earn */}
         <Reveal>
           <EarnWaysSection />
         </Reveal>
 
-        {/* 5 — How it works */}
+        {/* 6 — How it works */}
         <HowItWorks />
 
-        {/* 6 — FAQ */}
+        {/* 7 — Advertisers: the other side of the marketplace */}
+        <Reveal>
+          <AdvertiserSection onStart={startAsAdvertiser} />
+        </Reveal>
+
+        {/* 8 — Trust + testimonials (moved from the top, sits right before the FAQ) */}
+        <Reveal>
+          <TrustSection />
+        </Reveal>
+
+        {/* 9 — FAQ */}
         <Faq />
 
-        {/* 7 — Live earnings */}
+        {/* 10 — Live earnings (kept directly before the final CTA) */}
         <Reveal>
           <LiveEarningsFeed />
         </Reveal>
 
-        {/* 8 — Final CTA */}
+        {/* 11 — Final CTA */}
         <Reveal>
-          <FinalCta onStart={() => goToAuth("signup")} />
+          <FinalCta onStart={() => goToAuth("signup")} onAdvertise={startAsAdvertiser} />
         </Reveal>
       </main>
 
@@ -229,7 +312,7 @@ export function WebLanding() {
         <Button
           variant="gold"
           size="lg"
-          className="w-full"
+          className="shimmer-sweep w-full"
           onClick={() => goToAuth("signup")}
           data-testid="sticky-start-btn"
         >
@@ -248,7 +331,12 @@ export function WebLanding() {
 
 function HowItWorks() {
   return (
-    <section data-testid="how-it-works" aria-labelledby="how-it-works-heading">
+    <section
+      id="how-it-works"
+      data-testid="how-it-works"
+      aria-labelledby="how-it-works-heading"
+      className="scroll-mt-20"
+    >
       <div className="text-center">
         <h2
           id="how-it-works-heading"
@@ -294,7 +382,7 @@ function StepCard({ step }: { step: (typeof WEB_HOW_IT_WORKS)[number] }) {
 
 function Faq() {
   return (
-    <section data-testid="faq" aria-labelledby="faq-heading">
+    <section id="faq" data-testid="faq" aria-labelledby="faq-heading" className="scroll-mt-20">
       <div className="text-center">
         <h2
           id="faq-heading"
@@ -334,13 +422,24 @@ function Faq() {
 /*  Final CTA + footer                                                        */
 /* -------------------------------------------------------------------------- */
 
-function FinalCta({ onStart }: { onStart: () => void }) {
+function FinalCta({ onStart, onAdvertise }: { onStart: () => void; onAdvertise: () => void }) {
   return (
     <section
       data-testid="final-cta"
       aria-labelledby="final-cta-heading"
       className="relative isolate overflow-hidden rounded-[1.75rem] bg-jade-gradient px-5 py-10 text-center shadow-lift sm:px-10 sm:py-14"
     >
+      <div
+        aria-hidden
+        className="ambient-drift pointer-events-none absolute -left-16 -top-20 size-56 rounded-full opacity-40 blur-3xl"
+        style={{ background: "radial-gradient(closest-side, var(--color-gold), transparent)" }}
+      />
+      <div
+        aria-hidden
+        className="ambient-drift-slow pointer-events-none absolute -bottom-24 -right-16 size-56 rounded-full opacity-30 blur-3xl"
+        style={{ background: "radial-gradient(closest-side, var(--color-mint), transparent)" }}
+      />
+
       <div className="relative">
         <h2
           id="final-cta-heading"
@@ -354,13 +453,24 @@ function FinalCta({ onStart }: { onStart: () => void }) {
         <Button
           variant="gold"
           size="lg"
-          className="mt-7 px-8"
+          className="shimmer-sweep mt-7 px-8"
           onClick={onStart}
           data-testid="final-cta-btn"
         >
           Create my free account
           <ArrowRight className="size-4" />
         </Button>
+        <p className="mt-5 text-xs text-primary-foreground/70">
+          Promoting an app or brand?{" "}
+          <button
+            type="button"
+            onClick={onAdvertise}
+            data-testid="final-cta-advertise"
+            className="font-semibold text-gold underline-offset-2 hover:underline"
+          >
+            Start advertising
+          </button>
+        </p>
       </div>
     </section>
   );
@@ -389,6 +499,9 @@ function Footer() {
           </a>
           <a href="/legal/withdrawal-policy" className="transition-colors hover:text-foreground">
             Withdrawal Policy
+          </a>
+          <a href={`#${ADVERTISER_ANCHOR_ID}`} className="transition-colors hover:text-foreground">
+            Advertise with us
           </a>
           <Link to="/app" className="transition-colors hover:text-foreground">
             Get the app
