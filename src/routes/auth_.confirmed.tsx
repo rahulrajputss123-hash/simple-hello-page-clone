@@ -23,9 +23,9 @@ import { useAuth } from "@/lib/auth";
  */
 
 /** How long the success state shows before redirecting. */
-const REDIRECT_DELAY_MS = 1800;
+const REDIRECT_DELAY_MS = 3000;
 /** How long to wait for a session before assuming verification failed. */
-const VERIFY_TIMEOUT_MS = 9000;
+const VERIFY_TIMEOUT_MS = 10000;
 
 export const Route = createFileRoute("/auth_/confirmed")({
   head: () => ({
@@ -130,17 +130,17 @@ function ConfirmedPage() {
               </span>
               <div className="space-y-1">
                 <h1 className="font-display text-xl leading-tight" data-testid="confirm-failed">
-                  We couldn&apos;t finish signing you in
+                  Your email is verified
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   {linkError
                     ? linkError
-                    : "Your email may be confirmed already, but this browser couldn't complete the sign-in. Logging in directly will sort it out."}
+                    : "Please log in to continue."}
                 </p>
               </div>
               <Button asChild variant="jade" size="lg" className="w-full">
                 <Link to="/auth" data-testid="confirm-try-login">
-                  Try logging in
+                  Log in
                 </Link>
               </Button>
             </>
@@ -158,30 +158,30 @@ function ConfirmedPage() {
                 <h1 className="font-display text-2xl leading-tight" data-testid="confirm-success">
                   Email verified!
                 </h1>
+                <p className="text-sm text-muted-foreground">
+                  Your account is ready. Start earning with CashGPT.
+                </p>
+              </div>
+              {session ? (
+                <Button
+                  variant="jade"
+                  size="lg"
+                  className="w-full"
+                  onClick={go}
+                  data-testid="confirm-continue"
+                >
+                  Continue
+                </Button>
+              ) : (
                 <p
-                  className="inline-flex items-center justify-center gap-1.5 text-sm text-muted-foreground"
+                  className="inline-flex items-center justify-center gap-1.5 pt-2 text-sm text-muted-foreground"
                   role="status"
                   data-testid="confirm-status"
                 >
-                  {redirecting ? (
-                    "Taking you to your dashboard…"
-                  ) : (
-                    <>
-                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                      Signing you in…
-                    </>
-                  )}
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  Signing you in…
                 </p>
-              </div>
-              <Button
-                variant="jade"
-                size="lg"
-                className="w-full"
-                onClick={go}
-                data-testid="confirm-continue"
-              >
-                Continue
-              </Button>
+              )}
             </>
           )}
         </div>
