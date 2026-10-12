@@ -121,9 +121,9 @@ export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?
           <div className="flex min-w-0 flex-col leading-tight">
             <span className="text-xs text-muted-foreground">Hello</span>
             <span className="truncate font-display text-lg leading-tight">{firstName}</span>
-            {home && <RoleSwitcher />}
           </div>
         </div>
+        {home && <RoleSwitcher />}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <Link
             to="/notifications"
