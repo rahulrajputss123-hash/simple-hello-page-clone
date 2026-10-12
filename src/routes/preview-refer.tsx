@@ -3,9 +3,9 @@
  *
  * Mounts the actual ReferPage inside a mock AuthContext and seeds the real
  * ["referrals", userId] query cache, so what renders is the production component
- * with production logic — not a copy. Safe to delete.
+ * with production logic — not a copy. Development only.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
@@ -97,6 +97,10 @@ const MOCK_AUTH = {
 };
 
 function PreviewRefer() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+  
   const queryClient = useQueryClient();
   const [ready, setReady] = useState(false);
 

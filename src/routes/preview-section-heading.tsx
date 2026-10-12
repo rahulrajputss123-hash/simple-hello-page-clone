@@ -3,9 +3,9 @@
  * rollout without Supabase auth (every real screen is behind /_authenticated).
  *
  * Renders the real component with the real props from each screen, so what you
- * see here is what those screens render. Safe to delete once approved.
+ * see here is what those screens render. Development only.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import {
   ArrowDownToLine,
   Bell,
@@ -48,6 +48,10 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 
 function PreviewSectionHeading() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+  
   return (
     <div className="min-h-screen bg-background px-4 py-6">
       <div className="mx-auto w-full max-w-[420px]">

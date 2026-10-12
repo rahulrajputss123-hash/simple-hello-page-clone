@@ -171,7 +171,7 @@ export const HOW_IT_WORKS: HowItWorksStep[] = [
   {
     number: "3",
     title: "Cash Out",
-    description: "Withdraw to PayPal, crypto or gift cards from just $1. Your money, your way.",
+    description: "Withdraw to PayPal, crypto or gift cards from just $5. Your money, your way.",
   },
 ];
 
@@ -235,7 +235,7 @@ export const STORE_COPY: Record<StoreKey, StoreCopy> = {
 
 export const LANDING_TITLE = "CashGPT — Earn Real Money Online With Free Tasks & Offers";
 export const LANDING_DESCRIPTION =
-  "Earn real cash online with CashGPT. Complete free offers, surveys, games and app installs, then withdraw to PayPal, UPI, crypto or gift cards from just $1. Free to join.";
+  "Earn real cash online with CashGPT. Complete free offers, surveys, games and app installs, then withdraw to PayPal, UPI, crypto or gift cards from just $5. Free to join.";
 
 /**
  * How it works on the web, where the first step is signing up rather than
@@ -258,7 +258,7 @@ export const WEB_HOW_IT_WORKS: HowItWorksStep[] = [
     number: "3",
     title: "Withdraw to your wallet",
     description:
-      "Cash out to PayPal, UPI, crypto or gift cards once you reach the $1 minimum. Your balance, your choice.",
+      "Cash out to PayPal, UPI, crypto or gift cards once you reach the $5 minimum. Your balance, your choice.",
   },
 ];
 
@@ -297,6 +297,6 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "What is the minimum payout?",
     answer:
-      "$1. We keep the threshold deliberately low so you can test a real withdrawal early instead of grinding towards a large minimum.",
+      "$5. Some payout methods can have a higher minimum depending on region, see our Withdrawal Policy.",
   },
 ];

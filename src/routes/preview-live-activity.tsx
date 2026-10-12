@@ -5,9 +5,9 @@
  * real ["featured-feed","home"] cache key with sample offers so the live
  * component behaves exactly as it does on Home.
  *
- * SAFE TO DELETE — remove this file before committing.
+ * Development only.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -88,6 +88,10 @@ const VARIANTS: SimulatedActivity[] = [
 ];
 
 function PreviewLiveActivity() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+  
   const queryClient = useQueryClient();
 
   // Seed the same two cache keys the Home page fills, so the live component

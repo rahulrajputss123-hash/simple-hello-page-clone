@@ -11,7 +11,7 @@ import { HOW_IT_WORKS, type StoreKey } from "@/components/landing/landing-data";
 
 const PAGE_TITLE = "Download CashGPT — Get paid for ads, offers & games";
 const PAGE_DESCRIPTION =
-  "Install CashGPT and earn real cash 8 different ways — ads, shortlinks, surveys, games and more. Cash out to PayPal, crypto or gift cards from just $1.";
+  "Install CashGPT and earn real cash 8 different ways — ads, shortlinks, surveys, games and more. Cash out to PayPal, crypto or gift cards from just $5.";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
@@ -80,7 +80,7 @@ function AppLandingPage() {
 
             <p className="mt-4 max-w-xl text-base leading-relaxed text-primary-foreground/75 sm:text-lg">
               Watch, play, survey and claim offers — then cash out to PayPal, crypto or gift cards
-              from just $1. Eight ways to earn, one app.
+              from just $5. Eight ways to earn, one app.
             </p>
 
             <StoreButtons onSelect={storeDialog.select} tone="dark" className="mt-8" />
@@ -90,7 +90,7 @@ function AppLandingPage() {
                 <ShieldCheck className="size-3.5 text-mint" /> No hidden charges
               </li>
               <li className="flex items-center gap-1.5">
-                <Wallet className="size-3.5 text-mint" /> Withdraw from $1
+                <Wallet className="size-3.5 text-mint" /> Withdraw from $5
               </li>
               <li className="flex items-center gap-1.5">
                 <Coins className="size-3.5 text-mint" /> Paid in real currency
@@ -147,7 +147,7 @@ function AppLandingPage() {
               Start earning today
             </p>
             <p className="truncate text-[11px] text-muted-foreground">
-              Free install · Payouts from $1
+              Free install · Payouts from $5
             </p>
           </div>
           <StoreButtons
@@ -243,7 +243,7 @@ function FinalCta({ onSelect }: { onSelect: (store: StoreKey) => void }) {
           Your first payout is <span className="text-gold">minutes away</span>
         </h2>
         <p className="mx-auto mt-3 max-w-lg text-sm text-primary-foreground/75 sm:text-base">
-          Install CashGPT, finish a task or two, and withdraw as soon as you hit $1.
+          Install CashGPT, finish a task or two, and withdraw as soon as you hit $5.
         </p>
 
         <StoreButtons

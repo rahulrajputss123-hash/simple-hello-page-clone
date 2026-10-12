@@ -3,9 +3,9 @@
  * visible for a fraction of a second.
  *
  * Toggle between the splash (logo-card corner fix) and the redesigned `/`
- * loading screen. Safe to delete once reviewed.
+ * loading screen. Development only.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { AppLoadingScreen } from "@/components/AppLoadingScreen";
@@ -17,6 +17,10 @@ export const Route = createFileRoute("/preview-splash")({
 });
 
 function PreviewSplash() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+  
   const [view, setView] = useState<"loading" | "splash">("loading");
 
   return (

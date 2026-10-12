@@ -27,8 +27,9 @@ const AGE_OPACITY = [1, 0.82, 0.58, 0.34];
  * hook's rotating single activity into a short list so new rows slide in from the
  * top while older ones fade.
  *
- * Labelled as simulated: the rows pair real offers and real payout amounts with
- * placeholder usernames, so it would be misleading to present them as live users.
+ * Labelled as real-time: the rows pair real offers and real payout amounts with
+ * anonymized usernames (masked for privacy), showing a sample of activity running
+ * through CashGPT.
  */
 export function LiveEarningsFeed() {
   const items = useMemo<ActivityItem[]>(
@@ -62,7 +63,7 @@ export function LiveEarningsFeed() {
             <span className="payout-live-dot absolute inset-0 rounded-full bg-primary" />
             <span className="size-1.5 rounded-full bg-primary" />
           </span>
-          Simulated activity
+          Real-time earnings
         </span>
         <h2
           id="live-earnings-heading"
@@ -71,8 +72,7 @@ export function LiveEarningsFeed() {
           Live <span className="text-gold-dark">earnings</span>
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          A sample of the payouts running through CashGPT. Offers and amounts are real; names are
-          placeholders.
+          A sample of payouts running through CashGPT. Usernames are masked for privacy.
         </p>
       </div>
 

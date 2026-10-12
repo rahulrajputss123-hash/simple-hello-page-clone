@@ -1,9 +1,9 @@
 /**
  * TEMPORARY no-login preview of the REAL Referral Program Rules page.
  * Mounts the production component inside a mock AuthContext (AppShell's header
- * needs one). Safe to delete.
+ * needs one). Development only.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import type { Session } from "@supabase/supabase-js";
 
 import { ReferralRulesPage } from "@/routes/_authenticated/referral-rules";
@@ -33,6 +33,10 @@ const MOCK_AUTH = {
 };
 
 function PreviewReferralRules() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+  
   return (
     <AuthContext.Provider value={MOCK_AUTH}>
       <ReferralRulesPage />

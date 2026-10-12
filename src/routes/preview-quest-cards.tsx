@@ -2,9 +2,9 @@
  * TEMPORARY preview-only route used to visually verify the QuestCard redesign
  * without requiring Supabase auth. Renders the real QuestCard component with
  * mock quest data covering all three quest types plus locked/credited states.
- * Safe to delete once the redesign has been visually confirmed.
+ * Development only.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 
 import { QuestCard, type QuestCardQuest } from "@/components/QuestCard";
 import type { QuestRow } from "@/lib/quests.server";
@@ -38,6 +38,10 @@ function baseQuest(overrides: Partial<QuestCardQuest>): QuestCardQuest {
 }
 
 function PreviewQuestCards() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+  
   const adsQuest = baseQuest({
     key: "starter_5",
     label: "Watch Ads",
