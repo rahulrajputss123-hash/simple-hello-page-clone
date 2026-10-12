@@ -1,6 +1,6 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Gift, UserRound } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import {
   useSimulatedActivityFeed,
@@ -8,6 +8,7 @@ import {
   type SimulatedActivity,
 } from "@/hooks/useSimulatedActivityFeed";
 import { formatMoney } from "@/lib/coinquest";
+import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
 import type { FeaturedFeedResult } from "@/lib/offers/feed-cache.server";
 import type { QuestRow } from "@/lib/quests.server";
 
@@ -16,20 +17,34 @@ import type { QuestRow } from "@/lib/quests.server";
  * be rendered in isolation for visual review.
  */
 export function LiveActivityCard({ activity }: { activity: SimulatedActivity }) {
+  const [avatarError, setAvatarError] = useState(false);
+  
+  // Fallback avatar: use the first available avatar from AVATAR_OPTIONS if the
+  // primary avatar fails to load. This prevents infinite error loops by using a
+  // different URL rather than retrying the same failed URL.
+  const fallbackAvatarUrl = AVATAR_OPTIONS[0]?.imageUrl ?? null;
+  const displayAvatarUrl = avatarError && activity.avatarUrl !== fallbackAvatarUrl
+    ? fallbackAvatarUrl
+    : activity.avatarUrl;
+
   return (
     <article
       className="live-activity-card surface-card flex items-center gap-2.5 p-2.5 shadow-soft"
       data-testid="live-activity-card"
     >
-      {activity.avatarUrl ? (
+      {displayAvatarUrl ? (
         <img
-          src={activity.avatarUrl}
+          src={displayAvatarUrl}
           alt=""
           aria-hidden
           loading="lazy"
           decoding="async"
           className="size-9 shrink-0 rounded-full border border-border object-cover"
           data-testid="live-activity-avatar"
+          onError={() => {
+            // Only trigger fallback once to prevent infinite error loops
+            if (!avatarError) setAvatarError(true);
+          }}
         />
       ) : (
         <span
