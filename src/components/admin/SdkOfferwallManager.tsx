@@ -8,6 +8,7 @@ import { EmptyState, SectionTitle } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { resizeAndConvertToWebP } from "@/lib/image-resize";
 import {
   deleteSdkProvider,
   listAdminSdkProviders,
@@ -120,18 +121,21 @@ export function SdkOfferwallManager() {
     setUploadError(null);
     setUploading(true);
     try {
+      // Resize to max 256px and convert to WebP at 82% quality
+      toast.info("Resizing and converting to WebP...");
+      const optimizedFile = await resizeAndConvertToWebP(file, 256, 0.82);
+      
       const { uploadUrl, token, publicUrl } = await requestUpload({
-        data: { filename: file.name.slice(0, 120) },
+        data: { filename: optimizedFile.name.slice(0, 120) },
       });
       const res = await fetch(uploadUrl, {
         method: "PUT",
         headers: {
-          "Content-Type": file.type || "application/octet-stream",
-          // Unique, never-overwritten upload path -> safe to cache for a year.
+          "Content-Type": optimizedFile.type || "application/octet-stream",
           "cache-control": "max-age=31536000",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: file,
+        body: optimizedFile,
       });
       if (!res.ok) throw new Error(`Upload failed (${res.status})`);
       patch({ logoUrl: publicUrl });
