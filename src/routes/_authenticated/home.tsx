@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -29,7 +29,9 @@ import { getDeviceId } from "@/lib/ads";
 import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
 import { simulatedPayoutSnapshot } from "@/lib/payout-simulation";
 import { AdvertiserDashboard } from "@/components/marketplace/AdvertiserDashboard";
-import { AdvertiserOnboarding, advertiserOnboardingSeen } from "@/components/marketplace/AdvertiserOnboarding";
+import { advertiserOnboardingSeen } from "@/components/marketplace/AdvertiserOnboarding";
+
+const AdvertiserOnboarding = lazy(() => import("@/components/marketplace/AdvertiserOnboarding"));
 import { useRole } from "@/lib/marketplace/role";
 import { safeStorage } from "@/lib/safe-storage";
 import {
@@ -139,11 +141,13 @@ function HomePage() {
   <>
     <AdvertiserDashboard />
     {showAdvertiserOnboarding && session?.user.id && advertiserOverview && (
+      <Suspense fallback={null}>
       <AdvertiserOnboarding
         userId={session.user.id}
         overview={advertiserOverview}
         onComplete={() => setShowAdvertiserOnboarding(false)}
       />
+      </Suspense>
     )}
   </>
   ) : (
