@@ -29,7 +29,7 @@ export type SimulatedActivity = {
   /** Unique per appearance so the CSS enter animation restarts each time. */
   id: string;
   username: string;
-  /** null for roughly a third of activities, so some render without an avatar. */
+  /** Avatar URL from AVATAR_OPTIONS. Every activity now receives a valid avatar. */
   avatarUrl: string | null;
   /** Id of the source offer OR quest this activity was built from. */
   offerId: string;
@@ -53,8 +53,6 @@ export const ROTATE_MIN_MS = 18_000;
 export const ROTATE_MAX_MS = 24_000;
 /** Short delay before the first activity appears, then it stays for good. */
 const FIRST_SHOW_MS = 1_200;
-/** Share of activities that render with an avatar. */
-const AVATAR_CHANCE = 0.65;
 
 /**
  * Hard ceiling. A payout of exactly $50.00 is allowed; anything above it must
@@ -292,6 +290,23 @@ function pickWeighted(tiers: ActivityTiers): ActivityItem | null {
 }
 
 /**
+ * Safely picks a valid avatar from AVATAR_OPTIONS. Ensures the selected avatar
+ * has a usable imageUrl. If the first pick is invalid, tries again with a
+ * different option. Never returns null.
+ */
+function pickAvatar(): string | null {
+  if (AVATAR_OPTIONS.length === 0) return null;
+  
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const avatar = pickOne(AVATAR_OPTIONS);
+    if (avatar?.imageUrl) return avatar.imageUrl;
+  }
+  
+  // Fallback to the first avatar if random picks somehow all failed
+  return AVATAR_OPTIONS[0]?.imageUrl ?? null;
+}
+
+/**
  * Builds one activity from a real offer/quest + a dummy username, retrying a few
  * times so the same username+source pair never appears twice in a row.
  */
@@ -311,11 +326,10 @@ function buildActivity(
     // Last attempt accepts a repeat rather than showing nothing at all.
     if (combo === lastCombo && attempt < 7) continue;
 
-    const avatar = Math.random() < AVATAR_CHANCE ? pickOne(AVATAR_OPTIONS) : null;
     return {
       id: `${combo}|${Date.now()}`,
       username,
-      avatarUrl: avatar?.imageUrl ?? null,
+      avatarUrl: pickAvatar(),
       offerId: offer.id,
       offerTitle: offer.title,
       offerImageUrl: offer.image_url,
