@@ -43,10 +43,15 @@ async function handle(request: Request) {
     const { data: click, error: clickErr } = await mktDb
       .from("campaign_clicks")
       .select("campaign_id")
-      .eq("id", clickId)
+      .eq("click_id", clickId)
       .maybeSingle();
 
-    if (clickErr || !click) {
+    if (clickErr) {
+      console.error("[postback] campaign_clicks lookup failed", clickErr.message);
+      return Response.json({ ok: false, error: "internal error" }, { status: 500 });
+    }
+
+    if (!click) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 
@@ -59,7 +64,12 @@ async function handle(request: Request) {
       .eq("campaign_id", campaignId)
       .maybeSingle();
 
-    if (secretErr || !secrets) {
+    if (secretErr) {
+      console.error("[postback] campaign_secrets lookup failed", secretErr.message);
+      return Response.json({ ok: false, error: "internal error" }, { status: 500 });
+    }
+
+    if (!secrets) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 
