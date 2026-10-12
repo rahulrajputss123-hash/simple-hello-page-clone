@@ -125,6 +125,16 @@ export type CampaignView = {
   reviewNote: string | null;
   pendingReviews: number;
   createdAt: string;
+  postbackUrl?: string;
+  postbackLogs?: PostbackLogView[];
+};
+
+export type PostbackLogView = {
+  receivedAt: string;
+  result: "credited" | "duplicate" | "unauthorized" | "held" | "test_ok" | "error";
+  clickId: string | null;
+  txnId: string | null;
+  httpStatus: number | null;
 };
 
 export type TransactionView = {
@@ -307,6 +317,21 @@ async function pendingReviewCounts(campaignIds: string[]): Promise<Map<string, n
 const CAMPAIGN_COLS =
   "id, advertiser_id, type_key, name, summary, verification_mode, countries, publisher_reward, advertiser_cost, max_completions, completions_count, budget_allocated, budget_remaining, budget_reserved, budget_spent, budget_released, status, paused_by, needs_review, review_note, created_at, activated_at";
 
+async function postbackLogsForCampaigns(campaignIds: string[]): Promise<Map<string, PostbackLogView[]>> {
+  const result = new Map<string, PostbackLogView[]>();
+  if (!campaignIds.length) return result;
+  const { data, error } = await mktDb.from("campaign_postback_log")
+    .select("campaign_id, received_at, result, click_id, txn_id, http_status")
+    .in("campaign_id", campaignIds).order("received_at", { ascending: false });
+  if (error) throw new Error(`campaign_postback_log: ${error.message}`);
+  for (const row of (data ?? []) as Array<{ campaign_id: string; received_at: string; result: PostbackLogView["result"]; click_id: string | null; txn_id: string | null; http_status: number | null }>) {
+    const logs = result.get(row.campaign_id) ?? [];
+    if (logs.length < 20) logs.push({ receivedAt: row.received_at, result: row.result, clickId: row.click_id, txnId: row.txn_id, httpStatus: row.http_status });
+    result.set(row.campaign_id, logs);
+  }
+  return result;
+}
+
 export async function listCampaignsImpl(userId: string): Promise<CampaignView[]> {
   const { data, error } = await mktDb
     .from("campaigns")
@@ -317,7 +342,11 @@ export async function listCampaignsImpl(userId: string): Promise<CampaignView[]>
   if (error) throw new Error(`campaigns: ${error.message}`);
   const rows = (data ?? []) as CampaignRow[];
   const pending = await pendingReviewCounts(rows.map((r) => r.id));
-  return rows.map((r) => campaignView(r, pending.get(r.id) ?? 0));
+  const logs = await postbackLogsForCampaigns(rows.map((r) => r.id));
+  return rows.map((r) => ({
+    ...campaignView(r, pending.get(r.id) ?? 0),
+    ...(r.verification_mode === "auto" ? { postbackUrl: `${getSiteUrl()}/api/public/marketplace-postback`, postbackLogs: logs.get(r.id) ?? [] } : {}),
+  }));
 }
 
 export async function getOverviewImpl(userId: string): Promise<AdvertiserOverview> {

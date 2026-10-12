@@ -24,6 +24,20 @@ export const Route = createFileRoute("/_authenticated/advertiser/campaigns")({
 
 type Group = CampaignView["group"];
 
+function relativeTime(value: string) {
+  const seconds = Math.max(1, Math.round((Date.now() - new Date(value).getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function maskedClickId(value: string | null) {
+  return value ? `${value.slice(0, 8)}…` : "—";
+}
+
 const TABS: [Group, string][] = [
   ["active", "Active"],
   ["paused", "Paused"],
@@ -213,6 +227,47 @@ function MyCampaignsPage() {
                     </span>
                   </div>
                 </Link>
+                {c.verification === "auto" && (
+                  <div className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-3 text-xs">
+                    <p className="font-semibold text-foreground">Postback status</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {c.postbackLogs?.[0]
+                        ? `Last postback: ${relativeTime(c.postbackLogs[0].receivedAt)} - ${c.postbackLogs[0].result}`
+                        : "No postback received yet"}
+                    </p>
+                    <div className="mt-2 space-y-1 text-muted-foreground">
+                      <p>✓ Tracking URL contains <code className="rounded bg-muted px-1">{"{click_id}"}</code></p>
+                      <p>{c.postbackLogs?.length ? "✓" : "○"} Postback received at least once</p>
+                    </div>
+                    {c.postbackLogs?.length ? (
+                      <div className="mt-2 space-y-1 border-t border-primary/10 pt-2">
+                        {c.postbackLogs.slice(0, 20).map((log, index) => (
+                          <div key={`${log.receivedAt}-${index}`} className="flex items-center gap-2 text-[11px]">
+                            <span className="w-12 shrink-0 text-muted-foreground">{relativeTime(log.receivedAt)}</span>
+                            <span className="rounded-full bg-background px-1.5 py-0.5 font-semibold">{log.result}</span>
+                            <code>{maskedClickId(log.clickId)}</code>
+                            <span className="truncate text-muted-foreground">{log.txnId || "—"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          const testUrl = `${c.postbackUrl || "/api/public/marketplace-postback"}?test=1&campaign_id=${encodeURIComponent(c.id)}&token=SECRET`;
+                          await navigator.clipboard.writeText(testUrl);
+                          toast.success("Test URL copied");
+                        }}
+                      >
+                        Copy test URL
+                      </Button>
+                      <span className="self-center text-[11px] text-muted-foreground">Use your secret; it was shown only at creation.</span>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-3 flex gap-2">
                   {(c.status === "active" || c.status === "budget_exhausted") && (
                     <Button
