@@ -55,7 +55,7 @@ function ResultsPage() {
       <SectionHeading
         variant="ribbon"
         icon={BarChart3}
-        iconSrc="/icons/icon-adv-campaign-statistics-v2.png"
+        iconSrc="/icons/icon-adv-campaign-statistics-v2.webp"
         title="Funnel"
       />
       <div className="grid grid-cols-3 gap-2">
@@ -71,7 +71,7 @@ function ResultsPage() {
       <SectionHeading
         variant="ribbon"
         icon={CheckCircle2}
-        iconSrc="/icons/icon-submission-review.png"
+        iconSrc="/icons/icon-submission-review.webp"
         title="Submissions"
       />
       <div className="surface-card divide-y divide-border">

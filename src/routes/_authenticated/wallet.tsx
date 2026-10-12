@@ -420,7 +420,7 @@ function WalletPage() {
       <SectionHeading
           variant="ribbon"
           icon={ArrowDownToLine}
-          iconSrc="/icons/icon-download-receive.png"
+          iconSrc="/icons/icon-download-receive.webp"
           title="Withdrawals"
         />
       {!withdrawals.data?.length ? (
@@ -461,7 +461,7 @@ function WalletPage() {
       <SectionHeading
           variant="ribbon"
           icon={Receipt}
-          iconSrc="/icons/icon-wallet-transactions.png"
+          iconSrc="/icons/icon-wallet-transactions.webp"
           title="Transactions"
         />
       {transactions.isLoading ? (

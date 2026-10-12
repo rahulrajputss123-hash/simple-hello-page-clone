@@ -467,7 +467,7 @@ export function ReferPage() {
         <SectionHeading
           variant="ribbon"
           icon={Megaphone}
-          iconSrc="/icons/icon-advertiser-referral-v2.png"
+          iconSrc="/icons/icon-advertiser-referral-v2.webp"
           title="Advertiser Referral"
           subtitle="Same link — extra rewards when invitees advertise"
         />

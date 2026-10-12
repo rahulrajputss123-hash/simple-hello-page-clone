@@ -324,7 +324,7 @@ function FundsPage() {
           <SectionHeading
           variant="ribbon"
           icon={Clock}
-          iconSrc="/icons/icon-deposit-refund.png"
+          iconSrc="/icons/icon-deposit-refund.webp"
           title="Recent deposits"
         />
           <ul className="surface-card divide-y divide-border" data-testid="recent-deposits">

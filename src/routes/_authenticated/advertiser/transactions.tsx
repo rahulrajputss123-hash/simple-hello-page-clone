@@ -53,7 +53,7 @@ function TransactionsPage() {
         variant="ribbon"
         size="page"
         icon={Receipt}
-        iconSrc="/icons/icon-wallet-transactions.png"
+        iconSrc="/icons/icon-wallet-transactions.webp"
         title="Transactions"
         subtitle="Every movement on your Campaign Balance."
         className="mb-2"

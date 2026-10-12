@@ -33,7 +33,7 @@ function FeaturedPage() {
         variant="ribbon"
         size="page"
         icon={LayoutGrid}
-        iconSrc="/icons/icon-offer-filter.png"
+        iconSrc="/icons/icon-offer-filter.webp"
         title="All Offers"
       />
       <FeaturedOffers scope="all" />

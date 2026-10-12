@@ -121,7 +121,7 @@ export function AdvertiserDashboard() {
         </Link>
       </section>
 
-      <SectionHeading variant="ribbon" icon={BarChart3} iconSrc="/icons/icon-adv-campaign-statistics-v2.png" title="Campaign Statistics" />
+      <SectionHeading variant="ribbon" icon={BarChart3} iconSrc="/icons/icon-adv-campaign-statistics-v2.webp" title="Campaign Statistics" />
       <div className="grid grid-cols-2 gap-3">
         <StatTile label="Active campaigns" value={String(stats.activeCampaigns)} />
         <StatTile
@@ -141,7 +141,7 @@ export function AdvertiserDashboard() {
       <SectionHeading
         variant="ribbon"
         icon={Megaphone}
-        iconSrc="/icons/icon-adv-quick-actions-v2.png"
+        iconSrc="/icons/icon-adv-quick-actions-v2.webp"
         title="Quick Actions"
       />
       <div className="stagger-children space-y-2.5">
@@ -165,7 +165,7 @@ export function AdvertiserDashboard() {
       <SectionHeading
         variant="ribbon"
         icon={CheckCircle2}
-        iconSrc="/icons/icon-live-right-now-v2.png"
+        iconSrc="/icons/icon-live-right-now-v2.webp"
         title="Live right now"
         action={
           <Link

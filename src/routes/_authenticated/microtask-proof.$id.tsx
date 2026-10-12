@@ -76,7 +76,7 @@ function ProofSubmissionPage() {
       <SectionHeading
         variant="ribbon"
         icon={Camera}
-        iconSrc="/icons/icon-cloud-upload.png"
+        iconSrc="/icons/icon-cloud-upload.webp"
         title="Upload your proof"
       />
       <form
