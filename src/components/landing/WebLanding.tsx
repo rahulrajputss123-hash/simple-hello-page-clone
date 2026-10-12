@@ -21,6 +21,7 @@ import {
   WEB_HOW_IT_WORKS,
 } from "@/components/landing/landing-data";
 import { Button } from "@/components/ui/button";
+import { SocialLinks } from "@/components/SocialLinks";
 import { useAuthForm, type AuthMode } from "@/hooks/useAuthForm";
 import { rememberAdvertiserIntent } from "@/lib/marketplace/intent";
 
@@ -101,7 +102,7 @@ export function WebLanding() {
       {/* ------------------------------------------------------------------ */}
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-          <a href="/" aria-label="CashGPT home" className="shrink-0">
+          <Link to="/" aria-label="CashGPT home" className="shrink-0">
             <img
               src="/logo-horizontal-light.png"
               alt="CashGPT"
@@ -110,7 +111,7 @@ export function WebLanding() {
               className="h-8 w-auto select-none sm:h-9"
               draggable={false}
             />
-          </a>
+          </Link>
 
           <nav
             className="hidden items-center gap-1 text-sm font-semibold text-muted-foreground md:flex"
@@ -129,27 +130,6 @@ export function WebLanding() {
             <a href="#faq" className="rounded-lg px-3 py-2 hover:text-foreground">
               FAQ
             </a>
-          </nav>
-
-          <nav className="flex items-center gap-2" aria-label="Account">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 px-3"
-              onClick={() => goToAuth("signin")}
-              data-testid="header-login"
-            >
-              Log in
-            </Button>
-            <Button
-              variant="gold"
-              size="sm"
-              className="h-9 px-4"
-              onClick={() => goToAuth("signup")}
-              data-testid="header-signup"
-            >
-              Sign up
-            </Button>
           </nav>
         </div>
       </header>
@@ -233,7 +213,7 @@ export function WebLanding() {
                 </span>
               </h1>
               <p className="mt-2 max-w-xl text-[13px] leading-snug text-muted-foreground sm:mt-3 sm:text-base sm:leading-relaxed">
-                Free offers, surveys and games — cash out from just $1.
+                Free offers, surveys and games — cash out from just $5.
               </p>
 
               <h2 className="sr-only">Featured paid offers</h2>
@@ -244,8 +224,8 @@ export function WebLanding() {
                 <li className="flex items-center gap-1.5">
                   <ShieldCheck className="size-3.5 text-primary" aria-hidden /> Free to join
                 </li>
-                <li className="flex items-center gap-1.5">
-                  <Wallet className="size-3.5 text-primary" aria-hidden /> $1 minimum payout
+<li className="flex items-center gap-1.5">
+              <Wallet className="size-3.5 text-primary" aria-hidden /> $5 minimum payout
                 </li>
                 <li className="flex items-center gap-1.5">
                   <Coins className="size-3.5 text-primary" aria-hidden /> No card details
@@ -448,7 +428,7 @@ function FinalCta({ onStart, onAdvertise }: { onStart: () => void; onAdvertise: 
           Start earning in <span className="text-gold">the next five minutes</span>
         </h2>
         <p className="mx-auto mt-3 max-w-lg text-sm text-primary-foreground/75 sm:text-base">
-          Create a free account, finish a task or two, and withdraw as soon as you reach $1.
+          Create a free account, finish a task or two, and withdraw as soon as you reach $5.
         </p>
         <Button
           variant="gold"
@@ -490,16 +470,21 @@ function Footer() {
           draggable={false}
         />
 
+        <SocialLinks />
+
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-          <a href="/legal/privacy" className="transition-colors hover:text-foreground">
+          <Link to="/legal/privacy" className="transition-colors hover:text-foreground">
             Privacy
-          </a>
-          <a href="/legal/terms" className="transition-colors hover:text-foreground">
+          </Link>
+          <Link to="/legal/terms" className="transition-colors hover:text-foreground">
             Terms
-          </a>
-          <a href="/legal/withdrawal-policy" className="transition-colors hover:text-foreground">
+          </Link>
+          <Link to="/legal/withdrawal-policy" className="transition-colors hover:text-foreground">
             Withdrawal Policy
-          </a>
+          </Link>
+          <Link to="/legal/referral-terms" className="transition-colors hover:text-foreground">
+            Referral Terms
+          </Link>
           <a href={`#${ADVERTISER_ANCHOR_ID}`} className="transition-colors hover:text-foreground">
             Advertise with us
           </a>

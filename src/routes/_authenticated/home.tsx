@@ -14,7 +14,8 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { AppShell } from "@/components/AppShell";
+import { AppShell, BrandLogo } from "@/components/AppShell";
+import { SocialLinks } from "@/components/SocialLinks";
 import { FeaturedOffers } from "@/components/FeaturedOffers";
 import { OfferwallSlot } from "@/components/OfferwallSlot";
 import { SectionBanner } from "@/components/SectionBanner";
@@ -375,7 +376,7 @@ function HomePage() {
                 </p>
               </div>
               <span className="shrink-0 rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-bold text-primary">
-                from $1
+                from $5
               </span>
             </div>
 
@@ -449,7 +450,16 @@ function HomePage() {
         </Link>
         {/* eslint-enable @typescript-eslint/no-explicit-any */}
       </div>
-      <p className="mt-2 text-center text-xs text-muted-foreground">CashGPT © 2026 • v1.0.0</p>
+      <footer className="mt-10 flex flex-col items-center gap-4 rounded-2xl bg-background-alt px-4 py-6 pb-24 text-center sm:pb-6">
+        <BrandLogo variant="light" className="h-7" />
+        <SocialLinks />
+        <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} CashGPT. All rights reserved.</p>
+        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Legal links">
+          <Link to="/legal/privacy" className="hover:text-foreground hover:underline">Privacy</Link>
+          <Link to="/legal/terms" className="hover:text-foreground hover:underline">Terms</Link>
+          <Link to="/legal/withdrawal-policy" className="hover:text-foreground hover:underline">Withdrawal Policy</Link>
+        </nav>
+      </footer>
         </>
       )}
     </AppShell>

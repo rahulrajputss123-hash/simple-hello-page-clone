@@ -80,7 +80,7 @@ export function TrustSection() {
           />
           <div className="relative flex items-center gap-3">
             <div
-              className="flex shrink-0 -space-x-3"
+              className="flex shrink-0 -space-x-2.5 sm:-space-x-2.5"
               aria-hidden
               data-testid="landing-avatar-stack"
             >
@@ -91,18 +91,20 @@ export function TrustSection() {
                   alt=""
                   loading="lazy"
                   style={{ zIndex: COMMUNITY_AVATARS.length - index }}
-                  className="size-11 rounded-full border-2 border-card object-cover shadow-soft"
+                  className="size-9 rounded-full border-2 border-card object-cover shadow-soft sm:size-11"
                 />
               ))}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="font-display text-lg leading-tight text-foreground">
                 1,000+ Happy Earners
               </p>
-              <div className="mt-1 flex items-center gap-1.5">
-                <StarRow />
-                <span className="text-sm font-semibold text-foreground">4.8</span>
-                <span className="text-xs text-muted-foreground">average rating</span>
+              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span className="flex items-center gap-1.5">
+                  <StarRow />
+                  <span className="text-sm font-semibold text-foreground">4.8</span>
+                </span>
+                <span className="whitespace-nowrap text-[11px] text-muted-foreground">average rating</span>
               </div>
             </div>
           </div>

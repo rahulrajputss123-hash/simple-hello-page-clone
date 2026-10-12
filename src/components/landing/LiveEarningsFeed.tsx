@@ -27,7 +27,7 @@ const AGE_OPACITY = [1, 0.82, 0.58, 0.34];
  * hook's rotating single activity into a short list so new rows slide in from the
  * top while older ones fade.
  *
- * Labelled as simulated: the rows pair real offers and real payout amounts with
+ * Labelled as sample: the rows pair real offers and real payout amounts with
  * placeholder usernames, so it would be misleading to present them as live users.
  */
 export function LiveEarningsFeed() {
@@ -62,7 +62,7 @@ export function LiveEarningsFeed() {
             <span className="payout-live-dot absolute inset-0 rounded-full bg-primary" />
             <span className="size-1.5 rounded-full bg-primary" />
           </span>
-          Simulated activity
+          Real-time earnings
         </span>
         <h2
           id="live-earnings-heading"

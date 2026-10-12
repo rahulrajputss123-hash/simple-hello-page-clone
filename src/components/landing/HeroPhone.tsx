@@ -432,7 +432,7 @@ const POINTS = [
   {
     icon: Wallet,
     title: "A wallet you can actually cash out",
-    text: "Watch your balance grow and withdraw once you reach $1.",
+    text: "Watch your balance grow and withdraw once you reach $5.",
   },
 ] as const;
 
