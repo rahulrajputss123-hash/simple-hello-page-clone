@@ -191,6 +191,16 @@ export const rotateCampaignSecret = createServerFn({ method: "POST" })
     }
   });
 
+export const getCampaignResults = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input)).handler(async ({ data, context }) => {
+  const { getCampaignResultsImpl } = await import("./marketplace/advertiser.server");
+  return getCampaignResultsImpl(context.userId, data.campaignId);
+});
+
+export const getCampaignForEarner = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input)).handler(async ({ data, context }) => {
+  const { getCampaignForEarnerImpl } = await import("./marketplace/publisher.server");
+  return getCampaignForEarnerImpl(context.userId, data.campaignId);
+});
+
 /* ---------------------------------------------------------------- publisher */
 
 export const listActiveCampaigns = createServerFn({ method: "POST" })

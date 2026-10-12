@@ -166,6 +166,15 @@ export async function listMySubmissionsImpl(userId: string): Promise<SubmissionV
   }));
 }
 
+export async function getCampaignForEarnerImpl(userId: string, campaignId: string) {
+  const { data: campaign, error } = await mktDbPublisher.from("campaigns").select("id,name,summary,publisher_reward,verification_mode,proof_min_images,proof_requirements,max_completions,completions_count,countries").eq("id", campaignId).eq("status", "active").maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!campaign) return null;
+  const { data: click, error: clickError } = await mktDbPublisher.from("campaign_clicks").select("click_id,status").eq("campaign_id", campaignId).eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (clickError) throw new Error(clickError.message);
+  return { ...campaign, countries: normalizeCampaignCountries(campaign.countries), clickId: click?.click_id ?? null };
+}
+
 /* --------------------------------------------------------------- click recording */
 
 export class SubmissionError extends Error {
@@ -232,7 +241,7 @@ export async function startCampaignImpl(
 
 export const submitProofInput = z.object({
   clickId: z.string().uuid(),
-  proofPaths: z.array(z.string().url()).min(1).max(5), // Array of URLs!
+  proofPaths: z.array(z.string().min(1)).min(1).max(5), // Private storage object paths
   proofFields: z.record(z.any()).optional(),
   userNote: z.string().max(500).optional(),
 });

@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Camera, CheckCircle2, ImagePlus, X } from "lucide-react";
 import { useState } from "react";
 
@@ -9,12 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   BackLink,
-  PreviewNotice,
   VerificationBadge,
-  previewOnly,
 } from "@/components/marketplace/Preview";
 import { formatMoney } from "@/lib/coinquest";
-import { campaignById } from "@/lib/marketplace/data";
+import { getCampaignForEarner, submitProof } from "@/lib/marketplace.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/_authenticated/microtask-proof/$id")({
   head: () => ({ meta: [{ title: "Submit proof — CashGPT" }] }),
@@ -24,10 +25,27 @@ export const Route = createFileRoute("/_authenticated/microtask-proof/$id")({
 function ProofSubmissionPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const c = campaignById(id);
+  const { session } = useAuth();
+  const { data: c, isLoading } = useQuery({ queryKey: ["earner-campaign", id], queryFn: () => getCampaignForEarner({ data: { campaignId: id } }) });
+  const [files, setFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const submitMutation = useMutation({ mutationFn: async () => {
+    if (!session?.user.id || !c?.clickId) throw new Error("Start this task before submitting proof.");
+    if (files.length < (c.proof_min_images ?? 1)) throw new Error(`Please upload at least ${c.proof_min_images ?? 1} image${(c.proof_min_images ?? 1) === 1 ? "" : "s"}.`);
+    const paths: string[] = [];
+    for (const file of files) {
+      const path = `${session.user.id}/${c.clickId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const { error } = await supabase.storage.from("offer-proofs").upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw new Error(error.message);
+      paths.push(path);
+    }
+    return submitProof({ data: { clickId: c.clickId, proofPaths: paths, userNote: notes } });
+  }, onSuccess: () => navigate({ to: "/submissions" }), onError: (error) => setErrorMessage(error instanceof Error ? error.message : "Could not submit proof") });
+
+  if (isLoading) return <AppShell subtitle="Tasks"><p className="mt-8 text-center text-sm text-muted-foreground">Loading task…</p></AppShell>;
   if (!c) {
     return (
       <AppShell subtitle="Tasks">
@@ -39,19 +57,23 @@ function ProofSubmissionPage() {
 
   const backTo = { to: "/microtask/$id" as const, params: { id: c.id } };
 
+  if (!c.clickId) {
+    navigate({ to: "/microtask/$id", params: { id } });
+    return null;
+  }
+
   // Auto-verified tasks have no proof step — show a "task started" screen instead.
-  if (c.verification === "auto") {
+  if (c.verification_mode === "auto") {
     return (
       <AppShell subtitle="Tasks" mainClass="page-fade-in">
         <BackLink to={`/microtask/${c.id}`} label="Back to task" />
-        <PreviewNotice className="mt-3" />
         <div className="surface-card mt-4 flex flex-col items-center gap-3 px-6 py-10 text-center">
           <span className="grid size-16 place-items-center rounded-full bg-mint/20">
             <CheckCircle2 className="success-pop size-8 text-primary" />
           </span>
           <h1 className="text-lg">Task started</h1>
           <p className="max-w-xs text-sm text-muted-foreground">
-            Complete <strong>{c.title}</strong> and your {formatMoney(c.reward)} reward is credited
+            Complete <strong>{c.name}</strong> and your {formatMoney(Number(c.publisher_reward))} reward is credited
             automatically — nothing to upload.
           </p>
           <Button variant="jade" className="mt-2 w-full" onClick={() => navigate(backTo)}>
@@ -69,8 +91,8 @@ function ProofSubmissionPage() {
 
       <div className="surface-card mt-3 p-4">
         <VerificationBadge verification="proof" />
-        <p className="mt-1.5 font-semibold">{c.title}</p>
-        <p className="text-amount text-sm text-gold-dark">{formatMoney(c.reward)} on approval</p>
+        <p className="mt-1.5 font-semibold">{c.name}</p>
+        <p className="text-amount text-sm text-gold-dark">{formatMoney(Number(c.publisher_reward))} on approval</p>
       </div>
 
       <SectionHeading
@@ -84,8 +106,7 @@ function ProofSubmissionPage() {
         data-testid="proof-form"
         onSubmit={(e) => {
           e.preventDefault();
-          previewOnly("Your proof would be sent for review here.");
-          navigate(backTo);
+          submitMutation.mutate();
         }}
       >
         <div className="space-y-1.5">
@@ -116,12 +137,15 @@ function ProofSubmissionPage() {
           <input
             id="proof-file"
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
             className="sr-only"
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              setPreview(URL.createObjectURL(file));
+              const selected = Array.from(e.target.files ?? []);
+              const valid = selected.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 5 * 1024 * 1024).slice(0, 3);
+              if (valid.length !== selected.length) setErrorMessage("Use up to 3 JPEG, PNG, or WebP images, each no larger than 5 MB.");
+              setFiles(valid);
+              setPreview(valid[0] ? URL.createObjectURL(valid[0]) : null);
             }}
           />
         </div>
@@ -139,12 +163,13 @@ function ProofSubmissionPage() {
         </div>
 
         <ul className="space-y-1 text-[11px] text-muted-foreground">
-          {(c.proofRequirements ?? []).map((r) => (
+          {(c.proof_requirements ?? []).map((r: string) => (
             <li key={r}>• {r}</li>
           ))}
         </ul>
 
-        <Button type="submit" variant="gold" size="lg" className="w-full" data-testid="proof-submit">
+        {(errorMessage || submitMutation.isError) && <p className="text-sm text-destructive">{errorMessage || "Could not submit proof. Please try again."}</p>}
+        <Button type="submit" variant="gold" size="lg" className="w-full" disabled={submitMutation.isPending} data-testid="proof-submit">
           Submit for review
         </Button>
       </form>
