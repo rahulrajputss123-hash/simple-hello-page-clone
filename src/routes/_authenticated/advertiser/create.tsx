@@ -101,7 +101,7 @@ function CreateCampaignPage() {
           verification,
           reward: rewardNum,
           slots: slotsNum,
-          countries: country === "Worldwide" ? ["*"] : [country],
+          countries: country === "Worldwide" ? [] : [{ "United States": "US", India: "IN", "United Kingdom": "GB", Canada: "CA", Brazil: "BR", Germany: "DE" }[country] ?? country],
           categoryId,
           subcategoryId: subcategoryId || undefined,
           landingUrl: landingUrl.trim(),

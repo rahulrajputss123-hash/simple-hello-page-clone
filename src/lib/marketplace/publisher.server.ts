@@ -1,3 +1,4 @@
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import crypto from "crypto";
 
@@ -20,6 +21,18 @@ import { type CampaignRow, type UntypedClient, MktRpcError, mktDb, mktRpc, num }
 export const mktDbPublisher = supabaseAdmin as unknown as UntypedClient;
 
 /* ------------------------------------------------------------------ types */
+
+function normalizeCampaignCountries(countries: string[] | null | undefined): string[] {
+  const values = countries ?? [];
+  return values.some((value) => ["*", "ALL", "WW"].includes(value.toUpperCase())) ? [] : values;
+}
+
+function deviceFromUserAgent(userAgent: string | null): string {
+  const ua = (userAgent ?? "").toLowerCase();
+  if (ua.includes("android")) return "android";
+  if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ios")) return "ios";
+  return "desktop";
+}
 
 export type PublisherCampaignView = {
   id: string;
@@ -116,7 +129,7 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
       maxCompletions: c.max_completions,
       completionsCount: c.completions_count,
       slotsRemaining: c.max_completions > c.completions_count ? c.max_completions - c.completions_count : null,
-      countries: c.countries ?? [],
+      countries: normalizeCampaignCountries(c.countries),
       category: c.marketplace_categories?.name || null,
       subcategory: c.marketplace_subcategories?.name || null,
       estimatedMinutes: c.estimated_minutes,
@@ -172,11 +185,13 @@ export class SubmissionError extends Error {
 export async function startCampaignImpl(
   userId: string,
   campaignId: string,
-  ipAddress: string,
   userAgent: string | null = null,
-): Promise<{ clickId: string; expiresAt: string }> {
-  // CRITICAL: Hash the IP before storing!
-  const ipHash = crypto.createHash("sha256").update(ipAddress).digest("hex");
+): Promise<{ clickId: string; expiresAt: string; redirectUrl?: string }> {
+  const request = getRequest();
+  const forwarded = request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const clientIp = forwarded || request?.headers.get("x-real-ip") || "unknown";
+  const country = (request?.headers.get("x-vercel-ip-country") || request?.headers.get("cf-ipcountry") || "").trim().toUpperCase();
+  const ipHash = crypto.createHash("sha256").update(clientIp).digest("hex");
 
   try {
     const result = await mktRpc<{ click_id: string; expires_at: string }>("mkt_start", {
@@ -185,13 +200,25 @@ export async function startCampaignImpl(
       p_meta: {
         ip_hash: ipHash, // NOT raw ip_address!
         user_agent: userAgent,
+        country: /^[A-Z]{2}$/.test(country) ? country : null,
+        device: deviceFromUserAgent(userAgent),
         timestamp: new Date().toISOString(),
       },
     });
 
+    const { data: campaign, error: campaignError } = await mktDbPublisher
+      .from("campaigns")
+      .select("verification_mode, tracking_url")
+      .eq("id", campaignId)
+      .single();
+    if (campaignError) throw new Error(`campaign: ${campaignError.message}`);
+
     return {
       clickId: result.click_id,
       expiresAt: result.expires_at,
+      ...(campaign?.verification_mode === "auto" && campaign.tracking_url
+        ? { redirectUrl: campaign.tracking_url.split("{click_id}").join(encodeURIComponent(result.click_id)) }
+        : {}),
     };
   } catch (err) {
     if (err instanceof MktRpcError) {

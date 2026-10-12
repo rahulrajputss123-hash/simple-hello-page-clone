@@ -52,8 +52,9 @@ type DisplayCampaign = {
 };
 
 function mapCampaignToDisplay(c: any): DisplayCampaign {
-  const countryFlag = c.countries?.[0] === "*" ? "🌍" : "🇺🇸";
-  const countryLabel = c.countries?.[0] === "*" ? "Worldwide" : c.countries?.join(", ") || "Worldwide";
+  const normalizedCountries = (c.countries ?? []).some((value: string) => ["*", "ALL", "WW"].includes(value.toUpperCase())) ? [] : (c.countries ?? []);
+  const countryFlag = normalizedCountries.length === 0 ? "🌍" : "🇺🇸";
+  const countryLabel = normalizedCountries.length === 0 ? "Worldwide" : normalizedCountries.join(", ");
   
   // Format estimated time with fallback
   let estimatedTime = "5-10 min";
@@ -76,7 +77,7 @@ function mapCampaignToDisplay(c: any): DisplayCampaign {
     device: c.verification === "auto" ? "Any device" : "Mobile",
     slotsLeft: c.slotsRemaining,
     category: c.category || "General", // Real category with fallback
-    countries: c.countries || ["*"],
+    countries: normalizedCountries,
   };
 }
 
@@ -171,7 +172,7 @@ function MicrotasksPage() {
         (!featured || task.featured) &&
         (!verification || task.verification === verification) &&
         (!selectedCategories.length || selectedCategories.includes(task.category)) &&
-        (!selectedCountries.length || task.countries.some((country) => selectedCountries.includes(country))) &&
+        (!selectedCountries.length || task.countries.length === 0 || task.countries.some((country) => selectedCountries.includes(country))) &&
         (!selectedDevices.length || selectedDevices.includes("Any") || selectedDevices.includes(task.device) || (selectedDevices.includes("Any") && task.device !== "iOS"))
     );
 

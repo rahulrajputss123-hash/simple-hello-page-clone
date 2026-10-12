@@ -19,6 +19,8 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 import { becomeAdvertiser } from "@/lib/marketplace.functions";
 import { useRole } from "@/lib/marketplace/role";
+import { advertiserOnboardingActivationKey } from "@/lib/marketplace/advertiser-onboarding";
+import { safeStorage } from "@/lib/safe-storage";
 
 /**
  * "Become an Advertiser" — creates the advertiser account (Phase 1
@@ -39,7 +41,6 @@ export function BecomeAdvertiserDialog({
   const [contactEmail, setContactEmail] = useState(session?.user.email ?? "");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [accepted, setAccepted] = useState(false);
-
   const mutation = useMutation({
     mutationFn: () =>
       activate({
@@ -54,6 +55,9 @@ export function BecomeAdvertiserDialog({
       await refreshOverview();
       setRole("advertiser");
       onOpenChange(false);
+      if (created && session?.user.id) {
+        safeStorage.setItem(advertiserOnboardingActivationKey(session.user.id), new Date().toISOString());
+      }
       toast.success(created ? "You're an advertiser now" : "Advertiser mode on", {
         description: created ? "Add Campaign Funds to launch your first task." : undefined,
       });
