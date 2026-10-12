@@ -332,6 +332,23 @@ async function postbackLogsForCampaigns(campaignIds: string[]): Promise<Map<stri
   return result;
 }
 
+export async function getCampaignResultsImpl(userId: string, campaignId: string) {
+  const { data: campaign, error } = await mktDb.from("campaigns").select("id,name,verification_mode,countries,publisher_reward,advertiser_cost,status,budget_allocated,budget_spent,budget_remaining,completions_count,max_completions").eq("id", campaignId).eq("advertiser_id", userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!campaign) return null;
+  const [{ data: clicks }, { data: submissions }, { count: credited }, { data: postbacks }] = await Promise.all([
+    mktDb.from("campaign_clicks").select("status").eq("campaign_id", campaignId),
+    mktDb.from("campaign_submissions").select("status,created_at").eq("campaign_id", campaignId),
+    mktDb.from("campaign_conversions").select("id", { count: "exact", head: true }).eq("campaign_id", campaignId).eq("status", "credited"),
+    campaign.verification_mode === "auto" ? mktDb.from("campaign_postback_log").select("received_at,result,click_id,txn_id,http_status").eq("campaign_id", campaignId).order("received_at", { ascending: false }).limit(20) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (submissions?.error || postbacks?.error) throw new Error(submissions?.error?.message || postbacks?.error?.message);
+  const counts = { pending: 0, approved: 0, rejected: 0, appealed: 0 };
+  for (const row of submissions ?? []) if (row.status in counts) counts[row.status as keyof typeof counts]++;
+  const clickRows = clicks ?? [];
+  return { ...campaign, countries: campaign.countries?.length ? campaign.countries.join(", ") : "Worldwide", publisher_reward: num(campaign.publisher_reward), advertiser_cost: num(campaign.advertiser_cost), budget_allocated: num(campaign.budget_allocated), budget_spent: num(campaign.budget_spent), budget_remaining: num(campaign.budget_remaining), funnel: { clicks: clickRows.length, started: clickRows.filter((r: { status: string }) => ["active", "converted"].includes(r.status)).length, completed: (credited ?? 0) + counts.approved }, submissions: counts, postbacks: postbacks ?? [] };
+}
+
 export async function listCampaignsImpl(userId: string): Promise<CampaignView[]> {
   const { data, error } = await mktDb
     .from("campaigns")
