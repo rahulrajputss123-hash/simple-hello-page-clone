@@ -79,8 +79,22 @@ function MicrotaskDetailPage() {
       }
     },
     onError: (err) => {
+      popupRef.current?.close();
+      popupRef.current = null;
       const msg = err instanceof Error ? err.message : "Something went wrong";
-      toast.error("Couldn't start task", { description: msg });
+      const detail = msg.match(/detail[=: ]+([a-z_]+)/i)?.[1]?.toLowerCase();
+      const description = msg.includes("MKT_NOT_AVAILABLE")
+        ? "This campaign is no longer available."
+        : msg.includes("MKT_NOT_ELIGIBLE") && detail === "country"
+          ? "This campaign is not available in your country."
+          : msg.includes("MKT_NOT_ELIGIBLE") && detail === "device"
+            ? "This campaign does not support your device."
+            : msg.includes("MKT_NOT_ELIGIBLE") && detail === "age"
+              ? "You are not eligible for this campaign's age requirements."
+              : msg.includes("MKT_NOT_ELIGIBLE") && detail === "linked"
+                ? "You are not eligible for this campaign because of an account link."
+                : "We couldn't start this task. Please try again.";
+      toast.error("Couldn't start task", { description });
     },
   });
 
@@ -106,8 +120,8 @@ function MicrotaskDetailPage() {
   }
 
   const proof = c.verification === "proof";
-  const countryFlag = c.countries[0] === "*" ? "🌍" : "🇺🇸";
-  const countryLabel = c.countries[0] === "*" ? "Worldwide" : c.countries.join(", ");
+  const countryFlag = c.countries.length === 0 ? "🌍" : "🇺🇸";
+  const countryLabel = c.countries.length === 0 ? "Worldwide" : c.countries.join(", ");
 
   return (
     <AppShell subtitle="Tasks" mainClass="page-fade-in">

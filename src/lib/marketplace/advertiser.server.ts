@@ -779,7 +779,7 @@ export const createCampaignInput = z.object({
   verification: z.enum(["auto", "proof"]),
   reward: z.number().positive().min(0.05).max(1000),
   slots: z.number().int().min(15).max(100000), // Slots-first budgeting (min 15)
-  countries: z.array(z.string()).min(1).max(20),
+  countries: z.array(z.string().trim().toUpperCase().refine((value) => /^[A-Z]{2}$/.test(value) || ["*", "ALL", "WW"].includes(value), "Countries must be ISO-2 codes")).max(20).transform((values) => values.some((value) => ["*", "ALL", "WW"].includes(value)) ? [] : values),
   categoryId: z.string().uuid(),
   subcategoryId: z.string().uuid().optional(),
   landingUrl: z.string().trim().url().max(2048).regex(/^https:\/\//, "Must be an HTTPS URL"),

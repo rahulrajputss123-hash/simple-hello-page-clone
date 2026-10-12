@@ -22,6 +22,18 @@ export const mktDbPublisher = supabaseAdmin as unknown as UntypedClient;
 
 /* ------------------------------------------------------------------ types */
 
+function normalizeCampaignCountries(countries: string[] | null | undefined): string[] {
+  const values = countries ?? [];
+  return values.some((value) => ["*", "ALL", "WW"].includes(value.toUpperCase())) ? [] : values;
+}
+
+function deviceFromUserAgent(userAgent: string | null): string {
+  const ua = (userAgent ?? "").toLowerCase();
+  if (ua.includes("android")) return "android";
+  if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ios")) return "ios";
+  return "desktop";
+}
+
 export type PublisherCampaignView = {
   id: string;
   title: string;
@@ -117,7 +129,7 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
       maxCompletions: c.max_completions,
       completionsCount: c.completions_count,
       slotsRemaining: c.max_completions > c.completions_count ? c.max_completions - c.completions_count : null,
-      countries: c.countries ?? [],
+      countries: normalizeCampaignCountries(c.countries),
       category: c.marketplace_categories?.name || null,
       subcategory: c.marketplace_subcategories?.name || null,
       estimatedMinutes: c.estimated_minutes,
@@ -178,6 +190,7 @@ export async function startCampaignImpl(
   const request = getRequest();
   const forwarded = request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const clientIp = forwarded || request?.headers.get("x-real-ip") || "unknown";
+  const country = (request?.headers.get("x-vercel-ip-country") || request?.headers.get("cf-ipcountry") || "").trim().toUpperCase();
   const ipHash = crypto.createHash("sha256").update(clientIp).digest("hex");
 
   try {
@@ -187,6 +200,8 @@ export async function startCampaignImpl(
       p_meta: {
         ip_hash: ipHash, // NOT raw ip_address!
         user_agent: userAgent,
+        country: /^[A-Z]{2}$/.test(country) ? country : null,
+        device: deviceFromUserAgent(userAgent),
         timestamp: new Date().toISOString(),
       },
     });
