@@ -1,0 +1,679 @@
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
+import { getAdapter } from "./registry.server";
+import { existingOfferImageUrls, materializeInlineOfferImages } from "./image-upload.server";
+import { computeUserReward, type NormalizedOffer, type OfferProvider } from "./provider-types";
+import {
+  getFeedSettingsImpl,
+  readNetworkFeedConfig,
+  type FeedSettings,
+} from "./feed-settings.server";
+import { normalizeCountry } from "./geo.server";
+
+/**
+ * Geo-targeted network offer cache + Featured Offers assembly.
+ *
+ * Design:
+ *  - Network offers are upserted into `offers` (country-agnostic) so the existing claim flow
+ *    keeps working unchanged (claims reference offers.id).
+ *  - `offer_feed_cache` records which offer ids are fresh for each (network, country) plus a
+ *    last_synced_at / expires_at window so refresh cadence is controlled per country.
+ *  - Featured assembly is per user-country: admin-featured manual offers first, then network
+ *    offers ranked by (network weight * reward_amount).
+ */
+
+// In-memory cache for assembled (non-user-specific) offer list (30-60s)
+type AssembledCacheEntry = {
+  offers: (FeaturedOffer & { _tagsManual?: boolean })[];
+  expires: number;
+};
+const _assembledCache = new Map<string, AssembledCacheEntry>();
+const ASSEMBLED_CACHE_TTL_MS = 45_000; // 45 seconds
+
+// In-memory TTL cache for enabled providers (60s)
+let _enabledProvidersCache: { data: OfferProvider[]; expires: number } | null = null;
+const PROVIDERS_CACHE_TTL_MS = 60_000;
+
+type CachedOffer = {
+  id: string;
+  externalOfferId: string | null;
+  title: string;
+  rewardAmount: number;
+  networkPayout: number | null;
+};
+
+export type FeaturedOffer = {
+  id: string;
+  external_offer_id: string | null;
+  title: string;
+  description: string;
+  requirements: string;
+  not_allowed: string;
+  icon: string;
+  image_url: string | null;
+  reward_amount: number;
+  /**
+   * Decorative card badges. Display only — `reward_amount` above remains the
+   * figure that is actually credited. See src/lib/offers/display-badge.ts.
+   */
+  display_price: string | null;
+  display_percent: number | null;
+  click_url: string | null;
+  source: string;
+  provider_id: string | null;
+  provider_slug: string | null;
+  is_limited_deal: boolean;
+  deal_group_id: string | null;
+  actual_cost: number | null;
+  payout_percentage: number;
+  max_payout_cap: number | null;
+  payout_mode: "manual" | "manual_proof" | "auto_postback";
+  category: string | null;
+  tags: ("Hot" | "Trending" | "Easy" | "Popular")[];
+};
+
+function imageUrlFromIcon(icon: string | null | undefined): string | null {
+  return typeof icon === "string" && /^https?:\/\//i.test(icon.trim()) ? icon.trim() : null;
+}
+
+// The dedicated `offers.image_url` column is added by a migration; until that
+// migration is applied on a given environment the column may not exist, so we
+// detect it once and gracefully fall back to the legacy behaviour (image URL
+// stored in `icon`). This keeps the feed working regardless of migration state.
+let _offersHasImageUrl: boolean | null = null;
+async function offersHasImageUrl(): Promise<boolean> {
+  if (_offersHasImageUrl !== null) return _offersHasImageUrl;
+  const { error } = await supabaseAdmin.from("offers").select("image_url").limit(1);
+  _offersHasImageUrl = !error;
+  return _offersHasImageUrl;
+}
+const imageCol = (has: boolean) => (has ? ", image_url" : "");
+function pickImageUrl(o: { image_url?: string | null; icon?: string | null }): string | null {
+  return imageUrlFromIcon(o.image_url) ?? imageUrlFromIcon(o.icon);
+}
+
+function offerRowFromNormalized(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) {
+  const share = offer.revenueShare ?? provider.default_revenue_share;
+  // NOTE: countries/devices/is_featured/sort_order/expires_at are intentionally omitted so an
+  // existing offer row (possibly curated by an admin) is not clobbered on conflict update.
+  return {
+    source: "network",
+    provider_id: provider.id,
+    external_offer_id: offer.externalOfferId,
+    title: offer.title,
+    description: offer.description ?? "",
+    requirements: offer.requirements ?? "",
+    icon: offer.icon ?? "gift",
+    click_url: offer.clickUrl,
+    network_payout: offer.networkPayout,
+    revenue_share: share,
+    reward_amount: computeUserReward(offer.networkPayout, share),
+    is_active: true,
+    last_seen_at: seenAt,
+    raw_payload: (offer.raw ?? null) as never,
+  };
+}
+
+async function readCacheRow(providerId: string, country: string) {
+  const { data } = await supabaseAdmin
+    .from("offer_feed_cache")
+    .select("offers, expires_at")
+    .eq("provider_id", providerId)
+    .eq("country", country)
+    .maybeSingle();
+  return data;
+}
+
+/**
+ * Fetch this provider's feed for `country`, upsert into `offers`, and write the country cache row.
+ * Bounded by the network's configured max offers. Throws on adapter/config failure.
+ */
+async function refreshProviderCountry(
+  provider: OfferProvider,
+  country: string,
+  settings: FeedSettings,
+  ip?: string | null,
+): Promise<CachedOffer[]> {
+  const adapter = getAdapter(provider.slug);
+  if (!adapter) throw new Error(`No adapter registered for "${provider.slug}"`);
+
+  const configError = adapter.validateConfig?.(
+    (provider.sync_config ?? {}) as Record<string, unknown>,
+  );
+  if (configError) throw new Error(configError);
+
+  const { maxOffers } = readNetworkFeedConfig(provider.slug, provider.sync_config);
+  const seenAt = new Date().toISOString();
+
+  // The detected country is passed through to the adapter (adapters that support a GEO param can
+  // use it; AdBlueMedia's feed endpoint has no country param, so its request stays unchanged).
+  const fetched = await adapter.fetchOffers(provider, { country, ip: ip ?? undefined });
+  const limited = fetched.slice(0, maxOffers);
+
+  let cached: CachedOffer[] = [];
+  if (limited.length) {
+    const hasImageUrl = await offersHasImageUrl();
+    /**
+     * Some providers send artwork inline as a base64 data URI. Those are uploaded
+     * to Storage here and only the resulting URL is persisted, so the offers table
+     * never holds an inline blob. Skips offers that already have an image_url, so
+     * a re-sync does no upload work.
+     */
+    const storedImages = hasImageUrl
+      ? await existingOfferImageUrls(
+          provider.id,
+          limited.map((o) => o.externalOfferId),
+        )
+      : new Map<string, string>();
+    const uploadedImages = hasImageUrl
+      ? await materializeInlineOfferImages(provider, limited, storedImages)
+      : new Map<string, string>();
+
+    const rows = limited.map((o) => {
+      const row = offerRowFromNormalized(provider, o, seenAt);
+      if (!hasImageUrl) return row;
+      // Precedence: a URL from the feed, then one we just uploaded, then whatever
+      // is already stored. That last fallback matters — this is a bulk upsert, so
+      // image_url is written for every row, and without it a sync where the feed
+      // has no image would null out a previously uploaded one.
+      const imageUrl =
+        imageUrlFromIcon(o.icon) ??
+        uploadedImages.get(o.externalOfferId) ??
+        storedImages.get(o.externalOfferId) ??
+        null;
+      return { ...row, image_url: imageUrl };
+    });
+    const { data: upserted, error } = await supabaseAdmin
+      .from("offers")
+      .upsert(rows as never, { onConflict: "provider_id,external_offer_id" })
+      .select("id, external_offer_id, title, reward_amount, network_payout");
+    if (error) throw error;
+    cached = (upserted ?? []).map((r) => ({
+      id: r.id,
+      externalOfferId: r.external_offer_id,
+      title: r.title,
+      rewardAmount: Number(r.reward_amount),
+      networkPayout: r.network_payout == null ? null : Number(r.network_payout),
+    }));
+  }
+
+  const expiresAt = new Date(
+    Date.now() + Math.max(1, settings.refreshIntervalHours) * 60 * 60 * 1000,
+  ).toISOString();
+
+  const { error: cacheError } = await supabaseAdmin.from("offer_feed_cache").upsert(
+    {
+      provider_id: provider.id,
+      country,
+      offers: cached as never,
+      offer_count: cached.length,
+      last_synced_at: seenAt,
+      expires_at: expiresAt,
+      sync_error: null,
+    } as never,
+    { onConflict: "provider_id,country" },
+  );
+  if (cacheError) throw cacheError;
+
+  return cached;
+}
+
+/** Serve fresh cache if valid; otherwise refresh synchronously. Falls back to stale on error. */
+async function getOrRefreshProviderCountry(
+  provider: OfferProvider,
+  country: string,
+  settings: FeedSettings,
+  ip?: string | null,
+): Promise<CachedOffer[]> {
+  const existing = await readCacheRow(provider.id, country);
+  const fresh = existing && new Date(existing.expires_at).getTime() > Date.now();
+  if (fresh) return (existing.offers as unknown as CachedOffer[]) ?? [];
+
+  // Stale-while-revalidate: if we have stale data, return it immediately and refresh in background
+  if (existing?.offers) {
+    const staleOffers = (existing.offers as unknown as CachedOffer[]) ?? [];
+    // Trigger refresh in background (don't await)
+    refreshProviderCountry(provider, country, settings, ip).catch((err) => {
+      const message = err instanceof Error ? err.message : "feed refresh failed";
+      supabaseAdmin
+        .from("offer_feed_cache")
+        .update({ sync_error: message } as never)
+        .eq("provider_id", provider.id)
+        .eq("country", country)
+        .then(() => {});
+    });
+    return staleOffers;
+  }
+
+  // No cache at all - must block and wait for refresh
+  try {
+    return await refreshProviderCountry(provider, country, settings, ip);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "feed refresh failed";
+    // Record the error but keep serving stale offers when we have them.
+    await supabaseAdmin
+      .from("offer_feed_cache")
+      .update({ sync_error: message } as never)
+      .eq("provider_id", provider.id)
+      .eq("country", country);
+    return [];
+  }
+}
+
+async function enabledProviders(): Promise<OfferProvider[]> {
+  // Check in-memory cache
+  if (_enabledProvidersCache && _enabledProvidersCache.expires > Date.now()) {
+    return _enabledProvidersCache.data;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("offer_providers")
+    .select("*")
+    .eq("enabled", true);
+  if (error) throw error;
+  
+  const providers = (data ?? []) as unknown as OfferProvider[];
+  
+  // Cache for 60s
+  _enabledProvidersCache = { 
+    data: providers, 
+    expires: Date.now() + PROVIDERS_CACHE_TTL_MS 
+  };
+  
+  return providers;
+}
+
+/** Assemble the geo-targeted, ranked Featured Offers list for a given country. */
+export async function assembleFeaturedImpl(
+  requestedCountry: string | null,
+  scope: "home" | "all",
+  presetSettings?: FeedSettings,
+  ip?: string | null,
+  userId?: string | null,
+): Promise<FeaturedOffer[]> {
+  const settings = presetSettings ?? (await getFeedSettingsImpl());
+  const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
+
+  // Check assembled cache (non-user-specific)
+  const cacheKey = `${country}:${scope}`;
+  const cached = _assembledCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    // Apply per-user filtering on cached list
+    const visible = userId ? await filterUserHiddenOffers(cached.offers, userId) : cached.offers;
+    if (scope === "home") return visible.slice(0, settings.featuredSlots);
+    return visible;
+  }
+
+  const [providers, hasImageUrl] = await Promise.all([
+    enabledProviders(),
+    offersHasImageUrl(),
+  ]);
+
+  const weightByProviderId = new Map(
+    providers.map((p) => [p.id, readNetworkFeedConfig(p.slug, p.sync_config).weight]),
+  );
+  const slugByProviderId = new Map(providers.map((p) => [p.id, p.slug]));
+
+  // Gather network offer ids per provider for this country (refresh on miss/expiry) - IN PARALLEL
+  const collected = new Map<string, number>(); // offerId -> highest provider weight
+  
+  const providerResults = await Promise.all(
+    providers.map(async (provider) => {
+      let list = await getOrRefreshProviderCountry(provider, country, settings, ip);
+      if (
+        list.length === 0 &&
+        settings.fallbackBehavior === "default_country" &&
+        country !== settings.defaultCountry
+      ) {
+        list = await getOrRefreshProviderCountry(provider, settings.defaultCountry, settings, ip);
+      }
+      return { provider, list };
+    })
+  );
+
+  // Collect results
+  for (const { provider, list } of providerResults) {
+    const weight = weightByProviderId.get(provider.id) ?? 1;
+    for (const item of list) {
+      collected.set(item.id, Math.max(collected.get(item.id) ?? 0, weight));
+    }
+  }
+
+  // Load network offers and manual featured offers IN PARALLEL
+  const [networkOffersData, manualRowsData] = await Promise.all([
+    // Network offers query
+    collected.size > 0
+      ? supabaseAdmin
+          .from("offers")
+          .select(
+            "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
+              imageCol(hasImageUrl),
+          )
+          .in("id", [...collected.keys()])
+          .eq("is_active", true)
+      : Promise.resolve({ data: [] }),
+    // Manual featured offers query
+    supabaseAdmin
+      .from("offers")
+      .select(
+        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
+          imageCol(hasImageUrl),
+      )
+      .eq("source", "manual")
+      .eq("is_featured", true)
+      .eq("is_active", true)
+      .order("admin_priority", { ascending: false })
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  // Process network offers
+  const now = Date.now();
+  const networkOffers: FeaturedOffer[] = ((networkOffersData.data ?? []) as any[])
+    .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
+    .map((o) => ({
+      id: o.id,
+      external_offer_id: o.external_offer_id ?? null,
+      title: o.title,
+      description: o.description,
+      requirements: o.requirements,
+      not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
+      icon: o.icon,
+      image_url: pickImageUrl(o as { image_url?: string | null; icon?: string | null }),
+      reward_amount: Number(o.reward_amount),
+      display_price: (o as { display_price?: string | null }).display_price ?? null,
+      display_percent:
+        (o as { display_percent?: number | null }).display_percent != null
+          ? Number((o as { display_percent?: number }).display_percent)
+          : null,
+      click_url: o.click_url,
+      source: o.source,
+      provider_id: o.provider_id,
+      provider_slug: o.provider_id ? (slugByProviderId.get(o.provider_id) ?? null) : null,
+      is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
+      deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
+      actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
+      payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
+      max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
+      payout_mode: ((o as { payout_mode?: string }).payout_mode ??
+        "manual") as FeaturedOffer["payout_mode"],
+      category: (o as { category?: string | null }).category ?? null,
+      tags: normalizeStoredTags((o as { tags?: string[] }).tags),
+      _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),
+    }))
+    .sort((a, b) => {
+      const wa = collected.get(a.id) ?? 1;
+      const wb = collected.get(b.id) ?? 1;
+      const score = wb * b.reward_amount - wa * a.reward_amount;
+      if (score !== 0) return score;
+      return a.id.localeCompare(b.id);
+    });
+
+  // Process manual featured offers
+  const manualOffers: FeaturedOffer[] = ((manualRowsData.data ?? []) as any[])
+    .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
+    .filter((o) => {
+      const countries = (o.countries ?? []) as string[];
+      return countries.length === 0 || countries.includes(country);
+    })
+    .map((o) => ({
+      id: o.id,
+      external_offer_id: o.external_offer_id ?? null,
+      title: o.title,
+      description: o.description,
+      requirements: o.requirements,
+      not_allowed: (o as { not_allowed?: string }).not_allowed ?? "",
+      icon: o.icon,
+      image_url: pickImageUrl(o as { image_url?: string | null; icon?: string | null }),
+      reward_amount: Number(o.reward_amount),
+      display_price: (o as { display_price?: string | null }).display_price ?? null,
+      display_percent:
+        (o as { display_percent?: number | null }).display_percent != null
+          ? Number((o as { display_percent?: number }).display_percent)
+          : null,
+      click_url: o.click_url,
+      source: o.source,
+      provider_id: o.provider_id,
+      provider_slug: null,
+      is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
+      deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
+      actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
+      payout_percentage: Number((o as { payout_percentage?: number }).payout_percentage ?? 110),
+      max_payout_cap: (o as { max_payout_cap?: number | null }).max_payout_cap ?? null,
+      payout_mode: ((o as { payout_mode?: string }).payout_mode ??
+        "manual") as FeaturedOffer["payout_mode"],
+      category: (o as { category?: string | null }).category ?? null,
+      tags: normalizeStoredTags((o as { tags?: string[] }).tags),
+      _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),
+    }));
+
+  const combined = [...manualOffers, ...networkOffers];
+  // Overlay auto-tags for offers that don't have admin-locked tags.
+  await applyAutoTags(combined);
+
+  // Cache the assembled list (non-user-specific)
+  _assembledCache.set(cacheKey, {
+    offers: combined,
+    expires: Date.now() + ASSEMBLED_CACHE_TTL_MS,
+  });
+
+  // Apply per-user filtering
+  const visible = userId ? await filterUserHiddenOffers(combined, userId) : combined;
+  if (scope === "home") return visible.slice(0, settings.featuredSlots);
+  return visible;
+}
+
+/**
+ * Remove offers the user should no longer see:
+ *  1. Offers they have an 'approved' claim for (completed).
+ *  2. Limited-deal siblings: once the user holds a non-rejected claim on ANY offer
+ *     in a deal_group, the OTHER offers in that group disappear (the claimed offer
+ *     itself stays until it is approved, per rule 1).
+ */
+async function filterUserHiddenOffers(
+  offers: FeaturedOffer[],
+  userId: string,
+): Promise<FeaturedOffer[]> {
+  if (!offers.length) return offers;
+
+  // All of the user's non-rejected claims, with the claimed offer's deal_group_id.
+  const { data: claims } = await supabaseAdmin
+    .from("offer_claims")
+    .select("offer_id, status, offers:offer_id(deal_group_id)")
+    .eq("user_id", userId)
+    .neq("status", "rejected");
+
+  const approved = new Set<string>();
+  const claimedIdsByGroup = new Map<string, Set<string>>();
+  for (const c of (claims ?? []) as Array<{
+    offer_id: string;
+    status: string;
+    offers: { deal_group_id?: string | null } | null;
+  }>) {
+    if (c.status === "approved") approved.add(c.offer_id);
+    const group = c.offers?.deal_group_id ?? null;
+    if (group) {
+      if (!claimedIdsByGroup.has(group)) claimedIdsByGroup.set(group, new Set());
+      claimedIdsByGroup.get(group)!.add(c.offer_id);
+    }
+  }
+
+  if (!approved.size && !claimedIdsByGroup.size) return offers;
+
+  return offers.filter((o) => {
+    if (approved.has(o.id)) return false; // completed
+    if (o.deal_group_id) {
+      const claimedInGroup = claimedIdsByGroup.get(o.deal_group_id);
+      // Hide if a SIBLING (different offer) in this group has a non-rejected claim.
+      if (claimedInGroup && [...claimedInGroup].some((id) => id !== o.id)) return false;
+    }
+    return true;
+  });
+}
+
+const KNOWN_TAGS: FeaturedOffer["tags"][number][] = ["Hot", "Trending", "Easy", "Popular"];
+function normalizeStoredTags(raw: string[] | undefined | null): FeaturedOffer["tags"] {
+  if (!Array.isArray(raw)) return [];
+  const out: FeaturedOffer["tags"] = [];
+  for (const t of raw) {
+    const s = String(t);
+    if ((KNOWN_TAGS as readonly string[]).includes(s)) out.push(s as FeaturedOffer["tags"][number]);
+  }
+  return out;
+}
+
+async function applyAutoTags(offers: (FeaturedOffer & { _tagsManual?: boolean })[]) {
+  const eligible = offers.filter((o) => !o._tagsManual);
+  if (!eligible.length) {
+    for (const o of offers) delete o._tagsManual;
+    return;
+  }
+  const { computeAutoTags } = await import("./tags.server");
+  const map = await computeAutoTags(
+    eligible.map((o) => ({
+      id: o.id,
+      reward_amount: Number(o.reward_amount),
+      requirements: o.requirements ?? null,
+      category: o.category ?? null,
+    })),
+  );
+  for (const o of offers) {
+    if (!o._tagsManual) {
+      const auto = map[o.id];
+      if (auto?.length) o.tags = auto;
+    }
+    delete o._tagsManual;
+  }
+}
+
+export type FeaturedFeedResult = {
+  country: string;
+  offers: FeaturedOffer[];
+};
+
+export async function getFeaturedFeedImpl(
+  requestedCountry: string | null,
+  scope: "home" | "all",
+  ip?: string | null,
+  userId?: string | null,
+): Promise<FeaturedFeedResult> {
+  const settings = await getFeedSettingsImpl();
+  const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
+  const offers = await assembleFeaturedImpl(requestedCountry, scope, settings, ip, userId);
+  return { country, offers };
+}
+
+/** Clear the assembled feed cache (call after admin offer edits) */
+export function clearAssembledCache() {
+  _assembledCache.clear();
+}
+
+export type FeedRefreshSummary = {
+  refreshed: { provider: string; country: string; count: number }[];
+  errors: { provider: string; country: string; message: string }[];
+};
+
+/**
+ * Background refresh entrypoint (called by the scheduled cron route).
+ * Refreshes every enabled network for every country that has been requested at least once
+ * (i.e. already present in offer_feed_cache) plus the configured default country.
+ * `force` ignores the expiry window.
+ */
+export async function refreshAllFeedsImpl(force = false): Promise<FeedRefreshSummary> {
+  const settings = await getFeedSettingsImpl();
+  const providers = await enabledProviders();
+  const summary: FeedRefreshSummary = { refreshed: [], errors: [] };
+  if (!providers.length) return summary;
+
+  const { data: cacheRows } = await supabaseAdmin
+    .from("offer_feed_cache")
+    .select("country, expires_at");
+  const countries = new Set<string>([settings.defaultCountry]);
+  for (const row of cacheRows ?? []) {
+    const c = normalizeCountry(row.country);
+    if (c) countries.add(c);
+  }
+
+  for (const provider of providers) {
+    for (const country of countries) {
+      try {
+        if (!force) {
+          const existing = await readCacheRow(provider.id, country);
+          if (existing && new Date(existing.expires_at).getTime() > Date.now()) continue;
+        }
+        const list = await refreshProviderCountry(provider, country, settings);
+        summary.refreshed.push({ provider: provider.slug, country, count: list.length });
+      } catch (err) {
+        summary.errors.push({
+          provider: provider.slug,
+          country,
+          message: err instanceof Error ? err.message : "refresh failed",
+        });
+      }
+    }
+  }
+  return summary;
+}
+
+/** Admin manual trigger: refresh one provider for one country (defaults to the default country). */
+export async function adminRefreshProviderImpl(providerId: string, country?: string) {
+  const settings = await getFeedSettingsImpl();
+  const { data: provider, error } = await supabaseAdmin
+    .from("offer_providers")
+    .select("*")
+    .eq("id", providerId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!provider) throw new Error("Provider not found.");
+  if (!provider.enabled) throw new Error("Provider is disabled.");
+  const target = normalizeCountry(country) ?? settings.defaultCountry;
+  const list = await refreshProviderCountry(provider as unknown as OfferProvider, target, settings);
+  
+  // Clear assembled cache after provider sync
+  clearAssembledCache();
+  
+  return { provider: provider.slug, country: target, count: list.length };
+}
+
+/** Admin read: settings + per-network automation config + cache freshness snapshot. */
+export async function getFeedAutomationImpl() {
+  const [settings, providersRes, cacheRes] = await Promise.all([
+    getFeedSettingsImpl(),
+    supabaseAdmin
+      .from("offer_providers")
+      .select("id, name, slug, enabled, sync_status, sync_error, last_synced_at, sync_config")
+      .order("name"),
+    supabaseAdmin
+      .from("offer_feed_cache")
+      .select("provider_id, country, offer_count, last_synced_at, expires_at, sync_error")
+      .order("last_synced_at", { ascending: false }),
+  ]);
+  if (providersRes.error) throw providersRes.error;
+
+  const providers = (providersRes.data ?? []).map((p) => {
+    const cfg = readNetworkFeedConfig(p.slug, p.sync_config as Record<string, unknown>);
+    const hasAdapter = Boolean(getAdapter(p.slug));
+    return {
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      enabled: p.enabled,
+      syncStatus: p.sync_status,
+      syncError: p.sync_error,
+      lastSyncedAt: p.last_synced_at,
+      maxOffers: cfg.maxOffers,
+      weight: cfg.weight,
+      hasAdapter,
+    };
+  });
+
+  const cache = (cacheRes.data ?? []).map((c) => ({
+    providerId: c.provider_id,
+    country: c.country,
+    offerCount: c.offer_count,
+    lastSyncedAt: c.last_synced_at,
+    expiresAt: c.expires_at,
+    syncError: c.sync_error,
+  }));
+
+  return { settings, providers, cache };
+}

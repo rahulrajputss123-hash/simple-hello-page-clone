@@ -1,0 +1,42 @@
+import { Link } from "@tanstack/react-router";
+
+/**
+ * Bottom tabs. "Task" now opens the Microtasks marketplace; the original
+ * quest/task system lives unchanged under "Special" (/special). Support moved
+ * out of the nav — it is reachable from the Home header and the Profile screen.
+ */
+const TABS = [
+  { to: "/home", label: "Home", iconSrc: "/icons/icon-home.webp" },
+  { to: "/offers", label: "Offers", iconSrc: "/icons/icon-offers.webp" },
+  { to: "/task", label: "Task", iconSrc: "/icons/icon-your-task.webp" },
+  { to: "/special", label: "Special", iconSrc: "/icons/icon-starter-quest.webp" },
+  { to: "/refer", label: "Refer", iconSrc: "/icons/icon-referral.webp" },
+] as const;
+
+export function BottomNav() {
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/97 md:bg-card/95 md:backdrop-blur-md">
+      <ul className="mx-auto flex w-full max-w-lg items-stretch justify-between px-2 py-1.5">
+        {TABS.map(({ to, label, iconSrc }) => (
+          <li key={to} className="flex-1">
+            <Link
+              to={to}
+              className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-2 text-muted-foreground transition-colors data-[status=active]:text-primary"
+              activeProps={{ className: "bg-background-alt" }}
+            >
+              <img
+                src={iconSrc}
+                alt=""
+                aria-hidden
+                data-testid={`bottom-nav-${label.toLowerCase()}-icon`}
+                className="size-9 object-contain transition-transform group-data-[status=active]:scale-110"
+                decoding="async"
+              />
+              <span className="text-[11px] font-semibold">{label}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}

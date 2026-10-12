@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS offers_provider_external_uniq ON public.offers (provider_id, external_offer_id) WHERE provider_id IS NOT NULL AND external_offer_id IS NOT NULL;

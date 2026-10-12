@@ -1,0 +1,77 @@
+{
+  "passed": 9,
+  "failed": 0,
+  "flaky": 0,
+  "blocked": 0,
+  "test_error": 0,
+  "bugs": [],
+  "action_items": [
+    "Matrix has 8 criteria; 9 artifacts were produced because criterion 6 (QuestCard reference layout) is covered by both a backend test (live quests table) and a browser check (rendered card geometry/testids), per the API-backed-UI-criterion rule."
+  ],
+  "retest_needed": false,
+  "checks": [
+    {
+      "criterion": "Onboarding Welcome visual redesign",
+      "name": "premium-onboarding-visual-system",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Avatar step (admin order: choose_avatar first) shows 9-avatar grid + gold CTA; Welcome step verified with radial-gradient(rgb(22,92,80)->rgb(11,43,40)->rgb(6,31,29)) dark forest-green background, CashGPT brand lockup, 5 feature dots, centered 'Welcome to CashGPT' headline/tagline, gold-gradient 'Let's Get Started' pill CTA, and 'Skip for now' link, all present."
+    },
+    {
+      "criterion": "Cartoon avatar selection",
+      "name": "premium-avatar-selection",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "premium-avatar-grid renders exactly 9 buttons (button[data-testid^=premium-avatar-]); clicking the 2nd avatar sets aria-pressed=true and shows a check-badge svg; premium-cta-choose_avatar advances to onboarding-welcome-view."
+    },
+    {
+      "criterion": "Profile visual redesign",
+      "name": "premium-profile-edit-fields",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "onboarding-profile-view shows premium-profile-avatar-preview + premium-profile-avatar-edit (camera overlay), and separate rounded Name/Email(readonly)/Gender/DOB inputs; camera overlay button routes back to the avatar step."
+    },
+    {
+      "criterion": "Five feature showcase layouts",
+      "name": "premium-static-feature-screens",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "features_offers, quest, watch_earn, offerwall, refer_earn steps each show premium-feature-counter incrementing 1/5..5/5, premium-skip-<key>, 5 premium-feature-dot-*, centered premium-step-title/subtitle, and did not fire any /api/offers|quests|watch|offerwall network request while static."
+    },
+    {
+      "criterion": "Referral and final controls",
+      "name": "premium-completion-preview-navigation",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "premium-referral-url/premium-copy-referral/premium-share-referral visible and clickable on refer_earn step; onboarding-ready-view shows premium-ready-card with premium-wallet-balance matching /\\$/, gold-gradient premium-cta-youre_ready ('Start Earning'), and premium-explore-app link; finishing in preview mode resets to the first admin-enabled step instead of navigating away."
+    },
+    {
+      "criterion": "QuestCard reference layout",
+      "name": "starter-quests-carousel-live-data",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "quest-card-starter_5/25/50 each measure exactly 248x390px; starter_5 badge='Easy', reward='$1.00', progress-text='0 / 5', remaining='5 more...', CTA='Watch Ads'; starter_50 badge='Challenge', progress-text='0 / 3', CTA='Start Quest'; progress ring 82px; decorative svg leaves present on every card."
+    },
+    {
+      "criterion": "QuestCard reference layout (data source)",
+      "name": "test_tscheck_starter_quests_live_data",
+      "lane": "backend",
+      "status": "passed",
+      "evidence": "pytest 4/4 passed. GET /rest/v1/quests?is_active=eq.true -> 200, keys=[starter_5,starter_25,starter_50]; starter_5 {label:'5 Ads',ads_required:5,reward_amount:1.0}; starter_25 {label:'25 Ads',ads_required:25,reward_amount:1.0}; starter_50 {label:'3 Shortlink',shortlink_steps: 3 entries}."
+    },
+    {
+      "criterion": "Quest states and bindings retained",
+      "name": "starter-quests-live-quest-states-bindings",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "quest-reward-* text matches /\\$\\d+\\.\\d{2}/ (formatMoney) and quest-progress-text-* matches current/total for all 3 quests; quest-watch-starter_5 and quest-open-starter_50 CTAs verified enabled with resting-state text (not Locked/Completed/Opening) WITHOUT being clicked, per the instruction not to trigger live earning verification flows."
+    },
+    {
+      "criterion": "Protected surrounding UI",
+      "name": "home-shell-bottomnav-protected",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Home shows cash-out-section + starter-quests-scroll; BottomNav Home/Offers/Task/Refer/Support links all visible; clicking Offers then Home navigates correctly; visiting /onboarding?preview=1 renders the separate premium-onboarding-page (no Home BottomNav markup on that route) and /home is unchanged afterward."
+    }
+  ]
+}

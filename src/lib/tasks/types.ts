@@ -1,0 +1,125 @@
+/** Shared (client-safe) task automation vocabulary. */
+
+export const TASK_TYPES = [
+  "manual",
+  "referral_count",
+  "referral_window",
+  "referral_daily",
+  "offer_completion",
+  "ad_watch",
+  "shortlink",
+  "content_locker",
+  "offerwall_earning",
+  "quest_count",
+] as const;
+
+export type TaskType = (typeof TASK_TYPES)[number];
+
+export const TASK_TYPE_LABELS: Record<TaskType, string> = {
+  manual: "Manual (step based)",
+  referral_count: "Referral count",
+  referral_window: "Referral count in period",
+  referral_daily: "Daily referral target",
+  offer_completion: "Offer completion",
+  ad_watch: "Ads watched",
+  shortlink: "Shortlink completion",
+  content_locker: "Content locker completion",
+  offerwall_earning: "SDK Offerwall earning target",
+  quest_count: "Quests completed",
+};
+
+/**
+ * Availability locks, mirroring quests (src/lib/lock-state.ts).
+ *
+ * Tasks deliberately omit the quests' 'earning' variant — only date and
+ * first-withdrawal locks were needed, and leaving it out keeps the
+ * tasks_lock_type_check constraint honest.
+ *
+ * A lock is NOT the same as is_active: is_active hides a task completely, while a
+ * lock keeps it listed in a locked state and blocks progress/crediting.
+ */
+export const TASK_LOCK_TYPES = ["none", "time", "first_withdrawal"] as const;
+export type TaskLockType = (typeof TASK_LOCK_TYPES)[number];
+
+export const TASK_LOCK_TYPE_LABELS: Record<TaskLockType, string> = {
+  none: "No lock",
+  time: "Until date",
+  first_withdrawal: "Until first withdrawal",
+};
+
+export const TASK_FREQUENCIES = ["daily", "weekly", "one_time", "lifetime"] as const;
+export type TaskFrequency = (typeof TASK_FREQUENCIES)[number];
+
+export const TASK_FREQUENCY_LABELS: Record<TaskFrequency, string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  one_time: "One time",
+  lifetime: "Lifetime",
+};
+
+/** Event stream names produced by real user activity. */
+export const TASK_EVENT_TYPES = [
+  "referral",
+  "offer_completion",
+  "ad_watch",
+  "shortlink",
+  "content_locker",
+  "offerwall_earning",
+  /**
+   * One event per completed quest SESSION, regardless of quest type (ads,
+   * shortlink chain or content locker). Emitted wherever a quest_sessions row
+   * reaches status 'credited', keyed on the session id so it counts once.
+   */
+  "quest_completed",
+] as const;
+export type TaskEventType = (typeof TASK_EVENT_TYPES)[number];
+
+/** Which activity stream drives each automated task type. */
+export const TASK_TYPE_EVENT: Record<TaskType, TaskEventType | null> = {
+  manual: null,
+  referral_count: "referral",
+  referral_window: "referral",
+  referral_daily: "referral",
+  offer_completion: "offer_completion",
+  ad_watch: "ad_watch",
+  shortlink: "shortlink",
+  content_locker: "content_locker",
+  offerwall_earning: "offerwall_earning",
+  // "any N quests completed" — counts ad, shortlink and locker quests together.
+  quest_count: "quest_completed",
+};
+
+/** Bucket a moment in time into the reset period of a task. */
+export function periodKey(frequency: TaskFrequency, at: Date = new Date()): string {
+  if (frequency === "daily") return at.toISOString().slice(0, 10);
+  if (frequency === "weekly") {
+    const d = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+    const day = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() - (day - 1));
+    return `w${d.toISOString().slice(0, 10)}`;
+  }
+  return "lifetime";
+}
+
+/** Inclusive lower bound of the window progress is counted over. */
+export function periodStart(
+  input: {
+    frequency: TaskFrequency;
+    task_type: TaskType;
+    window_days: number | null;
+    starts_at: string | null;
+  },
+  at: Date = new Date(),
+): Date {
+  if (input.task_type === "referral_daily") {
+    return new Date(`${at.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  }
+  if (input.task_type === "referral_window" && input.window_days) {
+    return new Date(at.getTime() - input.window_days * 86_400_000);
+  }
+  if (input.frequency === "daily")
+    return new Date(`${at.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  if (input.frequency === "weekly")
+    return new Date(`${periodKey("weekly", at).slice(1)}T00:00:00.000Z`);
+  return input.starts_at ? new Date(input.starts_at) : new Date(0);
+}

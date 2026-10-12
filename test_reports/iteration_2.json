@@ -1,0 +1,72 @@
+{
+  "summary": "Backend-only STATIC verification (no node_modules / no live Supabase in this sandbox, per agent note) of the fix that replaces the buggy `preserve_offer_admin_overrides` DB trigger with in-sync-engine stripping of admin-locked `category` / `tags`. Wrote and ran a 14-test pytest static-invariant suite (/app/tests/test_offer_manual_override_static.py) — 14/14 PASS. All 5 requested review bullets PASS: (1) syncProviderImpl selects `external_offer_id, category_manual, tags_manual` filtered by provider_id AFTER adapter.fetchOffers and BEFORE building rows, builds `manualFlags` Map keyed by external_offer_id, deletes row['category']/row['tags'] on the flagged offers, and upserts exactly those mutated rows with onConflict provider_id,external_offer_id; no DB trigger is relied on. (2) Migration 20261125000000 no longer CREATEs the function/trigger and now only DROPs them. (3) New migration 20261126000000 contains only the two idempotent DROP statements. (4) grep over /app/src: zero references to preserve_offer_admin_overrides / preserve_manual_offer_overrides. (5) admin.server.ts upsertManualOfferImpl still writes category/tags and flips category_manual/tags_manual — untouched by the fix. Found no regression, but 1 HIGH functional gap (the protection is unreachable at runtime because no admin path can set category/tags on network offers), 1 pagination risk, and stale docs/comments still describing the removed trigger.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "src/lib/offers/admin.server.ts (upsertManualOfferImpl / updateOfferControlsImpl) + sync.server.ts",
+        "issue": "The new protection is effectively DEAD CODE at runtime. `category_manual` / `tags_manual` can only be flipped to true by `upsertManualOfferImpl`, which hard-rejects non-manual offers ('Only manual offers can be edited here.') and inserts with provider_id=NULL; `updateOfferControlsImpl` (the only admin write path for network offers) accepts no category/tags fields. Since syncProviderImpl's flag query filters `.eq('provider_id', provider.id)`, manual offers (provider_id NULL) are never returned, so no row ever has its category/tags stripped. The originally reported user scenario (admin sets category/tags on a NETWORK-synced offer, sync must not overwrite it) is still not achievable through the admin panel. Add category/tags (+ manual flag) support to the network-offer admin update path.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "src/lib/offers/sync.server.ts:77-81",
+        "issue": "The manual-flag query has no pagination/limit override. PostgREST caps rows (commonly 1000) — for a provider with more offers than the cap, flags for the tail of the feed are silently missing and admin-locked category/tags WOULD be overwritten. Use .range() paging or an explicit high .limit()."
+      },
+      {
+        "endpoint": "src/lib/offers/sync.server.ts:34-37",
+        "issue": "Stale comment in toRow still claims 'Sync-provided category is preserved by the DB trigger once an admin sets category_manual=true' — the trigger is gone; comment now misleads future maintainers."
+      },
+      {
+        "endpoint": "supabase/migrations/20261125000000_offer_tags_category_clicks.sql:7-9",
+        "issue": "Stale header comment '...at which point the trigger below freezes the field' contradicts the DROP-only body of the same migration."
+      },
+      {
+        "endpoint": "memory/PRD.md:181 and 216-223",
+        "issue": "PRD still documents the removed trigger and embeds the full `CREATE OR REPLACE FUNCTION preserve_manual_offer_overrides()` / `CREATE TRIGGER preserve_offer_admin_overrides` SQL. Not app code, so it cannot recreate the trigger, but it is the spec of record and will mislead (and could be re-copied into a migration). Update to describe the sync-engine pattern."
+      },
+      {
+        "endpoint": "src/lib/offers/sync.server.ts (toRow)",
+        "issue": "Informational: toRow never emits a `tags` key at all, so `delete row['tags']` is a defensive no-op today (tags are already protected the same way payout_mode is). Harmless and spec-compliant; keep it for future-proofing."
+      },
+      {
+        "endpoint": "src/lib/offers/admin.server.ts:190-193",
+        "issue": "`category_manual: input.category !== undefined` / `tags_manual: input.tags !== undefined` are recomputed on every admin UPDATE. If the admin form ever omits category/tags on an edit, the update silently resets category to NULL / tags to [] and clears the manual flags. Prefer patching these keys only when present in the payload."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/test_offer_manual_override_static.py",
+    "/app/test_reports/pytest/manual_override_static.xml"
+  ],
+  "action_items": [
+    "HIGH: Expose category/tags editing for NETWORK offers (extend updateOfferControlsImpl or relax upsertManualOfferImpl) — otherwise the new sync-side protection can never trigger and the reported user bug remains unsolvable from the admin panel.",
+    "Paginate (or raise the limit on) the offers manual-flag query in syncProviderImpl so providers with >1000 offers are fully covered.",
+    "Remove/update the stale 'DB trigger' comments in sync.server.ts toRow and in the 20261125000000 migration header.",
+    "Update memory/PRD.md to remove the preserve_manual_offer_overrides trigger SQL and document the sync-engine strip pattern instead.",
+    "Consider only setting category/category_manual/tags/tags_manual when the admin payload actually contains those fields."
+  ],
+  "critical_code_review_comments": [
+    "Spec compliance for the requested fix is 100% — code matches the supplied snippet exactly (with the acceptable Boolean() casts), and both migrations are DROP-only and idempotent; DROP TRIGGER precedes DROP FUNCTION, which is the correct order.",
+    "The fix is correct but currently unexercisable: manual flags are only settable on source='manual' offers (provider_id NULL) which the provider-scoped flag query can never return. Round out the admin write path for network offers.",
+    "Unbounded Supabase select for manual flags is a silent-correctness risk at scale (PostgREST max-rows cap).",
+    "Documentation drift: PRD.md still prescribes the removed trigger."
+  ],
+  "updated_files": [
+    "/app/tests/test_offer_manual_override_static.py (new static regression suite)"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 static invariant tests passed; all 5 requested review bullets PASS)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "seed_data_creation": "None — no live Supabase / no runtime execution possible in this sandbox.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "This repo is TanStack Start + Supabase + Bun; node_modules is absent, so `bunx tsc --noEmit` and runtime tests are impossible — verification was purely static. /app/tests/test_offer_manual_override_static.py is a reusable regex-based regression suite locking the sync-engine manual-override behaviour and the DROP-only migrations; re-run with `python3 -m pytest /app/tests/test_offer_manual_override_static.py -v`. Note the earlier /app/test_reports/iteration_1.json covered the offer-feed cron/cache work against a live Supabase project. Open items: no admin path sets category/tags on network offers (makes the protection unreachable), unbounded flag query, stale trigger comments in sync.server.ts + migration header + PRD.md.",
+  "rca_of_the_issue": "Original defect: a BEFORE UPDATE row trigger (preserve_manual_offer_overrides) restored old category/tags whenever *_manual was true, which also blocked admin re-edits because a row trigger cannot see the caller's intent. Fix verified: protection moved into syncProviderImpl, which reads the current *_manual flags for the provider's offers and deletes those columns from the upsert payload, mirroring the payout_mode 'never written by sync' pattern; both migrations now only DROP the trigger/function idempotently, so fresh installs and already-migrated databases converge to the same clean state."
+}

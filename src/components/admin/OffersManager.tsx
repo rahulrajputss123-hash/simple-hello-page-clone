@@ -1,0 +1,987 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { CountryMultiSelect } from "@/components/admin/CountryMultiSelect";
+import { offerDisplayBadge } from "@/lib/offers/display-badge";
+import { EmptyState } from "@/components/States";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { requestBannerUploadUrl } from "@/lib/banners/functions";
+import { formatDateTime, formatMoney } from "@/lib/coinquest";
+import {
+  deleteManualOffer,
+  listAdminOffers,
+  listOfferProviders,
+  saveManualOffer,
+  updateOfferControls,
+} from "@/lib/offers.functions";
+import { resizeAndConvertToWebP } from "@/lib/image-resize";
+
+type SourceTab = "all" | "manual" | "network";
+type StatusFilter = "all" | "active" | "inactive" | "featured" | "expired";
+
+type AdminOffer = Awaited<ReturnType<typeof listAdminOffers>>[number];
+
+const emptyForm = {
+  id: undefined as string | undefined,
+  title: "",
+  description: "",
+  requirements: "",
+  notAllowed: "",
+  icon: "gift",
+  rewardAmount: "0",
+  networkPayout: "",
+  clickUrl: "",
+  // ISO 3166-1 alpha-2 codes. Empty array = shown in every country.
+  countries: [] as string[],
+  devices: "",
+  expiresAt: "",
+  isActive: true,
+  isFeatured: false,
+  sortOrder: "0",
+  adminPriority: "0",
+  // Limited deal
+  isLimitedDeal: false,
+  dealGroupId: "",
+  actualCost: "",
+  payoutPercentage: "110",
+  maxPayoutCap: "",
+  // Display-only card badges. Never affect reward_amount or crediting.
+  displayPrice: "",
+  displayPercent: "",
+  // Payout mode
+  payoutMode: "manual" as "manual" | "manual_proof" | "auto_postback",
+  postbackSecretRef: "",
+  postbackIpAllowlist: "",
+  // Category + tags
+  category: "" as
+    "" | "App Install" | "Trial" | "Deals" | "Survey" | "Games" | "Link Locker" | "Shortlink",
+  tags: [] as ("Hot" | "Trending" | "Easy" | "Popular")[],
+};
+
+type FormState = typeof emptyForm;
+
+export function OffersManager() {
+  const queryClient = useQueryClient();
+  const fetchOffers = useServerFn(listAdminOffers);
+  const fetchProviders = useServerFn(listOfferProviders);
+  const saveOffer = useServerFn(saveManualOffer);
+  const removeOffer = useServerFn(deleteManualOffer);
+  const setControls = useServerFn(updateOfferControls);
+
+  const [source, setSource] = useState<SourceTab>("all");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [search, setSearch] = useState("");
+  const [providerId, setProviderId] = useState<string>("");
+  const [country, setCountry] = useState("");
+  const [form, setForm] = useState<FormState | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AdminOffer | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const requestUpload = useServerFn(requestBannerUploadUrl);
+
+  const providers = useQuery({
+    queryKey: ["offer-providers"],
+    queryFn: () => fetchProviders({}),
+  });
+
+  const offers = useQuery({
+    queryKey: ["admin-offers", source, status, search, providerId, country],
+    queryFn: () =>
+      fetchOffers({
+        data: {
+          source,
+          status,
+          limit: 100,
+          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(providerId ? { providerId } : {}),
+          ...(country.trim() ? { country: country.trim() } : {}),
+        },
+      }),
+  });
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin-offers"] });
+    void queryClient.invalidateQueries({ queryKey: ["offers"] });
+  };
+  const onError = (error: Error) => toast.error(error.message);
+
+  /**
+   * Uploads offer artwork and writes the resulting public URL into the `icon`
+   * field. Same flow as the Banners form: signed URL -> PUT -> set the field.
+   * The field stays a plain text input, so pasting an external URL or an icon
+   * name still works.
+   */
+  const handleFile = async (file: File) => {
+    if (!form) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image must be under 10 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      // Resize to max 1200px wide and convert to WebP at 82% quality
+      toast.info("Resizing and converting to WebP...");
+      const optimizedFile = await resizeAndConvertToWebP(file, 1200, 0.82);
+      
+      const { uploadUrl, token, publicUrl } = await requestUpload({
+        data: { filename: optimizedFile.name.slice(0, 120), target: "offers" },
+      });
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": optimizedFile.type || "application/octet-stream",
+          "cache-control": "max-age=31536000",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: optimizedFile,
+      });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      setForm({ ...form, icon: publicUrl });
+      toast.success("Image uploaded.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const controlsAction = useMutation({
+    mutationFn: (input: {
+      id: string;
+      isActive?: boolean;
+      isFeatured?: boolean;
+      adminPriority?: number;
+      sortOrder?: number;
+      rewardAmount?: number;
+      revenueShare?: number;
+      payoutMode?: "manual" | "manual_proof" | "auto_postback";
+      postbackSecretRef?: string | null;
+    }) => setControls({ data: input }),
+    onSuccess: () => {
+      toast.success("Offer updated.");
+      refresh();
+    },
+    onError,
+  });
+
+  const saveAction = useMutation({
+    mutationFn: (state: FormState) =>
+      saveOffer({
+        data: {
+          ...(state.id ? { id: state.id } : {}),
+          title: state.title.trim(),
+          description: state.description.trim(),
+          requirements: state.requirements.trim(),
+          notAllowed: state.notAllowed.trim(),
+          icon: state.icon.trim() || "gift",
+          rewardAmount: Number(state.rewardAmount) || 0,
+          networkPayout: state.networkPayout ? Number(state.networkPayout) : null,
+          clickUrl: state.clickUrl.trim() ? state.clickUrl.trim() : null,
+          countries: state.countries,
+          devices: state.devices
+            .split(",")
+            .map((d) => d.trim())
+            .filter(Boolean),
+          expiresAt: state.expiresAt ? new Date(state.expiresAt).toISOString() : null,
+          isActive: state.isActive,
+          isFeatured: state.isFeatured,
+          sortOrder: Number(state.sortOrder) || 0,
+          adminPriority: Number(state.adminPriority) || 0,
+          isLimitedDeal: state.isLimitedDeal,
+          dealGroupId: state.dealGroupId.trim() || null,
+          actualCost: state.actualCost.trim() ? Number(state.actualCost) : null,
+          payoutPercentage: Number(state.payoutPercentage) || 110,
+          maxPayoutCap: state.maxPayoutCap.trim() ? Number(state.maxPayoutCap) : null,
+          displayPrice: state.displayPrice.trim() || null,
+          displayPercent: state.displayPercent.trim() ? Number(state.displayPercent) : null,
+          payoutMode: state.payoutMode,
+          postbackSecretRef: state.postbackSecretRef.trim() || null,
+          postbackIpAllowlist: state.postbackIpAllowlist
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          category: state.category || null,
+          tags: state.tags,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Offer saved.");
+      setForm(null);
+      refresh();
+    },
+    onError,
+  });
+
+  const deleteAction = useMutation({
+    mutationFn: (id: string) => removeOffer({ data: { id } }),
+    onSuccess: (result) => {
+      toast.success(
+        result.deleted ? "Offer deleted." : "Offer had claims — deactivated instead of deleted.",
+      );
+      setPendingDelete(null);
+      refresh();
+    },
+    onError,
+  });
+
+  const openEdit = (offer: AdminOffer) =>
+    setForm({
+      id: offer.id,
+      title: offer.title,
+      description: offer.description ?? "",
+      requirements: offer.requirements ?? "",
+      notAllowed: (offer as { not_allowed?: string | null }).not_allowed ?? "",
+      icon: offer.icon ?? "gift",
+      rewardAmount: String(offer.reward_amount ?? 0),
+      networkPayout: offer.network_payout == null ? "" : String(offer.network_payout),
+      clickUrl: offer.click_url ?? "",
+      countries: offer.countries ?? [],
+      devices: (offer.devices ?? []).join(", "),
+      expiresAt: offer.expires_at ? offer.expires_at.slice(0, 16) : "",
+      isActive: offer.is_active,
+      isFeatured: offer.is_featured,
+      sortOrder: String(offer.sort_order ?? 0),
+      adminPriority: String(offer.admin_priority ?? 0),
+      isLimitedDeal: Boolean((offer as { is_limited_deal?: boolean }).is_limited_deal),
+      dealGroupId: (offer as { deal_group_id?: string | null }).deal_group_id ?? "",
+      actualCost:
+        (offer as { actual_cost?: number | null }).actual_cost != null
+          ? String((offer as { actual_cost?: number }).actual_cost)
+          : "",
+      payoutPercentage: String((offer as { payout_percentage?: number }).payout_percentage ?? 110),
+      displayPrice: (offer as { display_price?: string | null }).display_price ?? "",
+      displayPercent:
+        (offer as { display_percent?: number | null }).display_percent != null
+          ? String((offer as { display_percent?: number }).display_percent)
+          : "",
+      maxPayoutCap:
+        (offer as { max_payout_cap?: number | null }).max_payout_cap != null
+          ? String((offer as { max_payout_cap?: number }).max_payout_cap)
+          : "",
+      payoutMode:
+        ((offer as { payout_mode?: string }).payout_mode as
+          "manual" | "manual_proof" | "auto_postback" | undefined) ?? "manual",
+      postbackSecretRef:
+        (offer as { postback_secret_ref?: string | null }).postback_secret_ref ?? "",
+      postbackIpAllowlist: (
+        (offer as { postback_ip_allowlist?: string[] }).postback_ip_allowlist ?? []
+      ).join(", "),
+      category:
+        ((offer as { category?: string | null }).category as
+          | ""
+          | "App Install"
+          | "Trial"
+          | "Deals"
+          | "Survey"
+          | "Games"
+          | "Link Locker"
+          | "Shortlink"
+          | null) ?? "",
+      tags: ((offer as { tags?: string[] }).tags ?? []).filter((t) =>
+        ["Hot", "Trending", "Easy", "Popular"].includes(t),
+      ) as ("Hot" | "Trending" | "Easy" | "Popular")[],
+    });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {(["all", "manual", "network"] as SourceTab[]).map((key) => (
+          <Button
+            key={key}
+            size="sm"
+            variant={source === key ? "jade" : "outline"}
+            onClick={() => setSource(key)}
+            className="capitalize"
+          >
+            {key}
+          </Button>
+        ))}
+        <Button
+          size="sm"
+          variant="gold"
+          className="ml-auto"
+          onClick={() => setForm({ ...emptyForm })}
+        >
+          <Plus className="mr-1 h-4 w-4" /> New manual offer
+        </Button>
+      </div>
+
+      <div className="surface-card space-y-2 p-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Search offer title"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(["all", "active", "inactive", "featured", "expired"] as StatusFilter[]).map((key) => (
+            <Button
+              key={key}
+              size="sm"
+              variant={status === key ? "mint" : "outline"}
+              onClick={() => setStatus(key)}
+              className="capitalize"
+            >
+              {key}
+            </Button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select
+            className="h-9 flex-1 rounded-xl border border-input bg-background px-2 text-sm"
+            value={providerId}
+            onChange={(event) => setProviderId(event.target.value)}
+          >
+            <option value="">All providers</option>
+            {(providers.data ?? []).map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.name}
+              </option>
+            ))}
+          </select>
+          <Input
+            className="h-9 w-28"
+            placeholder="GEO (US)"
+            value={country}
+            maxLength={3}
+            onChange={(event) => setCountry(event.target.value.toUpperCase())}
+          />
+        </div>
+      </div>
+
+      {offers.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading offers…</p>
+      ) : !offers.data?.length ? (
+        <EmptyState
+          icon={Plus}
+          title="No offers match"
+          description="Adjust the filters or create a manual offer."
+        />
+      ) : (
+        <ul className="space-y-2">
+          {offers.data.map((offer) => {
+            const isNetwork = offer.source === "network";
+            const provider = offer.offer_providers as unknown as { name: string } | null;
+            return (
+              <li key={offer.id} className="surface-card space-y-2 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{offer.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isNetwork
+                        ? `${provider?.name ?? "Network"} · ID ${offer.external_offer_id}`
+                        : "Manual offer"}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
+                      isNetwork
+                        ? "bg-primary/15 text-primary"
+                        : "bg-background-alt text-muted-foreground"
+                    }`}
+                  >
+                    {offer.source}
+                  </span>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Reward {formatMoney(offer.reward_amount)}
+                  {/* Badge text is cosmetic, so the admin list shows it alongside
+                      the real reward rather than in place of it. */}
+                  {offerDisplayBadge(offer) && (
+                    <span data-testid={`offer-row-display-badge-${offer.id}`}>
+                      {" "}
+                      · badge “{offerDisplayBadge(offer)}”
+                    </span>
+                  )}
+                  {offer.network_payout != null && ` · payout ${formatMoney(offer.network_payout)}`}
+                  {offer.revenue_share != null &&
+                    ` · share ${Math.round(Number(offer.revenue_share) * 100)}%`}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  GEO {offer.countries?.length ? offer.countries.join(", ") : "Any"} · Devices{" "}
+                  {offer.devices?.length ? offer.devices.join(", ") : "Any"} · Priority{" "}
+                  {offer.admin_priority} · Sort {offer.sort_order}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {offer.expires_at ? `Expires ${formatDateTime(offer.expires_at)}` : "No expiry"}
+                  {isNetwork &&
+                    ` · last synced ${offer.last_seen_at ? formatDateTime(offer.last_seen_at) : "never"}`}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs">
+                    <Switch
+                      checked={offer.is_active}
+                      onCheckedChange={(value) =>
+                        controlsAction.mutate({ id: offer.id, isActive: value })
+                      }
+                    />
+                    Active
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <Switch
+                      checked={offer.is_featured}
+                      onCheckedChange={(value) =>
+                        controlsAction.mutate({ id: offer.id, isFeatured: value })
+                      }
+                    />
+                    Featured
+                  </label>
+                  <Input
+                    className="h-8 w-20"
+                    inputMode="numeric"
+                    defaultValue={String(offer.admin_priority)}
+                    onBlur={(event) => {
+                      const next = Number(event.target.value);
+                      if (Number.isFinite(next) && next !== offer.admin_priority) {
+                        controlsAction.mutate({ id: offer.id, adminPriority: Math.round(next) });
+                      }
+                    }}
+                    aria-label="Priority"
+                  />
+                  {isNetwork ? (
+                    <>
+                      <Input
+                        className="h-8 w-24"
+                        inputMode="decimal"
+                        defaultValue={String(offer.reward_amount)}
+                        onBlur={(event) => {
+                          const next = Number(event.target.value);
+                          if (Number.isFinite(next) && next !== Number(offer.reward_amount)) {
+                            controlsAction.mutate({ id: offer.id, rewardAmount: next });
+                          }
+                        }}
+                        aria-label="User reward override"
+                      />
+                      <select
+                        className="h-8 rounded-lg border border-input bg-background px-2 text-xs"
+                        data-testid={`network-offer-payout-mode-${offer.id}`}
+                        value={
+                          ((offer as { payout_mode?: string }).payout_mode as string) ?? "manual"
+                        }
+                        onChange={(event) =>
+                          controlsAction.mutate({
+                            id: offer.id,
+                            payoutMode: event.target.value as
+                              "manual" | "manual_proof" | "auto_postback",
+                          })
+                        }
+                      >
+                        <option value="manual">Manual</option>
+                        <option value="manual_proof">Manual + proof</option>
+                        <option value="auto_postback">Auto postback</option>
+                      </select>
+                    </>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => openEdit(offer)}>
+                        <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setPendingDelete(offer)}>
+                        <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <Dialog open={Boolean(form)} onOpenChange={(open) => !open && setForm(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{form?.id ? "Edit manual offer" : "New manual offer"}</DialogTitle>
+          </DialogHeader>
+          {form && (
+            <div className="space-y-3">
+              <Field label="Title">
+                <Input
+                  value={form.title}
+                  maxLength={120}
+                  onChange={(event) => setForm({ ...form, title: event.target.value })}
+                />
+              </Field>
+              <Field label="Description">
+                <Textarea
+                  rows={2}
+                  value={form.description}
+                  onChange={(event) => setForm({ ...form, description: event.target.value })}
+                />
+              </Field>
+              <Field label="Task / instructions">
+                <Textarea
+                  rows={2}
+                  value={form.requirements}
+                  onChange={(event) => setForm({ ...form, requirements: event.target.value })}
+                />
+              </Field>
+              <Field label="What not to do">
+                <Textarea
+                  rows={3}
+                  placeholder="No VPN, no multiple accounts, no fake data, no emulators…"
+                  data-testid="offer-form-not-allowed"
+                  value={form.notAllowed}
+                  onChange={(event) => setForm({ ...form, notAllowed: event.target.value })}
+                />
+              </Field>
+
+              {/* --- Category + Tags -------------------------------------- */}
+              <div className="rounded-xl border border-border bg-card p-3 space-y-3">
+                <Field label="Category (powers the Offers filter)">
+                  <select
+                    className="h-9 w-full rounded-xl border border-input bg-background px-2 text-sm"
+                    data-testid="offer-form-category"
+                    value={form.category}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        category: event.target.value as typeof form.category,
+                      })
+                    }
+                  >
+                    <option value="">Uncategorized</option>
+                    {(
+                      [
+                        "App Install",
+                        "Trial",
+                        "Deals",
+                        "Survey",
+                        "Games",
+                        "Link Locker",
+                        "Shortlink",
+                      ] as const
+                    ).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    Manual tags (leave empty to keep auto-tagging on)
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(["Hot", "Trending", "Easy", "Popular"] as const).map((tag) => {
+                      const active = form.tags.includes(tag);
+                      return (
+                        <Button
+                          key={tag}
+                          type="button"
+                          size="sm"
+                          variant={active ? "jade" : "outline"}
+                          data-testid={`offer-form-tag-${tag.toLowerCase()}`}
+                          onClick={() =>
+                            setForm({
+                              ...form,
+                              tags: active
+                                ? form.tags.filter((t) => t !== tag)
+                                : [...form.tags, tag],
+                            })
+                          }
+                        >
+                          {tag}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Once you save any tag choice (including clearing all), this offer's tags become
+                    admin-managed and will no longer be auto-computed. The "Deal" badge is always
+                    driven by the Limited Deal toggle above.
+                  </p>
+                </div>
+              </div>
+
+              {/* --- Limited Deal ------------------------------------------- */}
+              <div className="rounded-xl border border-gold/40 bg-gold-gradient/5 p-3">
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <Switch
+                    checked={form.isLimitedDeal}
+                    data-testid="offer-form-is-limited-deal"
+                    onCheckedChange={(value) => setForm({ ...form, isLimitedDeal: value })}
+                  />
+                  Limited Deal (self-funded cashback)
+                </label>
+                {form.isLimitedDeal && (
+                  <div className="mt-3 space-y-3">
+                    <Field label="Deal group (offers sharing this key lock each other)">
+                      <Input
+                        placeholder="e.g. hosting-2026"
+                        data-testid="offer-form-deal-group"
+                        value={form.dealGroupId}
+                        onChange={(event) => setForm({ ...form, dealGroupId: event.target.value })}
+                      />
+                    </Field>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Field label="Actual cost ($)">
+                        <Input
+                          inputMode="decimal"
+                          data-testid="offer-form-actual-cost"
+                          value={form.actualCost}
+                          onChange={(event) => setForm({ ...form, actualCost: event.target.value })}
+                        />
+                      </Field>
+                      <Field label="Payout %">
+                        <Input
+                          inputMode="decimal"
+                          data-testid="offer-form-payout-pct"
+                          value={form.payoutPercentage}
+                          onChange={(event) =>
+                            setForm({ ...form, payoutPercentage: event.target.value })
+                          }
+                        />
+                      </Field>
+                      <Field label="Max cap ($)">
+                        <Input
+                          inputMode="decimal"
+                          data-testid="offer-form-max-cap"
+                          value={form.maxPayoutCap}
+                          onChange={(event) =>
+                            setForm({ ...form, maxPayoutCap: event.target.value })
+                          }
+                        />
+                      </Field>
+                    </div>
+                    <p
+                      className="rounded-lg bg-background-alt px-3 py-2 text-xs"
+                      data-testid="offer-form-effective-payout"
+                    >
+                      Effective payout:{" "}
+                      <span className="text-amount text-gold-dark">
+                        {formatMoney(
+                          computeEffective(
+                            form.actualCost,
+                            form.payoutPercentage,
+                            form.maxPayoutCap,
+                          ),
+                        )}
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* --- Payout Mode ------------------------------------------- */}
+              <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+                <Label className="text-xs text-muted-foreground">Payout mode</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["manual", "Manual review"],
+                      ["manual_proof", "Manual + proof"],
+                      ["auto_postback", "Auto postback"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      size="sm"
+                      variant={form.payoutMode === key ? "jade" : "outline"}
+                      data-testid={`offer-form-payout-mode-${key}`}
+                      onClick={() => setForm({ ...form, payoutMode: key })}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                {form.payoutMode === "auto_postback" && (
+                  <div className="mt-2 space-y-2">
+                    <Field label="Signature secret env var name">
+                      <Input
+                        placeholder="OFFER_ABC_POSTBACK_SECRET"
+                        data-testid="offer-form-postback-secret-ref"
+                        value={form.postbackSecretRef}
+                        onChange={(event) =>
+                          setForm({ ...form, postbackSecretRef: event.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="IP allowlist (comma separated, optional)">
+                      <Input
+                        placeholder="1.2.3.4, 5.6.7.8"
+                        data-testid="offer-form-postback-ip-allowlist"
+                        value={form.postbackIpAllowlist}
+                        onChange={(event) =>
+                          setForm({ ...form, postbackIpAllowlist: event.target.value })
+                        }
+                      />
+                    </Field>
+                    <p className="text-[11px] text-muted-foreground">
+                      Postback URL:{" "}
+                      <code className="rounded bg-background-alt px-1">
+                        {typeof window !== "undefined" ? window.location.origin : ""}
+                        /api/public/offer-postback/{form.id ?? "{offerId}"}
+                      </code>{" "}
+                      · signature = HMAC-SHA256(secret, "txn:uid:amount")
+                    </p>
+                  </div>
+                )}
+              </div>
+              <Field label="Image URL or icon name">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={form.icon}
+                    placeholder="https://… or upload, or an icon name"
+                    onChange={(event) => setForm({ ...form, icon: event.target.value })}
+                    data-testid="offer-form-image-url"
+                  />
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void handleFile(file);
+                    }}
+                    data-testid="offer-form-image-file"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={uploading}
+                    onClick={() => fileRef.current?.click()}
+                    data-testid="offer-form-image-upload"
+                  >
+                    {uploading ? "…" : <Upload className="size-4" />}
+                  </Button>
+                </div>
+              </Field>
+              <Field label="Offer payout ($)">
+                <Input
+                  inputMode="decimal"
+                  value={form.networkPayout}
+                  onChange={(event) => setForm({ ...form, networkPayout: event.target.value })}
+                  data-testid="offer-form-network-payout"
+                />
+              </Field>
+              <Field label="User reward ($)">
+                <Input
+                  inputMode="decimal"
+                  value={form.rewardAmount}
+                  data-testid="offer-form-reward-amount"
+                  onChange={(event) => setForm({ ...form, rewardAmount: event.target.value })}
+                />
+              </Field>
+              <DisplayBadgeFields form={form} setForm={setForm} />
+              <Field label="Click URL">
+                <Input
+                  placeholder="https://…"
+                  value={form.clickUrl}
+                  onChange={(event) => setForm({ ...form, clickUrl: event.target.value })}
+                />
+              </Field>
+              <Field label="Countries">
+                <CountryMultiSelect
+                  value={form.countries}
+                  onChange={(countries) => setForm({ ...form, countries })}
+                  data-testid="offer-form-countries"
+                />
+              </Field>
+              <Field label="Devices (comma separated)">
+                <Input
+                  placeholder="android, ios, desktop"
+                  value={form.devices}
+                  onChange={(event) => setForm({ ...form, devices: event.target.value })}
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Priority">
+                  <Input
+                    inputMode="numeric"
+                    value={form.adminPriority}
+                    onChange={(event) => setForm({ ...form, adminPriority: event.target.value })}
+                  />
+                </Field>
+                <Field label="Sort order">
+                  <Input
+                    inputMode="numeric"
+                    value={form.sortOrder}
+                    onChange={(event) => setForm({ ...form, sortOrder: event.target.value })}
+                  />
+                </Field>
+              </div>
+              <Field label="Expiry">
+                <Input
+                  type="datetime-local"
+                  value={form.expiresAt}
+                  onChange={(event) => setForm({ ...form, expiresAt: event.target.value })}
+                />
+              </Field>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={form.isActive}
+                    onCheckedChange={(value) => setForm({ ...form, isActive: value })}
+                  />
+                  Active
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={form.isFeatured}
+                    onCheckedChange={(value) => setForm({ ...form, isFeatured: value })}
+                  />
+                  Featured
+                </label>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setForm(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="jade"
+              disabled={!form || form.title.trim().length < 2 || saveAction.isPending}
+              onClick={() => form && saveAction.mutate(form)}
+            >
+              {saveAction.isPending ? "Saving…" : "Save offer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{pendingDelete?.title}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the manual offer. If users already claimed it, the offer is deactivated
+              instead so claim history stays intact.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingDelete && deleteAction.mutate(pendingDelete.id)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+/**
+ * Decorative badges shown on the offer card.
+ *
+ * DISPLAY ONLY: neither field touches reward_amount, the reward maths or
+ * crediting. They are rendered verbatim next to (or instead of) the reward
+ * figure, purely so an offer can advertise something like "$5 · 110%".
+ *
+ * Either, both or neither may be filled. With neither, the card falls back to
+ * the real reward amount.
+ */
+function DisplayBadgeFields({
+  form,
+  setForm,
+}: {
+  form: FormState;
+  setForm: (next: FormState) => void;
+}) {
+  const preview = offerDisplayBadge({
+    display_price: form.displayPrice,
+    display_percent: form.displayPercent,
+  });
+
+  return (
+    <div className="space-y-3 rounded-xl border border-border bg-card p-3">
+      <div className="space-y-0.5">
+        <Label className="text-xs text-muted-foreground">Card badges (optional)</Label>
+        <p className="text-[11px] text-muted-foreground">
+          Shown on the offer card instead of the reward figure. Cosmetic only — these never change
+          what a user is paid.
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Display price">
+          <Input
+            placeholder="$5"
+            value={form.displayPrice}
+            data-testid="offer-form-display-price"
+            onChange={(event) => setForm({ ...form, displayPrice: event.target.value })}
+          />
+        </Field>
+        <Field label="Display percent">
+          <Input
+            inputMode="decimal"
+            placeholder="110"
+            value={form.displayPercent}
+            data-testid="offer-form-display-percent"
+            onChange={(event) => setForm({ ...form, displayPercent: event.target.value })}
+          />
+        </Field>
+      </div>
+      <p
+        className="rounded-lg bg-background-alt px-3 py-2 text-xs"
+        data-testid="offer-form-display-preview"
+      >
+        Card shows:{" "}
+        <span className="text-amount text-gold-dark">
+          {preview ?? formatMoney(Number(form.rewardAmount) || 0)}
+        </span>
+        {preview ? null : (
+          <span className="text-muted-foreground"> (the reward, since no badge is set)</span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+/** Client-side preview only — the server enforces the real reward on save/approval. */
+function computeEffective(cost: string, pct: string, cap: string): number {
+  const c = Number(cost);
+  const p = Number(pct);
+  const k = cap.trim() === "" ? null : Number(cap);
+  if (!Number.isFinite(c) || c <= 0) return 0;
+  const raw = (c * (Number.isFinite(p) ? p : 110)) / 100;
+  const capped = k != null && Number.isFinite(k) ? Math.min(raw, k) : raw;
+  return Math.max(0, Math.round(capped * 100) / 100);
+}

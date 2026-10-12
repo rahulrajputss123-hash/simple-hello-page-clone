@@ -1,0 +1,527 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowRight,
+  Bitcoin,
+  Gift,
+  HelpCircle,
+  Layers,
+  Rocket,
+  Sparkles,
+  Star,
+  Wallet,
+} from "lucide-react";
+
+import { AppShell } from "@/components/AppShell";
+import { FeaturedOffers } from "@/components/FeaturedOffers";
+import { OfferwallSlot } from "@/components/OfferwallSlot";
+import { SectionBanner } from "@/components/SectionBanner";
+import { SimulatedLiveActivity } from "@/components/SimulatedLiveActivity";
+import { StarterQuests } from "@/components/StarterQuests";
+import { SectionHeading } from "@/components/SectionHeading";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
+import { useCountUpOnVisible } from "@/hooks/useCountUp";
+import { completeOnboarding } from "@/lib/coinquest.functions";
+import { getDeviceId } from "@/lib/ads";
+import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
+import { simulatedPayoutSnapshot } from "@/lib/payout-simulation";
+import { AdvertiserDashboard } from "@/components/marketplace/AdvertiserDashboard";
+import { AdvertiserOnboarding, advertiserOnboardingSeen } from "@/components/marketplace/AdvertiserOnboarding";
+import { useRole } from "@/lib/marketplace/role";
+import { safeStorage } from "@/lib/safe-storage";
+import {
+  advertiserAccountIsNew,
+  advertiserOnboardingActivationKey,
+} from "@/lib/marketplace/advertiser-onboarding";
+
+const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
+
+export const Route = createFileRoute("/_authenticated/home")({
+  head: () => ({
+    meta: [
+      { title: "Home — CashGPT" },
+      { name: "description", content: "Your daily quests, featured offers and streak bonus." },
+      { property: "og:title", content: "Home — CashGPT" },
+      {
+        property: "og:description",
+        content: "Your daily quests, featured offers and streak bonus.",
+      },
+    ],
+  }),
+  component: HomePage,
+});
+
+function HomePage() {
+  const { profile, session } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const save = useServerFn(completeOnboarding);
+  const autoOnboarded = useRef(false);
+  const communityStat = useCountUpOnVisible(50000);
+  // Marketplace preview: advertiser mode swaps the Home content for the dashboard.
+  // Local state only — see src/lib/marketplace/role.tsx.
+  const { role, overview: advertiserOverview } = useRole();
+  const [showAdvertiserOnboarding, setShowAdvertiserOnboarding] = useState(false);
+  const [advertiserBannerDismissed, setAdvertiserBannerDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return safeStorage.getItem("coinquest.advertiser_banner_dismissed") === "true";
+  });
+
+  const dismissAdvertiserBanner = () => {
+    setAdvertiserBannerDismissed(true);
+    safeStorage.setItem("coinquest.advertiser_banner_dismissed", "true");
+  };
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    const account = advertiserOverview?.account;
+    if (role !== "advertiser" || !userId || !account || advertiserOnboardingSeen(userId)) return;
+
+    const activationAt = safeStorage.getItem(advertiserOnboardingActivationKey(userId));
+    const wasJustActivated = advertiserAccountIsNew(activationAt);
+    if (wasJustActivated || advertiserAccountIsNew(account.createdAt)) {
+      setShowAdvertiserOnboarding(true);
+    }
+  }, [advertiserOverview, role, session?.user.id]);
+
+  useEffect(() => {
+    if (!profile || profile.onboarded) return;
+    if (autoOnboarded.current) return;
+
+    // Source 1 — the email signup form stashes the name pre-confirmation.
+    let name = "";
+    let phone: string | undefined;
+    const raw = typeof window !== "undefined" ? safeStorage.getItem("coinquest.pending_onboarding") : null;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { name?: string; phone?: string };
+        name = (parsed.name ?? "").trim();
+        if (parsed.phone?.trim()) phone = parsed.phone.trim();
+      } catch {
+        /* corrupt storage — fall through to the provider name */
+      }
+    }
+
+    // Source 2 — OAuth sign-ups (e.g. Continue with Google) never go through
+    // that form, so use the display name the provider supplied instead.
+    if (name.length < 2) {
+      const meta = session?.user?.user_metadata as
+        { full_name?: string; name?: string } | undefined;
+      name = (meta?.full_name ?? meta?.name ?? "").trim().slice(0, 80);
+    }
+
+    if (name.length >= 2) {
+      autoOnboarded.current = true;
+      void save({
+        data: { name, ...(phone ? { phone } : {}), deviceId: getDeviceId() },
+      })
+        .then(() => {
+          safeStorage.removeItem("coinquest.pending_onboarding");
+          void queryClient.invalidateQueries({ queryKey: ["profile"] });
+        })
+        .catch(() => {
+          // Fall back to the onboarding screen if the silent save fails.
+          void navigate({ to: "/onboarding", replace: true });
+        });
+      return;
+    }
+
+    // Fallback for edge cases (old accounts, cleared storage, provider gave no
+    // name): keep the manual onboarding screen.
+    void navigate({ to: "/onboarding", replace: true });
+  }, [profile, session, navigate, queryClient, save]);
+  return (
+  <AppShell subtitle="Earn as you go" bgClass="home-page-bg" home>
+  {role === "advertiser" ? (
+  <>
+    <AdvertiserDashboard />
+    {showAdvertiserOnboarding && session?.user.id && advertiserOverview && (
+      <AdvertiserOnboarding
+        userId={session.user.id}
+        overview={advertiserOverview}
+        onComplete={() => setShowAdvertiserOnboarding(false)}
+      />
+    )}
+  </>
+  ) : (
+        <>
+      {/* Decorative hero orbs — static background gradients */}
+      <div aria-hidden className="home-orb home-orb-jade" />
+      <div aria-hidden className="home-orb home-orb-gold" />
+
+      <SimulatedLiveActivity />
+
+      <SectionBanner section="home" />
+
+      {/* Advertiser promotion banner */}
+      {!advertiserBannerDismissed && 
+       role === "publisher" && 
+       advertiserOverview?.settings.promoActive && 
+       !advertiserOverview?.account && (
+        <div className="surface-card relative mt-3 overflow-hidden p-4">
+          <button
+            onClick={dismissAdvertiserBanner}
+            className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-jade-gradient">
+              <Sparkles className="size-5 text-primary-foreground" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">Run your own campaign</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                First deposit bonus {advertiserOverview?.userBonusPercent ?? advertiserOverview?.settings.firstDepositBonusPercent}% · Launch your offer and reach thousands of earners
+              </p>
+              <Link to="/advertiser/create">
+                <Button size="sm" variant="jade" className="mt-3">
+                  Become Advertiser
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <section id="tour-starter-quests" className="rise-in">
+        <SectionHeading
+          variant="ribbon"
+          icon={Rocket}
+          iconSrc="/icons/icon-starter-quest.webp"
+          title="Starter Quests"
+          subtitle="Complete simple quests and earn rewards!"
+        />
+        <StarterQuests />
+      </section>
+
+      <section id="tour-featured-offers" className="rise-in" style={{ animationDelay: "70ms" }}>
+        <SectionHeading
+          variant="ribbon"
+          icon={Star}
+          iconSrc="/icons/icon-featured-offers.webp"
+          title="Featured Offers"
+          action={
+            <Link
+              to={"/featured" as any}
+              data-testid="home-view-all-featured"
+              className="flex items-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary-soft"
+            >
+              View all
+              <ArrowRight className="size-3.5" />
+            </Link>
+          }
+        />
+        <FeaturedOffers scope="home" />
+      </section>
+
+      <SectionHeading
+        variant="ribbon"
+        icon={Layers}
+        iconSrc="/icons/icon-offerwall.webp"
+        title="Offerwall"
+      />
+      <OfferwallSlot limit={6} />
+      <div className="mt-3 flex justify-center">
+        <Link
+          to="/offerwall"
+          className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
+        >
+          View All
+        </Link>
+      </div>
+      {/* Soft curved gradient-fade divider — not a flat line */}
+      <div aria-hidden className="relative mt-5 h-6 overflow-hidden">
+        <svg
+          viewBox="0 0 400 24"
+          preserveAspectRatio="none"
+          className="absolute inset-0 h-full w-full"
+        >
+          <defs>
+            <linearGradient id="live-community-divider" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="var(--color-mint)" stopOpacity="0" />
+              <stop offset="50%" stopColor="var(--color-gold)" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="var(--color-mint)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0 16 C100 0 300 0 400 16"
+            stroke="url(#live-community-divider)"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
+
+      <section
+        ref={communityStat.ref}
+        data-testid="live-community-section"
+        className="surface-card premium-step-in relative overflow-hidden p-5"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full"
+          style={{ background: "radial-gradient(circle, oklch(0.33 0.048 197.2 / 0.1), transparent 68%)" }}
+        />
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-mint/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary ring-1 ring-inset ring-mint/25">
+          <span className="relative grid size-1.5 place-items-center">
+            <span className="payout-live-dot absolute inset-0 rounded-full bg-primary" />
+            <span className="size-1.5 rounded-full bg-primary" />
+          </span>
+          Live Community
+        </span>
+
+        {/* Stacked on phones so the "4.9/5 from 18,400+ reviews" line is never
+            clipped behind the avatar stack; side-by-side from sm upwards. */}
+        <div className="relative mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <p
+              className="text-amount font-display text-3xl leading-none text-foreground"
+              data-testid="live-community-stat"
+            >
+              {communityStat.value.toLocaleString()}+
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Users earning with us</p>
+            <div className="mt-2.5 flex items-center gap-1.5">
+              <span className="flex items-center gap-0.5 text-gold-dark" aria-hidden>
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Star key={index} className="size-3.5 fill-current" />
+                ))}
+              </span>
+              <span className="text-sm font-semibold text-foreground">4.9/5</span>
+              <span className="text-xs text-muted-foreground">from 18,400+ reviews</span>
+            </div>
+          </div>
+
+          <div
+            className="flex shrink-0 -space-x-3"
+            aria-hidden
+            data-testid="live-community-avatars"
+          >
+            {COMMUNITY_AVATARS.map((avatar, index) => (
+              <img
+                key={avatar.id}
+                src={avatar.imageUrl}
+                alt=""
+                style={{ zIndex: COMMUNITY_AVATARS.length - index }}
+                className="size-11 rounded-full border-2 border-card object-cover shadow-soft"
+                loading="lazy"
+                decoding="async"
+              />
+            ))}
+            <span className="grid size-11 place-items-center rounded-full border-2 border-card bg-background-alt text-sm font-bold text-primary shadow-soft">
+              +
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Cash Out Your Way — the bold, eye-catching highlight of the page */}
+      <section
+        data-testid="cash-out-section"
+        className="relative mt-10 overflow-hidden rounded-[1.75rem] bg-jade-gradient p-5 shadow-lift"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-14 -top-16 size-48 rounded-full"
+          style={{ background: "radial-gradient(circle, oklch(0.824 0.163 77.8 / 0.25), transparent 70%)" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-20 -left-12 size-44 rounded-full"
+          style={{ background: "radial-gradient(circle, oklch(0.33 0.048 197.2 / 0.2), transparent 70%)" }}
+        />
+
+        <div className="relative">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-gold-foreground shadow-gold">
+            <Sparkles className="size-3.5" /> Payouts
+          </span>
+          <h2 className="mt-3 font-display text-[1.7rem] leading-tight text-primary-foreground">
+            Cash Out <span className="text-gold">Your Way</span>
+          </h2>
+          <p className="mt-1 text-sm text-primary-foreground/70">
+            Real payouts, your choice — withdraw the moment you hit the minimum.
+          </p>
+
+          <PaidOutThisWeek />
+
+          {/* Asymmetric layout: one hero method + two supporting */}
+          <div className="mt-5 grid gap-3">
+            <div
+              data-testid="payout-method-paypal"
+              style={{ animationDelay: "60ms" }}
+              className="payout-card relative flex items-center gap-4 overflow-hidden rounded-2xl bg-card/95 p-4"
+            >
+              <span
+                className="grid size-14 shrink-0 place-items-center rounded-2xl text-white shadow-lg"
+                style={{ background: "linear-gradient(135deg,#009cde,#003087)" }}
+              >
+                <Wallet className="size-7" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-display text-lg text-foreground">PayPal</p>
+                  <span className="rounded-full bg-mint/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                    Most popular
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Straight to your account — cash in hand, fast.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-bold text-primary">
+                from $1
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div
+                data-testid="payout-method-crypto"
+                style={{ animationDelay: "140ms" }}
+                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4"
+              >
+                <span
+                  className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
+                  style={{ background: "linear-gradient(135deg,#26a17b,#345d9d)" }}
+                >
+                  <Bitcoin className="size-6" />
+                </span>
+                <p className="mt-3 font-display text-base text-foreground">Crypto</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">USDT · Litecoin</p>
+              </div>
+
+              <div
+                data-testid="payout-method-giftcards"
+                style={{ animationDelay: "220ms" }}
+                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4"
+              >
+                <span
+                  className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
+                  style={{ background: "linear-gradient(135deg,#ff9900,#ff5e3a)" }}
+                >
+                  <Gift className="size-6" />
+                </span>
+                <p className="mt-3 font-display text-base text-foreground">Gift Cards</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Amazon · Google Play</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Need Help? — kept separately, still useful */}
+      <div data-testid="need-help-card" className="surface-card mt-4 flex items-center gap-4 p-4">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-mint/15 text-primary">
+          <HelpCircle className="size-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Need Help?</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Our support team is here whenever you need it.
+          </p>
+        </div>
+        <Button size="sm" variant="jade" className="shrink-0" asChild>
+          <Link to="/support">Get Help</Link>
+        </Button>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {/* eslint-disable @typescript-eslint/no-explicit-any */}
+        <Link to={"/legal/terms" as any} className="hover:text-foreground hover:underline">
+          Terms
+        </Link>
+        <Link to={"/legal/privacy" as any} className="hover:text-foreground hover:underline">
+          Privacy
+        </Link>
+        <Link
+          to={"/legal/withdrawal-policy" as any}
+          className="hover:text-foreground hover:underline"
+        >
+          Payout Policy
+        </Link>
+        <Link to={"/legal/referral-terms" as any} className="hover:text-foreground hover:underline">
+          Referral Terms
+        </Link>
+        {/* eslint-enable @typescript-eslint/no-explicit-any */}
+      </div>
+      <p className="mt-2 text-center text-xs text-muted-foreground">CashGPT © 2026 • v1.0.0</p>
+        </>
+      )}
+    </AppShell>
+  );
+}
+
+// Subtle "total paid out" trust strip. The figure is a display-only SIMULATION
+// (see src/lib/payout-simulation.ts) — nothing is read from or written to the
+// database. Wire to a real aggregate when the endpoint exists.
+const LIVE_TICK_MS = 60_000;
+
+function PaidOutThisWeek() {
+  const [value, setValue] = useState(0);
+  const [todayChange, setTodayChange] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Computed client-side only: the state lives in localStorage, and doing it in
+    // an effect keeps the server render and first client render identical.
+    const initial = simulatedPayoutSnapshot();
+    setTodayChange(initial.todayChange);
+
+    let raf = 0;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setValue(initial.total);
+    } else {
+      // Same 1.1s ease-out count-up as before, just to the simulated total.
+      const duration = 1100;
+      const start = performance.now();
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        setValue(Math.round(initial.total * eased));
+        if (t < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }
+
+    // Today's amount accrues across the day, so nudge the total while the page
+    // stays open. ~$1/minute, so this is a quiet update rather than a re-animation.
+    const interval = window.setInterval(() => {
+      const next = simulatedPayoutSnapshot();
+      setValue(next.total);
+      setTodayChange(next.todayChange);
+    }, LIVE_TICK_MS);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  return (
+    <div
+      data-testid="payout-proof-strip"
+      className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary-foreground/15 bg-primary-foreground/10 py-1.5 pl-2.5 pr-3.5"
+    >
+      <span className="relative grid size-2.5 place-items-center">
+        <span className="payout-live-dot absolute inset-0 rounded-full bg-mint" />
+        <span className="size-2.5 rounded-full bg-mint" />
+      </span>
+      <span className="text-xs text-primary-foreground/80">
+        <span className="text-amount font-bold text-gold">${value.toLocaleString("en-US")}</span>{" "}
+        total paid out
+      </span>
+      {todayChange !== null && (
+        <span
+          className="rounded-full bg-mint/20 px-1.5 py-0.5 text-[10px] font-bold text-mint"
+          data-testid="payout-today-change"
+        >
+          +${todayChange.toLocaleString("en-US")} today
+        </span>
+      )}
+    </div>
+  );
+}

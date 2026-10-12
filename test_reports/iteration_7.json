@@ -1,0 +1,66 @@
+{
+  "passed": 0,
+  "failed": 0,
+  "flaky": 0,
+  "blocked": 7,
+  "test_error": 0,
+  "bugs": [],
+  "action_items": [
+    "test_credentials_missing_in_runtime: Supabase URL/publishable key are absent from the pod; the provided QA credentials cannot initialize auth locally.",
+    "backend_unavailable: the expected FastAPI endpoint at http://localhost:8001/api/health refused connections; the existing backend suite also targets localhost:8080, which is unavailable.",
+    "migration_unapplied: supabase/migrations/20261228000000_premium_onboarding.sql is present but not applied, so persistence and admin CRUD cannot be exercised.",
+    "Re-run all seven named browser checks after Supabase env vars are available and the premium onboarding migration is applied."
+  ],
+  "retest_needed": true,
+  "checks": [
+    {
+      "criterion": "Premium onboarding renders as a mobile-first nine-step flow without changing Home",
+      "name": "premium-onboarding-nine-step-flow",
+      "lane": "browser",
+      "status": "blocked",
+      "evidence": "Browser reached /auth but login was intercepted by the splash; console reported missing SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY. Authenticated /onboarding and Home regression could not be reached."
+    },
+    {
+      "criterion": "Avatar selection",
+      "name": "premium-avatar-selection",
+      "lane": "browser",
+      "status": "blocked",
+      "evidence": "Named check reached the login form, then stopped explicitly because Supabase environment variables were missing; avatar step was not reachable."
+    },
+    {
+      "criterion": "Profile setup and edit",
+      "name": "premium-profile-edit-fields",
+      "lane": "browser",
+      "status": "blocked",
+      "evidence": "Named check reached the login form, then stopped explicitly because Supabase environment variables were missing; authenticated profile/onboarding fields were not reachable."
+    },
+    {
+      "criterion": "Static education screens",
+      "name": "premium-static-feature-screens",
+      "lane": "browser",
+      "status": "blocked",
+      "evidence": "Named check reached the login form, then stopped explicitly because Supabase environment variables were missing; showcase screens were not reachable."
+    },
+    {
+      "criterion": "Completion persistence and navigation",
+      "name": "premium-completion-preview-navigation",
+      "lane": "browser",
+      "status": "blocked",
+      "evidence": "Named check reached the login form, then stopped explicitly because Supabase environment variables were missing; completion and preview persistence could not be exercised."
+    },
+    {
+      "criterion": "Admin step management",
+      "name": "premium-admin-step-management",
+      "lane": "browser",
+      "status": "blocked",
+      "evidence": "Named check reached the login form, then stopped explicitly because Supabase environment variables and an authenticated admin session were unavailable."
+    },
+    {
+      "criterion": "Visual quality",
+      "name": "premium-onboarding-visual-system",
+      "lane": "browser",
+      "status": "blocked",
+      "evidence": "Named check reached the login form, then stopped explicitly because Supabase environment variables were missing; premium onboarding visual system could not be screenshot-verified."
+    }
+  ]
+}

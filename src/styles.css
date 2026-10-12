@@ -1,0 +1,1106 @@
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&family=Inter:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * CashGPT design system.
+ * Cream backgrounds, deep jade primary, mint success, coin-gold rewards.
+ * All colors are oklch tokens; never hardcode colors in components.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 6px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 18px);
+
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-section: "Baloo 2", ui-rounded, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-premium: "Manrope", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-background-alt: var(--background-alt);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-mint: var(--mint);
+  --color-mint-foreground: var(--mint-foreground);
+  --color-gold: var(--gold);
+  --color-gold-dark: var(--gold-dark);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --shadow-soft: 0 2px 8px oklch(0.33 0.048 197.2 / 0.06);
+  --shadow-card: 0 6px 20px -8px oklch(0.33 0.048 197.2 / 0.16);
+  --shadow-lift: 0 14px 34px -14px oklch(0.33 0.048 197.2 / 0.3);
+  --shadow-gold: 0 10px 24px -10px oklch(0.824 0.163 77.8 / 0.55);
+}
+
+:root {
+  --radius: 1rem;
+  --background: oklch(0.981 0.018 81.3);
+  --background-alt: oklch(0.958 0.029 82.6);
+  --foreground: oklch(0.252 0.025 165.3);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.252 0.025 165.3);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.252 0.025 165.3);
+  --primary: oklch(0.33 0.048 197.2);
+  --primary-foreground: oklch(0.981 0.018 81.3);
+  --primary-soft: oklch(0.382 0.056 196.8);
+  --secondary: oklch(0.958 0.029 82.6);
+  --secondary-foreground: oklch(0.33 0.048 197.2);
+  --muted: oklch(0.958 0.029 82.6);
+  --muted-foreground: oklch(0.523 0.027 165.1);
+  --accent: oklch(0.784 0.163 161.4);
+  --accent-foreground: oklch(0.252 0.025 165.3);
+  --mint: oklch(0.784 0.163 161.4);
+  --mint-foreground: oklch(0.252 0.025 165.3);
+  --gold: oklch(0.824 0.163 77.8);
+  --gold-dark: oklch(0.755 0.164 70.1);
+  --gold-foreground: oklch(0.252 0.025 165.3);
+  --destructive: oklch(0.626 0.193 23);
+  --destructive-foreground: oklch(0.99 0.005 90);
+  --border: oklch(0.921 0.034 86.3);
+  --input: oklch(0.921 0.034 86.3);
+  --ring: oklch(0.784 0.163 161.4);
+  --chart-1: oklch(0.784 0.163 161.4);
+  --chart-2: oklch(0.824 0.163 77.8);
+  --chart-3: oklch(0.33 0.048 197.2);
+  --chart-4: oklch(0.755 0.164 70.1);
+  --chart-5: oklch(0.523 0.027 165.1);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.252 0.025 165.3);
+  --sidebar-primary: oklch(0.33 0.048 197.2);
+  --sidebar-primary-foreground: oklch(0.981 0.018 81.3);
+  --sidebar-accent: oklch(0.958 0.029 82.6);
+  --sidebar-accent-foreground: oklch(0.33 0.048 197.2);
+  --sidebar-border: oklch(0.921 0.034 86.3);
+  --sidebar-ring: oklch(0.784 0.163 161.4);
+
+  --gradient-jade: linear-gradient(140deg, oklch(0.382 0.056 196.8), oklch(0.3 0.045 197.2));
+  --gradient-gold: linear-gradient(135deg, oklch(0.86 0.15 85), oklch(0.755 0.164 70.1));
+  --gradient-mint: linear-gradient(135deg, oklch(0.84 0.14 163), oklch(0.74 0.16 160));
+}
+
+.dark {
+  --background: oklch(0.22 0.03 197);
+  --background-alt: oklch(0.26 0.035 197);
+  --foreground: oklch(0.96 0.015 85);
+  --card: oklch(0.28 0.035 197);
+  --card-foreground: oklch(0.96 0.015 85);
+  --popover: oklch(0.28 0.035 197);
+  --popover-foreground: oklch(0.96 0.015 85);
+  --primary: oklch(0.784 0.163 161.4);
+  --primary-foreground: oklch(0.2 0.03 197);
+  --primary-soft: oklch(0.36 0.05 197);
+  --secondary: oklch(0.31 0.038 197);
+  --secondary-foreground: oklch(0.96 0.015 85);
+  --muted: oklch(0.31 0.038 197);
+  --muted-foreground: oklch(0.75 0.02 165);
+  --accent: oklch(0.784 0.163 161.4);
+  --accent-foreground: oklch(0.2 0.03 197);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --sidebar: oklch(0.26 0.035 197);
+  --sidebar-foreground: oklch(0.96 0.015 85);
+  --sidebar-border: oklch(1 0 0 / 12%);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  /*
+   * Kill the elastic overscroll bounce that exposed blank gutters at the screen
+   * corners on the web build.
+   *
+   * overscroll-behavior stops the rubber-band at the scroll boundaries, and
+   * touch-action: pan-y drops horizontal panning and pinch-zoom at the document
+   * level. Nested horizontal carousels (StarterQuests, the admin tab strip, the
+   * landing showcase) still pan: the gesture is handled by those scroll
+   * containers, whose own touch-action stays `auto`.
+   *
+   * min-height rather than height so the shells' `min-h-screen` can still grow
+   * past the viewport — a hard `height: 100%` here would cap body at the
+   * viewport and push all content into an overflow.
+   */
+  html,
+  body {
+    min-height: 100%;
+    overscroll-behavior: none;
+    touch-action: pan-y;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+@utility text-amount {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility surface-card {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow-card);
+}
+
+@utility bg-jade-gradient {
+  background-image: var(--gradient-jade);
+}
+
+@utility bg-gold-gradient {
+  background-image: var(--gradient-gold);
+}
+
+@utility bg-mint-gradient {
+  background-image: var(--gradient-mint);
+}
+
+/* Splash screen animations */
+@keyframes splash-logo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes splash-halo-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+@keyframes splash-dot-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+/* Section-heading sparkle: gentle shimmer/pulse */
+@keyframes sh-sparkle {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18) rotate(10deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="sh-sparkle"] {
+    animation: none !important;
+  }
+}
+
+.splash-logo-wrap {
+  animation: splash-logo-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.splash-halo {
+  background: radial-gradient(
+    closest-side,
+    rgba(34, 197, 94, 0.55),
+    rgba(244, 180, 0, 0.15) 55%,
+    transparent 75%
+  );
+  animation: splash-halo-pulse 2.4s ease-in-out infinite;
+}
+.splash-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  animation: splash-dot-bounce 1.2s ease-in-out infinite;
+}
+.splash-dot:nth-child(2) {
+  animation-delay: 0.15s;
+  background: var(--color-gold, #f4b400);
+}
+.splash-dot:nth-child(3) {
+  animation-delay: 0.3s;
+  background: var(--color-primary);
+}
+
+/* Cash Out Your Way — staggered reveal + hover lift */
+@keyframes payout-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/*
+ * .payout-card is kept as a composite alias so existing markup is untouched, but
+ * its two halves are now reusable on their own: .rise-in (entrance) and
+ * .hover-lift (hover). Reuse these instead of writing new keyframes.
+ */
+.payout-card,
+.rise-in {
+  animation: payout-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.payout-card,
+.hover-lift {
+  transition:
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 300ms ease;
+}
+.payout-card:hover,
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Payout-proof live pulse dot */
+@keyframes payout-live-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  75%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.payout-live-dot {
+  animation: payout-live-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Auth page ambient glow + entrance */
+@keyframes auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes auth-fade-slide {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.auth-card-in {
+  animation: auth-card-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.auth-fade-slide {
+  animation: auth-fade-slide 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.auth-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(45% 35% at 15% 12%, rgba(34, 197, 94, 0.18), transparent 70%),
+    radial-gradient(50% 40% at 85% 88%, rgba(244, 180, 0, 0.16), transparent 70%),
+    radial-gradient(55% 45% at 50% 55%, rgba(15, 61, 58, 0.08), transparent 75%);
+  pointer-events: none;
+}
+
+/* Premium onboarding is intentionally scoped so the existing Home surfaces stay unchanged. */
+.premium-shell {
+  background: #f4efe6;
+  font-family: "Manrope", var(--font-sans);
+}
+.premium-shell h1,
+.premium-shell h2,
+.premium-shell h3 {
+  font-family: var(--font-premium);
+}
+.premium-frame {
+  isolation: isolate;
+}
+.premium-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 9999px;
+  filter: blur(2px);
+  opacity: 0.45;
+}
+.premium-orb-one {
+  width: 210px;
+  height: 210px;
+  right: -90px;
+  top: 110px;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.32), transparent 68%);
+}
+.premium-orb-two {
+  width: 230px;
+  height: 230px;
+  left: -125px;
+  bottom: 100px;
+  background: radial-gradient(circle, rgba(36, 126, 107, 0.2), transparent 68%);
+}
+@keyframes premium-step-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes premium-art-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(2deg);
+  }
+}
+@keyframes premium-orbit {
+  from {
+    transform: rotate(0deg) translateX(50px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(50px) rotate(-360deg);
+  }
+}
+.premium-step-in {
+  animation: premium-step-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.premium-artwork {
+  position: relative;
+  display: grid;
+  height: 168px;
+  place-items: center;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 300px;
+}
+.premium-artwork-ring {
+  position: absolute;
+  width: 142px;
+  height: 142px;
+  border-radius: 42%;
+  border: 1px solid rgba(212, 175, 55, 0.42);
+  transform: rotate(18deg);
+  box-shadow: 0 0 34px rgba(212, 175, 55, 0.16);
+}
+.premium-artwork-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+  border-radius: 30px;
+  background: #0b2b28;
+  color: #f3d068;
+  box-shadow: 0 18px 38px rgba(11, 43, 40, 0.24);
+  animation: premium-art-float 4s ease-in-out infinite;
+}
+.premium-artwork-icon svg {
+  width: 42px;
+  height: 42px;
+}
+.premium-artwork-coin {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: #d4af37;
+  color: #0b2b28;
+  box-shadow: 0 0 22px rgba(212, 175, 55, 0.36);
+}
+.premium-artwork-coin svg {
+  width: 16px;
+  height: 16px;
+}
+.premium-artwork-coin-a {
+  top: 22px;
+  left: calc(50% - 106px);
+  animation: premium-art-float 3.1s ease-in-out infinite reverse;
+}
+.premium-artwork-coin-b {
+  bottom: 22px;
+  right: calc(50% - 106px);
+  animation: premium-art-float 3.5s ease-in-out infinite;
+}
+.premium-avatar-artwork {
+  overflow: hidden;
+}
+.premium-art-orbit {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 7px;
+  background: #d4af37;
+  box-shadow: 0 0 18px rgba(212, 175, 55, 0.55);
+  animation: premium-orbit 7s linear infinite;
+}
+.premium-art-orbit-b {
+  background: #5ab69b;
+  animation-duration: 9s;
+  animation-direction: reverse;
+}
+.premium-avatar-card {
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+.premium-avatar-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 18px rgba(11, 43, 40, 0.1);
+}
+.premium-avatar-selected {
+  border-color: #d4af37;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 2px rgba(212, 175, 55, 0.22),
+    0 10px 20px rgba(212, 175, 55, 0.14);
+}
+.premium-cta {
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease;
+}
+.premium-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 28px rgba(212, 175, 55, 0.34);
+}
+@keyframes premium-panel-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.025);
+  }
+}
+@keyframes premium-glint-drift {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translate3d(0, 0, 0) rotate(0);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translate3d(8px, -10px, 0) rotate(18deg);
+  }
+}
+.premium-illustration-panel > img {
+  animation: premium-panel-breathe 8s ease-in-out infinite;
+}
+.premium-panel-glint {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #f4cf56;
+  box-shadow: 0 0 18px rgba(244, 207, 86, 0.9);
+  pointer-events: none;
+  animation: premium-glint-drift 3.8s ease-in-out infinite;
+}
+.premium-panel-glint-one {
+  right: 17%;
+  top: 24%;
+}
+.premium-panel-glint-two {
+  left: 13%;
+  top: 42%;
+  width: 5px;
+  height: 5px;
+  animation-delay: -1.7s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .premium-step-in,
+  .premium-artwork-icon,
+  .premium-artwork-coin,
+  .premium-art-orbit {
+    animation: none;
+  }
+  .premium-avatar-card,
+  .premium-cta {
+    transition: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .premium-illustration-panel > img,
+  .premium-panel-glint {
+    animation: none;
+  }
+}
+
+/* Home simulated live-activity strip: gentle drop-in under the header */
+@keyframes live-activity-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.live-activity-card {
+  animation: live-activity-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ==========================================================================
+ * Per-screen background + motion polish.
+ *
+ * Screens where the user acts or is rewarded (Home, Wallet, Refer) get a faint
+ * token-coloured wash; screens where the user reads or scans data (Offers,
+ * Tasks, Profile, Notifications, Support) stay flat cream with entrance motion
+ * only. Everything below reuses the existing keyframes above.
+ * ========================================================================== */
+
+/* --- List entrance staggers -------------------------------------------------
+ * Applied to a list/grid container so children animate in sequence without
+ * needing a per-item inline animationDelay. Only first 9 cards animate.
+ */
+.stagger-children > *:nth-child(-n+9) {
+  animation: payout-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Pure fade variant for dense data rows (transactions), where vertical
+ * movement would fight readability. */
+.stagger-fade-children > * {
+  animation: auth-fade-slide 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger-children > *:nth-child(1),
+.stagger-fade-children > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger-children > *:nth-child(2),
+.stagger-fade-children > *:nth-child(2) {
+  animation-delay: 45ms;
+}
+.stagger-children > *:nth-child(3),
+.stagger-fade-children > *:nth-child(3) {
+  animation-delay: 90ms;
+}
+.stagger-children > *:nth-child(4),
+.stagger-fade-children > *:nth-child(4) {
+  animation-delay: 135ms;
+}
+.stagger-children > *:nth-child(5),
+.stagger-fade-children > *:nth-child(5) {
+  animation-delay: 180ms;
+}
+.stagger-children > *:nth-child(6),
+.stagger-fade-children > *:nth-child(6) {
+  animation-delay: 225ms;
+}
+.stagger-children > *:nth-child(7),
+.stagger-fade-children > *:nth-child(7) {
+  animation-delay: 270ms;
+}
+.stagger-children > *:nth-child(8),
+.stagger-fade-children > *:nth-child(8) {
+  animation-delay: 315ms;
+}
+.stagger-children > *:nth-child(9),
+.stagger-fade-children > *:nth-child(9) {
+  animation-delay: 360ms;
+}
+
+/* --- Simple page-load fade (reading screens) ------------------------------- */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.page-fade-in {
+  animation: page-fade-in 300ms ease-out both;
+}
+
+/* --- Home: jade + gold hero wash blending down into cream ------------------ */
+.home-page-bg {
+  position: relative;
+  isolation: isolate;
+  /*
+   * The decorative orbs below sit at negative offsets (home-orb-gold is at
+   * right: -95px), which widened the document by ~98px. On mobile that widens
+   * the layout viewport itself, and because BottomNav is `fixed inset-x-0` it
+   * then stretched to the widened width — pushing its 5th tab (Support) off
+   * the right edge of the screen.
+   *
+   * `clip` rather than `hidden` on purpose: `overflow-x: hidden` would turn
+   * this element into a scroll container and break the sticky AppHeader, while
+   * `clip` just clips. The fixed BottomNav is unaffected either way because
+   * this element is not its containing block (position/isolation alone don't
+   * create one).
+   */
+  overflow-x: clip;
+}
+.home-page-bg::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 440px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 44% at 16% 6%, oklch(0.33 0.048 197.2 / 0.13), transparent 70%),
+    radial-gradient(54% 40% at 88% 2%, oklch(0.824 0.163 77.8 / 0.15), transparent 72%),
+    radial-gradient(72% 52% at 50% 0%, oklch(0.784 0.163 161.4 / 0.1), transparent 76%);
+}
+
+/* Home hero orbs — static decorative backgrounds without animation */
+.home-orb {
+  z-index: -1;
+  position: absolute;
+  pointer-events: none;
+}
+.home-orb-jade {
+  width: 210px;
+  height: 210px;
+  left: -85px;
+  top: -34px;
+  background: radial-gradient(circle, oklch(0.33 0.048 197.2 / 0.2), transparent 68%);
+}
+.home-orb-gold {
+  width: 235px;
+  height: 235px;
+  right: -95px;
+  top: 34px;
+  background: radial-gradient(circle, oklch(0.824 0.163 77.8 / 0.22), transparent 68%);
+}
+
+/* --- Wallet: gold glow behind the balance card only ----------------------- */
+.wallet-balance-glow {
+  box-shadow:
+    var(--shadow-lift),
+    0 18px 46px -18px oklch(0.824 0.163 77.8 / 0.45);
+}
+
+/* --- One-shot success feedback (no looping) ------------------------------- */
+@keyframes success-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.success-pop {
+  animation: success-pop 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Small burst near a claim / withdraw button. Plays once, never full-screen. */
+@keyframes success-burst {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.4);
+  }
+  22% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--burst-x, 0), var(--burst-y, 0), 0) scale(1);
+  }
+}
+.success-burst-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  animation: success-burst 820ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* --- Reduced motion ------------------------------------------------------
+ * Disable every animation added above, plus the pre-existing entrance classes
+ * that were previously missing coverage.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .rise-in,
+  .payout-card,
+  .auth-card-in,
+  .auth-fade-slide,
+  .page-fade-in,
+  .success-pop,
+  .success-burst-dot,
+  .home-orb,
+  .live-activity-card,
+  .splash-logo-wrap,
+  .splash-halo,
+  .splash-dot,
+  .stagger-children > *,
+  .stagger-fade-children > * {
+    animation: none;
+  }
+  /* Keep the loader legible when its bounce is disabled. */
+  .splash-dot {
+    opacity: 1;
+  }
+  .home-page-bg .app-header-coin {
+    animation: none;
+  }
+  .hover-lift,
+  .payout-card {
+    transition: none;
+  }
+  .live-activity-slot {
+    transition: none;
+  }
+}
+
+/* Hover effects only on devices that support hover */
+@media (hover: hover) {
+  .surface-card.group:hover {
+    box-shadow: var(--shadow-gold);
+  }
+  .surface-card.group:hover img {
+    transform: scale(1.05);
+  }
+  /* Offerwall cards */
+  article.surface-card:hover {
+    box-shadow: var(--shadow-gold);
+    transform: translateY(-4px);
+  }
+}
+
+/* ==========================================================================
+ * Home section heading ribbon
+ *
+ * The jade pill that carries the section title. The fill comes from the shared
+ * bg-jade-gradient utility; this adds only the depth and the darker "fold"
+ * where the ribbon passes behind the icon, so it reads as one continuous
+ * ribbon rather than a rectangle parked next to an icon.
+ * ========================================================================== */
+.section-ribbon {
+  box-shadow:
+    0 6px 16px -8px oklch(0.33 0.048 197.2 / 0.5),
+    inset 0 1px 0 oklch(1 0 0 / 0.14);
+}
+.section-ribbon::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2.5rem;
+  border-radius: 9999px 0 0 9999px;
+  background: linear-gradient(90deg, oklch(0.24 0.035 197.2 / 0.5), transparent);
+  pointer-events: none;
+}
+
+/* Refer & Earn page: mint-tinted ambient background + pulsing share glow */
+.refer-page-bg {
+  position: relative;
+  isolation: isolate;
+}
+.refer-page-bg::before {
+  content: "";
+  position: absolute;
+  top: -0.5rem;
+  left: -1rem;
+  right: -1rem;
+  height: 420px;
+  background: radial-gradient(60% 60% at 50% 0%, oklch(0.784 0.163 161.4 / 0.16), transparent 72%);
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes refer-share-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.784 0.163 161.4 / 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 8px oklch(0.784 0.163 161.4 / 0);
+  }
+}
+.refer-share-glow {
+  animation: refer-share-glow 2.2s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .refer-share-glow {
+    animation: none;
+  }
+  [style*="premium-art-float"] {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+ * Web landing page (cashgpt.in "/").
+ *
+ * Everything below animates transform/opacity only, so it stays smooth on
+ * low-end Android. Each effect is disabled under prefers-reduced-motion at the
+ * end of this block.
+ * ========================================================================== */
+
+/* --- Scroll reveal: fade + rise once, driven by IntersectionObserver -------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal-in {
+  opacity: 1;
+  transform: none;
+}
+/* Stagger for card groups: the container observes, its children cascade. */
+.reveal-stagger > * {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal-stagger.reveal-in > * {
+  opacity: 1;
+  transform: none;
+}
+.reveal-stagger > *:nth-child(1) {
+  transition-delay: 0ms;
+}
+.reveal-stagger > *:nth-child(2) {
+  transition-delay: 70ms;
+}
+.reveal-stagger > *:nth-child(3) {
+  transition-delay: 140ms;
+}
+.reveal-stagger > *:nth-child(4) {
+  transition-delay: 210ms;
+}
+.reveal-stagger > *:nth-child(n + 5) {
+  transition-delay: 280ms;
+}
+
+/* --- Offer card press feedback (touch) ------------------------------------- */
+.press-feedback {
+  transition:
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 150ms ease;
+}
+.press-feedback:active {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .reveal-stagger > * {
+    opacity: 1;
+    transform: none;
+    transition: none;
+    transition-delay: 0ms;
+  }
+  .shimmer-sweep::after,
+  .ambient-drift,
+  .ambient-drift-slow,
+  .coin-float,
+  .coin-float-b,
+  .coin-float-c {
+    animation: none;
+  }
+  .shimmer-sweep::after {
+    opacity: 0;
+  }
+  .press-feedback {
+    transition: none;
+  }
+  .press-feedback:active {
+    transform: none;
+  }
+}
+
+/*
+ * Native shell: hide web-only UI before hydration.
+ *
+ * The attribute is set by the inline probe in __root.tsx, which runs before the
+ * body paints, so the packaged app never flashes the server-rendered marketing
+ * landing on its way to the splash → redirect flow.
+ */
+html[data-native="1"] [data-web-only] {
+  display: none !important;
+}
+
+/* --- Section banner crossfade ---------------------------------------------
+ *
+ * SectionBanner renders the incoming banner in normal flow and overlays the
+ * outgoing one on top of it, then fades the overlay out. The incoming banner is
+ * never transparent, so there is never a frame with neither banner painted
+ * (the old hard swap unmounted the previous <article> and showed the page
+ * background until the next image decoded).
+ *
+ * Duration is mirrored by BANNER_FADE_MS in SectionBanner.tsx — keep in sync.
+ */
+@keyframes banner-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.banner-fade-out {
+  animation: banner-fade-out 350ms ease-out both;
+  will-change: opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Straight to hidden: the incoming banner is already painted underneath, so
+     this is still a clean swap rather than a blank flash. */
+  .banner-fade-out {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* --- Landing phone preview (HeroPhone) --------------------------------------
+ * Transform/opacity only. Everything pauses while the preview is off-screen
+ * (data-running="false") and is switched off under prefers-reduced-motion.
+ */
+@keyframes hp-bob {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50% { transform: translate3d(0, -10px, 0) rotate(4deg); }
+}
+.hp-bob-a { animation: hp-bob 6.5s ease-in-out infinite; }
+.hp-bob-b { animation: hp-bob 8s ease-in-out infinite reverse; }
+.hp-bob-c { animation: hp-bob 7.2s ease-in-out -2s infinite; }
+
+@keyframes hp-toast {
+  0% { opacity: 0; transform: translateY(-14px) scale(0.97); }
+  8%, 86% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(6px) scale(0.98); }
+}
+.hp-toast { animation: hp-toast 5.2s ease-in-out both; }
+
+@keyframes hp-fill {
+  0% { transform: scaleX(0.08); }
+  55%, 85% { transform: scaleX(0.62); }
+  100% { transform: scaleX(0.08); }
+}
+.hp-fill { animation: hp-fill 6s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+
+@keyframes hp-pop {
+  0%, 50%, 100% { transform: scale(1) rotate(0deg); }
+  60% { transform: scale(1.25) rotate(-8deg); }
+  72% { transform: scale(0.95) rotate(4deg); }
+  84% { transform: scale(1.05) rotate(0deg); }
+}
+.hp-pop { animation: hp-pop 6s ease-in-out infinite; }
+
+@keyframes hp-grow {
+  0%, 100% { transform: scaleY(0.35); }
+  45%, 80% { transform: scaleY(1); }
+}
+.hp-grow { animation: hp-grow 4.2s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+
+.hp-parallax {
+  transform: translate3d(calc(var(--mx, 0) * var(--depth, 0px)), calc(var(--my, 0) * var(--depth, 0px)), 0);
+  transition: transform 300ms ease-out;
+}
+.hp-tilt-wrap { perspective: 1100px; }
+.hp-tilt {
+  transform: rotateY(calc(var(--mx, 0) * 7deg)) rotateX(calc(var(--my, 0) * -5deg));
+  transition: transform 300ms ease-out;
+}
+.hp-root[data-running="false"] .hp-anim { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hp-anim { animation: none !important; }
+  .hp-parallax, .hp-tilt { transform: none !important; transition: none !important; }
+}
