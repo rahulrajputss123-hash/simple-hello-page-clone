@@ -37,7 +37,7 @@ export function RoleSwitcher() {
         data-testid="role-switcher"
         role="radiogroup"
         aria-label="Switch mode"
-        className="relative flex min-h-12 w-full rounded-full border border-border bg-background-alt p-1 shadow-none"
+        className="relative flex h-10 w-full rounded-full border border-border bg-background-alt p-1 shadow-none"
       >
         <span
           aria-hidden="true"
@@ -50,12 +50,12 @@ export function RoleSwitcher() {
           role="radio"
           aria-checked={!isAdvertiser}
           data-testid="role-option-publisher"
-          className={`relative z-10 flex h-10 min-h-11 flex-1 items-center justify-center gap-2 rounded-full text-sm font-semibold transition-colors active:scale-[0.99] ${
+          className={`relative z-10 flex h-8 flex-1 items-center justify-center gap-1.5 rounded-full text-[13px] font-semibold leading-none transition-colors active:scale-[0.99] ${
             isAdvertiser ? "text-muted-foreground" : "text-primary-foreground"
           }`}
           onClick={() => setRole("publisher")}
         >
-          <Wallet aria-hidden="true" />
+          <Wallet aria-hidden="true" className="size-4" />
           Earn
         </button>
         <button
@@ -70,7 +70,7 @@ export function RoleSwitcher() {
           }`}
           onClick={handleAdvertise}
         >
-          <Megaphone aria-hidden="true" />
+          <Megaphone aria-hidden="true" className="size-4" />
           <span>Advertise</span>
           {!advertiserActivated && !marketplaceAvailable && (
             <span className="text-[10px] font-medium uppercase tracking-wide">Soon</span>

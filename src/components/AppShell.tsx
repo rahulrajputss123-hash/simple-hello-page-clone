@@ -207,7 +207,7 @@ export function AppShell({
       <AppHeader {...(subtitle ? { subtitle } : {})} home={home} />
       <main className={`mx-auto w-full max-w-lg px-4 py-4 ${mainClass}`}>
         {home && (
-          <div className="mx-auto w-full max-w-lg px-4 pt-3">
+          <div className="mx-auto w-full max-w-lg px-4 pt-2 pb-1">
             <RoleSwitcher />
           </div>
         )}
