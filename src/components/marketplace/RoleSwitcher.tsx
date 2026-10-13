@@ -1,102 +1,82 @@
-import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { Megaphone, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { BecomeAdvertiserDialog } from "@/components/marketplace/BecomeAdvertiserDialog";
+import { clearAdvertiserIntent, hasAdvertiserIntent } from "@/lib/marketplace/intent";
 import { useRole } from "@/lib/marketplace/role";
 
-/** "🟢 Publisher ▾" chip in the Home header. */
+/** Segmented mode switcher shown at the top of the Home content. */
 export function RoleSwitcher() {
-  const { role, setRole, advertiserActivated, marketplaceAvailable, overviewLoading, overview } = useRole();
+  const { role, setRole, advertiserActivated, marketplaceAvailable, overviewLoading } = useRole();
   const [dialogOpen, setDialogOpen] = useState(false);
   const isAdvertiser = role === "advertiser";
-  const showNewBadge = overview?.settings.promoActive && !advertiserActivated;
+
+  // Visitors who clicked "Start advertising" on the landing page land here after
+  // signing in; open the activation dialog once, then forget the intent.
+  useEffect(() => {
+    if (overviewLoading || !hasAdvertiserIntent()) return;
+    if (advertiserActivated) {
+      clearAdvertiserIntent();
+    } else if (marketplaceAvailable) {
+      clearAdvertiserIntent();
+      setDialogOpen(true);
+    }
+  }, [overviewLoading, advertiserActivated, marketplaceAvailable]);
+
+  const handleAdvertise = () => {
+    if (advertiserActivated) {
+      setRole("advertiser");
+    } else if (marketplaceAvailable && !overviewLoading) {
+      setDialogOpen(true);
+    }
+  };
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          data-testid="role-switcher"
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset transition-colors ${
-            isAdvertiser
-              ? "bg-sky-500/10 text-sky-700 ring-sky-500/30"
-              : "bg-mint/15 text-primary ring-mint/30"
+      <div
+        data-testid="role-switcher"
+        role="radiogroup"
+        aria-label="Switch mode"
+        className="relative flex min-h-12 w-full rounded-full border border-border bg-background-alt p-1 shadow-none"
+      >
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full shadow-soft transition-transform duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+            isAdvertiser ? "translate-x-full bg-sky-600" : "bg-primary"
           }`}
-          aria-label={isAdvertiser ? "Advertise mode" : "Earn mode"}
+        />
+        <button
+          type="button"
+          role="radio"
+          aria-checked={!isAdvertiser}
+          data-testid="role-option-publisher"
+          className={`relative z-10 flex h-10 min-h-11 flex-1 items-center justify-center gap-2 rounded-full text-sm font-semibold transition-colors active:scale-[0.99] ${
+            isAdvertiser ? "text-muted-foreground" : "text-primary-foreground"
+          }`}
+          onClick={() => setRole("publisher")}
         >
-          <span aria-hidden>{isAdvertiser ? "🔵" : "🟢"}</span>
-          {isAdvertiser ? "Advertise" : "Earn"}
-          <ChevronDown className="size-3" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-72 rounded-2xl p-1.5">
-          <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Switch mode
-          </DropdownMenuLabel>
-          <DropdownMenuItem
-            className="rounded-xl py-2.5"
-            data-testid="role-option-publisher"
-            onSelect={() => setRole("publisher")}
-          >
-            <span className="mr-2" aria-hidden>
-              🟢
-            </span>
-            <span className="flex flex-col">
-              <span className="font-semibold">Earn</span>
-              <span className="text-xs text-muted-foreground">Earn & complete tasks</span>
-            </span>
-            {!isAdvertiser && <span className="ml-auto text-xs text-primary">Current</span>}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {advertiserActivated ? (
-            <DropdownMenuItem
-              className="rounded-xl py-2.5"
-              data-testid="role-option-advertiser"
-              onSelect={() => setRole("advertiser")}
-            >
-              <span className="mr-2" aria-hidden>
-                🔵
-              </span>
-              <span className="flex flex-col">
-                <span className="font-semibold">Advertise</span>
-                <span className="text-xs text-muted-foreground">Create & manage campaigns</span>
-              </span>
-              {isAdvertiser && <span className="ml-auto text-xs text-sky-700">Current</span>}
-            </DropdownMenuItem>
-          ) : (
-            <div className="px-2 py-2">
-              <p className="flex items-center gap-2 text-sm font-semibold">
-                <span aria-hidden>🔵</span> Advertise
-                {showNewBadge && (
-                  <span className="rounded-full bg-jade-gradient px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
-                    NEW
-                  </span>
-                )}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {marketplaceAvailable
-                  ? "Create campaigns that CashGPT members complete for you."
-                  : "Advertiser mode isn't available yet. Check back soon."}
-              </p>
-              <button
-                type="button"
-                data-testid="become-advertiser-btn"
-                disabled={!marketplaceAvailable || overviewLoading}
-                className="mt-2 w-full rounded-xl bg-jade-gradient px-3 py-2 text-xs font-semibold text-primary-foreground shadow-soft active:scale-[0.98] disabled:opacity-50"
-                onClick={() => setDialogOpen(true)}
-              >
-                Become an Advertiser
-              </button>
-            </div>
+          <Wallet aria-hidden="true" />
+          Earn
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={isAdvertiser}
+          aria-disabled={!advertiserActivated && !marketplaceAvailable}
+          data-testid="role-option-advertiser"
+          disabled={!advertiserActivated && !marketplaceAvailable}
+          className={`relative z-10 flex h-10 min-h-11 flex-1 items-center justify-center gap-2 rounded-full text-sm font-semibold transition-colors active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 ${
+            isAdvertiser ? "text-white" : "text-muted-foreground"
+          }`}
+          onClick={handleAdvertise}
+        >
+          <Megaphone aria-hidden="true" />
+          <span>Advertise</span>
+          {!advertiserActivated && !marketplaceAvailable && (
+            <span className="text-[10px] font-medium uppercase tracking-wide">Soon</span>
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </button>
+      </div>
       {dialogOpen && <BecomeAdvertiserDialog open onOpenChange={setDialogOpen} />}
     </>
   );

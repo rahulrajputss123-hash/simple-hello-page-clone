@@ -76,8 +76,7 @@ export function BrandLogo({
 
 export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?: boolean }) {
   const { session, profile } = useAuth();
-  // Marketplace: only the Home header shows the role chip, and only
-  // advertiser mode swaps the wallet pill for the Campaign Balance.
+  // Marketplace: advertiser mode swaps the wallet pill for the Campaign Balance.
   const { role, overview } = useRole();
   const advertiserMode = home && role === "advertiser";
   const unread = useQuery({
@@ -178,11 +177,6 @@ export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?
           )}
         </div>
       </div>
-      {home && (
-        <div className="mx-auto w-full max-w-lg px-4 py-2">
-          <RoleSwitcher />
-        </div>
-      )}
     </header>
   );
 }
@@ -198,7 +192,7 @@ export function AppShell({
   children: React.ReactNode;
   subtitle?: string;
   hideNav?: boolean;
-  /** Home screen header: role switcher chip + support icon. */
+  /** Home screen: render the role switcher above the page content. */
   home?: boolean;
   /**
    * Optional per-screen background treatment on the shell root (e.g. the Home
@@ -211,7 +205,14 @@ export function AppShell({
   return (
     <div className={`min-h-screen bg-background pb-24 ${bgClass}`}>
       <AppHeader {...(subtitle ? { subtitle } : {})} home={home} />
-      <main className={`mx-auto w-full max-w-lg px-4 py-4 ${mainClass}`}>{children}</main>
+      <main className={`mx-auto w-full max-w-lg px-4 py-4 ${mainClass}`}>
+        {home && (
+          <div className="mx-auto w-full max-w-lg px-4 pt-3">
+            <RoleSwitcher />
+          </div>
+        )}
+        {children}
+      </main>
       {!hideNav && <BottomNav />}
     </div>
   );
