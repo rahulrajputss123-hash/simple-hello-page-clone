@@ -295,7 +295,7 @@ export function ReferPage() {
         <section className="premium-step-in rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
           <h2 className="text-xl">Invite friends, earn up to ${REFERRAL_HEADLINE_MAX}</h2>
           <p className="mt-1 text-sm opacity-80">
-            {formatAdvertiserReferralLine(REFERRAL_MILESTONE_BONUS)}
+            {formatAdvertiserReferralLine(REFERRAL_MAX_BONUS)}
           </p>
           <p className="mt-1 text-xs opacity-60">Join thousands of users earning together.</p>
 
