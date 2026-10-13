@@ -238,7 +238,12 @@ export function SectionBanner({ section }: { section: BannerSection }) {
     return () => clearInterval(t);
   }, [merged.length]);
 
-  if (!merged.length) return null;
+  // Reserve space while loading to prevent CLS.
+  // If query finishes with no banners, collapse.
+  const isLoading = dbQuery.isLoading;
+  const hasNoBanners = !isLoading && !merged.length;
+
+  if (hasNoBanners) return null;
 
   return (
     <section
@@ -246,24 +251,35 @@ export function SectionBanner({ section }: { section: BannerSection }) {
       aria-label={`${section} banner`}
       data-testid={`section-banner-${section}`}
     >
-      {/* Crossfade: the incoming banner stays in normal flow (so it keeps
-          defining the container height — banner kinds have different natural
-          heights), and the outgoing one is overlaid on top and fades out. The
-          incoming banner is never transparent, so there is no frame where
-          neither banner is painted. */}
-      <div className="relative">
-        <BannerCard banner={current} />
-        {outgoing && (
-          <div
-            aria-hidden
-            className="banner-fade-out pointer-events-none absolute inset-0 [&>article]:h-full [&>article]:w-full"
-            data-testid={`section-banner-outgoing-${section}`}
-          >
-            <BannerCard banner={outgoing} />
+      {/* Loading placeholder: reserves 2:1 aspect-ratio space (matching banner
+          natural height) to prevent CLS when banners load. */}
+      {isLoading ? (
+        <div
+          className="surface-card aspect-[2/1] w-full animate-pulse bg-muted shadow-lift"
+          aria-label="Loading banner"
+        />
+      ) : (
+        <>
+          {/* Crossfade: the incoming banner stays in normal flow (so it keeps
+              defining the container height — banner kinds have different natural
+              heights), and the outgoing one is overlaid on top and fades out. The
+              incoming banner is never transparent, so there is no frame where
+              neither banner is painted. */}
+          <div className="relative">
+            <BannerCard banner={current} />
+            {outgoing && (
+              <div
+                aria-hidden
+                className="banner-fade-out pointer-events-none absolute inset-0 [&>article]:h-full [&>article]:w-full"
+                data-testid={`section-banner-outgoing-${section}`}
+              >
+                <BannerCard banner={outgoing} />
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      {merged.length > 1 && (
+        </>
+      )}
+      {!isLoading && merged.length > 1 && (
         <div className="mt-2 flex justify-center gap-1.5">
           {merged.map((b, i) => (
             <button
