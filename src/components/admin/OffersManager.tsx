@@ -693,28 +693,85 @@ export function OffersManager() {
                 )}
               </div>
 
-              {/* --- Payout Mode ------------------------------------------- */}
+              {/* --- Offer Type ------------------------------------------- */}
               <div className="space-y-2 rounded-xl border border-border bg-card p-3">
-                <Label className="text-xs text-muted-foreground">Payout mode</Label>
-                <div className="flex flex-wrap gap-2">
+                <Label className="text-xs font-medium">Offer type</Label>
+                <div className="space-y-2">
                   {(
                     [
-                      ["manual", "Manual review"],
-                      ["manual_proof", "Manual + proof"],
-                      ["auto_postback", "Auto postback"],
+                      [
+                        "auto_postback",
+                        "manual",
+                        "Auto-tracked (partner postback)",
+                        "Click URL required. Conversions tracked automatically via postback.",
+                      ],
+                      [
+                        "manual_proof",
+                        "url",
+                        "URL + proof (user uploads screenshot)",
+                        "Click URL required. User clicks, completes offer, then uploads proof for review.",
+                      ],
+                      [
+                        "manual_proof",
+                        "no-url",
+                        "Task without URL (screenshot only)",
+                        "No Click URL. User completes task and uploads proof directly for review.",
+                      ],
+                      [
+                        "manual",
+                        "plain",
+                        "URL, no proof (instant review)",
+                        "Click URL required. No proof upload. Use for instant-credit offers.",
+                      ],
                     ] as const
-                  ).map(([key, label]) => (
-                    <Button
-                      key={key}
-                      type="button"
-                      size="sm"
-                      variant={form.payoutMode === key ? "jade" : "outline"}
-                      data-testid={`offer-form-payout-mode-${key}`}
-                      onClick={() => setForm({ ...form, payoutMode: key })}
-                    >
-                      {label}
-                    </Button>
-                  ))}
+                  ).map(([payoutMode, urlRequirement, label, description]) => {
+                    const isSelected =
+                      form.payoutMode === payoutMode &&
+                      ((urlRequirement === "url" && form.clickUrl.trim()) ||
+                        (urlRequirement === "no-url" && !form.clickUrl.trim()) ||
+                        (urlRequirement === "manual" && payoutMode === "auto_postback") ||
+                        (urlRequirement === "plain" && payoutMode === "manual"));
+                    
+                    return (
+                      <button
+                        key={`${payoutMode}-${urlRequirement}`}
+                        type="button"
+                        className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                          isSelected
+                            ? "border-jade bg-jade/10"
+                            : "border-border bg-background hover:border-jade/50"
+                        }`}
+                        onClick={() => {
+                          const updates: Partial<FormState> = { payoutMode };
+                          // Clear or preserve Click URL based on type
+                          if (urlRequirement === "no-url") {
+                            updates.clickUrl = "";
+                          }
+                          setForm({ ...form, ...updates });
+                        }}
+                      >
+                        <div className="flex items-start gap-2">
+                          <div
+                            className={`mt-0.5 h-4 w-4 rounded-full border-2 ${
+                              isSelected
+                                ? "border-jade bg-jade"
+                                : "border-muted-foreground/30"
+                            }`}
+                          >
+                            {isSelected && (
+                              <div className="h-full w-full rounded-full bg-background scale-50" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{label}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {description}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
                 {form.payoutMode === "auto_postback" && (
                   <div className="mt-2 space-y-2">
@@ -797,16 +854,25 @@ export function OffersManager() {
                 />
               </Field>
               <DisplayBadgeFields form={form} setForm={setForm} />
-              <Field label="Click URL">
-                <Input
-                  placeholder="https://…"
-                  value={form.clickUrl}
-                  onChange={(event) => setForm({ ...form, clickUrl: event.target.value })}
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Leave empty for tasks without a link (e.g. make a video). Then payout mode must be Manual + proof.
-                </p>
-              </Field>
+              {/* Only show Click URL for offer types that need it */}
+              {form.payoutMode !== "manual_proof" || form.clickUrl.trim() ? (
+                <Field label="Click URL">
+                  <Input
+                    placeholder="https://…"
+                    value={form.clickUrl}
+                    onChange={(event) => setForm({ ...form, clickUrl: event.target.value })}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {form.payoutMode === "manual_proof" && !form.clickUrl.trim()
+                      ? "Optional for 'Task without URL' type. Leave empty if no URL is needed."
+                      : form.payoutMode === "manual_proof"
+                        ? "Required for 'URL + proof' type. User clicks this link before uploading proof."
+                        : form.payoutMode === "auto_postback"
+                          ? "Required for auto-tracked offers. Conversions reported via postback."
+                          : "Required. Link user clicks to complete the offer."}
+                  </p>
+                </Field>
+              ) : null}
               <Field label="Countries">
                 <CountryMultiSelect
                   value={form.countries}

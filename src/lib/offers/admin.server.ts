@@ -168,8 +168,14 @@ export async function listAdminOffersImpl(input: {
 
 export async function upsertManualOfferImpl(input: ManualOfferInput) {
   // Guard: offers without click URL must use manual_proof payout mode
-  if (!input.clickUrl && input.payoutMode !== "manual_proof") {
+  const hasClickUrl = Boolean(input.clickUrl?.trim());
+  if (!hasClickUrl && input.payoutMode !== "manual_proof") {
     throw new Error("Offers without a Click URL must use Manual + proof payout mode.");
+  }
+  
+  // Guard: auto_postback requires a URL
+  if (input.payoutMode === "auto_postback" && !hasClickUrl) {
+    throw new Error("Auto-tracked offers must have a Click URL.");
   }
 
   // Server-side reward enforcement for limited-deal offers — never trust the

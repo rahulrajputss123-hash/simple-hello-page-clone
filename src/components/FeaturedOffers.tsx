@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { EmptyState, ErrorState } from "@/components/States";
 import { OfferCard } from "@/components/OfferCard";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
-import { claimOffer } from "@/lib/coinquest.functions";
+import { claimOffer, startOfferClaim, submitOfferProof } from "@/lib/coinquest.functions";
 import { getFeaturedFeed, trackOfferClick } from "@/lib/offers.functions";
 import { useAuth } from "@/lib/auth";
 import { appendAffSub4 } from "@/lib/offers/click-url";
@@ -41,6 +41,8 @@ export function FeaturedOffers({
   
   const queryClient = useQueryClient();
   const claim = useServerFn(claimOffer);
+  const startClaim = useServerFn(startOfferClaim);
+  const submitProof = useServerFn(submitOfferProof);
   const [pending, setPending] = useState<OfferDetailsPayload | null>(null);
   const [burstOfferId, setBurstOfferId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER);
@@ -107,6 +109,47 @@ export function FeaturedOffers({
     onError: (err: Error) => toast.error(err.message || "Could not submit that claim. Try again."),
   });
 
+  const startMutation = useMutation({
+    mutationFn: async (offerId: string) => startClaim({ data: { offerId } }),
+    onSuccess: async (result, offerId) => {
+      // Open URL in new tab
+      const offer = offers.find(o => o.id === offerId);
+      if (offer?.click_url) {
+        void trackClick({ data: { offerId } }).catch(() => {});
+        const clickUrl = appendAffSub4(
+          offer.click_url,
+          offer.provider_slug,
+          session?.user.id,
+          offer.external_offer_id,
+        );
+        if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
+      }
+      // Close dialog
+      setPending(null);
+      // Show toast
+      toast.success("Complete the offer, then come back here and upload your proof.");
+      // Invalidate queries
+      await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
+      await queryClient.invalidateQueries({ queryKey: ["featured-feed"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Could not start offer. Try again."),
+  });
+
+  const submitProofMutation = useMutation({
+    mutationFn: async (input: { offerId: string; proofPath: string }) =>
+      submitProof({ data: input }),
+    onSuccess: async (_result, input) => {
+      setBurstOfferId(input.offerId);
+      window.setTimeout(() => setBurstOfferId(null), 900);
+      setPending(null);
+      toast.success("Submitted for review. We'll notify you once it's approved.");
+      await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
+      await queryClient.invalidateQueries({ queryKey: ["featured-feed"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Could not submit proof. Try again."),
+  });
+
   // Memoize filtered offers
   const offers = useMemo(() => {
     const rawOffers = data?.offers ?? [];
@@ -137,8 +180,18 @@ export function FeaturedOffers({
       image_url: offer.image_url,
       display_price: offer.display_price,
       display_percent: offer.display_percent,
+      claim_status: offer.claim_status,
+      claim_reject_reason: offer.claim_reject_reason,
     });
   }, []);
+
+  const handleStart = useCallback((offerId: string) => {
+    startMutation.mutate(offerId);
+  }, [startMutation]);
+
+  const handleSubmitProof = useCallback((offerId: string, proofPath: string) => {
+    submitProofMutation.mutate({ offerId, proofPath });
+  }, [submitProofMutation]);
 
   const handleContinue = useCallback((payload: { proofPath?: string | null }) => {
     if (!pending) return;
@@ -220,8 +273,10 @@ export function FeaturedOffers({
             offer={pending}
             open={Boolean(pending)}
             onOpenChange={(open) => !open && setPending(null)}
+            onStart={handleStart}
+            onSubmitProof={handleSubmitProof}
             onContinue={handleContinue}
-            isSubmitting={mutation.isPending}
+            isSubmitting={mutation.isPending || startMutation.isPending || submitProofMutation.isPending}
           />
         </Suspense>
       )}

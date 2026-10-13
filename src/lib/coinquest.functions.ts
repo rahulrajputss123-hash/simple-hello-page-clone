@@ -78,6 +78,33 @@ export const claimOffer = createServerFn({ method: "POST" })
     return claimOfferImpl(context.userId, data.offerId, data.proofUrl ?? null);
   });
 
+/** Start an offer claim (for URL+proof workflow) - creates "started" status */
+export const startOfferClaim = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ offerId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { startOfferClaimImpl } = await import("./coinquest.server");
+    return startOfferClaimImpl(context.userId, data.offerId);
+  });
+
+/** Submit proof for a started offer claim - moves from "started" to "pending" */
+export const submitOfferProof = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        offerId: z.string().uuid(),
+        proofPath: z.string().trim().min(1).max(500),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { submitOfferProofImpl } = await import("./coinquest.server");
+    return submitOfferProofImpl(context.userId, data.offerId, data.proofPath);
+  });
+
 export const createWithdrawal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
