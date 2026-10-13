@@ -65,7 +65,7 @@ export function RoleSwitcher() {
           aria-disabled={!advertiserActivated && !marketplaceAvailable}
           data-testid="role-option-advertiser"
           disabled={!advertiserActivated && !marketplaceAvailable}
-          className={`relative z-10 flex h-10 min-h-11 flex-1 items-center justify-center gap-2 rounded-full text-sm font-semibold transition-colors active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 ${
+          className={`relative z-10 flex h-8 flex-1 items-center justify-center gap-1.5 rounded-full text-[13px] font-semibold leading-none transition-colors active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 ${
             isAdvertiser ? "text-white" : "text-muted-foreground"
           }`}
           onClick={handleAdvertise}
