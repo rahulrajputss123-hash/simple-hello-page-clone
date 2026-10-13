@@ -672,9 +672,15 @@ export async function claimOfferImpl(userId: string, offerId: string, proofUrl: 
     throw new Error("This offer is credited automatically once you complete it.");
   }
 
+  // Type 3 (no URL): proof is required
+  const hasClickUrl = Boolean(o.click_url?.trim());
+  if (!hasClickUrl && !proofUrl) {
+    throw new Error("Proof is required for this task.");
+  }
+
   // Proof required for limited-deal offers AND for offers on 'manual_proof' mode.
   const proofRequired = Boolean(o.is_limited_deal) || o.payout_mode === "manual_proof";
-  if (proofRequired && !proofUrl) {
+  if (proofRequired && hasClickUrl && !proofUrl) {
     throw new Error("Please upload proof of completion before submitting.");
   }
 
@@ -701,8 +707,14 @@ export async function claimOfferImpl(userId: string, offerId: string, proofUrl: 
     .select("*")
     .eq("user_id", userId)
     .eq("offer_id", offerId)
+    .in("status", ["started", "pending", "approved"])
     .maybeSingle();
-  if (existing.data) throw new Error("You already submitted this offer for review.");
+  if (existing.data) {
+    if (existing.data.status === "started") {
+      throw new Error("You already started this offer. Upload your proof to complete it.");
+    }
+    throw new Error("You already submitted this offer for review.");
+  }
 
   const created = await supabaseAdmin
     .from("offer_claims")
@@ -711,6 +723,7 @@ export async function claimOfferImpl(userId: string, offerId: string, proofUrl: 
       offer_id: offerId,
       reward_amount: o.reward_amount,
       proof_url: proofUrl,
+      status: "pending",
     } as never)
     .select("*")
     .single();
@@ -723,6 +736,122 @@ export async function claimOfferImpl(userId: string, offerId: string, proofUrl: 
     "offer",
   );
   return created.data;
+}
+
+/** Start an offer claim for URL+proof workflow (Type 2) */
+export async function startOfferClaimImpl(userId: string, offerId: string) {
+  const offer = await supabaseAdmin.from("offers").select("*").eq("id", offerId).single();
+  if (offer.error || !offer.data.is_active) throw new Error("Offer unavailable.");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const o = offer.data as any;
+
+  // Only for manual_proof offers with a URL
+  if (o.payout_mode !== "manual_proof" || !o.click_url?.trim()) {
+    throw new Error("This offer doesn't support the start workflow.");
+  }
+
+  // Deal-group lock check
+  if (o.deal_group_id) {
+    const sibling = await supabaseAdmin
+      .from("offer_claims")
+      .select("id, offers:offer_id(deal_group_id)")
+      .eq("user_id", userId)
+      .neq("status", "rejected");
+    const locked = (sibling.data ?? []).some(
+      (c) =>
+        (c.offers as unknown as { deal_group_id?: string | null } | null)?.deal_group_id ===
+        o.deal_group_id,
+    );
+    if (locked) {
+      throw new Error("You already have a claim in this deal group — only one is allowed.");
+    }
+  }
+
+  const existing = await supabaseAdmin
+    .from("offer_claims")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("offer_id", offerId)
+    .in("status", ["started", "pending", "approved"])
+    .maybeSingle();
+  
+  if (existing.data) {
+    // Idempotent: if already started, return it
+    if (existing.data.status === "started") {
+      return existing.data;
+    }
+    throw new Error("You already submitted this offer.");
+  }
+
+  const created = await supabaseAdmin
+    .from("offer_claims")
+    .insert({
+      user_id: userId,
+      offer_id: offerId,
+      reward_amount: o.reward_amount,
+      status: "started",
+    } as never)
+    .select("*")
+    .single();
+  
+  if (created.error) throw new Error("Could not start this offer.");
+  return created.data;
+}
+
+/** Submit proof for a started claim */
+export async function submitOfferProofImpl(userId: string, offerId: string, proofPath: string) {
+  // Validate proof path belongs to user (same as upload verification)
+  if (!proofPath.startsWith(`offer-proof/${userId}/`)) {
+    throw new Error("Invalid proof path.");
+  }
+
+  const claim = await supabaseAdmin
+    .from("offer_claims")
+    .select("*, offers:offer_id(*)")
+    .eq("user_id", userId)
+    .eq("offer_id", offerId)
+    .eq("status", "started")
+    .maybeSingle();
+
+  if (!claim.data) {
+    throw new Error("No started claim found. Start the offer first.");
+  }
+
+  // Idempotent: if proof already submitted, return success
+  if (claim.data.proof_url) {
+    // Update to pending if somehow still started
+    if (claim.data.status === "started") {
+      await supabaseAdmin
+        .from("offer_claims")
+        .update({ status: "pending", proof_url: proofPath } as never)
+        .eq("id", claim.data.id);
+    }
+    return claim.data;
+  }
+
+  const updated = await supabaseAdmin
+    .from("offer_claims")
+    .update({ 
+      status: "pending", 
+      proof_url: proofPath 
+    } as never)
+    .eq("id", claim.data.id)
+    .select("*")
+    .single();
+
+  if (updated.error) throw new Error("Could not submit proof.");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const offer = claim.data.offers as any;
+  await notify(
+    userId,
+    "Proof submitted",
+    `${offer.title} is pending review. We'll credit it once approved.`,
+    "offer",
+  );
+  
+  return updated.data;
 }
 
 export async function createWithdrawalImpl(userId: string, amount: number, payoutMethodId: string) {
@@ -998,9 +1127,13 @@ export async function adminOverviewImpl() {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(200),
+    // Only show claims that are pending AND have proof (actual review requests)
+    // "started" claims are not ready for review yet
     supabaseAdmin
       .from("offer_claims")
       .select("*, offers:offer_id(title, is_limited_deal, deal_group_id, payout_mode)")
+      .eq("status", "pending")
+      .not("proof_url", "is", null)
       .order("created_at", { ascending: false })
       .limit(200),
     supabaseAdmin

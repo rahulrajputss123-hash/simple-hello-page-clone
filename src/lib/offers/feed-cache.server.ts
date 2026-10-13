@@ -70,6 +70,9 @@ export type FeaturedOffer = {
   payout_mode: "manual" | "manual_proof" | "auto_postback";
   category: string | null;
   tags: ("Hot" | "Trending" | "Easy" | "Popular")[];
+  // User-specific claim status (only present when userId provided)
+  claim_status?: "started" | "pending" | "approved" | "rejected" | null;
+  claim_reject_reason?: string | null;
 };
 
 function imageUrlFromIcon(icon: string | null | undefined): string | null {
@@ -550,6 +553,37 @@ export type FeaturedFeedResult = {
   offers: FeaturedOffer[];
 };
 
+/**
+ * Enrich offers with user's claim status (if userId provided).
+ * Adds claim_status and claim_reject_reason to each offer.
+ */
+async function enrichOffersWithClaimStatus(
+  offers: FeaturedOffer[],
+  userId: string | null,
+): Promise<FeaturedOffer[]> {
+  if (!userId || offers.length === 0) return offers;
+
+  const offerIds = offers.map((o) => o.id);
+  const { data: claims } = await supabaseAdmin
+    .from("offer_claims")
+    .select("offer_id, status, reject_reason")
+    .eq("user_id", userId)
+    .in("offer_id", offerIds);
+
+  const claimsByOfferId = new Map(
+    (claims ?? []).map((c) => [c.offer_id, { status: c.status, reject_reason: c.reject_reason }]),
+  );
+
+  return offers.map((offer) => {
+    const claim = claimsByOfferId.get(offer.id);
+    return {
+      ...offer,
+      claim_status: claim?.status ?? null,
+      claim_reject_reason: claim?.reject_reason ?? null,
+    };
+  });
+}
+
 export async function getFeaturedFeedImpl(
   requestedCountry: string | null,
   scope: "home" | "all",
@@ -558,7 +592,11 @@ export async function getFeaturedFeedImpl(
 ): Promise<FeaturedFeedResult> {
   const settings = await getFeedSettingsImpl();
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
-  const offers = await assembleFeaturedImpl(requestedCountry, scope, settings, ip, userId);
+  let offers = await assembleFeaturedImpl(requestedCountry, scope, settings, ip, userId);
+  
+  // Enrich with user's claim status
+  offers = await enrichOffersWithClaimStatus(offers, userId);
+  
   return { country, offers };
 }
 

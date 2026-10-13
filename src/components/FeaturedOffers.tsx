@@ -1,18 +1,21 @@
 import { Gift } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState } from "@/components/States";
 import { OfferCard } from "@/components/OfferCard";
-import { OfferDetailsDialog, type OfferDetailsPayload } from "@/components/OfferDetailsDialog";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
-import { claimOffer } from "@/lib/coinquest.functions";
+import { claimOffer, startOfferClaim, submitOfferProof } from "@/lib/coinquest.functions";
 import { getFeaturedFeed, trackOfferClick } from "@/lib/offers.functions";
 import { useAuth } from "@/lib/auth";
 import { appendAffSub4 } from "@/lib/offers/click-url";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Lazy-load dialog (only shown on click)
+const OfferDetailsDialog = lazy(() => import("@/components/OfferDetailsDialog").then(m => ({ default: m.OfferDetailsDialog })));
+import type { OfferDetailsPayload } from "@/components/OfferDetailsDialog";
 
 const INITIAL_RENDER = 18; // First 6 rows of 3
 const LOAD_MORE = 18; // Append 6 more rows each time
@@ -38,6 +41,8 @@ export function FeaturedOffers({
   
   const queryClient = useQueryClient();
   const claim = useServerFn(claimOffer);
+  const startClaim = useServerFn(startOfferClaim);
+  const submitProof = useServerFn(submitOfferProof);
   const [pending, setPending] = useState<OfferDetailsPayload | null>(null);
   const [burstOfferId, setBurstOfferId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER);
@@ -84,7 +89,7 @@ export function FeaturedOffers({
   }, []);
 
   const mutation = useMutation({
-    mutationFn: async (input: { offerId: string; proofUrl: string | null }) =>
+    mutationFn: async (input: { offerId: string; proofUrl: string | null; hasClickUrl: boolean }) =>
       claim({
         data: {
           offerId: input.offerId,
@@ -94,10 +99,55 @@ export function FeaturedOffers({
     onSuccess: async (_result, input) => {
       setBurstOfferId(input.offerId);
       window.setTimeout(() => setBurstOfferId(null), 900);
+      // Show appropriate success message based on whether offer has click URL
+      if (!input.hasClickUrl) {
+        toast.success("Submitted for review. We'll notify you once it's approved.");
+      }
       await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
     onError: (err: Error) => toast.error(err.message || "Could not submit that claim. Try again."),
+  });
+
+  const startMutation = useMutation({
+    mutationFn: async (offerId: string) => startClaim({ data: { offerId } }),
+    onSuccess: async (result, offerId) => {
+      // Open URL in new tab
+      const offer = offers.find(o => o.id === offerId);
+      if (offer?.click_url) {
+        void trackClick({ data: { offerId } }).catch(() => {});
+        const clickUrl = appendAffSub4(
+          offer.click_url,
+          offer.provider_slug,
+          session?.user.id,
+          offer.external_offer_id,
+        );
+        if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
+      }
+      // Close dialog
+      setPending(null);
+      // Show toast
+      toast.success("Complete the offer, then come back here and upload your proof.");
+      // Invalidate queries
+      await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
+      await queryClient.invalidateQueries({ queryKey: ["featured-feed"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Could not start offer. Try again."),
+  });
+
+  const submitProofMutation = useMutation({
+    mutationFn: async (input: { offerId: string; proofPath: string }) =>
+      submitProof({ data: input }),
+    onSuccess: async (_result, input) => {
+      setBurstOfferId(input.offerId);
+      window.setTimeout(() => setBurstOfferId(null), 900);
+      setPending(null);
+      toast.success("Submitted for review. We'll notify you once it's approved.");
+      await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
+      await queryClient.invalidateQueries({ queryKey: ["featured-feed"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Could not submit proof. Try again."),
   });
 
   // Memoize filtered offers
@@ -130,8 +180,18 @@ export function FeaturedOffers({
       image_url: offer.image_url,
       display_price: offer.display_price,
       display_percent: offer.display_percent,
+      claim_status: offer.claim_status,
+      claim_reject_reason: offer.claim_reject_reason,
     });
   }, []);
+
+  const handleStart = useCallback((offerId: string) => {
+    startMutation.mutate(offerId);
+  }, [startMutation]);
+
+  const handleSubmitProof = useCallback((offerId: string, proofPath: string) => {
+    submitProofMutation.mutate({ offerId, proofPath });
+  }, [submitProofMutation]);
 
   const handleContinue = useCallback((payload: { proofPath?: string | null }) => {
     if (!pending) return;
@@ -144,7 +204,11 @@ export function FeaturedOffers({
     );
     if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
     if (pending.payout_mode !== "auto_postback") {
-      mutation.mutate({ offerId: pending.id, proofUrl: payload.proofPath ?? null });
+      mutation.mutate({ 
+        offerId: pending.id, 
+        proofUrl: payload.proofPath ?? null,
+        hasClickUrl: Boolean(clickUrl)
+      });
     }
     setPending(null);
   }, [pending, mutation, session?.user.id, trackClick]);
@@ -203,13 +267,19 @@ export function FeaturedOffers({
         <div ref={sentinelRef} className="h-px" aria-hidden="true" />
       )}
 
-      <OfferDetailsDialog
-        offer={pending}
-        open={Boolean(pending)}
-        onOpenChange={(open) => !open && setPending(null)}
-        onContinue={handleContinue}
-        isSubmitting={mutation.isPending}
-      />
+      {pending && (
+        <Suspense fallback={null}>
+          <OfferDetailsDialog
+            offer={pending}
+            open={Boolean(pending)}
+            onOpenChange={(open) => !open && setPending(null)}
+            onStart={handleStart}
+            onSubmitProof={handleSubmitProof}
+            onContinue={handleContinue}
+            isSubmitting={mutation.isPending || startMutation.isPending || submitProofMutation.isPending}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

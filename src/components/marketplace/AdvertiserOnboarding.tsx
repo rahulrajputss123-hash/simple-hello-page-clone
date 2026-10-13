@@ -25,10 +25,8 @@ const screens = [
   },
 ] as const;
 
-// Completion is intentionally device-local because this feature adds no database migration.
-export function advertiserOnboardingSeen(userId: string) {
-  return safeStorage.getItem(advertiserOnboardingStorageKey(userId)) === "seen";
-}
+// Re-export util for backwards compatibility
+export { advertiserOnboardingSeen } from "@/lib/marketplace/advertiser-onboarding-utils";
 
 export function AdvertiserOnboarding({
   userId,
