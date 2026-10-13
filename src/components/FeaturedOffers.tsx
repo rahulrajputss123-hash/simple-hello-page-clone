@@ -87,7 +87,7 @@ export function FeaturedOffers({
   }, []);
 
   const mutation = useMutation({
-    mutationFn: async (input: { offerId: string; proofUrl: string | null }) =>
+    mutationFn: async (input: { offerId: string; proofUrl: string | null; hasClickUrl: boolean }) =>
       claim({
         data: {
           offerId: input.offerId,
@@ -97,6 +97,10 @@ export function FeaturedOffers({
     onSuccess: async (_result, input) => {
       setBurstOfferId(input.offerId);
       window.setTimeout(() => setBurstOfferId(null), 900);
+      // Show appropriate success message based on whether offer has click URL
+      if (!input.hasClickUrl) {
+        toast.success("Submitted for review. We'll notify you once it's approved.");
+      }
       await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
@@ -147,7 +151,11 @@ export function FeaturedOffers({
     );
     if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
     if (pending.payout_mode !== "auto_postback") {
-      mutation.mutate({ offerId: pending.id, proofUrl: payload.proofPath ?? null });
+      mutation.mutate({ 
+        offerId: pending.id, 
+        proofUrl: payload.proofPath ?? null,
+        hasClickUrl: Boolean(clickUrl)
+      });
     }
     setPending(null);
   }, [pending, mutation, session?.user.id, trackClick]);

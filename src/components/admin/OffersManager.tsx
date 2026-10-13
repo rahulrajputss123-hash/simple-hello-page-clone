@@ -803,6 +803,9 @@ export function OffersManager() {
                   value={form.clickUrl}
                   onChange={(event) => setForm({ ...form, clickUrl: event.target.value })}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Leave empty for tasks without a link (e.g. make a video). Then payout mode must be Manual + proof.
+                </p>
               </Field>
               <Field label="Countries">
                 <CountryMultiSelect

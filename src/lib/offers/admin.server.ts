@@ -167,6 +167,11 @@ export async function listAdminOffersImpl(input: {
 }
 
 export async function upsertManualOfferImpl(input: ManualOfferInput) {
+  // Guard: offers without click URL must use manual_proof payout mode
+  if (!input.clickUrl && input.payoutMode !== "manual_proof") {
+    throw new Error("Offers without a Click URL must use Manual + proof payout mode.");
+  }
+
   // Server-side reward enforcement for limited-deal offers — never trust the
   // client's rewardAmount, always recompute from actual_cost / % / cap.
   //

@@ -5,7 +5,7 @@ import {
   Gift,
   Info,
   ListChecks,
-  Sparkles,
+  MessageCircle,
   Upload,
   X,
 } from "lucide-react";
@@ -79,6 +79,7 @@ export function OfferDetailsDialog({
   const notAllowed = (offer?.not_allowed ?? "").trim() || DEFAULT_NOT_ALLOWED;
   const proofRequired = Boolean(offer?.is_limited_deal) || offer?.payout_mode === "manual_proof";
   const autoPostback = offer?.payout_mode === "auto_postback";
+  const noRedirect = proofRequired && !offer?.click_url;
 
   const [proofPath, setProofPath] = useState<string | null>(null);
   const [proofName, setProofName] = useState<string | null>(null);
@@ -215,6 +216,11 @@ export function OfferDetailsDialog({
             >
               {offer.requirements}
             </p>
+            {noRedirect && (
+              <p className="mt-2 text-xs text-muted-foreground" data-testid="offer-no-redirect-hint">
+                Complete the task above, then upload a screenshot as proof. You won't be redirected anywhere.
+              </p>
+            )}
           </section>
         )}
 
@@ -310,7 +316,7 @@ export function OfferDetailsDialog({
           data-testid="offer-details-ask-assistant"
           className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
         >
-          <Sparkles className="size-3.5" />
+          <MessageCircle className="size-3.5" />
           Ask the assistant about this offer
         </button>
 
@@ -328,8 +334,13 @@ export function OfferDetailsDialog({
             disabled={isSubmitting || !offer || !canContinue}
             data-testid="offer-details-continue"
           >
-            {autoPostback ? "Open Offer" : isSubmitting ? "Opening…" : "I Understand, Continue"}
-            <ArrowUpRight className="ml-1 size-3.5" />
+            {autoPostback 
+              ? "Open Offer" 
+              : noRedirect 
+                ? (isSubmitting ? "Submitting…" : "Submit for review")
+                : (isSubmitting ? "Opening…" : "I Understand, Continue")
+            }
+            {!noRedirect && <ArrowUpRight className="ml-1 size-3.5" />}
           </Button>
         </DialogFooter>
       </DialogContent>
