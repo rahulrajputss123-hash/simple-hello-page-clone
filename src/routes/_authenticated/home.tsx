@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -29,14 +29,17 @@ import { completeOnboarding } from "@/lib/coinquest.functions";
 import { getDeviceId } from "@/lib/ads";
 import { AVATAR_OPTIONS } from "@/lib/onboarding/premium";
 import { simulatedPayoutSnapshot } from "@/lib/payout-simulation";
-import { AdvertiserDashboard } from "@/components/marketplace/AdvertiserDashboard";
-import { AdvertiserOnboarding, advertiserOnboardingSeen } from "@/components/marketplace/AdvertiserOnboarding";
+import { advertiserOnboardingSeen } from "@/lib/marketplace/advertiser-onboarding-utils";
 import { useRole } from "@/lib/marketplace/role";
 import { safeStorage } from "@/lib/safe-storage";
 import {
   advertiserAccountIsNew,
   advertiserOnboardingActivationKey,
 } from "@/lib/marketplace/advertiser-onboarding";
+
+// Lazy-load advertiser-specific components (only needed for advertiser role)
+const AdvertiserDashboard = lazy(() => import("@/components/marketplace/AdvertiserDashboard").then(m => ({ default: m.AdvertiserDashboard })));
+const AdvertiserOnboarding = lazy(() => import("@/components/marketplace/AdvertiserOnboarding").then(m => ({ default: m.AdvertiserOnboarding })));
 
 const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
 
@@ -137,7 +140,7 @@ function HomePage() {
   return (
   <AppShell subtitle="Earn as you go" bgClass="home-page-bg" home>
   {role === "advertiser" ? (
-  <>
+  <Suspense fallback={null}>
     <AdvertiserDashboard />
     {showAdvertiserOnboarding && session?.user.id && advertiserOverview && (
       <AdvertiserOnboarding
@@ -146,7 +149,7 @@ function HomePage() {
         onComplete={() => setShowAdvertiserOnboarding(false)}
       />
     )}
-  </>
+  </Suspense>
   ) : (
         <>
       {/* Decorative hero orbs — static background gradients */}

@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { toast } from "sonner";
 
 import { QuestCard, type QuestCardQuest, type QuestSessionView } from "@/components/QuestCard";
-import { QuestDetailsDialog } from "@/components/QuestDetailsDialog";
 import { ErrorState } from "@/components/States";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +12,9 @@ import { playRewardedAd } from "@/lib/ads";
 import { reportAdWatched, startQuest } from "@/lib/coinquest.functions";
 import { listActiveQuests, startLockerQuest, startShortlinkStep } from "@/lib/quests.functions";
 import { formatLockReason } from "@/lib/lock-state";
+
+// Lazy-load dialog (only shown on click)
+const QuestDetailsDialog = lazy(() => import("@/components/QuestDetailsDialog").then(m => ({ default: m.QuestDetailsDialog })));
 
 export function StarterQuests() {
   const { session } = useAuth();
@@ -213,15 +215,19 @@ export function StarterQuests() {
         })}
       </div>
 
-      <QuestDetailsDialog
-        quest={pendingQuest}
-        {...(pendingRuntime?.active ? { active: pendingRuntime.active } : {})}
-        credited={pendingRuntime?.credited ?? false}
-        open={Boolean(pendingQuest)}
-        onOpenChange={(open) => !open && setPendingQuest(null)}
-        onContinue={handleContinue}
-        isSubmitting={Boolean(pendingQuest) && busy === pendingQuest?.key}
-      />
+      {pendingQuest && (
+        <Suspense fallback={null}>
+          <QuestDetailsDialog
+            quest={pendingQuest}
+            {...(pendingRuntime?.active ? { active: pendingRuntime.active } : {})}
+            credited={pendingRuntime?.credited ?? false}
+            open={Boolean(pendingQuest)}
+            onOpenChange={(open) => !open && setPendingQuest(null)}
+            onContinue={handleContinue}
+            isSubmitting={Boolean(pendingQuest) && busy === pendingQuest?.key}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

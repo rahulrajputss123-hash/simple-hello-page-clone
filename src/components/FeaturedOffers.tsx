@@ -1,18 +1,21 @@
 import { Gift } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState } from "@/components/States";
 import { OfferCard } from "@/components/OfferCard";
-import { OfferDetailsDialog, type OfferDetailsPayload } from "@/components/OfferDetailsDialog";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
 import { claimOffer } from "@/lib/coinquest.functions";
 import { getFeaturedFeed, trackOfferClick } from "@/lib/offers.functions";
 import { useAuth } from "@/lib/auth";
 import { appendAffSub4 } from "@/lib/offers/click-url";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Lazy-load dialog (only shown on click)
+const OfferDetailsDialog = lazy(() => import("@/components/OfferDetailsDialog").then(m => ({ default: m.OfferDetailsDialog })));
+import type { OfferDetailsPayload } from "@/components/OfferDetailsDialog";
 
 const INITIAL_RENDER = 18; // First 6 rows of 3
 const LOAD_MORE = 18; // Append 6 more rows each time
@@ -203,13 +206,17 @@ export function FeaturedOffers({
         <div ref={sentinelRef} className="h-px" aria-hidden="true" />
       )}
 
-      <OfferDetailsDialog
-        offer={pending}
-        open={Boolean(pending)}
-        onOpenChange={(open) => !open && setPending(null)}
-        onContinue={handleContinue}
-        isSubmitting={mutation.isPending}
-      />
+      {pending && (
+        <Suspense fallback={null}>
+          <OfferDetailsDialog
+            offer={pending}
+            open={Boolean(pending)}
+            onOpenChange={(open) => !open && setPending(null)}
+            onContinue={handleContinue}
+            isSubmitting={mutation.isPending}
+          />
+        </Suspense>
+      )}
     </>
   );
 }
