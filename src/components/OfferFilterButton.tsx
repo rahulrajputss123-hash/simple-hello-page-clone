@@ -1,4 +1,5 @@
 import { Check, ListFilter } from "lucide-react";
+import { startTransition, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -6,6 +7,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 /**
  * Offer-type filter bottom sheet. Used only on the Offers page.
  * Selection is a single value; "All" means no filter.
+ * 
+ * Controlled sheet with smooth animations: closes first, then applies filter
+ * in startTransition to avoid blocking the animation.
  */
 
 export type OfferFilter =
@@ -29,8 +33,21 @@ export function OfferFilterButton({
   value: OfferFilter;
   onChange: (next: OfferFilter) => void;
 }) {
+  const [open, setOpen] = useState(false);
+
+  const handleSelect = (filter: OfferFilter) => {
+    // Close sheet first
+    setOpen(false);
+    // Apply filter after close animation (~180ms)
+    setTimeout(() => {
+      startTransition(() => {
+        onChange(filter);
+      });
+    }, 180);
+  };
+
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button
           type="button"
@@ -43,7 +60,18 @@ export function OfferFilterButton({
           <span className="text-xs font-semibold">{value === "All" ? "Filter" : value}</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="rounded-t-2xl" data-testid="offer-filter-sheet">
+      <SheetContent
+        side="bottom"
+        className="max-h-[85dvh] overflow-y-auto rounded-t-2xl"
+        style={{
+          paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+          animation: "slide-up 200ms ease-out",
+        }}
+        data-testid="offer-filter-sheet"
+      >
+        {/* Drag handle */}
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-muted" />
+        
         <SheetHeader>
           <SheetTitle>Filter offers</SheetTitle>
         </SheetHeader>
@@ -54,7 +82,7 @@ export function OfferFilterButton({
               <li key={filter}>
                 <button
                   type="button"
-                  onClick={() => onChange(filter)}
+                  onClick={() => handleSelect(filter)}
                   data-testid={`offer-filter-option-${filter.replace(/\s+/g, "-").toLowerCase()}`}
                   className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
                     active

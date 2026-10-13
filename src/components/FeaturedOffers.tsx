@@ -1,24 +1,19 @@
 import { Gift } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { EmptyState, ErrorState } from "@/components/States";
 import { OfferCard } from "@/components/OfferCard";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
-import { claimOffer, startOfferClaim, submitOfferProof } from "@/lib/coinquest.functions";
-import { getFeaturedFeed, trackOfferClick } from "@/lib/offers.functions";
-import { useAuth } from "@/lib/auth";
-import { appendAffSub4 } from "@/lib/offers/click-url";
+import { getFeaturedFeed } from "@/lib/offers.functions";
 import { Skeleton } from "@/components/ui/skeleton";
-
-// Lazy-load dialog (only shown on click)
-const OfferDetailsDialog = lazy(() => import("@/components/OfferDetailsDialog").then(m => ({ default: m.OfferDetailsDialog })));
-import type { OfferDetailsPayload } from "@/components/OfferDetailsDialog";
 
 const INITIAL_RENDER = 18; // First 6 rows of 3
 const LOAD_MORE = 18; // Append 6 more rows each time
+
+// Store visible count per scope in module-level Map for scroll restoration
+const visibleCountStore = new Map<string, number>();
 
 export function FeaturedOffers({
   scope = "home",
@@ -30,22 +25,26 @@ export function FeaturedOffers({
   filter?: OfferFilter;
 }) {
   const fetchFeed = useServerFn(getFeaturedFeed);
-  const trackClick = useServerFn(trackOfferClick);
-  const { session } = useAuth();
+  const queryClient = useQueryClient();
+  
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["featured-feed", scope],
     queryFn: () => fetchFeed({ data: { scope } }),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000,
   });
-  
-  const queryClient = useQueryClient();
-  const claim = useServerFn(claimOffer);
-  const startClaim = useServerFn(startOfferClaim);
-  const submitProof = useServerFn(submitOfferProof);
-  const [pending, setPending] = useState<OfferDetailsPayload | null>(null);
-  const [burstOfferId, setBurstOfferId] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER);
+
+  // Restore or initialize visible count
+  const [visibleCount, setVisibleCount] = useState(() => {
+    const stored = visibleCountStore.get(scope);
+    return stored ?? INITIAL_RENDER;
+  });
+
+  // Save visible count when it changes
+  useEffect(() => {
+    visibleCountStore.set(scope, visibleCount);
+  }, [scope, visibleCount]);
+
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Prefetch the "all" feed when "home" scope mounts - delayed to avoid competing with first load
@@ -88,75 +87,16 @@ export function FeaturedOffers({
     return () => observer.disconnect();
   }, []);
 
-  const mutation = useMutation({
-    mutationFn: async (input: { offerId: string; proofUrl: string | null; hasClickUrl: boolean }) =>
-      claim({
-        data: {
-          offerId: input.offerId,
-          ...(input.proofUrl ? { proofUrl: input.proofUrl } : {}),
-        },
-      }),
-    onSuccess: async (_result, input) => {
-      setBurstOfferId(input.offerId);
-      window.setTimeout(() => setBurstOfferId(null), 900);
-      // Show appropriate success message based on whether offer has click URL
-      if (!input.hasClickUrl) {
-        toast.success("Submitted for review. We'll notify you once it's approved.");
-      }
-      await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
-      await queryClient.invalidateQueries({ queryKey: ["profile"] });
-    },
-    onError: (err: Error) => toast.error(err.message || "Could not submit that claim. Try again."),
-  });
-
-  const startMutation = useMutation({
-    mutationFn: async (offerId: string) => startClaim({ data: { offerId } }),
-    onSuccess: async (result, offerId) => {
-      // Open URL in new tab
-      const offer = offers.find(o => o.id === offerId);
-      if (offer?.click_url) {
-        void trackClick({ data: { offerId } }).catch(() => {});
-        const clickUrl = appendAffSub4(
-          offer.click_url,
-          offer.provider_slug,
-          session?.user.id,
-          offer.external_offer_id,
-        );
-        if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
-      }
-      // Close dialog
-      setPending(null);
-      // Show toast
-      toast.success("Complete the offer, then come back here and upload your proof.");
-      // Invalidate queries
-      await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
-      await queryClient.invalidateQueries({ queryKey: ["featured-feed"] });
-    },
-    onError: (err: Error) => toast.error(err.message || "Could not start offer. Try again."),
-  });
-
-  const submitProofMutation = useMutation({
-    mutationFn: async (input: { offerId: string; proofPath: string }) =>
-      submitProof({ data: input }),
-    onSuccess: async (_result, input) => {
-      setBurstOfferId(input.offerId);
-      window.setTimeout(() => setBurstOfferId(null), 900);
-      setPending(null);
-      toast.success("Submitted for review. We'll notify you once it's approved.");
-      await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
-      await queryClient.invalidateQueries({ queryKey: ["profile"] });
-      await queryClient.invalidateQueries({ queryKey: ["featured-feed"] });
-    },
-    onError: (err: Error) => toast.error(err.message || "Could not submit proof. Try again."),
-  });
+  // Use deferred value for filtering to avoid blocking during filter changes
+  const deferredFilter = useDeferredValue(filter);
 
   // Memoize filtered offers
   const offers = useMemo(() => {
     const rawOffers = data?.offers ?? [];
-    return filter && filter !== "All" 
-      ? rawOffers.filter((o) => offerMatchesFilter(filter, o))
+    return deferredFilter && deferredFilter !== "All"
+      ? rawOffers.filter((o) => offerMatchesFilter(deferredFilter, o))
       : rawOffers;
-  }, [data?.offers, filter]);
+  }, [data?.offers, deferredFilter]);
 
   // Memoize visible offers
   const visibleOffers = useMemo(
@@ -164,54 +104,11 @@ export function FeaturedOffers({
     [offers, visibleCount]
   );
 
-  const openOffer = useCallback((offer: typeof offers[number]) => {
-    setPending({
-      id: offer.id,
-      external_offer_id: offer.external_offer_id,
-      title: offer.title,
-      description: offer.description,
-      requirements: offer.requirements,
-      not_allowed: offer.not_allowed,
-      reward_amount: offer.reward_amount,
-      click_url: offer.click_url,
-      provider_slug: offer.provider_slug,
-      is_limited_deal: offer.is_limited_deal,
-      payout_mode: offer.payout_mode,
-      image_url: offer.image_url,
-      display_price: offer.display_price,
-      display_percent: offer.display_percent,
-      claim_status: offer.claim_status,
-      claim_reject_reason: offer.claim_reject_reason,
-    });
-  }, []);
-
-  const handleStart = useCallback((offerId: string) => {
-    startMutation.mutate(offerId);
-  }, [startMutation]);
-
-  const handleSubmitProof = useCallback((offerId: string, proofPath: string) => {
-    submitProofMutation.mutate({ offerId, proofPath });
-  }, [submitProofMutation]);
-
-  const handleContinue = useCallback((payload: { proofPath?: string | null }) => {
-    if (!pending) return;
-    void trackClick({ data: { offerId: pending.id } }).catch(() => {});
-    const clickUrl = appendAffSub4(
-      pending.click_url,
-      pending.provider_slug,
-      session?.user.id,
-      pending.external_offer_id,
-    );
-    if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
-    if (pending.payout_mode !== "auto_postback") {
-      mutation.mutate({ 
-        offerId: pending.id, 
-        proofUrl: payload.proofPath ?? null,
-        hasClickUrl: Boolean(clickUrl)
-      });
-    }
-    setPending(null);
-  }, [pending, mutation, session?.user.id, trackClick]);
+  // Prefetch offer data on card hover/touch
+  const handleCardPrefetch = (offer: typeof offers[number]) => {
+    // Set offer data in cache so the page loads instantly
+    queryClient.setQueryData(["offer", offer.id], offer);
+  };
 
   if (isLoading) {
     return (
@@ -254,8 +151,8 @@ export function FeaturedOffers({
             is_limited_deal={offer.is_limited_deal}
             display_price={offer.display_price}
             display_percent={offer.display_percent}
-            onOpen={() => openOffer(offer)}
-            showBurst={burstOfferId === offer.id}
+            claim_status={offer.claim_status}
+            onPrefetch={() => handleCardPrefetch(offer)}
             isEager={index < 6}
             isPriority={index < 3}
           />
@@ -265,20 +162,6 @@ export function FeaturedOffers({
       {/* Sentinel for progressive loading - only render if more offers available */}
       {visibleCount < offers.length && (
         <div ref={sentinelRef} className="h-px" aria-hidden="true" />
-      )}
-
-      {pending && (
-        <Suspense fallback={null}>
-          <OfferDetailsDialog
-            offer={pending}
-            open={Boolean(pending)}
-            onOpenChange={(open) => !open && setPending(null)}
-            onStart={handleStart}
-            onSubmitProof={handleSubmitProof}
-            onContinue={handleContinue}
-            isSubmitting={mutation.isPending || startMutation.isPending || submitProofMutation.isPending}
-          />
-        </Suspense>
       )}
     </>
   );

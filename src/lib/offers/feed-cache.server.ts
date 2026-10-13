@@ -600,6 +600,57 @@ export async function getFeaturedFeedImpl(
   return { country, offers };
 }
 
+/**
+ * Get a single offer by ID with user's claim status.
+ * Returns the same shape as a feed item.
+ */
+export async function getOfferByIdImpl(
+  offerId: string,
+  userId: string | null,
+): Promise<FeaturedOffer | null> {
+  const hasImageUrl = await offersHasImageUrl();
+  
+  const { data: offer } = await supabaseAdmin
+    .from("offers")
+    .select("*")
+    .eq("id", offerId)
+    .eq("is_active", true)
+    .single();
+
+  if (!offer) return null;
+
+  // Convert to FeaturedOffer shape
+  const featuredOffer: FeaturedOffer = {
+    id: offer.id,
+    external_offer_id: offer.external_offer_id,
+    title: offer.title,
+    description: offer.description ?? "",
+    requirements: offer.requirements ?? "",
+    not_allowed: offer.not_allowed ?? "",
+    icon: offer.icon ?? "",
+    image_url: hasImageUrl ? imageUrlFromIcon(offer.image_url) : imageUrlFromIcon(offer.icon),
+    reward_amount: Number(offer.reward_amount),
+    display_price: offer.display_price,
+    display_percent: offer.display_percent,
+    click_url: offer.click_url,
+    source: "manual",
+    provider_id: offer.provider_id,
+    provider_slug: null,
+    is_limited_deal: offer.is_limited_deal ?? false,
+    deal_group_id: offer.deal_group_id,
+    actual_cost: offer.actual_cost ? Number(offer.actual_cost) : null,
+    payout_percentage: Number(offer.payout_percentage ?? 110),
+    max_payout_cap: offer.max_payout_cap ? Number(offer.max_payout_cap) : null,
+    payout_mode: (offer.payout_mode as "manual" | "manual_proof" | "auto_postback") ?? "manual",
+    category: offer.category,
+    tags: [],
+  };
+
+  // Enrich with user's claim status
+  const enriched = await enrichOffersWithClaimStatus([featuredOffer], userId);
+  return enriched[0] ?? null;
+}
+
 /** Clear the assembled feed cache (call after admin offer edits) */
 export function clearAssembledCache() {
   _assembledCache.clear();

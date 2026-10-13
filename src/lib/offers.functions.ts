@@ -172,6 +172,15 @@ export const getFeaturedFeed = createServerFn({ method: "POST" })
     return getFeaturedFeedImpl(country, data.scope, ip, context.userId);
   });
 
+/** Authenticated: get single offer by ID with user's claim status */
+export const getOfferById = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ offerId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { getOfferByIdImpl } = await import("./offers/feed-cache.server");
+    return getOfferByIdImpl(data.offerId, context.userId);
+  });
+
 /** Admin: read feed-automation settings + per-network config + cache freshness. */
 export const getFeedAutomation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
