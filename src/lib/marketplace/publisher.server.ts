@@ -167,7 +167,7 @@ export async function listMySubmissionsImpl(userId: string): Promise<SubmissionV
 }
 
 export async function getCampaignForEarnerImpl(userId: string, campaignId: string) {
-  const { data: campaign, error } = await mktDbPublisher.from("campaigns").select("id,name,summary,publisher_reward,verification_mode,proof_description,proof_min_images,proof_max_images,proof_fields,proof_requirements,max_completions,completions_count,countries").eq("id", campaignId).eq("status", "active").maybeSingle();
+  const { data: campaign, error } = await mktDbPublisher.from("campaigns").select("id,name,summary,publisher_reward,verification_mode,proof_description,proof_min_images,proof_max_images,proof_fields,proof_requirements,max_completions,completions_count,countries,campaign_options!left(proof_example_url)").eq("id", campaignId).eq("status", "active").maybeSingle();
   if (error) throw new Error(error.message);
   if (!campaign) return null;
   const { data: click, error: clickError } = await mktDbPublisher.from("campaign_clicks").select("click_id,status").eq("campaign_id", campaignId).eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -264,6 +264,27 @@ export async function submitProofImpl(
       p_note: input.userNote || null,
     });
 
+    // Fire-and-forget notification to advertiser about new proof
+    // Get campaign and advertiser info
+    void (async () => {
+      try {
+        const { data: submission } = await mktDb
+          .from("campaign_submissions")
+          .select("campaign_id, campaigns!inner(advertiser_id, name)")
+          .eq("id", result.submission_id)
+          .maybeSingle();
+        
+        if (submission) {
+          const { notifyProofWaitingForReview } = await import("./notifications.server");
+          const campaign = (submission.campaigns as any);
+          void notifyProofWaitingForReview(campaign.advertiser_id, campaign.name);
+        }
+      } catch (err) {
+        // Silent fail - don't break the main flow
+        console.error("[submitProof] Failed to send notification:", err);
+      }
+    })();
+
     return { submissionId: result.submission_id };
   } catch (err) {
     if (err instanceof MktRpcError) {
@@ -311,6 +332,8 @@ function humanSubmissionError(code: string): string {
       return "You already started this campaign.";
     case "MKT_CAMPAIGN_FULL":
       return "This campaign reached its completion limit.";
+    case "MKT_DAILY_LIMIT":
+      return "Today's slots for this task are full. Try again later.";
     case "MKT_SUBMISSION_NOT_FOUND":
       return "Submission not found.";
     case "MKT_CLICK_NOT_FOUND":

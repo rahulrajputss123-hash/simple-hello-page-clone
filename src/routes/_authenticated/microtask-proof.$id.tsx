@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -148,6 +149,17 @@ function ProofSubmissionPage() {
         {c.proof_description && (
           <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
             {c.proof_description}
+          </div>
+        )}
+
+        {/* @ts-ignore: campaign_options is loaded as left join */}
+        {c.campaign_options?.[0]?.proof_example_url && (
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Example of a good proof:</Label>
+            <div className="overflow-hidden rounded-xl border border-border">
+              {/* @ts-ignore */}
+              <img src={c.campaign_options[0].proof_example_url} alt="Proof example" className="w-full object-contain bg-background-alt" />
+            </div>
           </div>
         )}
 

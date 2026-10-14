@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { PlusCircle, Star, X } from "lucide-react";
+import { PlusCircle, Star, X, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -18,6 +18,7 @@ import { PostbackSecretModal } from "@/components/marketplace/PostbackSecretModa
 import { createCampaign, listCategories } from "@/lib/marketplace.functions";
 import { useRole } from "@/lib/marketplace/role";
 import { campaignTotals } from "@/lib/marketplace/pricing";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/advertiser/create")({
   head: () => ({ meta: [{ title: "Create Campaign — CashGPT" }] }),
@@ -90,6 +91,15 @@ function CreateCampaignPage() {
   const [estimatedMinutes, setEstimatedMinutes] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [reviewWindow, setReviewWindow] = useState(24); // Default 24h
+  const [proofExampleFile, setProofExampleFile] = useState<File | null>(null);
+  const [proofExampleUrl, setProofExampleUrl] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [startTime, setStartTime] = useState("00:00");
+  const [endDate, setEndDate] = useState("");
+  const [endTime, setEndTime] = useState("23:59");
+  const [devices, setDevices] = useState<string[]>([]); // android, ios, desktop
+  const [eligibilityNote, setEligibilityNote] = useState("");
+  const [dailyLimit, setDailyLimit] = useState("");
   const [featured, setFeatured] = useState(false);
   const [featuredDays, setFeaturedDays] = useState("7");
   const [trackingUrl, setTrackingUrl] = useState("");
@@ -173,8 +183,39 @@ function CreateCampaignPage() {
   };
 
   const mutation = useMutation({
-    mutationFn: () =>
-      createFn({
+    mutationFn: async () => {
+      let uploadedExampleUrl: string | undefined;
+
+      // Upload proof example if provided
+      if (proofExampleFile) {
+        const path = `${overview?.account?.userId}/${Date.now()}-${proofExampleFile.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("campaign-proof-examples")
+          .upload(path, proofExampleFile, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(`Failed to upload proof example: ${uploadError.message}`);
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("campaign-proof-examples")
+          .getPublicUrl(uploadData.path);
+        
+        uploadedExampleUrl = publicUrl;
+      }
+
+      // Build dates in UTC
+      const startsAt = startDate && startTime
+        ? new Date(`${startDate}T${startTime}`).toISOString()
+        : undefined;
+      const endsAt = endDate && endTime
+        ? new Date(`${endDate}T${endTime}`).toISOString()
+        : undefined;
+
+      return createFn({
         data: {
           title: title.trim(),
           description: description.trim(),
@@ -197,9 +238,16 @@ function CreateCampaignPage() {
           proofFields: verification === "proof" && proofFields.length > 0 ? proofFields : undefined,
           // Advanced settings
           reviewWindow: verification === "proof" && reviewWindow ? reviewWindow : undefined,
+          proofExampleUrl: uploadedExampleUrl || proofExampleUrl || undefined,
+          startsAt,
+          endsAt,
+          devices: devices.length > 0 ? devices : undefined,
+          eligibilityNote: eligibilityNote.trim() || undefined,
+          dailyLimit: dailyLimit ? Number(dailyLimit) : undefined,
           rulesAccepted,
         },
-      }),
+      });
+    },
     onSuccess: async (result) => {
       await Promise.all([refreshOverview(), queryClient.invalidateQueries({ queryKey: ["my-campaigns"] })]);
       
@@ -275,6 +323,14 @@ function CreateCampaignPage() {
           }
           if (verification === "auto" && !trackingUrl.includes("{click_id}")) {
             toast.error("Tracking URL must contain {click_id} placeholder");
+            return;
+          }
+          if (startDate && endDate && new Date(`${endDate}T${endTime}`) <= new Date(`${startDate}T${startTime}`)) {
+            toast.error("End date must be after start date");
+            return;
+          }
+          if (dailyLimit && (Number(dailyLimit) < 1 || Number(dailyLimit) > slotsNum)) {
+            toast.error(`Daily limit must be between 1 and ${slotsNum}`);
             return;
           }
           if (verification === "proof") {
@@ -614,6 +670,158 @@ function CreateCampaignPage() {
                   </select>
                   <p className="text-[11px] text-muted-foreground">
                     If you do not review a submission in this time, it is approved automatically and the earner is paid.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="c-proof-example">Proof example (optional)</Label>
+                  <div className="space-y-2">
+                    {!proofExampleFile && !proofExampleUrl && (
+                      <label
+                        htmlFor="c-proof-example"
+                        className="flex cursor-pointer items-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
+                      >
+                        <Upload className="size-4" />
+                        <span>Upload example image (max 2 MB)</span>
+                        <input
+                          id="c-proof-example"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 2 * 1024 * 1024) {
+                                toast.error("Image must be under 2 MB");
+                                return;
+                              }
+                              setProofExampleFile(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                    {proofExampleFile && (
+                      <div className="flex items-center justify-between rounded-xl border border-border bg-muted/50 p-3 text-sm">
+                        <span className="truncate">{proofExampleFile.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setProofExampleFile(null)}
+                          className="text-destructive hover:text-destructive/80"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Show publishers an example of what a good proof looks like
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Start & end dates (optional)</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        placeholder="Start date"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        placeholder="End date"
+                        min={startDate || undefined}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Campaign will automatically complete at end date
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Device targeting (optional)</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["android", "ios", "desktop"] as const).map((device) => (
+                      <label
+                        key={device}
+                        className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-2 text-xs font-medium transition-colors ${
+                          devices.includes(device)
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={devices.includes(device)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setDevices([...devices, device]);
+                            } else {
+                              setDevices(devices.filter((d) => d !== device));
+                            }
+                          }}
+                          className="hidden"
+                        />
+                        {device === "android" ? "Android" : device === "ios" ? "iOS" : "Desktop"}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Leave empty to allow all devices
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="c-eligibility-note">Eligibility note (optional)</Label>
+                  <Textarea
+                    id="c-eligibility-note"
+                    rows={2}
+                    maxLength={300}
+                    placeholder="e.g. Must be a new user, Only for users 18+"
+                    value={eligibilityNote}
+                    onChange={(e) => setEligibilityNote(e.target.value)}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Additional requirements or restrictions (max 300 chars)
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="c-daily-limit">Daily completion limit (optional)</Label>
+                  <Input
+                    id="c-daily-limit"
+                    type="number"
+                    min={1}
+                    max={Number(slots) || 100}
+                    placeholder="e.g. 20"
+                    value={dailyLimit}
+                    onChange={(e) => setDailyLimit(e.target.value)}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Max completions per rolling 24 hours (between 1 and {slots || "max"} slots)
                   </p>
                 </div>
               </div>

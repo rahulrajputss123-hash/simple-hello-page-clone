@@ -847,6 +847,12 @@ export const createCampaignInput = z.object({
   })).max(5).optional(),
   // Advanced settings
   reviewWindow: z.number().int().min(1).max(720).optional(), // Review window in hours
+  proofExampleUrl: z.string().url().optional(), // Public URL to example proof image
+  startsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
+  endsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
+  devices: z.array(z.enum(["android", "ios", "desktop"])).max(3).optional(),
+  eligibilityNote: z.string().trim().max(300).optional(),
+  dailyLimit: z.number().int().min(1).optional(), // Max completions per rolling 24h
   // Offer rules confirmation
   rulesAccepted: z.boolean(),
 })
@@ -866,9 +872,13 @@ export const createCampaignInput = z.object({
       if (new Set(keys).size !== keys.length) return false;
     }
   }
+  // Validate date range
+  if (data.startsAt && data.endsAt && new Date(data.endsAt) <= new Date(data.startsAt)) {
+    return false;
+  }
   return true;
 }, {
-  message: "Invalid proof configuration: ensure proofDescription is provided, at least one proof method (images or fields), no duplicate field keys, and max >= min images",
+  message: "Invalid proof configuration: ensure proofDescription is provided, at least one proof method (images or fields), no duplicate field keys, max >= min images, and end date after start date",
 });
 export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
 
@@ -999,6 +1009,10 @@ export async function createCampaignImpl(
     steps: [{ text: "Complete the task" }],
     verification_mode: input.verification === "auto" ? "auto" : "manual_proof",
     countries: input.countries,
+    devices: input.devices || [],
+    eligibility_notes: input.eligibilityNote || null,
+    starts_at: input.startsAt || null,
+    ends_at: input.endsAt || null,
     publisher_reward: input.reward,
     max_completions: maxCompletions,
     // Do NOT set budget_allocated - RPC does it
@@ -1053,14 +1067,25 @@ export async function createCampaignImpl(
     throw err;
   }
 
-  // Step 2.5: Store campaign options if review window specified
-  if (input.verification === "proof" && input.reviewWindow) {
-    const { error: optionsError } = await mktDb
+  // Step 2.5: Store campaign options if advanced settings specified
+  if (input.verification === "proof" && (input.reviewWindow || input.proofExampleUrl || input.dailyLimit)) {
+    const optionsData: Record<string, any> = {
+      campaign_id: campaign.id,
+    };
+    
+    if (input.reviewWindow) {
+      optionsData.review_window_hours = input.reviewWindow;
+    }
+    if (input.proofExampleUrl) {
+      optionsData.proof_example_url = input.proofExampleUrl;
+    }
+    if (input.dailyLimit && input.dailyLimit <= maxCompletions) {
+      optionsData.daily_limit = input.dailyLimit;
+    }
+
+    const { error: optionsError } = await supabaseService
       .from("campaign_options")
-      .upsert({
-        campaign_id: campaign.id,
-        review_window_hours: input.reviewWindow,
-      });
+      .upsert(optionsData);
 
     if (optionsError) {
       // Non-fatal: log but don't fail campaign creation
@@ -1153,6 +1178,8 @@ export function humanMktError(code: string): string {
       return "Your advertiser account was not found.";
     case "MKT_DUPLICATE_FEE":
       return "This campaign fee has already been charged.";
+    case "MKT_DAILY_LIMIT":
+      return "Daily completion limit reached for this campaign.";
     default:
       return "That didn't work. Please try again.";
   }
@@ -1275,10 +1302,15 @@ export async function reviewSubmissionImpl(
   decision: "approved" | "rejected",
   reason?: string,
 ): Promise<void> {
-  // Verify ownership through campaign
+  // Verify ownership through campaign and get data for notifications
   const { data: submission, error: subErr } = await mktDb
     .from("campaign_submissions")
-    .select("campaign_id, campaigns!inner(advertiser_id)")
+    .select(`
+      campaign_id,
+      publisher_id,
+      publisher_reward,
+      campaigns!inner(advertiser_id, name)
+    `)
     .eq("id", submissionId)
     .maybeSingle();
 
@@ -1286,7 +1318,8 @@ export async function reviewSubmissionImpl(
     throw new DepositError("NOT_FOUND", "Submission not found.");
   }
 
-  if ((submission.campaigns as any).advertiser_id !== userId) {
+  const campaign = (submission.campaigns as any);
+  if (campaign.advertiser_id !== userId) {
     throw new DepositError("NOT_OWNER", "That submission isn't for your campaign.");
   }
 
@@ -1304,6 +1337,14 @@ export async function reviewSubmissionImpl(
       p_decision: decision,
       p_reason: decision === "rejected" ? reason : null,
     });
+
+    // Fire-and-forget notification to earner
+    const { notifyProofApproved, notifyProofRejected } = await import("./notifications.server");
+    if (decision === "approved") {
+      void notifyProofApproved(submission.publisher_id, campaign.name, submission.publisher_reward);
+    } else {
+      void notifyProofRejected(submission.publisher_id, campaign.name, reason);
+    }
   } catch (err) {
     if (err instanceof MktRpcError) {
       // Provide human-readable error messages
@@ -1318,6 +1359,39 @@ export async function reviewSubmissionImpl(
           "This submission has already been reviewed."
         );
       }
+      throw new DepositError(err.code, humanMktError(err.code));
+    }
+    throw err;
+  }
+}
+
+/* ---------------------------------------------------------------- budget top-up */
+
+export const addCampaignBudgetInput = z.object({
+  campaignId: z.string().uuid(),
+  additionalSlots: z.number().int().min(1).max(10000),
+});
+export type AddCampaignBudgetInput = z.infer<typeof addCampaignBudgetInput>;
+
+/**
+ * Add budget (slots) to an existing active or paused campaign.
+ * Uses mkt_add_budget RPC which allocates budget from advertiser balance
+ * at current pricing and creates new tranches.
+ */
+export async function addCampaignBudgetImpl(
+  userId: string,
+  input: AddCampaignBudgetInput,
+): Promise<{ success: boolean }> {
+  try {
+    await mktRpc("mkt_add_budget", {
+      p_campaign_id: input.campaignId,
+      p_actor: userId,
+      p_completions: input.additionalSlots,
+    });
+
+    return { success: true };
+  } catch (err) {
+    if (err instanceof MktRpcError) {
       throw new DepositError(err.code, humanMktError(err.code));
     }
     throw err;

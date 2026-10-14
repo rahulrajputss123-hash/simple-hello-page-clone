@@ -229,6 +229,13 @@ export async function reviewCampaignImpl(
   decision: "approved" | "rejected",
   note: string,
 ): Promise<void> {
+  // Get campaign data for notifications
+  const { data: campaign } = await mktDb
+    .from("campaigns")
+    .select("advertiser_id, name")
+    .eq("id", campaignId)
+    .maybeSingle();
+
   try {
     await mktRpc("mkt_review_campaign", {
       p_campaign_id: campaignId,
@@ -236,6 +243,16 @@ export async function reviewCampaignImpl(
       p_decision: decision,
       p_note: note,
     });
+
+    // Fire-and-forget notification to advertiser
+    if (campaign) {
+      const { notifyCampaignApproved, notifyCampaignRejected } = await import("./notifications.server");
+      if (decision === "approved") {
+        void notifyCampaignApproved(campaign.advertiser_id, campaign.name);
+      } else {
+        void notifyCampaignRejected(campaign.advertiser_id, campaign.name, note);
+      }
+    }
   } catch (err) {
     if (err instanceof MktRpcError) {
       throw new AdminActionError(err.code, humanAdminError(err.code));
@@ -261,6 +278,13 @@ export async function reviewProofImpl(
     throw new AdminActionError("REASON_REQUIRED", "Reason is required when rejecting a submission.");
   }
 
+  // Get submission data for notifications
+  const { data: submission } = await mktDb
+    .from("campaign_submissions")
+    .select("publisher_id, publisher_reward, campaigns!inner(name)")
+    .eq("id", submissionId)
+    .maybeSingle();
+
   try {
     await mktRpc("mkt_decide_submission", { // SINGLE function!
       p_submission_id: submissionId,
@@ -269,6 +293,17 @@ export async function reviewProofImpl(
       p_decision: decision,
       p_reason: reason || null,
     });
+
+    // Fire-and-forget notification to earner
+    if (submission) {
+      const { notifyProofApproved, notifyProofRejected } = await import("./notifications.server");
+      const campaign = (submission.campaigns as any);
+      if (decision === "approved") {
+        void notifyProofApproved(submission.publisher_id, campaign.name, submission.publisher_reward);
+      } else {
+        void notifyProofRejected(submission.publisher_id, campaign.name, reason || undefined);
+      }
+    }
   } catch (err) {
     if (err instanceof MktRpcError) {
       throw new AdminActionError(err.code, humanAdminError(err.code));
