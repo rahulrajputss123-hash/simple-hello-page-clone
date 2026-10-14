@@ -157,15 +157,14 @@ export function WebLanding() {
           </nav>
 
           <nav className="flex items-center gap-2" aria-label="Account">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 px-3 text-[#475569] hover:text-[#0F172A]"
+            <button
+              type="button"
+              className="h-9 rounded-xl px-3 text-sm font-semibold text-[#475569] transition-colors hover:bg-slate-100 hover:text-[#0F172A]"
               onClick={() => goToAuth("signin")}
               data-testid="header-login"
             >
               Log in
-            </Button>
+            </button>
             <button
               type="button"
               onClick={() => goToAuth("signup")}
