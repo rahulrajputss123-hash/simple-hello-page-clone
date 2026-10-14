@@ -1116,3 +1116,135 @@ html[data-native="1"] [data-web-only] {
     transform: translateY(0);
   }
 }
+
+/* ==========================================================================
+   Daylight Gamified Fintech — Landing page additions
+   Hardware-accelerated, spring-like transitions for the redesigned landing.
+   These classes are appended after the existing design system.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Range input custom track — used by PotentialCalculator sliders
+   -------------------------------------------------------------------------- */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: #E2E8F0;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid currentColor;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+  cursor: pointer;
+  transition: transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid currentColor;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   3D Quest Card stack — spring bounce animation on claim
+   -------------------------------------------------------------------------- */
+@keyframes quest-claim-bounce {
+  0%   { transform: scale(1) translateY(0); }
+  30%  { transform: scale(1.03) translateY(-8px); }
+  55%  { transform: scale(0.98) translateY(-2px); }
+  75%  { transform: scale(1.01) translateY(-5px); }
+  100% { transform: scale(1) translateY(-6px); }
+}
+
+/* --------------------------------------------------------------------------
+   Balance counter tick-up glow
+   -------------------------------------------------------------------------- */
+@keyframes balance-glow {
+  0%   { text-shadow: 0 0 0 transparent; }
+  50%  { text-shadow: 0 0 12px rgba(16, 185, 129, 0.45); }
+  100% { text-shadow: 0 0 0 transparent; }
+}
+.balance-tick { animation: balance-glow 0.6s ease-out; }
+
+/* --------------------------------------------------------------------------
+   Hero visual swap — smooth crossfade when role switches
+   -------------------------------------------------------------------------- */
+@keyframes role-fade-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.role-fade-in {
+  animation: role-fade-in 0.35s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  will-change: transform, opacity;
+}
+
+/* --------------------------------------------------------------------------
+   Bento card hover lift — matches the app's surface-card hover
+   -------------------------------------------------------------------------- */
+@media (hover: hover) {
+  [data-testid="bento-how-earn"],
+  [data-testid="bento-advertisers"],
+  [data-testid="bento-faq"] {
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.25s ease;
+    will-change: transform;
+  }
+  [data-testid="bento-how-earn"]:hover,
+  [data-testid="bento-advertisers"]:hover,
+  [data-testid="bento-faq"]:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(15, 23, 42, 0.09);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Live activity pulse list items — slide-in from top
+   -------------------------------------------------------------------------- */
+@keyframes activity-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+[data-testid="bento-live-activity"] li:first-child {
+  animation: activity-slide-in 0.4s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+/* --------------------------------------------------------------------------
+   Reduced motion — flatten all landing animations safely
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .role-fade-in,
+  .balance-tick,
+  [data-testid="bento-live-activity"] li:first-child {
+    animation: none !important;
+  }
+  [data-testid="bento-how-earn"],
+  [data-testid="bento-advertisers"],
+  [data-testid="bento-faq"] {
+    transition: none !important;
+    transform: none !important;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    transition: none;
+  }
+}
