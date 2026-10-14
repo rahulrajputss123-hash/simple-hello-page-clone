@@ -9,10 +9,18 @@ import { SHOWCASE_OFFERS, type ShowcaseOffer } from "@/components/landing/landin
  * No overlay chip is drawn on the art: each panel already carries its own circular
  * badge in the lower-right corner.
  */
-function OfferCard({ offer, compact, index }: { offer: ShowcaseOffer; compact: boolean; index: number }) {
+function OfferCard({
+  offer,
+  compact,
+  index,
+}: {
+  offer: ShowcaseOffer;
+  compact: boolean;
+  index: number;
+}) {
   // First 2 cards are above the fold, load eagerly
   const eager = index < 2;
-  
+
   return (
     <li
       className={`surface-card press-feedback group relative flex flex-col overflow-hidden !p-0 shadow-soft transition-all duration-200 hover:-translate-y-1 hover:shadow-gold ${

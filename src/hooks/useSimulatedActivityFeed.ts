@@ -296,12 +296,12 @@ function pickWeighted(tiers: ActivityTiers): ActivityItem | null {
  */
 function pickAvatar(): string | null {
   if (AVATAR_OPTIONS.length === 0) return null;
-  
+
   for (let attempt = 0; attempt < 3; attempt++) {
     const avatar = pickOne(AVATAR_OPTIONS);
     if (avatar?.imageUrl) return avatar.imageUrl;
   }
-  
+
   // Fallback to the first avatar if random picks somehow all failed
   return AVATAR_OPTIONS[0]?.imageUrl ?? null;
 }

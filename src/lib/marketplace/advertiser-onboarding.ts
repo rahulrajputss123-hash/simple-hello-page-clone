@@ -13,9 +13,12 @@ export function getAdvertiserOnboardingContent(overview: AdvertiserOnboardingOve
   const percent = Math.max(0, overview.userBonusPercent);
   const exampleDeposit = Math.max(0, overview.minDepositUsd);
   const exampleBonus = Math.round(exampleDeposit * (percent / 100) * 100) / 100;
-  const endsAt = overview.promoEndsAt && new Date(overview.promoEndsAt).getTime() > Date.now()
-    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(overview.promoEndsAt))
-    : null;
+  const endsAt =
+    overview.promoEndsAt && new Date(overview.promoEndsAt).getTime() > Date.now()
+      ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+          new Date(overview.promoEndsAt),
+        )
+      : null;
 
   return bonusEligible
     ? {
@@ -26,7 +29,8 @@ export function getAdvertiserOnboardingContent(overview: AdvertiserOnboardingOve
       }
     : {
         title: "Build Your Next Campaign",
-        description: "Create campaigns, reach CashGPT members, and manage your campaign funds from one advertiser dashboard.",
+        description:
+          "Create campaigns, reach CashGPT members, and manage your campaign funds from one advertiser dashboard.",
         bonusEligible: false,
         percent: 0,
       };

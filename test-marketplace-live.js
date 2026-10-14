@@ -1,7 +1,7 @@
 /**
  * Live Database Test Script for Marketplace Phase 3-5
  * Plain JavaScript version - no TypeScript compilation needed
- * 
+ *
  * Run with: node test-marketplace-live.js
  */
 
@@ -36,7 +36,10 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error("❌ Missing environment variables!");
   console.error("Required: VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY");
-  console.error("\nFound env vars:", Object.keys(process.env).filter(k => k.includes("SUPABASE")));
+  console.error(
+    "\nFound env vars:",
+    Object.keys(process.env).filter((k) => k.includes("SUPABASE")),
+  );
   process.exit(1);
 }
 
@@ -69,10 +72,7 @@ async function setupTestUsers() {
   console.log("📝 Setting up test users...\n");
 
   // Get any user from profiles to use as advertiser
-  const { data: users, error } = await supabase
-    .from("profiles")
-    .select("id, email, role")
-    .limit(3);
+  const { data: users, error } = await supabase.from("profiles").select("id, email, role").limit(3);
 
   if (error || !users || users.length === 0) {
     console.error("❌ Failed to fetch users:", error?.message);
@@ -83,10 +83,14 @@ async function setupTestUsers() {
   // Assign roles
   TEST_ADVERTISER_ID = users[0].id;
   TEST_PUBLISHER_ID = users.length > 1 ? users[1].id : users[0].id;
-  TEST_ADMIN_ID = users.find(u => u.role === "admin")?.id || users[0].id;
+  TEST_ADMIN_ID = users.find((u) => u.role === "admin")?.id || users[0].id;
 
   console.log("✅ Test Advertiser:", TEST_ADVERTISER_ID, users[0].email);
-  console.log("✅ Test Publisher:", TEST_PUBLISHER_ID, users.length > 1 ? users[1].email : users[0].email);
+  console.log(
+    "✅ Test Publisher:",
+    TEST_PUBLISHER_ID,
+    users.length > 1 ? users[1].email : users[0].email,
+  );
   console.log("✅ Test Admin:", TEST_ADMIN_ID);
   console.log();
 }
@@ -128,13 +132,10 @@ async function testPhase3_CreateCampaign() {
     // Test 2: Submit for review using mkt_submit_campaign
     console.log("\n2. Submitting campaign for review (mkt_submit_campaign)...");
 
-    const { data: submitResult, error: submitError } = await supabase.rpc(
-      "mkt_submit_campaign",
-      {
-        p_campaign_id: createdCampaignId,
-        p_actor: TEST_ADVERTISER_ID,
-      }
-    );
+    const { data: submitResult, error: submitError } = await supabase.rpc("mkt_submit_campaign", {
+      p_campaign_id: createdCampaignId,
+      p_actor: TEST_ADVERTISER_ID,
+    });
 
     if (submitError) {
       console.error("❌ mkt_submit_campaign failed:", submitError.message);
@@ -146,15 +147,12 @@ async function testPhase3_CreateCampaign() {
     // Test 3: Admin review campaign
     console.log("\n3. Admin reviewing campaign (mkt_review_campaign)...");
 
-    const { data: reviewResult, error: reviewError } = await supabase.rpc(
-      "mkt_review_campaign",
-      {
-        p_campaign_id: createdCampaignId,
-        p_admin: TEST_ADMIN_ID,
-        p_decision: "approved",
-        p_note: "Test approval - looks good!",
-      }
-    );
+    const { data: reviewResult, error: reviewError } = await supabase.rpc("mkt_review_campaign", {
+      p_campaign_id: createdCampaignId,
+      p_admin: TEST_ADMIN_ID,
+      p_decision: "approved",
+      p_note: "Test approval - looks good!",
+    });
 
     if (reviewError) {
       console.error("❌ mkt_review_campaign failed:", reviewError.message);
@@ -194,10 +192,7 @@ async function testPhase4_ManualProof() {
     // Test 1: Publisher starts campaign (mkt_start)
     console.log("\n1. Publisher starting campaign (mkt_start)...");
 
-    const ipHash = crypto
-      .createHash("sha256")
-      .update("192.168.1.100")
-      .digest("hex");
+    const ipHash = crypto.createHash("sha256").update("192.168.1.100").digest("hex");
 
     const { data: startResult, error: startError } = await supabase.rpc("mkt_start", {
       p_campaign_id: createdCampaignId,
@@ -220,16 +215,13 @@ async function testPhase4_ManualProof() {
     // Test 2: Publisher submits proof (mkt_submit_proof)
     console.log("\n2. Publisher submitting proof (mkt_submit_proof)...");
 
-    const { data: proofResult, error: proofError } = await supabase.rpc(
-      "mkt_submit_proof",
-      {
-        p_click_id: createdClickId,
-        p_user_id: TEST_PUBLISHER_ID, // NOT publisher_id!
-        p_paths: ["https://example.com/proof1.jpg", "https://example.com/proof2.jpg"], // ARRAY!
-        p_fields: { task_completed: true, time_spent: "5 minutes" },
-        p_note: "I completed this task successfully. Please review!",
-      }
-    );
+    const { data: proofResult, error: proofError } = await supabase.rpc("mkt_submit_proof", {
+      p_click_id: createdClickId,
+      p_user_id: TEST_PUBLISHER_ID, // NOT publisher_id!
+      p_paths: ["https://example.com/proof1.jpg", "https://example.com/proof2.jpg"], // ARRAY!
+      p_fields: { task_completed: true, time_spent: "5 minutes" },
+      p_note: "I completed this task successfully. Please review!",
+    });
 
     if (proofError) {
       console.error("❌ mkt_submit_proof failed:", proofError.message);
@@ -250,7 +242,7 @@ async function testPhase4_ManualProof() {
         p_role: "admin",
         p_decision: "rejected", // Test rejection first to test appeal
         p_reason: "The screenshot is not clear enough. Please resubmit with better quality.",
-      }
+      },
     );
 
     if (decisionError) {
@@ -266,7 +258,8 @@ async function testPhase4_ManualProof() {
     const { data: appealResult, error: appealError } = await supabase.rpc("mkt_appeal", {
       p_submission_id: createdSubmissionId,
       p_user_id: TEST_PUBLISHER_ID, // NOT publisher_id!
-      p_text: "I believe my proof was clear. Please review again. The screenshot shows all required elements.",
+      p_text:
+        "I believe my proof was clear. Please review again. The screenshot shows all required elements.",
     });
 
     if (appealError) {
@@ -279,15 +272,12 @@ async function testPhase4_ManualProof() {
     // Test 5: Admin resolves appeal (mkt_resolve_appeal)
     console.log("\n5. Admin resolving appeal - APPROVING (mkt_resolve_appeal)...");
 
-    const { data: resolveResult, error: resolveError } = await supabase.rpc(
-      "mkt_resolve_appeal",
-      {
-        p_submission_id: createdSubmissionId,
-        p_admin: TEST_ADMIN_ID,
-        p_decision: "approved",
-        p_note: "After reviewing again, the proof is acceptable. Approved.",
-      }
-    );
+    const { data: resolveResult, error: resolveError } = await supabase.rpc("mkt_resolve_appeal", {
+      p_submission_id: createdSubmissionId,
+      p_admin: TEST_ADMIN_ID,
+      p_decision: "approved",
+      p_note: "After reviewing again, the proof is acceptable. Approved.",
+    });
 
     if (resolveError) {
       console.error("❌ mkt_resolve_appeal failed:", resolveError.message);
@@ -366,10 +356,7 @@ async function testPhase5_AutoConversion() {
     // Test 3: Publisher starts auto campaign
     console.log("\n3. Publisher starting auto campaign (mkt_start)...");
 
-    const ipHash2 = crypto
-      .createHash("sha256")
-      .update("203.0.113.42")
-      .digest("hex");
+    const ipHash2 = crypto.createHash("sha256").update("203.0.113.42").digest("hex");
 
     const { data: autoStart, error: autoStartError } = await supabase.rpc("mkt_start", {
       p_campaign_id: autoCampaignId,
@@ -390,15 +377,12 @@ async function testPhase5_AutoConversion() {
 
     // Wait for min_seconds_to_convert to pass
     console.log("\n4. Waiting 6 seconds (to pass min_seconds_to_convert)...");
-    await new Promise(resolve => setTimeout(resolve, 6000));
+    await new Promise((resolve) => setTimeout(resolve, 6000));
 
     // Test 4: Record conversion (mkt_record_conversion)
     console.log("\n5. Recording conversion (mkt_record_conversion)...");
 
-    const sourceIpHash = crypto
-      .createHash("sha256")
-      .update("198.51.100.10")
-      .digest("hex");
+    const sourceIpHash = crypto.createHash("sha256").update("198.51.100.10").digest("hex");
 
     const { data: conversionResult, error: conversionError } = await supabase.rpc(
       "mkt_record_conversion",
@@ -415,7 +399,7 @@ async function testPhase5_AutoConversion() {
             partner_id: "test_partner",
           },
         },
-      }
+      },
     );
 
     if (conversionError) {
@@ -437,7 +421,7 @@ async function testPhase5_AutoConversion() {
           p_admin: TEST_ADMIN_ID,
           p_decision: "approved",
           p_note: "Looks legitimate, approved.",
-        }
+        },
       );
 
       if (decideError) {
@@ -458,7 +442,7 @@ async function testPhase5_AutoConversion() {
 async function main() {
   try {
     await setupTestUsers();
-    
+
     const phase3Pass = await testPhase3_CreateCampaign();
     const phase4Pass = await testPhase4_ManualProof();
     const phase5Pass = await testPhase5_AutoConversion();

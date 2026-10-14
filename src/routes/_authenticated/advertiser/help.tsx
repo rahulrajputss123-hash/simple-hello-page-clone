@@ -53,7 +53,12 @@ function AdvertiserHelpPage() {
       />
       <PreviewNotice />
 
-      <SectionHeading variant="ribbon" icon={HelpCircle} iconSrc="/icons/icon-faq.webp" title="FAQ" />
+      <SectionHeading
+        variant="ribbon"
+        icon={HelpCircle}
+        iconSrc="/icons/icon-faq.webp"
+        title="FAQ"
+      />
       <div className="surface-card px-4">
         <Accordion type="single" collapsible>
           {FAQ.map(([q, a]) => (
@@ -65,7 +70,12 @@ function AdvertiserHelpPage() {
         </Accordion>
       </div>
 
-      <SectionHeading variant="ribbon" icon={Mail} iconSrc="/icons/icon-contact-us.webp" title="Contact us" />
+      <SectionHeading
+        variant="ribbon"
+        icon={Mail}
+        iconSrc="/icons/icon-contact-us.webp"
+        title="Contact us"
+      />
       <div className="surface-card p-4 text-sm text-muted-foreground">
         Need help with a campaign? Our regular support team handles advertiser questions too.
         <Link to="/support" className="mt-2 block font-semibold text-primary">

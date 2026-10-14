@@ -11,7 +11,12 @@ type NotificationKind = "info" | "success" | "warning" | "error";
  * Send a notification to a user (fire-and-forget)
  * Never throws - logs errors and continues
  */
-async function notify(userId: string, title: string, body: string, kind: NotificationKind = "info"): Promise<void> {
+async function notify(
+  userId: string,
+  title: string,
+  body: string,
+  kind: NotificationKind = "info",
+): Promise<void> {
   try {
     await supabaseAdmin.from("notifications").insert({
       user_id: userId,
@@ -32,19 +37,26 @@ async function notify(userId: string, title: string, body: string, kind: Notific
 /**
  * Advertiser: campaign approved
  */
-export async function notifyCampaignApproved(advertiserId: string, campaignName: string): Promise<void> {
+export async function notifyCampaignApproved(
+  advertiserId: string,
+  campaignName: string,
+): Promise<void> {
   await notify(
     advertiserId,
     "Campaign approved",
     `Your campaign "${campaignName}" is now live and accepting completions.`,
-    "success"
+    "success",
   );
 }
 
 /**
  * Advertiser: campaign rejected with reason
  */
-export async function notifyCampaignRejected(advertiserId: string, campaignName: string, reason?: string): Promise<void> {
+export async function notifyCampaignRejected(
+  advertiserId: string,
+  campaignName: string,
+  reason?: string,
+): Promise<void> {
   const body = reason
     ? `Your campaign "${campaignName}" was rejected: ${reason}`
     : `Your campaign "${campaignName}" was rejected. Please review and resubmit.`;
@@ -54,31 +66,40 @@ export async function notifyCampaignRejected(advertiserId: string, campaignName:
 /**
  * Advertiser: new proof waiting for review
  */
-export async function notifyProofWaitingForReview(advertiserId: string, campaignName: string): Promise<void> {
+export async function notifyProofWaitingForReview(
+  advertiserId: string,
+  campaignName: string,
+): Promise<void> {
   await notify(
     advertiserId,
     "New proof to review",
     `A new proof submission is waiting for your review in "${campaignName}".`,
-    "info"
+    "info",
   );
 }
 
 /**
  * Advertiser: submission auto-approved
  */
-export async function notifySubmissionAutoApproved(advertiserId: string, campaignName: string): Promise<void> {
+export async function notifySubmissionAutoApproved(
+  advertiserId: string,
+  campaignName: string,
+): Promise<void> {
   await notify(
     advertiserId,
     "Submission auto-approved",
     `A proof in "${campaignName}" was automatically approved (review window expired).`,
-    "info"
+    "info",
   );
 }
 
 /**
  * Advertiser: balance below threshold (at most once per day per advertiser)
  */
-export async function notifyLowBalance(advertiserId: string, currentBalance: number): Promise<void> {
+export async function notifyLowBalance(
+  advertiserId: string,
+  currentBalance: number,
+): Promise<void> {
   // Check if we already sent this notification today
   const today = new Date().toISOString().split("T")[0];
   const { data: existing } = await supabaseAdmin
@@ -96,14 +117,18 @@ export async function notifyLowBalance(advertiserId: string, currentBalance: num
     advertiserId,
     "Low campaign balance",
     `Your Campaign Balance is below $5.00 (currently $${currentBalance.toFixed(2)}). Add funds to keep campaigns running.`,
-    "warning"
+    "warning",
   );
 }
 
 /**
  * Advertiser: campaign completed or budget exhausted
  */
-export async function notifyCampaignCompleted(advertiserId: string, campaignName: string, reason: "completed" | "exhausted"): Promise<void> {
+export async function notifyCampaignCompleted(
+  advertiserId: string,
+  campaignName: string,
+  reason: "completed" | "exhausted",
+): Promise<void> {
   const body =
     reason === "completed"
       ? `Your campaign "${campaignName}" has completed all slots.`
@@ -114,19 +139,27 @@ export async function notifyCampaignCompleted(advertiserId: string, campaignName
 /**
  * Earner: proof approved
  */
-export async function notifyProofApproved(earnerId: string, campaignName: string, reward: number): Promise<void> {
+export async function notifyProofApproved(
+  earnerId: string,
+  campaignName: string,
+  reward: number,
+): Promise<void> {
   await notify(
     earnerId,
     "Proof approved",
     `Your proof for "${campaignName}" was approved. You earned $${reward.toFixed(2)}.`,
-    "success"
+    "success",
   );
 }
 
 /**
  * Earner: proof rejected
  */
-export async function notifyProofRejected(earnerId: string, campaignName: string, reason?: string): Promise<void> {
+export async function notifyProofRejected(
+  earnerId: string,
+  campaignName: string,
+  reason?: string,
+): Promise<void> {
   const body = reason
     ? `Your proof for "${campaignName}" was rejected: ${reason}`
     : `Your proof for "${campaignName}" was rejected. Please try again if slots are available.`;
@@ -136,11 +169,15 @@ export async function notifyProofRejected(earnerId: string, campaignName: string
 /**
  * Earner: proof auto-approved
  */
-export async function notifyProofAutoApproved(earnerId: string, campaignName: string, reward: number): Promise<void> {
+export async function notifyProofAutoApproved(
+  earnerId: string,
+  campaignName: string,
+  reward: number,
+): Promise<void> {
   await notify(
     earnerId,
     "Proof auto-approved",
     `Your proof for "${campaignName}" was automatically approved. You earned $${reward.toFixed(2)}.`,
-    "success"
+    "success",
   );
 }

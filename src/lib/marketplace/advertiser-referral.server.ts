@@ -27,7 +27,7 @@ const getAdvertiserReferralStatsInput = z.object({
 });
 
 export const getAdvertiserReferralStatsImpl = async (
-  input: z.infer<typeof getAdvertiserReferralStatsInput>
+  input: z.infer<typeof getAdvertiserReferralStatsInput>,
 ): Promise<AdvertiserReferralStats> => {
   const { userId } = getAdvertiserReferralStatsInput.parse(input);
 
@@ -56,7 +56,8 @@ export const getAdvertiserReferralStatsImpl = async (
     .select("user_id")
     .in("user_id", referredIds);
 
-  if (accountsError) throw new Error(`Failed to fetch advertiser accounts: ${accountsError.message}`);
+  if (accountsError)
+    throw new Error(`Failed to fetch advertiser accounts: ${accountsError.message}`);
 
   const referredAdvertisers = advertiserAccounts?.length ?? 0;
 
@@ -72,7 +73,7 @@ export const getAdvertiserReferralStatsImpl = async (
   const advertiserIds = advertiserAccounts?.map((a) => a.user_id) ?? [];
 
   // Check which advertisers have credited deposits (qualifying activation)
-  const { data: creditedDeposits, error: depositsError} = await supabaseAdmin
+  const { data: creditedDeposits, error: depositsError } = await supabaseAdmin
     .from("advertiser_deposits")
     .select("advertiser_id")
     .in("advertiser_id", advertiserIds)
@@ -82,9 +83,8 @@ export const getAdvertiserReferralStatsImpl = async (
   if (depositsError) throw new Error(`Failed to fetch deposits: ${depositsError.message}`);
 
   // Count unique advertisers with at least one credited deposit (first deposit counts as activation)
-  const uniqueActivatedAdvertisers = new Set(
-    creditedDeposits?.map((d) => d.advertiser_id) ?? []
-  ).size;
+  const uniqueActivatedAdvertisers = new Set(creditedDeposits?.map((d) => d.advertiser_id) ?? [])
+    .size;
 
   const qualifyingActivations = uniqueActivatedAdvertisers;
   const rewardsEarned = qualifyingActivations * ADVERTISER_REFERRAL_REWARD;

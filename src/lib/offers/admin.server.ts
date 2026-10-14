@@ -172,7 +172,7 @@ export async function upsertManualOfferImpl(input: ManualOfferInput) {
   if (!hasClickUrl && input.payoutMode !== "manual_proof") {
     throw new Error("Offers without a Click URL must use Manual + proof payout mode.");
   }
-  
+
   // Guard: auto_postback requires a URL
   if (input.payoutMode === "auto_postback" && !hasClickUrl) {
     throw new Error("Auto-tracked offers must have a Click URL.");
@@ -248,11 +248,11 @@ export async function upsertManualOfferImpl(input: ManualOfferInput) {
       .select("id")
       .single();
     if (error) throw error;
-    
+
     // Clear assembled cache so changes show immediately
     const { clearAssembledCache } = await import("./feed-cache.server");
     clearAssembledCache();
-    
+
     return data;
   }
 
@@ -262,11 +262,11 @@ export async function upsertManualOfferImpl(input: ManualOfferInput) {
     .select("id")
     .single();
   if (error) throw error;
-  
+
   // Clear assembled cache so new offer shows immediately
   const { clearAssembledCache } = await import("./feed-cache.server");
   clearAssembledCache();
-  
+
   return data;
 }
 
@@ -281,20 +281,20 @@ export async function deleteManualOfferImpl(id: string) {
     // Preserve claim history: deactivate instead of hard delete.
     const { error } = await supabaseAdmin.from("offers").update({ is_active: false }).eq("id", id);
     if (error) throw error;
-    
+
     // Clear assembled cache
     const { clearAssembledCache } = await import("./feed-cache.server");
     clearAssembledCache();
-    
+
     return { deleted: false, deactivated: true };
   }
   const { error } = await supabaseAdmin.from("offers").delete().eq("id", id);
   if (error) throw error;
-  
+
   // Clear assembled cache
   const { clearAssembledCache } = await import("./feed-cache.server");
   clearAssembledCache();
-  
+
   return { deleted: true, deactivated: false };
 }
 
@@ -358,10 +358,10 @@ export async function updateOfferControlsImpl(input: {
   if (!Object.keys(patch).length) return { ok: true };
   const { error } = await supabaseAdmin.from("offers").update(patch).eq("id", input.id);
   if (error) throw error;
-  
+
   // Clear assembled cache so changes show immediately
   const { clearAssembledCache } = await import("./feed-cache.server");
   clearAssembledCache();
-  
+
   return { ok: true };
 }

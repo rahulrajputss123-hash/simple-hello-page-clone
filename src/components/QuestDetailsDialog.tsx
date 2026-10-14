@@ -96,10 +96,7 @@ export function QuestDetailsDialog({
             </span>
           )}
           <div className="min-w-0 flex-1 text-left">
-            <p
-              className="text-amount text-sm text-gold-dark"
-              data-testid="quest-details-reward"
-            >
+            <p className="text-amount text-sm text-gold-dark" data-testid="quest-details-reward">
               {formatMoney(quest.reward_amount)}
             </p>
             {accent && (

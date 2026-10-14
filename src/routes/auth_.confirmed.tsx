@@ -133,9 +133,7 @@ function ConfirmedPage() {
                   Your email is verified
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  {linkError
-                    ? linkError
-                    : "Please log in to continue."}
+                  {linkError ? linkError : "Please log in to continue."}
                 </p>
               </div>
               <Button asChild variant="jade" size="lg" className="w-full">

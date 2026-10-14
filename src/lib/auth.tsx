@@ -60,7 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data) return data;
       // First sign-in: create the profile row (wallet, referral code, device id).
       const referralCode =
-        typeof window !== "undefined" ? (safeStorage.getItem("coinquest.ref") ?? undefined) : undefined;
+        typeof window !== "undefined"
+          ? (safeStorage.getItem("coinquest.ref") ?? undefined)
+          : undefined;
       return (await ensureProfile({
         data: { deviceId: getDeviceId(), ...(referralCode ? { referralCode } : {}) },
       })) as Profile;

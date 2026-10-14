@@ -37,8 +37,14 @@ const BENEFITS = [
 ] as const;
 
 const STEPS = [
-  { title: "Add campaign funds", text: "Top up your Campaign Balance. Unused funds stay yours for the next campaign." },
-  { title: "Create your task", text: "Set the reward, number of slots and how completions are verified." },
+  {
+    title: "Add campaign funds",
+    text: "Top up your Campaign Balance. Unused funds stay yours for the next campaign.",
+  },
+  {
+    title: "Create your task",
+    text: "Set the reward, number of slots and how completions are verified.",
+  },
   { title: "Members complete it", text: "Track results live, approve proofs and pause any time." },
 ] as const;
 
@@ -196,10 +202,7 @@ export function AdvertiserSection({ onStart }: { onStart: () => void }) {
       {/* How it works for advertisers */}
       <ol className="mt-10 grid gap-3 sm:grid-cols-3" data-testid="advertiser-steps">
         {STEPS.map((step, index) => (
-          <li
-            key={step.title}
-            className="flex items-start gap-3 rounded-2xl bg-background-alt p-4"
-          >
+          <li key={step.title} className="flex items-start gap-3 rounded-2xl bg-background-alt p-4">
             <span
               aria-hidden
               className="text-amount grid size-8 shrink-0 place-items-center rounded-xl bg-jade-gradient text-sm text-primary-foreground"

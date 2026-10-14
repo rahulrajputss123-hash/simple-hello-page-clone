@@ -38,8 +38,16 @@ import {
 } from "@/lib/marketplace/advertiser-onboarding";
 
 // Lazy-load advertiser-specific components (only needed for advertiser role)
-const AdvertiserDashboard = lazy(() => import("@/components/marketplace/AdvertiserDashboard").then(m => ({ default: m.AdvertiserDashboard })));
-const AdvertiserOnboarding = lazy(() => import("@/components/marketplace/AdvertiserOnboarding").then(m => ({ default: m.AdvertiserOnboarding })));
+const AdvertiserDashboard = lazy(() =>
+  import("@/components/marketplace/AdvertiserDashboard").then((m) => ({
+    default: m.AdvertiserDashboard,
+  })),
+);
+const AdvertiserOnboarding = lazy(() =>
+  import("@/components/marketplace/AdvertiserOnboarding").then((m) => ({
+    default: m.AdvertiserOnboarding,
+  })),
+);
 
 const COMMUNITY_AVATARS = AVATAR_OPTIONS.slice(0, 5);
 
@@ -98,7 +106,8 @@ function HomePage() {
     // Source 1 — the email signup form stashes the name pre-confirmation.
     let name = "";
     let phone: string | undefined;
-    const raw = typeof window !== "undefined" ? safeStorage.getItem("coinquest.pending_onboarding") : null;
+    const raw =
+      typeof window !== "undefined" ? safeStorage.getItem("coinquest.pending_onboarding") : null;
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as { name?: string; phone?: string };
@@ -138,335 +147,351 @@ function HomePage() {
     void navigate({ to: "/onboarding", replace: true });
   }, [profile, session, navigate, queryClient, save]);
   return (
-  <AppShell subtitle="Earn as you go" bgClass="home-page-bg" home>
-  {role === "advertiser" ? (
-  <Suspense fallback={null}>
-    <AdvertiserDashboard />
-    {showAdvertiserOnboarding && session?.user.id && advertiserOverview && (
-      <AdvertiserOnboarding
-        userId={session.user.id}
-        overview={advertiserOverview}
-        onComplete={() => setShowAdvertiserOnboarding(false)}
-      />
-    )}
-  </Suspense>
-  ) : (
+    <AppShell subtitle="Earn as you go" bgClass="home-page-bg" home>
+      {role === "advertiser" ? (
+        <Suspense fallback={null}>
+          <AdvertiserDashboard />
+          {showAdvertiserOnboarding && session?.user.id && advertiserOverview && (
+            <AdvertiserOnboarding
+              userId={session.user.id}
+              overview={advertiserOverview}
+              onComplete={() => setShowAdvertiserOnboarding(false)}
+            />
+          )}
+        </Suspense>
+      ) : (
         <>
-      {/* Decorative hero orbs — static background gradients */}
-      <div aria-hidden className="home-orb home-orb-jade" />
-      <div aria-hidden className="home-orb home-orb-gold" />
+          {/* Decorative hero orbs — static background gradients */}
+          <div aria-hidden className="home-orb home-orb-jade" />
+          <div aria-hidden className="home-orb home-orb-gold" />
 
-      <SimulatedLiveActivity />
+          <SimulatedLiveActivity />
 
-      <SectionBanner section="home" />
+          <SectionBanner section="home" />
 
-      {/* Advertiser promotion banner */}
-      {!advertiserBannerDismissed && 
-       role === "publisher" && 
-       advertiserOverview?.settings.promoActive && 
-       !advertiserOverview?.account && (
-        <div className="surface-card relative mt-3 overflow-hidden p-4">
-          <button
-            onClick={dismissAdvertiserBanner}
-            className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-            aria-label="Dismiss"
-          >
-            ×
-          </button>
-          <div className="flex items-start gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-jade-gradient">
-              <Sparkles className="size-5 text-primary-foreground" />
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">Run your own campaign</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                First deposit bonus {advertiserOverview?.userBonusPercent ?? advertiserOverview?.settings.firstDepositBonusPercent}% · Launch your offer and reach thousands of earners
-              </p>
-              <Link to="/advertiser/create">
-                <Button size="sm" variant="jade" className="mt-3">
-                  Become Advertiser
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+          {/* Advertiser promotion banner */}
+          {!advertiserBannerDismissed &&
+            role === "publisher" &&
+            advertiserOverview?.settings.promoActive &&
+            !advertiserOverview?.account && (
+              <div className="surface-card relative mt-3 overflow-hidden p-4">
+                <button
+                  onClick={dismissAdvertiserBanner}
+                  className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                  aria-label="Dismiss"
+                >
+                  ×
+                </button>
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-jade-gradient">
+                    <Sparkles className="size-5 text-primary-foreground" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold">Run your own campaign</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      First deposit bonus{" "}
+                      {advertiserOverview?.userBonusPercent ??
+                        advertiserOverview?.settings.firstDepositBonusPercent}
+                      % · Launch your offer and reach thousands of earners
+                    </p>
+                    <Link to="/advertiser/create">
+                      <Button size="sm" variant="jade" className="mt-3">
+                        Become Advertiser
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
 
-      <section id="tour-starter-quests" className="rise-in">
-        <SectionHeading
-          variant="ribbon"
-          icon={Rocket}
-          iconSrc="/icons/icon-starter-quest.webp"
-          title="Starter Quests"
-          subtitle="Complete simple quests and earn rewards!"
-        />
-        <StarterQuests />
-      </section>
+          <section id="tour-starter-quests" className="rise-in">
+            <SectionHeading
+              variant="ribbon"
+              icon={Rocket}
+              iconSrc="/icons/icon-starter-quest.webp"
+              title="Starter Quests"
+              subtitle="Complete simple quests and earn rewards!"
+            />
+            <StarterQuests />
+          </section>
 
-      <section id="tour-featured-offers" className="rise-in" style={{ animationDelay: "70ms" }}>
-        <SectionHeading
-          variant="ribbon"
-          icon={Star}
-          iconSrc="/icons/icon-featured-offers.webp"
-          title="Featured Offers"
-          action={
-            <Link
-              to={"/featured" as any}
-              data-testid="home-view-all-featured"
-              className="flex items-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary-soft"
-            >
-              View all
-              <ArrowRight className="size-3.5" />
-            </Link>
-          }
-        />
-        <FeaturedOffers scope="home" />
-      </section>
+          <section id="tour-featured-offers" className="rise-in" style={{ animationDelay: "70ms" }}>
+            <SectionHeading
+              variant="ribbon"
+              icon={Star}
+              iconSrc="/icons/icon-featured-offers.webp"
+              title="Featured Offers"
+              action={
+                <Link
+                  to={"/featured" as any}
+                  data-testid="home-view-all-featured"
+                  className="flex items-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary-soft"
+                >
+                  View all
+                  <ArrowRight className="size-3.5" />
+                </Link>
+              }
+            />
+            <FeaturedOffers scope="home" />
+          </section>
 
-      <SectionHeading
-        variant="ribbon"
-        icon={Layers}
-        iconSrc="/icons/icon-offerwall.webp"
-        title="Offerwall"
-      />
-      <OfferwallSlot limit={6} />
-      <div className="mt-3 flex justify-center">
-        <Link
-          to="/offerwall"
-          className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
-        >
-          View All
-        </Link>
-      </div>
-      {/* Soft curved gradient-fade divider — not a flat line */}
-      <div aria-hidden className="relative mt-5 h-6 overflow-hidden">
-        <svg
-          viewBox="0 0 400 24"
-          preserveAspectRatio="none"
-          className="absolute inset-0 h-full w-full"
-        >
-          <defs>
-            <linearGradient id="live-community-divider" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="var(--color-mint)" stopOpacity="0" />
-              <stop offset="50%" stopColor="var(--color-gold)" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="var(--color-mint)" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M0 16 C100 0 300 0 400 16"
-            stroke="url(#live-community-divider)"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
+          <SectionHeading
+            variant="ribbon"
+            icon={Layers}
+            iconSrc="/icons/icon-offerwall.webp"
+            title="Offerwall"
           />
-        </svg>
-      </div>
-
-      <section
-        ref={communityStat.ref}
-        data-testid="live-community-section"
-        className="surface-card premium-step-in relative overflow-hidden p-5"
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full"
-          style={{ background: "radial-gradient(circle, oklch(0.33 0.048 197.2 / 0.1), transparent 68%)" }}
-        />
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-mint/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary ring-1 ring-inset ring-mint/25">
-          <span className="relative grid size-1.5 place-items-center">
-            <span className="payout-live-dot absolute inset-0 rounded-full bg-primary" />
-            <span className="size-1.5 rounded-full bg-primary" />
-          </span>
-          Live Community
-        </span>
-
-        {/* Stacked on phones so the "4.9/5 from 18,400+ reviews" line is never
-            clipped behind the avatar stack; side-by-side from sm upwards. */}
-        <div className="relative mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-          <div className="min-w-0">
-            <p
-              className="text-amount font-display text-3xl leading-none text-foreground"
-              data-testid="live-community-stat"
+          <OfferwallSlot limit={6} />
+          <div className="mt-3 flex justify-center">
+            <Link
+              to="/offerwall"
+              className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
             >
-              {communityStat.value.toLocaleString()}+
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Users earning with us</p>
-            <div className="mt-2.5 flex items-center gap-1.5">
-              <span className="flex items-center gap-0.5 text-gold-dark" aria-hidden>
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Star key={index} className="size-3.5 fill-current" />
-                ))}
-              </span>
-              <span className="text-sm font-semibold text-foreground">4.9/5</span>
-              <span className="text-xs text-muted-foreground">from 18,400+ reviews</span>
-            </div>
+              View All
+            </Link>
           </div>
-
-          <div
-            className="flex shrink-0 -space-x-3"
-            aria-hidden
-            data-testid="live-community-avatars"
-          >
-            {COMMUNITY_AVATARS.map((avatar, index) => (
-              <img
-                key={avatar.id}
-                src={avatar.imageUrl}
-                alt=""
-                style={{ zIndex: COMMUNITY_AVATARS.length - index }}
-                className="size-11 rounded-full border-2 border-card object-cover shadow-soft"
-                loading="lazy"
-                decoding="async"
+          {/* Soft curved gradient-fade divider — not a flat line */}
+          <div aria-hidden className="relative mt-5 h-6 overflow-hidden">
+            <svg
+              viewBox="0 0 400 24"
+              preserveAspectRatio="none"
+              className="absolute inset-0 h-full w-full"
+            >
+              <defs>
+                <linearGradient id="live-community-divider" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="var(--color-mint)" stopOpacity="0" />
+                  <stop offset="50%" stopColor="var(--color-gold)" stopOpacity="0.55" />
+                  <stop offset="100%" stopColor="var(--color-mint)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M0 16 C100 0 300 0 400 16"
+                stroke="url(#live-community-divider)"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
               />
-            ))}
-            <span className="grid size-11 place-items-center rounded-full border-2 border-card bg-background-alt text-sm font-bold text-primary shadow-soft">
-              +
-            </span>
+            </svg>
           </div>
-        </div>
-      </section>
 
-      {/* Cash Out Your Way — the bold, eye-catching highlight of the page */}
-      <section
-        data-testid="cash-out-section"
-        className="relative mt-10 overflow-hidden rounded-[1.75rem] bg-jade-gradient p-5 shadow-lift"
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-14 -top-16 size-48 rounded-full"
-          style={{ background: "radial-gradient(circle, oklch(0.824 0.163 77.8 / 0.25), transparent 70%)" }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-20 -left-12 size-44 rounded-full"
-          style={{ background: "radial-gradient(circle, oklch(0.33 0.048 197.2 / 0.2), transparent 70%)" }}
-        />
-
-        <div className="relative">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-gold-foreground shadow-gold">
-            <Sparkles className="size-3.5" /> Payouts
-          </span>
-          <h2 className="mt-3 font-display text-[1.7rem] leading-tight text-primary-foreground">
-            Cash Out <span className="text-gold">Your Way</span>
-          </h2>
-          <p className="mt-1 text-sm text-primary-foreground/70">
-            Real payouts, your choice — withdraw the moment you hit the minimum.
-          </p>
-
-          <PaidOutThisWeek />
-
-          {/* Asymmetric layout: one hero method + two supporting */}
-          <div className="mt-5 grid gap-3">
+          <section
+            ref={communityStat.ref}
+            data-testid="live-community-section"
+            className="surface-card premium-step-in relative overflow-hidden p-5"
+          >
             <div
-              data-testid="payout-method-paypal"
-              style={{ animationDelay: "60ms" }}
-              className="payout-card relative flex items-center gap-4 overflow-hidden rounded-2xl bg-card/95 p-4"
-            >
-              <span
-                className="grid size-14 shrink-0 place-items-center rounded-2xl text-white shadow-lg"
-                style={{ background: "linear-gradient(135deg,#009cde,#003087)" }}
-              >
-                <Wallet className="size-7" />
+              aria-hidden
+              className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full"
+              style={{
+                background:
+                  "radial-gradient(circle, oklch(0.33 0.048 197.2 / 0.1), transparent 68%)",
+              }}
+            />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-mint/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary ring-1 ring-inset ring-mint/25">
+              <span className="relative grid size-1.5 place-items-center">
+                <span className="payout-live-dot absolute inset-0 rounded-full bg-primary" />
+                <span className="size-1.5 rounded-full bg-primary" />
               </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-display text-lg text-foreground">PayPal</p>
-                  <span className="rounded-full bg-mint/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
-                    Most popular
+              Live Community
+            </span>
+
+            {/* Stacked on phones so the "4.9/5 from 18,400+ reviews" line is never
+            clipped behind the avatar stack; side-by-side from sm upwards. */}
+            <div className="relative mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+              <div className="min-w-0">
+                <p
+                  className="text-amount font-display text-3xl leading-none text-foreground"
+                  data-testid="live-community-stat"
+                >
+                  {communityStat.value.toLocaleString()}+
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Users earning with us</p>
+                <div className="mt-2.5 flex items-center gap-1.5">
+                  <span className="flex items-center gap-0.5 text-gold-dark" aria-hidden>
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <Star key={index} className="size-3.5 fill-current" />
+                    ))}
+                  </span>
+                  <span className="text-sm font-semibold text-foreground">4.9/5</span>
+                  <span className="text-xs text-muted-foreground">from 18,400+ reviews</span>
+                </div>
+              </div>
+
+              <div
+                className="flex shrink-0 -space-x-3"
+                aria-hidden
+                data-testid="live-community-avatars"
+              >
+                {COMMUNITY_AVATARS.map((avatar, index) => (
+                  <img
+                    key={avatar.id}
+                    src={avatar.imageUrl}
+                    alt=""
+                    style={{ zIndex: COMMUNITY_AVATARS.length - index }}
+                    className="size-11 rounded-full border-2 border-card object-cover shadow-soft"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ))}
+                <span className="grid size-11 place-items-center rounded-full border-2 border-card bg-background-alt text-sm font-bold text-primary shadow-soft">
+                  +
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* Cash Out Your Way — the bold, eye-catching highlight of the page */}
+          <section
+            data-testid="cash-out-section"
+            className="relative mt-10 overflow-hidden rounded-[1.75rem] bg-jade-gradient p-5 shadow-lift"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-14 -top-16 size-48 rounded-full"
+              style={{
+                background:
+                  "radial-gradient(circle, oklch(0.824 0.163 77.8 / 0.25), transparent 70%)",
+              }}
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-20 -left-12 size-44 rounded-full"
+              style={{
+                background:
+                  "radial-gradient(circle, oklch(0.33 0.048 197.2 / 0.2), transparent 70%)",
+              }}
+            />
+
+            <div className="relative">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-gold-foreground shadow-gold">
+                <Sparkles className="size-3.5" /> Payouts
+              </span>
+              <h2 className="mt-3 font-display text-[1.7rem] leading-tight text-primary-foreground">
+                Cash Out <span className="text-gold">Your Way</span>
+              </h2>
+              <p className="mt-1 text-sm text-primary-foreground/70">
+                Real payouts, your choice — withdraw the moment you hit the minimum.
+              </p>
+
+              <PaidOutThisWeek />
+
+              {/* Asymmetric layout: one hero method + two supporting */}
+              <div className="mt-5 grid gap-3">
+                <div
+                  data-testid="payout-method-paypal"
+                  style={{ animationDelay: "60ms" }}
+                  className="payout-card relative flex items-center gap-4 overflow-hidden rounded-2xl bg-card/95 p-4"
+                >
+                  <span
+                    className="grid size-14 shrink-0 place-items-center rounded-2xl text-white shadow-lg"
+                    style={{ background: "linear-gradient(135deg,#009cde,#003087)" }}
+                  >
+                    <Wallet className="size-7" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-display text-lg text-foreground">PayPal</p>
+                      <span className="rounded-full bg-mint/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                        Most popular
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Straight to your account — cash in hand, fast.
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-bold text-primary">
+                    from $5
                   </span>
                 </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Straight to your account — cash in hand, fast.
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-bold text-primary">
-                from $5
-              </span>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div
-                data-testid="payout-method-crypto"
-                style={{ animationDelay: "140ms" }}
-                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4"
-              >
-                <span
-                  className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
-                  style={{ background: "linear-gradient(135deg,#26a17b,#345d9d)" }}
-                >
-                  <Bitcoin className="size-6" />
-                </span>
-                <p className="mt-3 font-display text-base text-foreground">Crypto</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">USDT · Litecoin</p>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    data-testid="payout-method-crypto"
+                    style={{ animationDelay: "140ms" }}
+                    className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4"
+                  >
+                    <span
+                      className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
+                      style={{ background: "linear-gradient(135deg,#26a17b,#345d9d)" }}
+                    >
+                      <Bitcoin className="size-6" />
+                    </span>
+                    <p className="mt-3 font-display text-base text-foreground">Crypto</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">USDT · Litecoin</p>
+                  </div>
 
-              <div
-                data-testid="payout-method-giftcards"
-                style={{ animationDelay: "220ms" }}
-                className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4"
-              >
-                <span
-                  className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
-                  style={{ background: "linear-gradient(135deg,#ff9900,#ff5e3a)" }}
-                >
-                  <Gift className="size-6" />
-                </span>
-                <p className="mt-3 font-display text-base text-foreground">Gift Cards</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">Amazon · Google Play</p>
+                  <div
+                    data-testid="payout-method-giftcards"
+                    style={{ animationDelay: "220ms" }}
+                    className="payout-card relative overflow-hidden rounded-2xl bg-card/95 p-4"
+                  >
+                    <span
+                      className="grid size-12 place-items-center rounded-2xl text-white shadow-lg"
+                      style={{ background: "linear-gradient(135deg,#ff9900,#ff5e3a)" }}
+                    >
+                      <Gift className="size-6" />
+                    </span>
+                    <p className="mt-3 font-display text-base text-foreground">Gift Cards</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Amazon · Google Play</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      {/* Need Help? — kept separately, still useful */}
-      <div data-testid="need-help-card" className="surface-card mt-4 flex items-center gap-4 p-4">
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-mint/15 text-primary">
-          <HelpCircle className="size-6" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">Need Help?</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Our support team is here whenever you need it.
-          </p>
-        </div>
-        <Button size="sm" variant="jade" className="shrink-0" asChild>
-          <Link to="/support">Get Help</Link>
-        </Button>
-      </div>
-
-      {/* Footer */}
-      <footer className="mt-8 flex flex-col items-center gap-4 pb-28 text-center">
-        <BrandLogo variant="light" className="h-8 w-auto max-w-[140px]" />
-        
-        <SocialLinks />
-        
-        <nav className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          {/* eslint-disable @typescript-eslint/no-explicit-any */}
-          <Link to={"/legal/privacy" as any} className="hover:text-foreground hover:underline">
-            Privacy
-          </Link>
-          <span aria-hidden>·</span>
-          <Link to={"/legal/terms" as any} className="hover:text-foreground hover:underline">
-            Terms
-          </Link>
-          <span aria-hidden>·</span>
-          <Link
-            to={"/legal/withdrawal-policy" as any}
-            className="hover:text-foreground hover:underline"
+          {/* Need Help? — kept separately, still useful */}
+          <div
+            data-testid="need-help-card"
+            className="surface-card mt-4 flex items-center gap-4 p-4"
           >
-            Withdrawal Policy
-          </Link>
-          <span aria-hidden>·</span>
-          <Link to={"/legal/referral-terms" as any} className="hover:text-foreground hover:underline">
-            Referral Terms
-          </Link>
-          {/* eslint-enable @typescript-eslint/no-explicit-any */}
-        </nav>
-        
-        <p className="text-xs text-muted-foreground">
-          © 2026 CashGPT. All rights reserved.
-        </p>
-      </footer>
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-mint/15 text-primary">
+              <HelpCircle className="size-6" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">Need Help?</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Our support team is here whenever you need it.
+              </p>
+            </div>
+            <Button size="sm" variant="jade" className="shrink-0" asChild>
+              <Link to="/support">Get Help</Link>
+            </Button>
+          </div>
+
+          {/* Footer */}
+          <footer className="mt-8 flex flex-col items-center gap-4 pb-28 text-center">
+            <BrandLogo variant="light" className="h-8 w-auto max-w-[140px]" />
+
+            <SocialLinks />
+
+            <nav className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {/* eslint-disable @typescript-eslint/no-explicit-any */}
+              <Link to={"/legal/privacy" as any} className="hover:text-foreground hover:underline">
+                Privacy
+              </Link>
+              <span aria-hidden>·</span>
+              <Link to={"/legal/terms" as any} className="hover:text-foreground hover:underline">
+                Terms
+              </Link>
+              <span aria-hidden>·</span>
+              <Link
+                to={"/legal/withdrawal-policy" as any}
+                className="hover:text-foreground hover:underline"
+              >
+                Withdrawal Policy
+              </Link>
+              <span aria-hidden>·</span>
+              <Link
+                to={"/legal/referral-terms" as any}
+                className="hover:text-foreground hover:underline"
+              >
+                Referral Terms
+              </Link>
+              {/* eslint-enable @typescript-eslint/no-explicit-any */}
+            </nav>
+
+            <p className="text-xs text-muted-foreground">© 2026 CashGPT. All rights reserved.</p>
+          </footer>
         </>
       )}
     </AppShell>

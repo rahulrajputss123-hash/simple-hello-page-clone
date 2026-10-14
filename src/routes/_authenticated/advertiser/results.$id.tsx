@@ -15,9 +15,21 @@ export const Route = createFileRoute("/_authenticated/advertiser/results/$id")({
 
 function ResultsPage() {
   const { id } = Route.useParams();
-  const { data: c, isLoading, error } = useQuery({ queryKey: ["campaign-results", id], queryFn: () => getCampaignResults({ data: { campaignId: id } }) });
+  const {
+    data: c,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["campaign-results", id],
+    queryFn: () => getCampaignResults({ data: { campaignId: id } }),
+  });
 
-  if (isLoading) return <AppShell subtitle="Advertiser"><p className="mt-8 text-center text-sm text-muted-foreground">Loading results…</p></AppShell>;
+  if (isLoading)
+    return (
+      <AppShell subtitle="Advertiser">
+        <p className="mt-8 text-center text-sm text-muted-foreground">Loading results…</p>
+      </AppShell>
+    );
   if (error || !c) {
     return (
       <AppShell subtitle="Advertiser">
@@ -36,7 +48,10 @@ function ResultsPage() {
       <BackLink to="/advertiser/campaigns" label="Back to My Campaigns" />
 
       <section className="premium-step-in mt-3 rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
-        <VerificationBadge verification={c.verification_mode === "auto" ? "auto" : "proof"} size="md" />
+        <VerificationBadge
+          verification={c.verification_mode === "auto" ? "auto" : "proof"}
+          size="md"
+        />
         <h1 className="mt-3 text-xl leading-tight">{c.title}</h1>
         <p className="mt-1 text-xs opacity-75">
           {c.countries} · {formatMoney(c.publisher_reward)} per completion · {c.status}
@@ -77,10 +92,30 @@ function ResultsPage() {
       />
       <div className="surface-card divide-y divide-border">
         {[
-          { icon: CheckCircle2, label: "Approved", value: c.submissions.approved, cls: "text-primary" },
-          { icon: XCircle, label: "Rejected", value: c.submissions.rejected, cls: "text-destructive" },
-          { icon: Clock, label: "Pending review", value: c.submissions.pending, cls: "text-gold-dark" },
-          { icon: Play, label: "Started, not completed", value: r.started - r.completed, cls: "text-muted-foreground" },
+          {
+            icon: CheckCircle2,
+            label: "Approved",
+            value: c.submissions.approved,
+            cls: "text-primary",
+          },
+          {
+            icon: XCircle,
+            label: "Rejected",
+            value: c.submissions.rejected,
+            cls: "text-destructive",
+          },
+          {
+            icon: Clock,
+            label: "Pending review",
+            value: c.submissions.pending,
+            cls: "text-gold-dark",
+          },
+          {
+            icon: Play,
+            label: "Started, not completed",
+            value: r.started - r.completed,
+            cls: "text-muted-foreground",
+          },
         ].map(({ icon: Icon, label, value, cls }) => (
           <div key={label} className="flex items-center justify-between p-3.5">
             <span className={`inline-flex items-center gap-2 text-sm ${cls}`}>

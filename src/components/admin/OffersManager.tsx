@@ -146,7 +146,7 @@ export function OffersManager() {
       // Resize to max 1200px wide and convert to WebP at 82% quality
       toast.info("Resizing and converting to WebP...");
       const optimizedFile = await resizeAndConvertToWebP(file, 1200, 0.82);
-      
+
       const { uploadUrl, token, publicUrl } = await requestUpload({
         data: { filename: optimizedFile.name.slice(0, 120), target: "offers" },
       });
@@ -731,7 +731,7 @@ export function OffersManager() {
                         (urlRequirement === "no-url" && !form.clickUrl.trim()) ||
                         (urlRequirement === "manual" && payoutMode === "auto_postback") ||
                         (urlRequirement === "plain" && payoutMode === "manual"));
-                    
+
                     return (
                       <button
                         key={`${payoutMode}-${urlRequirement}`}
@@ -753,9 +753,7 @@ export function OffersManager() {
                         <div className="flex items-start gap-2">
                           <div
                             className={`mt-0.5 h-4 w-4 rounded-full border-2 ${
-                              isSelected
-                                ? "border-jade bg-jade"
-                                : "border-muted-foreground/30"
+                              isSelected ? "border-jade bg-jade" : "border-muted-foreground/30"
                             }`}
                           >
                             {isSelected && (

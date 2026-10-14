@@ -34,13 +34,15 @@ export async function getFeedSettingsImpl(): Promise<FeedSettings> {
     .eq("id", true)
     .maybeSingle();
   if (error) throw error;
-  
-  const settings: FeedSettings = !data ? { ...DEFAULTS } : {
-    refreshIntervalHours: Number(data.refresh_interval_hours) || DEFAULTS.refreshIntervalHours,
-    defaultCountry: (data.default_country || DEFAULTS.defaultCountry).toUpperCase(),
-    fallbackBehavior: (data.fallback_behavior as FallbackBehavior) ?? DEFAULTS.fallbackBehavior,
-    featuredSlots: Number(data.featured_slots) || DEFAULTS.featuredSlots,
-  };
+
+  const settings: FeedSettings = !data
+    ? { ...DEFAULTS }
+    : {
+        refreshIntervalHours: Number(data.refresh_interval_hours) || DEFAULTS.refreshIntervalHours,
+        defaultCountry: (data.default_country || DEFAULTS.defaultCountry).toUpperCase(),
+        fallbackBehavior: (data.fallback_behavior as FallbackBehavior) ?? DEFAULTS.fallbackBehavior,
+        featuredSlots: Number(data.featured_slots) || DEFAULTS.featuredSlots,
+      };
 
   // Cache for 60s
   _feedSettingsCache = { data: settings, expires: Date.now() + SETTINGS_CACHE_TTL_MS };
@@ -64,10 +66,10 @@ export async function updateFeedSettingsImpl(input: {
     .from("offer_feed_settings")
     .upsert(row as never, { onConflict: "id" });
   if (error) throw error;
-  
+
   // Clear cache when admin updates settings
   _feedSettingsCache = null;
-  
+
   return getFeedSettingsImpl();
 }
 
@@ -131,11 +133,11 @@ export async function updateNetworkFeedSettingsImpl(input: {
     .update({ enabled: input.enabled, sync_config: nextConfig as never })
     .eq("id", input.providerId);
   if (updateError) throw updateError;
-  
+
   // Clear provider cache when admin updates - import and clear it
   const feedCacheModule = await import("./feed-cache.server");
   (feedCacheModule as any)._enabledProvidersCache = null;
-  
+
   return { ok: true, maxOffers, weight, enabled: input.enabled };
 }
 

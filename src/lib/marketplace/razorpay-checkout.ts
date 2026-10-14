@@ -27,7 +27,10 @@ type RazorpayOptions = {
 
 type RazorpayInstance = {
   open: () => void;
-  on: (event: "payment.failed", cb: (resp: { error: { code: string; description: string; reason: string } }) => void) => void;
+  on: (
+    event: "payment.failed",
+    cb: (resp: { error: { code: string; description: string; reason: string } }) => void,
+  ) => void;
 };
 
 declare global {
@@ -40,13 +43,15 @@ const SCRIPT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
 let loading: Promise<void> | null = null;
 
 export function loadRazorpayCheckout(): Promise<void> {
-  if (typeof window === "undefined") return Promise.reject(new Error("Checkout only runs in the browser"));
+  if (typeof window === "undefined")
+    return Promise.reject(new Error("Checkout only runs in the browser"));
   if (window.Razorpay) return Promise.resolve();
   if (loading) return loading;
   loading = new Promise<void>((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${SCRIPT_SRC}"]`);
     const script = existing ?? document.createElement("script");
-    const done = () => (window.Razorpay ? resolve() : reject(new Error("Razorpay failed to initialise")));
+    const done = () =>
+      window.Razorpay ? resolve() : reject(new Error("Razorpay failed to initialise"));
     script.addEventListener("load", done, { once: true });
     script.addEventListener(
       "error",

@@ -39,9 +39,7 @@ export function AppBottomSheet({
         </SheetHeader>
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain py-4">
-          {children}
-        </div>
+        <div className="flex-1 overflow-y-auto overscroll-contain py-4">{children}</div>
 
         {/* Sticky footer */}
         {footer && (

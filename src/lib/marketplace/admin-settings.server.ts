@@ -71,7 +71,7 @@ export const getMarketplaceSettingsImpl = async (): Promise<MarketplaceSettings>
 };
 
 export const getMarketplaceSettings = createServerFn({ method: "GET" }).handler(
-  getMarketplaceSettingsImpl
+  getMarketplaceSettingsImpl,
 );
 
 /**
@@ -90,7 +90,9 @@ export const getReferralSettingsImpl = async (): Promise<ReferralSettings> => {
   return data as ReferralSettings;
 };
 
-export const getReferralSettings = createServerFn({ method: "GET" }).handler(getReferralSettingsImpl);
+export const getReferralSettings = createServerFn({ method: "GET" }).handler(
+  getReferralSettingsImpl,
+);
 
 /**
  * Update marketplace settings
@@ -115,7 +117,7 @@ const updateMarketplaceSettingsInput = z.object({
 });
 
 export const updateMarketplaceSettingsImpl = async (
-  input: z.infer<typeof updateMarketplaceSettingsInput>
+  input: z.infer<typeof updateMarketplaceSettingsInput>,
 ): Promise<MarketplaceSettings> => {
   const validated = updateMarketplaceSettingsInput.parse(input);
 
@@ -146,7 +148,7 @@ const updateReferralSettingsInput = z.object({
 });
 
 export const updateReferralSettingsImpl = async (
-  input: z.infer<typeof updateReferralSettingsInput>
+  input: z.infer<typeof updateReferralSettingsInput>,
 ): Promise<ReferralSettings> => {
   const validated = updateReferralSettingsInput.parse(input);
 

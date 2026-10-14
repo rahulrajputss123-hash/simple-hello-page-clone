@@ -15,7 +15,10 @@ export const Route = createFileRoute("/_authenticated/offer/$offerId")({
   head: ({ loaderData }) => ({
     meta: [
       { title: `${loaderData?.title ?? "Offer"} — CashGPT` },
-      { name: "description", content: loaderData?.description ?? "Complete this offer to earn rewards." },
+      {
+        name: "description",
+        content: loaderData?.description ?? "Complete this offer to earn rewards.",
+      },
     ],
   }),
   component: OfferDetailsPage,
@@ -41,7 +44,11 @@ function OfferDetailsPage() {
     }
   }, [cachedOffer, offerId, queryClient]);
 
-  const { data: offer, isLoading, isError } = useQuery({
+  const {
+    data: offer,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["offer", offerId],
     queryFn: () => fetchOffer({ data: { offerId } }),
     staleTime: 5 * 60 * 1000, // 5 minutes

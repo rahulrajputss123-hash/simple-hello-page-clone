@@ -224,7 +224,7 @@ export function ReferPage() {
   const { session, profile } = useAuth();
   const code = profile?.referral_code ?? "";
   const link = typeof window === "undefined" ? "" : `${window.location.origin}/auth?ref=${code}`;
-  
+
   const fetchAdvertiserStats = useServerFn(getAdvertiserReferralStats);
   const fetchMarketplaceSettings = useServerFn(getMarketplaceSettings);
 
@@ -258,7 +258,7 @@ export function ReferPage() {
   const referralEarnings = totals.credited;
   const potentialEarnings = mine.length * REFERRAL_MAX_BONUS;
   const shareMessage = "Join me on CashGPT and start earning!";
-  
+
   const advStats = advertiserStats.data ?? {
     referredAdvertisers: 0,
     totalDeposits: 0,
@@ -268,16 +268,18 @@ export function ReferPage() {
 
   // Generate advertiser referral rules dynamically from settings
   const settings = marketplaceSettings.data;
-  const dynamicAdvertiserRules = settings ? [
-    "Your invite link works for two separate programs: publisher referral and advertiser referral. Advertiser rewards are added on top of publisher rewards.",
-    `When a friend you invited becomes an advertiser and makes their first deposit, you earn ${settings.referral_bonus_split_percent}% of that deposit.`,
-    `Example: if your friend deposits $100, you earn ${formatMoney(100 * settings.referral_bonus_split_percent / 100)}.`,
-    `The bonus shows as Pending for ${settings.referrer_bonus_hold_days} days after the deposit clears, then it is Credited to your main wallet.`,
-    "If a deposit is refunded, reversed or charged back, the related bonus is cancelled, and deducted if it was already credited.",
-    "Bonuses are paid only on real, successful deposits, not on promotional or bonus credit.",
-    "Self-referrals, duplicate or linked accounts, and fraudulent activity void the bonus.",
-    "Program rules may change; changes apply to new deposits only.",
-  ] : ADVERTISER_REFERRAL_RULES;
+  const dynamicAdvertiserRules = settings
+    ? [
+        "Your invite link works for two separate programs: publisher referral and advertiser referral. Advertiser rewards are added on top of publisher rewards.",
+        `When a friend you invited becomes an advertiser and makes their first deposit, you earn ${settings.referral_bonus_split_percent}% of that deposit.`,
+        `Example: if your friend deposits $100, you earn ${formatMoney((100 * settings.referral_bonus_split_percent) / 100)}.`,
+        `The bonus shows as Pending for ${settings.referrer_bonus_hold_days} days after the deposit clears, then it is Credited to your main wallet.`,
+        "If a deposit is refunded, reversed or charged back, the related bonus is cancelled, and deducted if it was already credited.",
+        "Bonuses are paid only on real, successful deposits, not on promotional or bonus credit.",
+        "Self-referrals, duplicate or linked accounts, and fraudulent activity void the bonus.",
+        "Program rules may change; changes apply to new deposits only.",
+      ]
+    : ADVERTISER_REFERRAL_RULES;
 
   return (
     <AppShell subtitle="Refer">
@@ -476,7 +478,8 @@ export function ReferPage() {
             <Link2 className="mt-0.5 size-3.5 shrink-0" />
             <span>
               <strong>One link, both rewards.</strong> If a friend you invite with the link above
-              becomes an advertiser and makes a deposit, you earn {ADVERTISER_REFERRAL_PERCENT}% of it, on top of publisher referral rewards.
+              becomes an advertiser and makes a deposit, you earn {ADVERTISER_REFERRAL_PERCENT}% of
+              it, on top of publisher referral rewards.
             </span>
           </p>
           {advertiserStats.isPending ? (
@@ -497,7 +500,7 @@ export function ReferPage() {
               </div>
               <div className="rounded-2xl bg-mint/15 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
-Deposits
+                  Deposits
                 </p>
                 <p className="text-amount mt-1 text-xl leading-none text-primary">
                   {formatMoney(advStats.totalDeposits)}
@@ -639,21 +642,31 @@ Deposits
         <div className="surface-card p-3" data-testid="refer-rules-accordion">
           <details open className="group rounded-2xl bg-background-alt p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
-              <span>Publisher referral</span><ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+              <span>Publisher referral</span>
+              <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
             </summary>
             <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs leading-relaxed text-muted-foreground">
-              {PUBLISHER_REFERRAL_RULES.map((rule) => <li key={rule}>{rule}</li>)}
+              {PUBLISHER_REFERRAL_RULES.map((rule) => (
+                <li key={rule}>{rule}</li>
+              ))}
             </ol>
           </details>
           <details className="group mt-2 rounded-2xl bg-background-alt p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
-              <span>Advertiser referral</span><ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+              <span>Advertiser referral</span>
+              <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
             </summary>
             <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs leading-relaxed text-muted-foreground">
-              {dynamicAdvertiserRules.map((rule) => <li key={rule}>{rule}</li>)}
+              {dynamicAdvertiserRules.map((rule) => (
+                <li key={rule}>{rule}</li>
+              ))}
             </ol>
           </details>
-          <Link to="/referral-rules" className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary" data-testid="refer-view-rules">
+          <Link
+            to="/referral-rules"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary"
+            data-testid="refer-view-rules"
+          >
             Read the full program rules <ArrowRight className="size-3.5" />
           </Link>
         </div>

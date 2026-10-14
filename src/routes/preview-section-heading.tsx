@@ -51,7 +51,7 @@ function PreviewSectionHeading() {
   if (!import.meta.env.DEV) {
     return <Navigate to="/" replace />;
   }
-  
+
   return (
     <div className="min-h-screen bg-background px-4 py-6">
       <div className="mx-auto w-full max-w-[420px]">

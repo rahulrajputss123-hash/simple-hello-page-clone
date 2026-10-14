@@ -62,7 +62,9 @@ const t1 = campaignTotals({
   feeType: "per_campaign",
   featuredFee: 0,
 });
-console.log(`   allocation=${t1.allocation.toFixed(2)}, campaignFee=${t1.campaignFee.toFixed(2)}, total=${t1.total.toFixed(2)}`);
+console.log(
+  `   allocation=${t1.allocation.toFixed(2)}, campaignFee=${t1.campaignFee.toFixed(2)}, total=${t1.total.toFixed(2)}`,
+);
 assertEq(t1.allocation, 7.5, "allocation");
 assertEq(t1.campaignFee, 0, "campaignFee");
 assertEq(t1.total, 7.5, "total");
@@ -79,7 +81,9 @@ const t2 = campaignTotals({
   feeType: "per_campaign",
   featuredFee: 0,
 });
-console.log(`   allocation=${t2.allocation.toFixed(2)}, campaignFee=${t2.campaignFee.toFixed(2)}, total=${t2.total.toFixed(2)}`);
+console.log(
+  `   allocation=${t2.allocation.toFixed(2)}, campaignFee=${t2.campaignFee.toFixed(2)}, total=${t2.total.toFixed(2)}`,
+);
 assertEq(t2.allocation, 7.5, "allocation");
 assertEq(t2.campaignFee, 0.5, "campaignFee");
 assertEq(t2.total, 8.0, "total");
@@ -96,7 +100,9 @@ const t3 = campaignTotals({
   feeType: "per_slot",
   featuredFee: 0,
 });
-console.log(`   allocation=${t3.allocation.toFixed(2)}, campaignFee=${t3.campaignFee.toFixed(2)}, total=${t3.total.toFixed(2)}`);
+console.log(
+  `   allocation=${t3.allocation.toFixed(2)}, campaignFee=${t3.campaignFee.toFixed(2)}, total=${t3.total.toFixed(2)}`,
+);
 assertEq(t3.allocation, 7.5, "allocation");
 assertEq(t3.campaignFee, 7.5, "campaignFee");
 assertEq(t3.total, 15.0, "total");
@@ -113,7 +119,9 @@ const t4 = campaignTotals({
   feeType: "per_campaign",
   featuredFee: 14.0,
 });
-console.log(`   allocation=${t4.allocation.toFixed(2)}, campaignFee=${t4.campaignFee.toFixed(2)}, featuredFee=${t4.featuredFee.toFixed(2)}, total=${t4.total.toFixed(2)}`);
+console.log(
+  `   allocation=${t4.allocation.toFixed(2)}, campaignFee=${t4.campaignFee.toFixed(2)}, featuredFee=${t4.featuredFee.toFixed(2)}, total=${t4.total.toFixed(2)}`,
+);
 assertEq(t4.allocation, 7.5, "allocation");
 assertEq(t4.campaignFee, 0.5, "campaignFee");
 assertEq(t4.featuredFee, 14.0, "featuredFee");

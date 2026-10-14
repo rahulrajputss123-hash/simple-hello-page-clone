@@ -251,7 +251,9 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
             </span>
           )}
           {showStatusBadge && (
-            <span className={`mt-2 inline-block rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusColor}`}>
+            <span
+              className={`mt-2 inline-block rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusColor}`}
+            >
               {statusText}
             </span>
           )}

@@ -50,7 +50,8 @@ export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => 
 
     if (payoutError) throw new Error(`Failed to fetch payouts: ${payoutError.message}`);
 
-    const totalPublisherPayouts = payouts?.reduce((sum, row) => sum + Number(row.reward_amount), 0) ?? 0;
+    const totalPublisherPayouts =
+      payouts?.reduce((sum, row) => sum + Number(row.reward_amount), 0) ?? 0;
 
     // Calculate platform fee: total campaign spend minus total publisher payouts
     const platformFeeCollected = totalCampaignSpend - totalPublisherPayouts;
@@ -94,4 +95,6 @@ export const getFinancialOverviewImpl = async (): Promise<FinancialOverview> => 
   }
 };
 
-export const getFinancialOverview = createServerFn({ method: "GET" }).handler(getFinancialOverviewImpl);
+export const getFinancialOverview = createServerFn({ method: "GET" }).handler(
+  getFinancialOverviewImpl,
+);

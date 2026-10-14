@@ -38,7 +38,10 @@ export class RazorpayApiError extends Error {
 function keys(): { keyId: string; keySecret: string } {
   const keyId = process.env["RAZORPAY_KEY_ID"];
   const keySecret = process.env["RAZORPAY_KEY_SECRET"];
-  const missing = [...(!keyId ? ["RAZORPAY_KEY_ID"] : []), ...(!keySecret ? ["RAZORPAY_KEY_SECRET"] : [])];
+  const missing = [
+    ...(!keyId ? ["RAZORPAY_KEY_ID"] : []),
+    ...(!keySecret ? ["RAZORPAY_KEY_SECRET"] : []),
+  ];
   if (missing.length) throw new RazorpayConfigError(missing);
   return { keyId: keyId!, keySecret: keySecret! };
 }
@@ -50,8 +53,8 @@ export function razorpayKeyId(): string {
 export function razorpayConfigured(): boolean {
   return Boolean(
     process.env["RAZORPAY_KEY_ID"] &&
-      process.env["RAZORPAY_KEY_SECRET"] &&
-      process.env["RAZORPAY_WEBHOOK_SECRET"],
+    process.env["RAZORPAY_KEY_SECRET"] &&
+    process.env["RAZORPAY_WEBHOOK_SECRET"],
   );
 }
 

@@ -78,10 +78,10 @@ function WalletPage() {
 
   const transactions = useQuery({
     queryKey: ["transactions", session?.user.id],
-      enabled: Boolean(session),
-      staleTime: 0,
-      refetchOnMount: "always",
-      queryFn: async () => {
+    enabled: Boolean(session),
+    staleTime: 0,
+    refetchOnMount: "always",
+    queryFn: async () => {
       const { data } = await supabase
         .from("wallet_transactions")
         .select("*")
@@ -93,10 +93,10 @@ function WalletPage() {
 
   const methods = useQuery({
     queryKey: ["payout-methods", session?.user.id],
-      enabled: Boolean(session),
-      staleTime: 0,
-      refetchOnMount: "always",
-      queryFn: async () => {
+    enabled: Boolean(session),
+    staleTime: 0,
+    refetchOnMount: "always",
+    queryFn: async () => {
       const { data } = await supabase.from("payout_methods").select("*");
       return data ?? [];
     },
@@ -104,10 +104,10 @@ function WalletPage() {
 
   const withdrawals = useQuery({
     queryKey: ["withdrawals", session?.user.id],
-      enabled: Boolean(session),
-      staleTime: 0,
-      refetchOnMount: "always",
-      queryFn: async () => {
+    enabled: Boolean(session),
+    staleTime: 0,
+    refetchOnMount: "always",
+    queryFn: async () => {
       const { data } = await supabase
         .from("withdrawal_requests")
         .select("*")
@@ -418,11 +418,11 @@ function WalletPage() {
       </div>
 
       <SectionHeading
-          variant="ribbon"
-          icon={ArrowDownToLine}
-          iconSrc="/icons/icon-download-receive.webp"
-          title="Withdrawals"
-        />
+        variant="ribbon"
+        icon={ArrowDownToLine}
+        iconSrc="/icons/icon-download-receive.webp"
+        title="Withdrawals"
+      />
       {!withdrawals.data?.length ? (
         <EmptyState
           icon={ArrowDownToLine}
@@ -459,11 +459,11 @@ function WalletPage() {
       )}
 
       <SectionHeading
-          variant="ribbon"
-          icon={Receipt}
-          iconSrc="/icons/icon-wallet-transactions.webp"
-          title="Transactions"
-        />
+        variant="ribbon"
+        icon={Receipt}
+        iconSrc="/icons/icon-wallet-transactions.webp"
+        title="Transactions"
+      />
       {transactions.isLoading ? (
         <Skeleton className="h-24 w-full rounded-2xl" />
       ) : !transactions.data?.length ? (

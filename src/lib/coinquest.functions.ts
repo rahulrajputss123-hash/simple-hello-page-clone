@@ -81,9 +81,7 @@ export const claimOffer = createServerFn({ method: "POST" })
 /** Start an offer claim (for URL+proof workflow) - creates "started" status */
 export const startOfferClaim = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ offerId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ offerId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { startOfferClaimImpl } = await import("./coinquest.server");
     return startOfferClaimImpl(context.userId, data.offerId);
@@ -222,9 +220,8 @@ export const adminAdjustWallet = createServerFn({ method: "POST" })
 export const requestAccountDeletion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { requestAccountDeletionImpl, AccountDeletionError } = await import(
-      "./account-deletion.server"
-    );
+    const { requestAccountDeletionImpl, AccountDeletionError } =
+      await import("./account-deletion.server");
     try {
       return await requestAccountDeletionImpl(context.userId);
     } catch (err) {

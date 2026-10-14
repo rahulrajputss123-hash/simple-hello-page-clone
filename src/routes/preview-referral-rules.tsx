@@ -36,7 +36,7 @@ function PreviewReferralRules() {
   if (!import.meta.env.DEV) {
     return <Navigate to="/" replace />;
   }
-  
+
   return (
     <AuthContext.Provider value={MOCK_AUTH}>
       <ReferralRulesPage />

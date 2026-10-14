@@ -66,9 +66,15 @@ export function AdvertiserDashboard() {
     );
   }
 
-  const stats = overview?.stats ?? { activeCampaigns: 0, completedConversions: 0, pendingReviews: 0 };
+  const stats = overview?.stats ?? {
+    activeCampaigns: 0,
+    completedConversions: 0,
+    pendingReviews: 0,
+  };
   const live = overview?.liveCampaigns ?? [];
-  const pendingDeposit = overview?.recentDeposits.find((d) => d.status === "pending" && d.gatewayPaymentId);
+  const pendingDeposit = overview?.recentDeposits.find(
+    (d) => d.status === "pending" && d.gatewayPaymentId,
+  );
 
   return (
     <div className="page-fade-in" data-testid="advertiser-dashboard">
@@ -108,8 +114,8 @@ export function AdvertiserDashboard() {
         </div>
         {pendingDeposit && (
           <p className="mt-3 rounded-xl bg-primary-foreground/10 px-3 py-2 text-xs">
-            <Clock className="mr-1 inline size-3" /> {formatMoney(pendingDeposit.amountUsd)} deposit is being
-            confirmed by the payment gateway — it'll show up here in a moment.
+            <Clock className="mr-1 inline size-3" /> {formatMoney(pendingDeposit.amountUsd)} deposit
+            is being confirmed by the payment gateway — it'll show up here in a moment.
           </p>
         )}
         <Link
@@ -121,7 +127,12 @@ export function AdvertiserDashboard() {
         </Link>
       </section>
 
-      <SectionHeading variant="ribbon" icon={BarChart3} iconSrc="/icons/icon-adv-campaign-statistics-v2.webp" title="Campaign Statistics" />
+      <SectionHeading
+        variant="ribbon"
+        icon={BarChart3}
+        iconSrc="/icons/icon-adv-campaign-statistics-v2.webp"
+        title="Campaign Statistics"
+      />
       <div className="grid grid-cols-2 gap-3">
         <StatTile label="Active campaigns" value={String(stats.activeCampaigns)} />
         <StatTile
@@ -145,19 +156,55 @@ export function AdvertiserDashboard() {
         title="Quick Actions"
       />
       <div className="stagger-children space-y-2.5">
-        <QuickAction to="/advertiser/funds" icon={Wallet} label="Add Funds" hint="Top up your campaign balance" testId="qa-add-funds" />
-        <QuickAction to="/advertiser/create" icon={PlusCircle} label="Create Campaign" hint="Launch a new task for publishers" testId="qa-create-campaign" />
-        <QuickAction to="/advertiser/campaigns" icon={Megaphone} label="My Campaigns" hint="Active, paused, draft and completed" testId="qa-my-campaigns" />
-        <QuickAction to="/advertiser/transactions" icon={Receipt} label="Transactions" hint="Deposits, spend and charges" testId="qa-transactions" />
-        
+        <QuickAction
+          to="/advertiser/funds"
+          icon={Wallet}
+          label="Add Funds"
+          hint="Top up your campaign balance"
+          testId="qa-add-funds"
+        />
+        <QuickAction
+          to="/advertiser/create"
+          icon={PlusCircle}
+          label="Create Campaign"
+          hint="Launch a new task for publishers"
+          testId="qa-create-campaign"
+        />
+        <QuickAction
+          to="/advertiser/campaigns"
+          icon={Megaphone}
+          label="My Campaigns"
+          hint="Active, paused, draft and completed"
+          testId="qa-my-campaigns"
+        />
+        <QuickAction
+          to="/advertiser/transactions"
+          icon={Receipt}
+          label="Transactions"
+          hint="Deposits, spend and charges"
+          testId="qa-transactions"
+        />
+
         <details className="surface-card overflow-hidden rounded-2xl">
           <summary className="flex cursor-pointer items-center justify-between px-3.5 py-3 text-sm font-semibold">
             <span>More</span>
             <span className="text-muted-foreground">▾</span>
           </summary>
           <div className="space-y-2.5 border-t border-border px-2 pb-2 pt-2.5">
-            <QuickAction to="/advertiser/referral" icon={Users} label="Advertiser Referral" hint="Same link, extra rewards" testId="qa-referral" />
-            <QuickAction to="/advertiser/help" icon={LifeBuoy} label="Advertiser Help" hint="FAQ for campaign owners" testId="qa-help" />
+            <QuickAction
+              to="/advertiser/referral"
+              icon={Users}
+              label="Advertiser Referral"
+              hint="Same link, extra rewards"
+              testId="qa-referral"
+            />
+            <QuickAction
+              to="/advertiser/help"
+              icon={LifeBuoy}
+              label="Advertiser Help"
+              hint="FAQ for campaign owners"
+              testId="qa-help"
+            />
           </div>
         </details>
       </div>
@@ -188,7 +235,8 @@ export function AdvertiserDashboard() {
             to={(account.spendable > 0 ? "/advertiser/create" : "/advertiser/funds") as any}
             className="mt-3 inline-flex items-center gap-1 rounded-full bg-jade-gradient px-4 py-1.5 text-xs font-semibold text-primary-foreground"
           >
-            {account.spendable > 0 ? "Create campaign" : "Add funds"} <ArrowRight className="size-3" />
+            {account.spendable > 0 ? "Create campaign" : "Add funds"}{" "}
+            <ArrowRight className="size-3" />
           </Link>
         </div>
       ) : (
@@ -209,7 +257,10 @@ export function AdvertiserDashboard() {
                     </span>
                   </div>
                   <div className="mt-2 h-2 overflow-hidden rounded-full bg-background-alt">
-                    <div className="h-full rounded-full bg-jade-gradient" style={{ width: `${pct}%` }} />
+                    <div
+                      className="h-full rounded-full bg-jade-gradient"
+                      style={{ width: `${pct}%` }}
+                    />
                   </div>
                   <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
                     <span className="inline-flex items-center gap-1">

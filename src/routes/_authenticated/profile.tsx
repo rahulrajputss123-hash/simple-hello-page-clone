@@ -1,7 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { AlertTriangle, ChevronRight, Edit3, FileText, LifeBuoy, Settings, Shield, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronRight,
+  Edit3,
+  FileText,
+  LifeBuoy,
+  Settings,
+  Shield,
+  Wallet,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -361,7 +370,10 @@ function ProfilePage() {
               <li>You will lose access to your account</li>
               <li>
                 Any pending wallet balance (
-                {formatMoney(Number(profile?.wallet_balance ?? 0) - Number(profile?.held_balance ?? 0))}) will be forfeited
+                {formatMoney(
+                  Number(profile?.wallet_balance ?? 0) - Number(profile?.held_balance ?? 0),
+                )}
+                ) will be forfeited
               </li>
               <li>You cannot restore your account after deletion</li>
             </ul>

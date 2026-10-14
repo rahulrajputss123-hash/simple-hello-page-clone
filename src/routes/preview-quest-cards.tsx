@@ -41,7 +41,7 @@ function PreviewQuestCards() {
   if (!import.meta.env.DEV) {
     return <Navigate to="/" replace />;
   }
-  
+
   const adsQuest = baseQuest({
     key: "starter_5",
     label: "Watch Ads",

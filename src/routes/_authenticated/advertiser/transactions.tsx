@@ -33,7 +33,11 @@ function iconFor(t: TransactionView) {
   }
 }
 
-const BUCKET_LABEL = { deposit: "", bonus_locked: "Locked bonus", bonus_available: "Bonus" } as const;
+const BUCKET_LABEL = {
+  deposit: "",
+  bonus_locked: "Locked bonus",
+  bonus_available: "Bonus",
+} as const;
 
 function TransactionsPage() {
   const { session } = useAuth();
@@ -65,7 +69,9 @@ function TransactionsPage() {
           <Skeleton className="h-16 rounded-2xl" />
         </div>
       ) : tx.isError ? (
-        <p className="surface-card mt-3 p-4 text-sm text-destructive">Couldn't load transactions.</p>
+        <p className="surface-card mt-3 p-4 text-sm text-destructive">
+          Couldn't load transactions.
+        </p>
       ) : tx.data.length === 0 ? (
         <div className="surface-card mt-3 p-5 text-center">
           <p className="text-sm font-semibold">No transactions yet</p>
@@ -74,7 +80,10 @@ function TransactionsPage() {
           </p>
         </div>
       ) : (
-        <ul className="surface-card mt-3 divide-y divide-border" data-testid="advertiser-transactions">
+        <ul
+          className="surface-card mt-3 divide-y divide-border"
+          data-testid="advertiser-transactions"
+        >
           {tx.data.map((t) => {
             const positive = t.amount > 0;
             const zero = t.amount === 0;
@@ -92,11 +101,19 @@ function TransactionsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">
                     {t.label}
-                    {bucket ? <span className="ml-1.5 text-[10px] font-semibold uppercase text-gold-dark">{bucket}</span> : null}
+                    {bucket ? (
+                      <span className="ml-1.5 text-[10px] font-semibold uppercase text-gold-dark">
+                        {bucket}
+                      </span>
+                    ) : null}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {formatShortDate(t.createdAt)}
-                    {t.campaignName ? ` · ${t.campaignName}` : t.description ? ` · ${t.description}` : ""}
+                    {t.campaignName
+                      ? ` · ${t.campaignName}`
+                      : t.description
+                        ? ` · ${t.description}`
+                        : ""}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">

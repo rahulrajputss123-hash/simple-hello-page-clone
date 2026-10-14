@@ -35,11 +35,13 @@ export function MarketplaceSettingsPanel() {
   const [localAutoApproveEnabled, setLocalAutoApproveEnabled] = useState<boolean | null>(null);
   const [localAutoApproveMinutes, setLocalAutoApproveMinutes] = useState<number | null>(null);
   const [localSkipFirstCampaign, setLocalSkipFirstCampaign] = useState<boolean | null>(null);
-  
+
   // Fee settings local state
   const [localFeesEnabled, setLocalFeesEnabled] = useState<boolean | null>(null);
   const [localCampaignFeeUsd, setLocalCampaignFeeUsd] = useState<number | null>(null);
-  const [localCampaignFeeType, setLocalCampaignFeeType] = useState<"per_campaign" | "per_slot" | null>(null);
+  const [localCampaignFeeType, setLocalCampaignFeeType] = useState<
+    "per_campaign" | "per_slot" | null
+  >(null);
   const [localFeaturedPricePerDay, setLocalFeaturedPricePerDay] = useState<number | null>(null);
 
   const mutation = useMutation({
@@ -92,14 +94,18 @@ export function MarketplaceSettingsPanel() {
         </SectionTitle>
         <p className="surface-card p-4 text-sm text-destructive">
           Failed to load settings.
-          {settings.error && <><br/>{String(settings.error)}</>}
+          {settings.error && (
+            <>
+              <br />
+              {String(settings.error)}
+            </>
+          )}
         </p>
       </div>
     );
   }
 
-  const autoApproveEnabled =
-    localAutoApproveEnabled ?? settings.data.auto_approve_enabled ?? false;
+  const autoApproveEnabled = localAutoApproveEnabled ?? settings.data.auto_approve_enabled ?? false;
   const autoApproveMinutes =
     localAutoApproveMinutes ?? settings.data.auto_approve_after_minutes ?? 10;
   const skipFirstCampaign =
@@ -108,7 +114,8 @@ export function MarketplaceSettingsPanel() {
   const feesEnabled = localFeesEnabled ?? settings.data.fees_enabled ?? false;
   const campaignFeeUsd = localCampaignFeeUsd ?? settings.data.campaign_fee_usd ?? 0.5;
   const campaignFeeType = localCampaignFeeType ?? settings.data.campaign_fee_type ?? "per_campaign";
-  const featuredPricePerDay = localFeaturedPricePerDay ?? settings.data.featured_price_per_day ?? 2.0;
+  const featuredPricePerDay =
+    localFeaturedPricePerDay ?? settings.data.featured_price_per_day ?? 2.0;
 
   const hasChanges =
     localAutoApproveEnabled !== null ||
@@ -232,7 +239,9 @@ export function MarketplaceSettingsPanel() {
                 </Label>
                 <Select
                   value={campaignFeeType}
-                  onValueChange={(value: "per_campaign" | "per_slot") => setLocalCampaignFeeType(value)}
+                  onValueChange={(value: "per_campaign" | "per_slot") =>
+                    setLocalCampaignFeeType(value)
+                  }
                 >
                   <SelectTrigger id="campaign-fee-type" className="w-48">
                     <SelectValue />
@@ -263,9 +272,7 @@ export function MarketplaceSettingsPanel() {
               onChange={(e) => setLocalFeaturedPricePerDay(parseFloat(e.target.value))}
               className="w-32"
             />
-            <p className="text-xs text-muted-foreground">
-              Range: $0.00-$1000.00. Default: $2.00
-            </p>
+            <p className="text-xs text-muted-foreground">Range: $0.00-$1000.00. Default: $2.00</p>
           </div>
         </div>
       </div>
@@ -308,12 +315,9 @@ export function MarketplaceSettingsPanel() {
                 updates.auto_approve_after_minutes = localAutoApproveMinutes;
               if (localSkipFirstCampaign !== null)
                 updates.auto_approve_skip_first_campaign = localSkipFirstCampaign;
-              if (localFeesEnabled !== null)
-                updates.fees_enabled = localFeesEnabled;
-              if (localCampaignFeeUsd !== null)
-                updates.campaign_fee_usd = localCampaignFeeUsd;
-              if (localCampaignFeeType !== null)
-                updates.campaign_fee_type = localCampaignFeeType;
+              if (localFeesEnabled !== null) updates.fees_enabled = localFeesEnabled;
+              if (localCampaignFeeUsd !== null) updates.campaign_fee_usd = localCampaignFeeUsd;
+              if (localCampaignFeeType !== null) updates.campaign_fee_type = localCampaignFeeType;
               if (localFeaturedPricePerDay !== null)
                 updates.featured_price_per_day = localFeaturedPricePerDay;
               mutation.mutate(updates);

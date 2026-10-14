@@ -51,7 +51,8 @@ export type PublisherCampaignView = {
   createdAt: string;
 };
 
-export type SubmissionStatus = "pending" | "approved" | "rejected" | "appealed" | "appeal_approved" | "appeal_rejected";
+export type SubmissionStatus =
+  "pending" | "approved" | "rejected" | "appealed" | "appeal_approved" | "appeal_rejected";
 
 export type SubmissionView = {
   id: string;
@@ -94,18 +95,20 @@ export type CampaignSubmissionRow = {
 export async function listActiveCampaignsImpl(userId: string): Promise<PublisherCampaignView[]> {
   const { data, error } = await mktDbPublisher
     .from("campaigns")
-    .select(`
+    .select(
+      `
       id, name, summary, publisher_reward, verification_mode, max_completions, completions_count, 
       countries, category_id, subcategory_id, estimated_minutes, is_featured, featured_expires_at, created_at,
       marketplace_categories:category_id (name),
       marketplace_subcategories:subcategory_id (name)
-    `)
+    `,
+    )
     .eq("status", "active")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`campaigns: ${error.message}`);
-  const campaigns = (data ?? []) as (CampaignRow & { 
-    marketplace_categories: { name: string } | null; 
+  const campaigns = (data ?? []) as (CampaignRow & {
+    marketplace_categories: { name: string } | null;
     marketplace_subcategories: { name: string } | null;
   })[];
 
@@ -115,7 +118,9 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
     .select("campaign_id")
     .eq("user_id", userId); // NOT publisher_id!
 
-  const submittedIds = new Set((existingSubmissions ?? []).map((s: { campaign_id: string }) => s.campaign_id));
+  const submittedIds = new Set(
+    (existingSubmissions ?? []).map((s: { campaign_id: string }) => s.campaign_id),
+  );
 
   const now = new Date();
   return campaigns
@@ -128,13 +133,15 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
       verification: c.verification_mode === "auto" ? "auto" : "proof",
       maxCompletions: c.max_completions,
       completionsCount: c.completions_count,
-      slotsRemaining: c.max_completions > c.completions_count ? c.max_completions - c.completions_count : null,
+      slotsRemaining:
+        c.max_completions > c.completions_count ? c.max_completions - c.completions_count : null,
       countries: normalizeCampaignCountries(c.countries),
       category: c.marketplace_categories?.name || null,
       subcategory: c.marketplace_subcategories?.name || null,
       estimatedMinutes: c.estimated_minutes,
       // Check featured status: must be featured AND not expired
-      featured: c.is_featured && c.featured_expires_at ? new Date(c.featured_expires_at) > now : false,
+      featured:
+        c.is_featured && c.featured_expires_at ? new Date(c.featured_expires_at) > now : false,
       createdAt: c.created_at,
     }));
 }
@@ -147,11 +154,13 @@ export async function listMySubmissionsImpl(userId: string): Promise<SubmissionV
     .from("campaign_submissions")
     .select("*, campaigns(name)")
     .eq("user_id", userId) // NOT publisher_id!
-    .order("created_at", { ascending: false});
+    .order("created_at", { ascending: false });
 
   if (error) throw new Error(`campaign_submissions: ${error.message}`);
 
-  return ((data ?? []) as Array<CampaignSubmissionRow & { campaigns: { name: string } | null }>).map((s) => ({
+  return (
+    (data ?? []) as Array<CampaignSubmissionRow & { campaigns: { name: string } | null }>
+  ).map((s) => ({
     id: s.id,
     campaignId: s.campaign_id,
     campaignTitle: s.campaigns?.name ?? "Campaign",
@@ -167,12 +176,31 @@ export async function listMySubmissionsImpl(userId: string): Promise<SubmissionV
 }
 
 export async function getCampaignForEarnerImpl(userId: string, campaignId: string) {
-  const { data: campaign, error } = await mktDbPublisher.from("campaigns").select("id,name,summary,publisher_reward,verification_mode,proof_description,proof_min_images,proof_max_images,proof_fields,proof_requirements,max_completions,completions_count,countries,campaign_options!left(proof_example_url)").eq("id", campaignId).eq("status", "active").maybeSingle();
+  const { data: campaign, error } = await mktDbPublisher
+    .from("campaigns")
+    .select(
+      "id,name,summary,publisher_reward,verification_mode,proof_description,proof_min_images,proof_max_images,proof_fields,proof_requirements,max_completions,completions_count,countries,campaign_options!left(proof_example_url)",
+    )
+    .eq("id", campaignId)
+    .eq("status", "active")
+    .maybeSingle();
   if (error) throw new Error(error.message);
   if (!campaign) return null;
-  const { data: click, error: clickError } = await mktDbPublisher.from("campaign_clicks").select("click_id,status").eq("campaign_id", campaignId).eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: click, error: clickError } = await mktDbPublisher
+    .from("campaign_clicks")
+    .select("click_id,status")
+    .eq("campaign_id", campaignId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   if (clickError) throw new Error(clickError.message);
-  return { ...campaign, countries: normalizeCampaignCountries(campaign.countries), clickId: click?.click_id ?? null };
+  return {
+    ...campaign,
+    countries: normalizeCampaignCountries(campaign.countries),
+    clickId: click?.click_id ?? null,
+  };
 }
 
 /* --------------------------------------------------------------- click recording */
@@ -199,7 +227,13 @@ export async function startCampaignImpl(
   const request = getRequest();
   const forwarded = request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const clientIp = forwarded || request?.headers.get("x-real-ip") || "unknown";
-  const country = (request?.headers.get("x-vercel-ip-country") || request?.headers.get("cf-ipcountry") || "").trim().toUpperCase();
+  const country = (
+    request?.headers.get("x-vercel-ip-country") ||
+    request?.headers.get("cf-ipcountry") ||
+    ""
+  )
+    .trim()
+    .toUpperCase();
   const ipHash = crypto.createHash("sha256").update(clientIp).digest("hex");
 
   try {
@@ -226,7 +260,11 @@ export async function startCampaignImpl(
       clickId: result.click_id,
       expiresAt: result.expires_at,
       ...(campaign?.verification_mode === "auto" && campaign.tracking_url
-        ? { redirectUrl: campaign.tracking_url.split("{click_id}").join(encodeURIComponent(result.click_id)) }
+        ? {
+            redirectUrl: campaign.tracking_url
+              .split("{click_id}")
+              .join(encodeURIComponent(result.click_id)),
+          }
         : {}),
     };
   } catch (err) {
@@ -273,10 +311,10 @@ export async function submitProofImpl(
           .select("campaign_id, campaigns!inner(advertiser_id, name)")
           .eq("id", result.submission_id)
           .maybeSingle();
-        
+
         if (submission) {
           const { notifyProofWaitingForReview } = await import("./notifications.server");
-          const campaign = (submission.campaigns as any);
+          const campaign = submission.campaigns as any;
           void notifyProofWaitingForReview(campaign.advertiser_id, campaign.name);
         }
       } catch (err) {
@@ -311,7 +349,8 @@ export async function appealSubmissionImpl(
   input: AppealSubmissionInput,
 ): Promise<void> {
   try {
-    await mktRpc("mkt_appeal", { // NOT mkt_appeal_submission!
+    await mktRpc("mkt_appeal", {
+      // NOT mkt_appeal_submission!
       p_submission_id: input.submissionId,
       p_user_id: userId, // NOT publisher_id!
       p_text: input.appealText, // NOT appeal_notes!

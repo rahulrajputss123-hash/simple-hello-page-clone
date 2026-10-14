@@ -40,7 +40,9 @@ export const updateAdvertiserProfile = createServerFn({ method: "POST" })
 
 export const createDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ amountUsd: z.number().positive().max(100000) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ amountUsd: z.number().positive().max(100000) }).parse(input),
+  )
   .handler(async ({ data, context }) => {
     const { createDepositImpl, DepositError } = await import("./marketplace/advertiser.server");
     try {
@@ -76,7 +78,12 @@ export const confirmCheckout = createServerFn({ method: "POST" })
 export const abandonDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ depositId: z.string().uuid(), reason: z.string().max(200).default("checkout_dismissed") }).parse(input),
+    z
+      .object({
+        depositId: z.string().uuid(),
+        reason: z.string().max(200).default("checkout_dismissed"),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { abandonDepositImpl } = await import("./marketplace/advertiser.server");
@@ -182,7 +189,8 @@ export const rotateCampaignSecret = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { rotateCampaignSecretImpl, DepositError } = await import("./marketplace/advertiser.server");
+    const { rotateCampaignSecretImpl, DepositError } =
+      await import("./marketplace/advertiser.server");
     try {
       return await rotateCampaignSecretImpl(context.userId, data.campaignId);
     } catch (err) {
@@ -207,15 +215,21 @@ export const addCampaignBudget = createServerFn({ method: "POST" })
     }
   });
 
-export const getCampaignResults = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input)).handler(async ({ data, context }) => {
-  const { getCampaignResultsImpl } = await import("./marketplace/advertiser.server");
-  return getCampaignResultsImpl(context.userId, data.campaignId);
-});
+export const getCampaignResults = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { getCampaignResultsImpl } = await import("./marketplace/advertiser.server");
+    return getCampaignResultsImpl(context.userId, data.campaignId);
+  });
 
-export const getCampaignForEarner = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input)).handler(async ({ data, context }) => {
-  const { getCampaignForEarnerImpl } = await import("./marketplace/publisher.server");
-  return getCampaignForEarnerImpl(context.userId, data.campaignId);
-});
+export const getCampaignForEarner = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { getCampaignForEarnerImpl } = await import("./marketplace/publisher.server");
+    return getCampaignForEarnerImpl(context.userId, data.campaignId);
+  });
 
 /* ---------------------------------------------------------------- publisher */
 
@@ -256,7 +270,8 @@ export const appealSubmission = createServerFn({ method: "POST" })
     return appealSubmissionInput.parse(input);
   })
   .handler(async ({ data, context }) => {
-    const { appealSubmissionImpl, SubmissionError } = await import("./marketplace/publisher.server");
+    const { appealSubmissionImpl, SubmissionError } =
+      await import("./marketplace/publisher.server");
     try {
       await appealSubmissionImpl(context.userId, data);
       return { ok: true };
@@ -319,7 +334,13 @@ export const reviewProof = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { reviewProofImpl, AdminActionError } = await import("./marketplace/admin.server");
     try {
-      await reviewProofImpl(context.userId, data.submissionId, data.role, data.decision, data.reason);
+      await reviewProofImpl(
+        context.userId,
+        data.submissionId,
+        data.role,
+        data.decision,
+        data.reason,
+      );
       return { ok: true };
     } catch (err) {
       if (err instanceof AdminActionError) throw new Error(`${err.code}: ${err.message}`);
@@ -358,7 +379,9 @@ export const getPreferredRole = createServerFn({ method: "POST" })
 
 export const setPreferredRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ role: z.enum(["publisher", "advertiser"]) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ role: z.enum(["publisher", "advertiser"]) }).parse(input),
+  )
   .handler(async ({ data, context }) => {
     const { setPreferredRoleImpl } = await import("./marketplace/role-preference.server");
     await setPreferredRoleImpl(context.userId, data.role);
@@ -374,7 +397,6 @@ export const listCategories = createServerFn({ method: "POST" })
     return listCategoriesWithSubcategoriesImpl();
   });
 
-
 export const listPendingReviews = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -384,12 +406,14 @@ export const listPendingReviews = createServerFn({ method: "POST" })
 
 export const reviewSubmission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => 
-    z.object({
-      submissionId: z.string().uuid(),
-      decision: z.enum(["approved", "rejected"]),
-      reason: z.string().optional(),
-    }).parse(input)
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        submissionId: z.string().uuid(),
+        decision: z.enum(["approved", "rejected"]),
+        reason: z.string().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { reviewSubmissionImpl } = await import("./marketplace/advertiser.server");

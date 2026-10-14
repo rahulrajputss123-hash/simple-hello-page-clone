@@ -57,20 +57,28 @@ function AdvertiserReferralPage() {
             publisher rewards.
           </span>
         </p>
-        <Link to="/refer" className="mt-2 inline-block font-semibold underline-offset-4 hover:underline">
+        <Link
+          to="/refer"
+          className="mt-2 inline-block font-semibold underline-offset-4 hover:underline"
+        >
           Open my referral link →
         </Link>
       </div>
 
       <SectionHeading
-          variant="ribbon"
-          icon={Users}
-          iconSrc="/icons/icon-user-referrals.webp"
-          title="Your advertiser referrals"
-        />
+        variant="ribbon"
+        icon={Users}
+        iconSrc="/icons/icon-user-referrals.webp"
+        title="Your advertiser referrals"
+      />
       <div className="grid grid-cols-2 gap-3">
         <StatTile label="Referred advertisers" value={String(r.referredAdvertisers)} />
-        <StatTile label="Qualifying activations" value={String(r.totalDeposits)} hint="Funded a first campaign" tone="mint" />
+        <StatTile
+          label="Qualifying activations"
+          value={String(r.totalDeposits)}
+          hint="Funded a first campaign"
+          tone="mint"
+        />
         <StatTile label="Rewards earned" value={formatMoney(r.rewardsEarned)} tone="gold" />
         <StatTile label="Per activation" value={`${r.referralPercent}%`} />
       </div>

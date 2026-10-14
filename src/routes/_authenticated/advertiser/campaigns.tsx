@@ -84,8 +84,10 @@ function MyCampaignsPage() {
   });
 
   const mutation = useMutation({
-    mutationFn: (input: { campaignId: string; action: "pause" | "resume" | "submit" | "complete" | "archive" }) =>
-      act({ data: input }),
+    mutationFn: (input: {
+      campaignId: string;
+      action: "pause" | "resume" | "submit" | "complete" | "archive";
+    }) => act({ data: input }),
     onSuccess: async (res, input) => {
       await Promise.all([queryClient.invalidateQueries({ queryKey: key }), refreshOverview()]);
       const msg =
@@ -168,12 +170,16 @@ function MyCampaignsPage() {
           <Skeleton className="h-32 rounded-2xl" />
         </div>
       ) : campaigns.isError ? (
-        <p className="surface-card mt-3 p-4 text-sm text-destructive">Couldn't load your campaigns.</p>
+        <p className="surface-card mt-3 p-4 text-sm text-destructive">
+          Couldn't load your campaigns.
+        </p>
       ) : visible.length === 0 ? (
         <div className="surface-card mt-3 p-5 text-center">
           <p className="text-sm font-semibold">Nothing here yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {all.length === 0 ? "Create your first campaign to get started." : `No ${tab} campaigns.`}
+            {all.length === 0
+              ? "Create your first campaign to get started."
+              : `No ${tab} campaigns.`}
           </p>
           {all.length === 0 && (
             <Link
@@ -197,17 +203,23 @@ function MyCampaignsPage() {
                       <VerificationBadge verification={c.verification} />
                       <p className="mt-1.5 truncate font-semibold">{c.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {c.countries.length ? c.countries.slice(0, 3).join(", ") : "All countries"} ·{" "}
-                        {formatMoney(c.reward)} per completion
-                        {c.costPerCompletion ? ` (you pay ${formatMoney(c.costPerCompletion)})` : ""}
+                        {c.countries.length ? c.countries.slice(0, 3).join(", ") : "All countries"}{" "}
+                        · {formatMoney(c.reward)} per completion
+                        {c.costPerCompletion
+                          ? ` (you pay ${formatMoney(c.costPerCompletion)})`
+                          : ""}
                       </p>
                     </div>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLE[c.group]}`}>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLE[c.group]}`}
+                    >
                       {STATUS_LABEL[c.status]}
                     </span>
                   </div>
                   {c.status === "rejected" && c.reviewNote && (
-                    <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-xs text-destructive">{c.reviewNote}</p>
+                    <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-xs text-destructive">
+                      {c.reviewNote}
+                    </p>
                   )}
                   {c.pausedBy === "admin" && (
                     <p className="mt-2 rounded-lg bg-gold/10 p-2 text-xs text-gold-dark">
@@ -215,7 +227,10 @@ function MyCampaignsPage() {
                     </p>
                   )}
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-background-alt">
-                    <div className="h-full rounded-full bg-jade-gradient" style={{ width: `${pct}%` }} />
+                    <div
+                      className="h-full rounded-full bg-jade-gradient"
+                      style={{ width: `${pct}%` }}
+                    />
                   </div>
                   <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
                     <span>
@@ -236,17 +251,29 @@ function MyCampaignsPage() {
                         : "No postback received yet"}
                     </p>
                     <div className="mt-2 space-y-1 text-muted-foreground">
-                      <p>✓ Tracking URL contains <code className="rounded bg-muted px-1">{"{click_id}"}</code></p>
+                      <p>
+                        ✓ Tracking URL contains{" "}
+                        <code className="rounded bg-muted px-1">{"{click_id}"}</code>
+                      </p>
                       <p>{c.postbackLogs?.length ? "✓" : "○"} Postback received at least once</p>
                     </div>
                     {c.postbackLogs?.length ? (
                       <div className="mt-2 space-y-1 border-t border-primary/10 pt-2">
                         {c.postbackLogs.slice(0, 20).map((log, index) => (
-                          <div key={`${log.receivedAt}-${index}`} className="flex items-center gap-2 text-[11px]">
-                            <span className="w-12 shrink-0 text-muted-foreground">{relativeTime(log.receivedAt)}</span>
-                            <span className="rounded-full bg-background px-1.5 py-0.5 font-semibold">{log.result}</span>
+                          <div
+                            key={`${log.receivedAt}-${index}`}
+                            className="flex items-center gap-2 text-[11px]"
+                          >
+                            <span className="w-12 shrink-0 text-muted-foreground">
+                              {relativeTime(log.receivedAt)}
+                            </span>
+                            <span className="rounded-full bg-background px-1.5 py-0.5 font-semibold">
+                              {log.result}
+                            </span>
                             <code>{maskedClickId(log.clickId)}</code>
-                            <span className="truncate text-muted-foreground">{log.txnId || "—"}</span>
+                            <span className="truncate text-muted-foreground">
+                              {log.txnId || "—"}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -264,7 +291,9 @@ function MyCampaignsPage() {
                       >
                         Copy test URL
                       </Button>
-                      <span className="self-center text-[11px] text-muted-foreground">Use your secret; it was shown only at creation.</span>
+                      <span className="self-center text-[11px] text-muted-foreground">
+                        Use your secret; it was shown only at creation.
+                      </span>
                     </div>
                   </div>
                 )}
@@ -278,7 +307,12 @@ function MyCampaignsPage() {
                       data-testid={`pause-${c.id}`}
                       onClick={() => mutation.mutate({ campaignId: c.id, action: "pause" })}
                     >
-                      {pending ? <Loader2 className="size-4 animate-spin" /> : <Pause className="size-4" />} Pause
+                      {pending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Pause className="size-4" />
+                      )}{" "}
+                      Pause
                     </Button>
                   )}
                   {c.status === "paused" && c.pausedBy !== "admin" && (
@@ -289,7 +323,12 @@ function MyCampaignsPage() {
                       disabled={pending}
                       onClick={() => mutation.mutate({ campaignId: c.id, action: "resume" })}
                     >
-                      {pending ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />} Resume
+                      {pending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Play className="size-4" />
+                      )}{" "}
+                      Resume
                     </Button>
                   )}
                   {(c.status === "draft" || c.status === "rejected") && (
@@ -300,7 +339,8 @@ function MyCampaignsPage() {
                       disabled={pending}
                       onClick={() => mutation.mutate({ campaignId: c.id, action: "submit" })}
                     >
-                      {pending ? <Loader2 className="size-4 animate-spin" /> : null} Submit for approval
+                      {pending ? <Loader2 className="size-4 animate-spin" /> : null} Submit for
+                      approval
                     </Button>
                   )}
                   {c.verification === "auto" && (
@@ -332,7 +372,7 @@ function MyCampaignsPage() {
           })}
         </ul>
       )}
-      
+
       <PostbackSecretModal
         open={showRotateModal && rotatedInfo !== null}
         onClose={() => {

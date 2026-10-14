@@ -154,10 +154,7 @@ export const CAMPAIGNS: Campaign[] = [
       "Screenshot the profile showing 'Following'.",
       "Upload the screenshot here and submit.",
     ],
-    rules: [
-      "Account must be older than 30 days.",
-      "Unfollowing before approval voids the reward.",
-    ],
+    rules: ["Account must be older than 30 days.", "Unfollowing before approval voids the reward."],
     proofRequirements: [
       "Screenshot required showing the 'Following' state.",
       "No edited screenshots.",
@@ -358,12 +355,54 @@ export type AdvertiserTransaction = {
 };
 
 export const ADVERTISER_TRANSACTIONS: AdvertiserTransaction[] = [
-  { id: "tx-1", type: "Campaign Deposit", date: "2026-10-03T10:12:00Z", amount: 200, campaign: null, status: "completed" },
-  { id: "tx-2", type: "Conversion Charge", date: "2026-10-03T09:48:00Z", amount: -1.2, campaign: "TravelPay wallet signup", status: "completed" },
-  { id: "tx-3", type: "Campaign Spend", date: "2026-10-02T21:30:00Z", amount: -18.45, campaign: "Install & open Coin Rush", status: "completed" },
-  { id: "tx-4", type: "Advertiser Referral Bonus", date: "2026-10-01T16:05:00Z", amount: 5, campaign: null, status: "pending" },
-  { id: "tx-5", type: "Conversion Charge", date: "2026-09-30T12:14:00Z", amount: -0.6, campaign: "Follow @cashgpt.official", status: "completed" },
-  { id: "tx-6", type: "Campaign Deposit", date: "2026-09-25T08:00:00Z", amount: 150, campaign: null, status: "completed" },
+  {
+    id: "tx-1",
+    type: "Campaign Deposit",
+    date: "2026-10-03T10:12:00Z",
+    amount: 200,
+    campaign: null,
+    status: "completed",
+  },
+  {
+    id: "tx-2",
+    type: "Conversion Charge",
+    date: "2026-10-03T09:48:00Z",
+    amount: -1.2,
+    campaign: "TravelPay wallet signup",
+    status: "completed",
+  },
+  {
+    id: "tx-3",
+    type: "Campaign Spend",
+    date: "2026-10-02T21:30:00Z",
+    amount: -18.45,
+    campaign: "Install & open Coin Rush",
+    status: "completed",
+  },
+  {
+    id: "tx-4",
+    type: "Advertiser Referral Bonus",
+    date: "2026-10-01T16:05:00Z",
+    amount: 5,
+    campaign: null,
+    status: "pending",
+  },
+  {
+    id: "tx-5",
+    type: "Conversion Charge",
+    date: "2026-09-30T12:14:00Z",
+    amount: -0.6,
+    campaign: "Follow @cashgpt.official",
+    status: "completed",
+  },
+  {
+    id: "tx-6",
+    type: "Campaign Deposit",
+    date: "2026-09-25T08:00:00Z",
+    amount: 150,
+    campaign: null,
+    status: "completed",
+  },
 ];
 
 export const ADVERTISER_REFERRAL = {
@@ -387,9 +426,36 @@ export type PendingCampaign = {
 };
 
 export const ADMIN_PENDING_CAMPAIGNS: PendingCampaign[] = [
-  { id: "pc-1", title: "Install FitTrack & log a workout", advertiser: "FitTrack Labs", reward: 0.55, budget: 275, verification: "auto", country: "🇺🇸 US", submittedAt: "2026-10-04T07:30:00Z" },
-  { id: "pc-2", title: "Join our Telegram community", advertiser: "NovaCoin", reward: 0.2, budget: 60, verification: "proof", country: "🌍 Worldwide", submittedAt: "2026-10-03T22:10:00Z" },
-  { id: "pc-3", title: "Complete a 2-min shopping survey", advertiser: "ShopSense", reward: 0.4, budget: 120, verification: "auto", country: "🇬🇧 UK · 🇮🇪 IE", submittedAt: "2026-10-03T15:45:00Z" },
+  {
+    id: "pc-1",
+    title: "Install FitTrack & log a workout",
+    advertiser: "FitTrack Labs",
+    reward: 0.55,
+    budget: 275,
+    verification: "auto",
+    country: "🇺🇸 US",
+    submittedAt: "2026-10-04T07:30:00Z",
+  },
+  {
+    id: "pc-2",
+    title: "Join our Telegram community",
+    advertiser: "NovaCoin",
+    reward: 0.2,
+    budget: 60,
+    verification: "proof",
+    country: "🌍 Worldwide",
+    submittedAt: "2026-10-03T22:10:00Z",
+  },
+  {
+    id: "pc-3",
+    title: "Complete a 2-min shopping survey",
+    advertiser: "ShopSense",
+    reward: 0.4,
+    budget: 120,
+    verification: "auto",
+    country: "🇬🇧 UK · 🇮🇪 IE",
+    submittedAt: "2026-10-03T15:45:00Z",
+  },
 ];
 
 export type PendingProof = {
@@ -401,9 +467,27 @@ export type PendingProof = {
 };
 
 export const ADMIN_PENDING_PROOFS: PendingProof[] = [
-  { id: "pp-1", campaign: "TravelPay wallet signup", publisher: "aarav.k", submittedAt: "2026-10-04T05:20:00Z", notes: "Signed up with my gmail, welcome screen attached." },
-  { id: "pp-2", campaign: "Follow @cashgpt.official", publisher: "mia_rose", submittedAt: "2026-10-03T19:02:00Z", notes: null },
-  { id: "pp-3", campaign: "Rate us on the Play Store", publisher: "carlos.m", submittedAt: "2026-10-03T11:40:00Z", notes: "5 stars left, screenshot shows my review." },
+  {
+    id: "pp-1",
+    campaign: "TravelPay wallet signup",
+    publisher: "aarav.k",
+    submittedAt: "2026-10-04T05:20:00Z",
+    notes: "Signed up with my gmail, welcome screen attached.",
+  },
+  {
+    id: "pp-2",
+    campaign: "Follow @cashgpt.official",
+    publisher: "mia_rose",
+    submittedAt: "2026-10-03T19:02:00Z",
+    notes: null,
+  },
+  {
+    id: "pp-3",
+    campaign: "Rate us on the Play Store",
+    publisher: "carlos.m",
+    submittedAt: "2026-10-03T11:40:00Z",
+    notes: "5 stars left, screenshot shows my review.",
+  },
 ];
 
 export type AdminAdvertiser = {
@@ -416,7 +500,28 @@ export type AdminAdvertiser = {
 };
 
 export const ADMIN_ADVERTISERS: AdminAdvertiser[] = [
-  { id: "adv-1", name: "FitTrack Labs", email: "ads@fittrack.app", balance: 240, campaigns: 3, approved: true },
-  { id: "adv-2", name: "NovaCoin", email: "growth@novacoin.io", balance: 85.5, campaigns: 1, approved: true },
-  { id: "adv-3", name: "ShopSense", email: "marketing@shopsense.co", balance: 0, campaigns: 1, approved: false },
+  {
+    id: "adv-1",
+    name: "FitTrack Labs",
+    email: "ads@fittrack.app",
+    balance: 240,
+    campaigns: 3,
+    approved: true,
+  },
+  {
+    id: "adv-2",
+    name: "NovaCoin",
+    email: "growth@novacoin.io",
+    balance: 85.5,
+    campaigns: 1,
+    approved: true,
+  },
+  {
+    id: "adv-3",
+    name: "ShopSense",
+    email: "marketing@shopsense.co",
+    balance: 0,
+    campaigns: 1,
+    approved: false,
+  },
 ];

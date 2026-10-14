@@ -88,10 +88,6 @@ const VARIANTS: SimulatedActivity[] = [
 ];
 
 function PreviewLiveActivity() {
-  if (!import.meta.env.DEV) {
-    return <Navigate to="/" replace />;
-  }
-  
   const queryClient = useQueryClient();
 
   // Seed the same two cache keys the Home page fills, so the live component
@@ -103,6 +99,10 @@ function PreviewLiveActivity() {
     });
     queryClient.setQueryData(["quests-active"], SAMPLE_QUESTS);
   }, [queryClient]);
+
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <main className="mx-auto w-full max-w-lg px-4 py-6">

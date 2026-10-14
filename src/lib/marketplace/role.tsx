@@ -1,9 +1,21 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { useAuth } from "@/lib/auth";
-import { getAdvertiserOverview, getPreferredRole, setPreferredRole } from "@/lib/marketplace.functions";
+import {
+  getAdvertiserOverview,
+  getPreferredRole,
+  setPreferredRole,
+} from "@/lib/marketplace.functions";
 import type { AdvertiserOverview } from "@/lib/marketplace/advertiser.server";
 import { safeStorage } from "@/lib/safe-storage";
 
@@ -45,7 +57,8 @@ const RoleContext = createContext<RoleValue>({
   refreshOverview: async () => {},
 });
 
-export const advertiserOverviewKey = (userId: string | undefined) => ["advertiser-overview", userId] as const;
+export const advertiserOverviewKey = (userId: string | undefined) =>
+  ["advertiser-overview", userId] as const;
 
 function readStoredRole(): MarketplaceRole {
   if (typeof window === "undefined") return "publisher";
@@ -91,8 +104,10 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   const overview = overviewQuery.data ?? null;
   const advertiserActivated = Boolean(overview?.account);
-  const marketplaceAvailable = !overviewQuery.isError && (overviewQuery.isPending || Boolean(overview));
-  const role: MarketplaceRole = preferred === "advertiser" && advertiserActivated ? "advertiser" : "publisher";
+  const marketplaceAvailable =
+    !overviewQuery.isError && (overviewQuery.isPending || Boolean(overview));
+  const role: MarketplaceRole =
+    preferred === "advertiser" && advertiserActivated ? "advertiser" : "publisher";
 
   const setRole = useCallback(
     async (next: MarketplaceRole) => {
@@ -127,7 +142,16 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       marketplaceAvailable,
       refreshOverview,
     }),
-    [role, setRole, advertiserActivated, overview, userId, overviewQuery.isPending, marketplaceAvailable, refreshOverview],
+    [
+      role,
+      setRole,
+      advertiserActivated,
+      overview,
+      userId,
+      overviewQuery.isPending,
+      marketplaceAvailable,
+      refreshOverview,
+    ],
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;

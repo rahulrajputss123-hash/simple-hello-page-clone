@@ -14,7 +14,9 @@ import { listActiveQuests, startLockerQuest, startShortlinkStep } from "@/lib/qu
 import { formatLockReason } from "@/lib/lock-state";
 
 // Lazy-load dialog (only shown on click)
-const QuestDetailsDialog = lazy(() => import("@/components/QuestDetailsDialog").then(m => ({ default: m.QuestDetailsDialog })));
+const QuestDetailsDialog = lazy(() =>
+  import("@/components/QuestDetailsDialog").then((m) => ({ default: m.QuestDetailsDialog })),
+);
 
 export function StarterQuests() {
   const { session } = useAuth();
@@ -127,6 +129,24 @@ export function StarterQuests() {
     return { active, credited, nextStep };
   };
 
+  // Stable handlers using useCallback - MUST be above all early returns
+  const createOpenDetailsHandler = useCallback(
+    (questKey: string) => () => {
+      const q = quests.data?.find((quest) => quest.key === questKey);
+      if (q) setPendingQuest(q as QuestCardQuest);
+    },
+    [quests.data],
+  );
+
+  const createLockedHandler = useCallback(
+    (lockLabel: string | null) => () => {
+      toast.info(
+        lockLabel ? `This quest is locked. ${lockLabel}.` : "This quest is currently locked.",
+      );
+    },
+    [],
+  );
+
   /**
    * Dispatches the real quest action. Only reachable from the details dialog's
    * Continue button — the card itself no longer triggers anything external.
@@ -176,26 +196,6 @@ export function StarterQuests() {
   }
 
   const pendingRuntime = pendingQuest ? questRuntime(pendingQuest) : null;
-
-  // Stable handlers using useCallback with quest key dependency
-  const createOpenDetailsHandler = useCallback(
-    (questKey: string) => () => {
-      const q = quests.data?.find((quest) => quest.key === questKey);
-      if (q) setPendingQuest(q as QuestCardQuest);
-    },
-    [quests.data]
-  );
-
-  const createLockedHandler = useCallback(
-    (lockLabel: string | null) => () => {
-      toast.info(
-        lockLabel
-          ? `This quest is locked. ${lockLabel}.`
-          : "This quest is currently locked."
-      );
-    },
-    []
-  );
 
   return (
     <>

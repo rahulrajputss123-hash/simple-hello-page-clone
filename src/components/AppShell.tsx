@@ -82,7 +82,7 @@ export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?
   const { role, overview } = useRole();
   const isAdvertiserRoute = location.pathname.startsWith("/advertiser");
   const showCampaignBalance = isAdvertiserRoute;
-  
+
   const unread = useQuery({
     queryKey: ["notifications-unread", session?.user.id],
     enabled: Boolean(session),
@@ -176,7 +176,9 @@ export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?
               aria-label="Open wallet"
               className="flex shrink-0 items-center rounded-full bg-gold-gradient px-3 py-2 text-gold-foreground shadow-gold"
             >
-              <span className="text-amount whitespace-nowrap text-sm">{formatMoney(shownAvailable)}</span>
+              <span className="text-amount whitespace-nowrap text-sm">
+                {formatMoney(shownAvailable)}
+              </span>
             </Link>
           )}
         </div>
