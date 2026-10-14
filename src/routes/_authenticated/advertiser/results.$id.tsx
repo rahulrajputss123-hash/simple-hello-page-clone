@@ -34,7 +34,6 @@ function ResultsPage() {
   return (
     <AppShell subtitle="Advertiser" mainClass="page-fade-in">
       <BackLink to="/advertiser/campaigns" label="Back to My Campaigns" />
-      <PreviewNotice className="mt-3" />
 
       <section className="premium-step-in mt-3 rounded-3xl bg-jade-gradient p-5 text-primary-foreground shadow-lift">
         <VerificationBadge verification={c.verification_mode === "auto" ? "auto" : "proof"} size="md" />

@@ -87,7 +87,6 @@ function ProofSubmissionPage() {
   return (
     <AppShell subtitle="Tasks" mainClass="page-fade-in">
       <BackLink to={`/microtask/${c.id}`} label="Back to task" />
-      <PreviewNotice className="mt-3" />
 
       <div className="surface-card mt-3 p-4">
         <VerificationBadge verification="proof" />
