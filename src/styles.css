@@ -1116,3 +1116,9 @@ html[data-native="1"] [data-web-only] {
     transform: translateY(0);
   }
 }
+
+/* Content visibility optimization for below-the-fold sections */
+.content-visible-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 600px;
+}

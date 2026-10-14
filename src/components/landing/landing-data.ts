@@ -5,8 +5,8 @@
  * and no runtime dependencies so the landing page stays isolated from the
  * authenticated app's auth / offers / wallet logic.
  *
- * Image paths are root-relative into `public/`. The uploaded landing assets are
- * JPEGs, hence the `.jpg` extensions.
+ * Image paths are root-relative into `public/`. Landing assets are WebP at 2x
+ * resolution for optimal performance. Original JPEGs are kept in place.
  */
 
 import type { ImageCrop } from "@/components/landing/CroppedArt";
@@ -44,56 +44,56 @@ export type EarnWay = {
 export const EARN_WAYS: EarnWay[] = [
   {
     number: "01",
-    image: "/landing/earn-icons/01-ads.jpg",
+    image: "/landing/earn-icons/01-ads.webp",
     title: "Ads",
     subtitle: "Watch & Earn",
     crop: { widthPct: 238.36, leftPct: -70.76, topPct: -17.32 },
   },
   {
     number: "02",
-    image: "/landing/earn-icons/02-shortlinks.jpg",
+    image: "/landing/earn-icons/02-shortlinks.webp",
     title: "Shortlinks",
     subtitle: "Visit & Earn",
     crop: { widthPct: 100, leftPct: 0, topPct: 0 },
   },
   {
     number: "03",
-    image: "/landing/earn-icons/03-locker.jpg",
+    image: "/landing/earn-icons/03-locker.webp",
     title: "Locker",
     subtitle: "Unlock & Earn",
     crop: { widthPct: 100, leftPct: 0, topPct: 0 },
   },
   {
     number: "04",
-    image: "/landing/earn-icons/04-survey.jpg",
+    image: "/landing/earn-icons/04-survey.webp",
     title: "Survey",
     subtitle: "Share & Earn",
     crop: { widthPct: 100, leftPct: 0, topPct: 0 },
   },
   {
     number: "05",
-    image: "/landing/earn-icons/05-appinstall.jpg",
+    image: "/landing/earn-icons/05-appinstall.webp",
     title: "App Install",
     subtitle: "Install & Earn",
     crop: { widthPct: 237.92, leftPct: -70.63, topPct: -17.29 },
   },
   {
     number: "06",
-    image: "/landing/earn-icons/06-task.jpg",
+    image: "/landing/earn-icons/06-task.webp",
     title: "Task",
     subtitle: "Complete & Earn",
     crop: { widthPct: 100, leftPct: 0, topPct: 0 },
   },
   {
     number: "07",
-    image: "/landing/earn-icons/07-deal.jpg",
+    image: "/landing/earn-icons/07-deal.webp",
     title: "Deal offer",
     subtitle: "Claim & Earn",
     crop: { widthPct: 238.36, leftPct: -70.95, topPct: -17.69 },
   },
   {
     number: "08",
-    image: "/landing/earn-icons/08-games.jpg",
+    image: "/landing/earn-icons/08-games.webp",
     title: "Games",
     subtitle: "Play & Earn",
     crop: { widthPct: 242.42, leftPct: -67.42, topPct: -14.96 },
@@ -124,7 +124,7 @@ export type ShowcaseOffer = {
 export const SHOWCASE_OFFERS: ShowcaseOffer[] = [
   {
     id: "virtual-number",
-    image: "/landing/offers/virtual-number.jpg",
+    image: "/landing/offers/virtual-number.webp",
     title: "Virtual Number",
     description: "Verify a number, get paid",
     payout: "$5",
@@ -133,7 +133,7 @@ export const SHOWCASE_OFFERS: ShowcaseOffer[] = [
   },
   {
     id: "netflix",
-    image: "/landing/offers/netflix.jpg",
+    image: "/landing/offers/netflix.webp",
     title: "Netflix Trial",
     description: "Start a free trial, keep the cash",
     payout: "$5",
@@ -142,7 +142,7 @@ export const SHOWCASE_OFFERS: ShowcaseOffer[] = [
   },
   {
     id: "ai-tool",
-    image: "/landing/offers/ai-tool.jpg",
+    image: "/landing/offers/ai-tool.webp",
     title: "AI Tool Signup",
     description: "Sign up free, earn in minutes",
     payout: "$7",
