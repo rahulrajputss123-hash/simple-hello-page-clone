@@ -1,4 +1,5 @@
 import { Check, Loader2, LockKeyhole } from "lucide-react";
+import { memo } from "react";
 
 import { formatMoney } from "@/lib/coinquest";
 import {
@@ -58,7 +59,7 @@ function CoinMark({ size = 14 }: { size?: number }) {
   );
 }
 
-export function QuestCard({
+export const QuestCard = memo(function QuestCard({
   quest,
   active,
   credited,
@@ -285,4 +286,4 @@ export function QuestCard({
       )}
     </article>
   );
-}
+});

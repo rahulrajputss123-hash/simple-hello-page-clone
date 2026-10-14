@@ -14,12 +14,12 @@ import {
   SlidersHorizontal,
   Star,
 } from "lucide-react";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, startTransition, useDeferredValue, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/lib/auth";
@@ -83,7 +83,7 @@ function mapCampaignToDisplay(c: any): DisplayCampaign {
 
 type TaskCardProps = { campaign: DisplayCampaign };
 
-function TaskCard({ campaign }: TaskCardProps) {
+const TaskCard = memo(function TaskCard({ campaign }: TaskCardProps) {
   const VerificationIcon = campaign.verification === "auto" ? ShieldCheck : Shield;
   return (
     <Link to="/microtask/$id" params={{ id: campaign.id }} data-testid={`microtask-card-${campaign.id}`} className="surface-card hover-lift press-feedback block p-4">
@@ -123,7 +123,7 @@ function TaskCard({ campaign }: TaskCardProps) {
       </div>
     </Link>
   );
-}
+});
 
 function MicrotasksPage() {
   const { session } = useAuth();
@@ -143,6 +143,7 @@ function MicrotasksPage() {
   });
 
   const listRef = useRef<HTMLOListElement>(null);
+  const isFirstMountRef = useRef(true); // Track first mount for stagger animation
   const [sort, setSort] = useState<Sort>("all");
   const [open, setOpen] = useState(false);
   const [featured, setFeatured] = useState(false);
@@ -183,15 +184,43 @@ function MicrotasksPage() {
     });
   }, [displayCampaigns, sort, featured, verification, selectedCategories, selectedCountries, selectedDevices]);
 
+  const deferredFiltered = useDeferredValue(filtered);
+
   const activeFilters = Number(featured) + Number(Boolean(verification)) + selectedCategories.length + selectedCountries.length + selectedDevices.length;
-  const toggle = (value: string, current: string[], setter: (next: string[]) => void) =>
-    setter(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
-  const reset = () => {
-    setFeatured(false);
-    setVerification(null);
-    setSelectedCategories([]);
-    setSelectedCountries([]);
-    setSelectedDevices([]);
+
+  const applyFilters = (
+    newFeatured: boolean,
+    newVerification: "auto" | "proof" | null,
+    newCategories: string[],
+    newCountries: string[],
+    newDevices: string[]
+  ) => {
+    // Close sheet first
+    setOpen(false);
+    // Apply filters in transition after animation completes
+    setTimeout(() => {
+      startTransition(() => {
+        setFeatured(newFeatured);
+        setVerification(newVerification);
+        setSelectedCategories(newCategories);
+        setSelectedCountries(newCountries);
+        setSelectedDevices(newDevices);
+        isFirstMountRef.current = false; // Disable stagger on subsequent updates
+      });
+    }, 200);
+  };
+
+  const resetFilters = () => {
+    setOpen(false);
+    setTimeout(() => {
+      startTransition(() => {
+        setFeatured(false);
+        setVerification(null);
+        setSelectedCategories([]);
+        setSelectedCountries([]);
+        setSelectedDevices([]);
+      });
+    }, 200);
   };
 
   return (
@@ -291,8 +320,8 @@ function MicrotasksPage() {
           No tasks match your filters. Try adjusting your search.
         </p>
       ) : (
-        <ol className="stagger-children space-y-3" data-testid="microtask-list">
-          {filtered.map((campaign) => (
+        <ol className={cn("space-y-3", isFirstMountRef.current && "stagger-children")} data-testid="microtask-list">
+          {deferredFiltered.map((campaign) => (
             <li key={campaign.id}>
               <TaskCard campaign={campaign} />
             </li>
@@ -326,46 +355,21 @@ function MicrotasksPage() {
         <ChevronRight className="ml-auto size-4 text-muted-foreground" />
       </Link>
 
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto rounded-t-3xl">
-          <SheetHeader>
-            <SheetTitle>Filter tasks</SheetTitle>
-            <SheetDescription>Choose the opportunities you want to see.</SheetDescription>
-          </SheetHeader>
-          <div className="flex flex-col gap-5 py-5">
-            <FilterRow label="Featured tasks">
-              <Switch checked={featured} onCheckedChange={setFeatured} />
-            </FilterRow>
-            <FilterRow label="Auto verified">
-              <Switch checked={verification === "auto"} onCheckedChange={(checked) => setVerification(checked ? "auto" : null)} />
-            </FilterRow>
-            <FilterRow label="Proof required">
-              <Switch checked={verification === "proof"} onCheckedChange={(checked) => setVerification(checked ? "proof" : null)} />
-            </FilterRow>
-            <ChipGroup
-              label="Categories"
-              options={categories}
-              selected={selectedCategories}
-              toggle={(v) => toggle(v, selectedCategories, setSelectedCategories)}
-            />
-            <ChipGroup
-              label="Countries"
-              options={countries}
-              selected={selectedCountries}
-              toggle={(v) => toggle(v, selectedCountries, setSelectedCountries)}
-            />
-            <ChipGroup label="Devices" options={devices} selected={selectedDevices} toggle={(v) => toggle(v, selectedDevices, setSelectedDevices)} />
-          </div>
-          <SheetFooter className="gap-2">
-            <Button variant="ghost" onClick={reset}>
-              Reset
-            </Button>
-            <Button variant="jade" className="flex-1" onClick={() => setOpen(false)}>
-              Show {filtered.length} tasks
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      <TaskFilterSheet
+        open={open}
+        onOpenChange={setOpen}
+        featured={featured}
+        verification={verification}
+        selectedCategories={selectedCategories}
+        selectedCountries={selectedCountries}
+        selectedDevices={selectedDevices}
+        categories={categories}
+        countries={countries}
+        devices={devices}
+        filteredCount={filtered.length}
+        onApply={applyFilters}
+        onReset={resetFilters}
+      />
     </AppShell>
   );
 }
@@ -388,12 +392,137 @@ function ChipGroup({ label, options, selected, toggle }: { label: string; option
           <button
             key={option}
             onClick={() => toggle(option)}
-            className={cn("rounded-full border border-border px-3 py-1.5 text-xs", selected.includes(option) && "border-primary bg-primary text-primary-foreground")}
+            className={cn("rounded-full border border-border px-3 py-1.5 text-xs transition-colors", selected.includes(option) && "border-primary bg-primary text-primary-foreground")}
           >
             {option}
           </button>
         ))}
       </div>
     </div>
+  );
+}
+
+type TaskFilterSheetProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  featured: boolean;
+  verification: "auto" | "proof" | null;
+  selectedCategories: string[];
+  selectedCountries: string[];
+  selectedDevices: string[];
+  categories: string[];
+  countries: string[];
+  devices: string[];
+  filteredCount: number;
+  onApply: (
+    featured: boolean,
+    verification: "auto" | "proof" | null,
+    categories: string[],
+    countries: string[],
+    devices: string[]
+  ) => void;
+  onReset: () => void;
+};
+
+function TaskFilterSheet({
+  open,
+  onOpenChange,
+  featured: initialFeatured,
+  verification: initialVerification,
+  selectedCategories: initialCategories,
+  selectedCountries: initialCountries,
+  selectedDevices: initialDevices,
+  categories,
+  countries,
+  devices,
+  filteredCount,
+  onApply,
+  onReset,
+}: TaskFilterSheetProps) {
+  // Local draft state
+  const [draftFeatured, setDraftFeatured] = useState(initialFeatured);
+  const [draftVerification, setDraftVerification] = useState(initialVerification);
+  const [draftCategories, setDraftCategories] = useState(initialCategories);
+  const [draftCountries, setDraftCountries] = useState(initialCountries);
+  const [draftDevices, setDraftDevices] = useState(initialDevices);
+
+  // Sync draft state when parent state changes
+  useMemo(() => {
+    setDraftFeatured(initialFeatured);
+    setDraftVerification(initialVerification);
+    setDraftCategories(initialCategories);
+    setDraftCountries(initialCountries);
+    setDraftDevices(initialDevices);
+  }, [initialFeatured, initialVerification, initialCategories, initialCountries, initialDevices]);
+
+  const toggle = (value: string, current: string[], setter: (next: string[]) => void) =>
+    setter(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+
+  const handleApply = () => {
+    onApply(draftFeatured, draftVerification, draftCategories, draftCountries, draftDevices);
+  };
+
+  const handleReset = () => {
+    setDraftFeatured(false);
+    setDraftVerification(null);
+    setDraftCategories([]);
+    setDraftCountries([]);
+    setDraftDevices([]);
+    onReset();
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      // Discard draft changes on close
+      setDraftFeatured(initialFeatured);
+      setDraftVerification(initialVerification);
+      setDraftCategories(initialCategories);
+      setDraftCountries(initialCountries);
+      setDraftDevices(initialDevices);
+    }
+    onOpenChange(newOpen);
+  };
+
+  return (
+    <AppBottomSheet
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Filter tasks"
+      footer={
+        <div className="flex w-full gap-2">
+          <Button variant="ghost" onClick={handleReset}>
+            Reset
+          </Button>
+          <Button variant="jade" className="flex-1" onClick={handleApply}>
+            Show {filteredCount} tasks
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-5">
+        <FilterRow label="Featured tasks">
+          <Switch checked={draftFeatured} onCheckedChange={setDraftFeatured} />
+        </FilterRow>
+        <FilterRow label="Auto verified">
+          <Switch checked={draftVerification === "auto"} onCheckedChange={(checked) => setDraftVerification(checked ? "auto" : null)} />
+        </FilterRow>
+        <FilterRow label="Proof required">
+          <Switch checked={draftVerification === "proof"} onCheckedChange={(checked) => setDraftVerification(checked ? "proof" : null)} />
+        </FilterRow>
+        <ChipGroup
+          label="Categories"
+          options={categories}
+          selected={draftCategories}
+          toggle={(v) => toggle(v, draftCategories, setDraftCategories)}
+        />
+        <ChipGroup
+          label="Countries"
+          options={countries}
+          selected={draftCountries}
+          toggle={(v) => toggle(v, draftCountries, setDraftCountries)}
+        />
+        <ChipGroup label="Devices" options={devices} selected={draftDevices} toggle={(v) => toggle(v, draftDevices, setDraftDevices)} />
+      </div>
+    </AppBottomSheet>
   );
 }
