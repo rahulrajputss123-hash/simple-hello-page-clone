@@ -47,6 +47,7 @@ import { Route as AuthenticatedAdvertiserReferralRouteImport } from './routes/_a
 import { Route as AuthenticatedAdvertiserTransactionsRouteImport } from './routes/_authenticated/advertiser/transactions'
 import { Route as AuthenticatedMicrotaskProofIdRouteImport } from './routes/_authenticated/microtask-proof.$id'
 import { Route as AuthenticatedMicrotaskIdRouteImport } from './routes/_authenticated/microtask.$id'
+import { Route as AuthenticatedOfferOfferIdRouteImport } from './routes/_authenticated/offer.$offerId'
 import { Route as ApiCronRefreshOfferFeedRouteImport } from './routes/api/cron/refresh-offer-feed'
 import { Route as ApiPublicMarketplacePostbackRouteImport } from './routes/api/public/marketplace-postback'
 import { Route as ApiPublicRazorpayWebhookRouteImport } from './routes/api/public/razorpay-webhook'
@@ -256,6 +257,12 @@ const AuthenticatedMicrotaskIdRoute =
     path: '/microtask/$id',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedOfferOfferIdRoute =
+  AuthenticatedOfferOfferIdRouteImport.update({
+    id: '/offer/$offerId',
+    path: '/offer/$offerId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiCronRefreshOfferFeedRoute = ApiCronRefreshOfferFeedRouteImport.update({
   id: '/api/cron/refresh-offer-feed',
   path: '/api/cron/refresh-offer-feed',
@@ -341,6 +348,7 @@ export interface FileRoutesByFullPath {
   '/advertiser/transactions': typeof AuthenticatedAdvertiserTransactionsRoute
   '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
+  '/offer/$offerId': typeof AuthenticatedOfferOfferIdRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/marketplace-postback': typeof ApiPublicMarketplacePostbackRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
@@ -388,6 +396,7 @@ export interface FileRoutesByTo {
   '/advertiser/transactions': typeof AuthenticatedAdvertiserTransactionsRoute
   '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
+  '/offer/$offerId': typeof AuthenticatedOfferOfferIdRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/marketplace-postback': typeof ApiPublicMarketplacePostbackRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
@@ -437,6 +446,7 @@ export interface FileRoutesById {
   '/_authenticated/advertiser/transactions': typeof AuthenticatedAdvertiserTransactionsRoute
   '/_authenticated/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/_authenticated/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
+  '/_authenticated/offer/$offerId': typeof AuthenticatedOfferOfferIdRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/marketplace-postback': typeof ApiPublicMarketplacePostbackRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
@@ -486,6 +496,7 @@ export interface FileRouteTypes {
     | '/advertiser/transactions'
     | '/microtask-proof/$id'
     | '/microtask/$id'
+    | '/offer/$offerId'
     | '/api/cron/refresh-offer-feed'
     | '/api/public/marketplace-postback'
     | '/api/public/razorpay-webhook'
@@ -533,6 +544,7 @@ export interface FileRouteTypes {
     | '/advertiser/transactions'
     | '/microtask-proof/$id'
     | '/microtask/$id'
+    | '/offer/$offerId'
     | '/api/cron/refresh-offer-feed'
     | '/api/public/marketplace-postback'
     | '/api/public/razorpay-webhook'
@@ -581,6 +593,7 @@ export interface FileRouteTypes {
     | '/_authenticated/advertiser/transactions'
     | '/_authenticated/microtask-proof/$id'
     | '/_authenticated/microtask/$id'
+    | '/_authenticated/offer/$offerId'
     | '/api/cron/refresh-offer-feed'
     | '/api/public/marketplace-postback'
     | '/api/public/razorpay-webhook'
@@ -882,6 +895,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMicrotaskIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/offer/$offerId': {
+      id: '/_authenticated/offer/$offerId'
+      path: '/offer/$offerId'
+      fullPath: '/offer/$offerId'
+      preLoaderRoute: typeof AuthenticatedOfferOfferIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/cron/refresh-offer-feed': {
       id: '/api/cron/refresh-offer-feed'
       path: '/api/cron/refresh-offer-feed'
@@ -965,6 +985,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdvertiserTransactionsRoute: typeof AuthenticatedAdvertiserTransactionsRoute
   AuthenticatedMicrotaskProofIdRoute: typeof AuthenticatedMicrotaskProofIdRoute
   AuthenticatedMicrotaskIdRoute: typeof AuthenticatedMicrotaskIdRoute
+  AuthenticatedOfferOfferIdRoute: typeof AuthenticatedOfferOfferIdRoute
   AuthenticatedAdvertiserResultsIdRoute: typeof AuthenticatedAdvertiserResultsIdRoute
   AuthenticatedGoQuestKeyStepRoute: typeof AuthenticatedGoQuestKeyStepRoute
   AuthenticatedGoLockerReturnRoute: typeof AuthenticatedGoLockerReturnRoute
@@ -995,6 +1016,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedAdvertiserTransactionsRoute,
   AuthenticatedMicrotaskProofIdRoute: AuthenticatedMicrotaskProofIdRoute,
   AuthenticatedMicrotaskIdRoute: AuthenticatedMicrotaskIdRoute,
+  AuthenticatedOfferOfferIdRoute: AuthenticatedOfferOfferIdRoute,
   AuthenticatedAdvertiserResultsIdRoute: AuthenticatedAdvertiserResultsIdRoute,
   AuthenticatedGoQuestKeyStepRoute: AuthenticatedGoQuestKeyStepRoute,
   AuthenticatedGoLockerReturnRoute: AuthenticatedGoLockerReturnRoute,

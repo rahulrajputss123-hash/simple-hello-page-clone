@@ -1104,3 +1104,15 @@ html[data-native="1"] [data-web-only] {
   .hp-anim { animation: none !important; }
   .hp-parallax, .hp-tilt { transform: none !important; transition: none !important; }
 }
+
+/* Smooth slide-up animation for bottom sheets */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
