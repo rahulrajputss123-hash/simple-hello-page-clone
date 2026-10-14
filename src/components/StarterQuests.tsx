@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useCallback, useState } from "react";
 import { toast } from "sonner";
 
 import { QuestCard, type QuestCardQuest, type QuestSessionView } from "@/components/QuestCard";
@@ -177,6 +177,26 @@ export function StarterQuests() {
 
   const pendingRuntime = pendingQuest ? questRuntime(pendingQuest) : null;
 
+  // Stable handlers using useCallback with quest key dependency
+  const createOpenDetailsHandler = useCallback(
+    (questKey: string) => () => {
+      const q = quests.data?.find((quest) => quest.key === questKey);
+      if (q) setPendingQuest(q as QuestCardQuest);
+    },
+    [quests.data]
+  );
+
+  const createLockedHandler = useCallback(
+    (lockLabel: string | null) => () => {
+      toast.info(
+        lockLabel
+          ? `This quest is locked. ${lockLabel}.`
+          : "This quest is currently locked."
+      );
+    },
+    []
+  );
+
   return (
     <>
       <div
@@ -202,14 +222,8 @@ export function StarterQuests() {
               credited={Boolean(credited)}
               busy={isBusy}
               lockLabel={lockLabel}
-              onLocked={() => {
-                toast.info(
-                  lockLabel
-                    ? `This quest is locked. ${lockLabel}.`
-                    : "This quest is currently locked.",
-                );
-              }}
-              onOpenDetails={() => setPendingQuest(q)}
+              onLocked={createLockedHandler(lockLabel)}
+              onOpenDetails={createOpenDetailsHandler(quest.key)}
             />
           );
         })}

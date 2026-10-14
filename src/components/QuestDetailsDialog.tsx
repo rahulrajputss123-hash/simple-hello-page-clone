@@ -1,13 +1,7 @@
 import { AlertTriangle, ArrowUpRight, Info } from "lucide-react";
 
+import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { formatMoney } from "@/lib/coinquest";
 import {
   deriveQuestView,
@@ -17,7 +11,7 @@ import {
 } from "@/lib/quest-view";
 
 /**
- * Pre-start confirmation dialog for Starter Quests.
+ * Pre-start confirmation sheet for Starter Quests.
  *
  * Quest cards used to fire the mutation (and open the external URL) straight
  * from the card tap. This gates that behind an explicit Continue, mirroring how
@@ -58,47 +52,67 @@ export function QuestDetailsDialog({
             : "Start Quest"
           : "Complete Locker";
 
+  if (!open || !quest) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto" data-testid="quest-details-dialog">
-        <DialogHeader>
-          <div className="flex items-start gap-3">
+    <AppBottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={quest.label}
+      footer={
+        <div className="flex w-full gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="quest-details-cancel"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="jade"
+            className="flex-1"
+            onClick={onContinue}
+            disabled={isSubmitting || !quest}
+            data-testid="quest-details-continue"
+          >
+            {ctaLabel}
+            <ArrowUpRight className="ml-1 size-3.5" />
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4" data-testid="quest-details-dialog">
+        <div className="flex items-start gap-3">
+          {accent && (
+            <span
+              aria-hidden
+              className="grid size-10 shrink-0 place-items-center rounded-xl text-white"
+              style={{
+                background: accent.tile,
+                boxShadow: `0 6px 14px -4px ${accent.tileShadow}`,
+              }}
+            >
+              <accent.icon className="size-5" strokeWidth={2} />
+            </span>
+          )}
+          <div className="min-w-0 flex-1 text-left">
+            <p
+              className="text-amount text-sm text-gold-dark"
+              data-testid="quest-details-reward"
+            >
+              {formatMoney(quest.reward_amount)}
+            </p>
             {accent && (
               <span
-                aria-hidden
-                className="grid size-10 shrink-0 place-items-center rounded-xl text-white"
-                style={{
-                  background: accent.tile,
-                  boxShadow: `0 6px 14px -4px ${accent.tileShadow}`,
-                }}
+                data-testid="quest-details-badge"
+                className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.07em]"
+                style={{ background: accent.badgeBg, color: accent.badgeInk }}
               >
-                <accent.icon className="size-5" strokeWidth={2} />
+                {accent.label}
               </span>
             )}
-            <div className="min-w-0 flex-1 text-left">
-              <DialogTitle className="text-left text-base" data-testid="quest-details-title">
-                {quest?.label ?? "Quest"}
-              </DialogTitle>
-              {quest && (
-                <p
-                  className="text-amount text-sm text-gold-dark"
-                  data-testid="quest-details-reward"
-                >
-                  {formatMoney(quest.reward_amount)}
-                </p>
-              )}
-              {accent && (
-                <span
-                  data-testid="quest-details-badge"
-                  className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.07em]"
-                  style={{ background: accent.badgeBg, color: accent.badgeInk }}
-                >
-                  {accent.label}
-                </span>
-              )}
-            </div>
           </div>
-        </DialogHeader>
+        </div>
 
         {view && (
           <section className="space-y-1">
@@ -127,7 +141,7 @@ export function QuestDetailsDialog({
           </section>
         )}
 
-        {quest?.quest_type === "shortlink" && view && (
+        {quest.quest_type === "shortlink" && view && (
           <section
             className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-primary"
             data-testid="quest-details-step"
@@ -154,26 +168,7 @@ export function QuestDetailsDialog({
             accounts and no emulators, or the reward may be withheld.
           </p>
         </section>
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="quest-details-cancel"
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="jade"
-            onClick={onContinue}
-            disabled={isSubmitting || !quest}
-            data-testid="quest-details-continue"
-          >
-            {ctaLabel}
-            <ArrowUpRight className="ml-1 size-3.5" />
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </AppBottomSheet>
   );
 }
