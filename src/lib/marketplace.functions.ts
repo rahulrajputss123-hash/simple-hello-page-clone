@@ -191,6 +191,22 @@ export const rotateCampaignSecret = createServerFn({ method: "POST" })
     }
   });
 
+export const addCampaignBudget = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => {
+    const { addCampaignBudgetInput } = require("./marketplace/advertiser.server");
+    return addCampaignBudgetInput.parse(input);
+  })
+  .handler(async ({ data, context }) => {
+    const { addCampaignBudgetImpl, DepositError } = await import("./marketplace/advertiser.server");
+    try {
+      return await addCampaignBudgetImpl(context.userId, data);
+    } catch (err) {
+      if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
+      throw err;
+    }
+  });
+
 export const getCampaignResults = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input)).handler(async ({ data, context }) => {
   const { getCampaignResultsImpl } = await import("./marketplace/advertiser.server");
   return getCampaignResultsImpl(context.userId, data.campaignId);
@@ -356,4 +372,27 @@ export const listCategories = createServerFn({ method: "POST" })
   .handler(async () => {
     const { listCategoriesWithSubcategoriesImpl } = await import("./marketplace/categories.server");
     return listCategoriesWithSubcategoriesImpl();
+  });
+
+
+export const listPendingReviews = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { listPendingReviewsImpl } = await import("./marketplace/advertiser.server");
+    return listPendingReviewsImpl(context.userId);
+  });
+
+export const reviewSubmission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => 
+    z.object({
+      submissionId: z.string().uuid(),
+      decision: z.enum(["approved", "rejected"]),
+      reason: z.string().optional(),
+    }).parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const { reviewSubmissionImpl } = await import("./marketplace/advertiser.server");
+    await reviewSubmissionImpl(context.userId, data.submissionId, data.decision, data.reason);
+    return { ok: true };
   });
