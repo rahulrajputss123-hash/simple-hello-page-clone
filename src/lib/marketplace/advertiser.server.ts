@@ -845,6 +845,8 @@ export const createCampaignInput = z.object({
     required: z.boolean(),
     maxLen: z.number().int().min(10).max(500),
   })).max(5).optional(),
+  // Advanced settings
+  reviewWindow: z.number().int().min(1).max(720).optional(), // Review window in hours
   // Offer rules confirmation
   rulesAccepted: z.boolean(),
 })
@@ -1051,6 +1053,21 @@ export async function createCampaignImpl(
     throw err;
   }
 
+  // Step 2.5: Store campaign options if review window specified
+  if (input.verification === "proof" && input.reviewWindow) {
+    const { error: optionsError } = await mktDb
+      .from("campaign_options")
+      .upsert({
+        campaign_id: campaign.id,
+        review_window_hours: input.reviewWindow,
+      });
+
+    if (optionsError) {
+      // Non-fatal: log but don't fail campaign creation
+      console.error("Failed to store campaign options:", optionsError);
+    }
+  }
+
   // Step 3: If featured, charge the fee atomically via RPC
   // Note: Campaign is already submitted, so if this fails we DON'T delete the campaign
   let featuredApplied = false;
@@ -1187,4 +1204,122 @@ export async function rotateCampaignSecretImpl(
   const url = `${siteUrl}/api/public/marketplace-postback?click_id={click_id}&token=${newSecret}&txn_id={transaction_id}`;
 
   return { secret: newSecret, url };
+}
+
+
+/* ------------------------------------------------------------ advertiser reviews */
+
+export async function listPendingReviewsImpl(userId: string): Promise<any[]> {
+  // Get pending submissions for advertiser's campaigns with campaign details
+  const { data: submissions, error } = await mktDb
+    .from("campaign_submissions")
+    .select(`
+      id,
+      campaign_id,
+      user_id,
+      proof_paths,
+      field_values,
+      user_note,
+      auto_approve_at,
+      created_at,
+      campaigns!inner(
+        name,
+        publisher_reward,
+        advertiser_id,
+        proof_fields
+      )
+    `)
+    .eq("campaigns.advertiser_id", userId)
+    .eq("status", "pending")
+    .eq("requires_admin", false)
+    .order("auto_approve_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  // Generate signed URLs for proof images
+  const supabaseService = getSupabaseService();
+  const result = [];
+
+  for (const sub of submissions ?? []) {
+    const signedUrls: string[] = [];
+    for (const path of sub.proof_paths ?? []) {
+      const { data: urlData } = await supabaseService.storage
+        .from("offer-proofs")
+        .createSignedUrl(path, 3600); // 1 hour expiry
+      
+      if (urlData?.signedUrl) {
+        signedUrls.push(urlData.signedUrl);
+      }
+    }
+
+    result.push({
+      id: sub.id,
+      campaignId: sub.campaign_id,
+      campaignName: (sub.campaigns as any).name,
+      publisherReward: num((sub.campaigns as any).publisher_reward),
+      proofFields: (sub.campaigns as any).proof_fields || [],
+      proofUrls: signedUrls,
+      fieldValues: sub.field_values || {},
+      userNote: sub.user_note,
+      autoApproveAt: sub.auto_approve_at,
+      createdAt: sub.created_at,
+    });
+  }
+
+  return result;
+}
+
+export async function reviewSubmissionImpl(
+  userId: string,
+  submissionId: string,
+  decision: "approved" | "rejected",
+  reason?: string,
+): Promise<void> {
+  // Verify ownership through campaign
+  const { data: submission, error: subErr } = await mktDb
+    .from("campaign_submissions")
+    .select("campaign_id, campaigns!inner(advertiser_id)")
+    .eq("id", submissionId)
+    .maybeSingle();
+
+  if (subErr || !submission) {
+    throw new DepositError("NOT_FOUND", "Submission not found.");
+  }
+
+  if ((submission.campaigns as any).advertiser_id !== userId) {
+    throw new DepositError("NOT_OWNER", "That submission isn't for your campaign.");
+  }
+
+  // Validate rejection reason
+  if (decision === "rejected" && (!reason || reason.trim().length < 10)) {
+    throw new DepositError("REASON_REQUIRED", "Rejection reason must be at least 10 characters.");
+  }
+
+  // Call mkt_decide_submission
+  try {
+    await mktRpc("mkt_decide_submission", {
+      p_submission_id: submissionId,
+      p_actor: userId,
+      p_role: "advertiser",
+      p_decision: decision,
+      p_reason: decision === "rejected" ? reason : null,
+    });
+  } catch (err) {
+    if (err instanceof MktRpcError) {
+      // Provide human-readable error messages
+      if (err.code === "MKT_ADMIN_DECISION_REQUIRED") {
+        throw new DepositError(
+          "ADMIN_REVIEW_REQUIRED",
+          "This submission requires admin review and cannot be decided by the advertiser."
+        );
+      } else if (err.code === "MKT_INVALID_STATUS") {
+        throw new DepositError(
+          "ALREADY_DECIDED",
+          "This submission has already been reviewed."
+        );
+      }
+      throw new DepositError(err.code, humanMktError(err.code));
+    }
+    throw err;
+  }
 }

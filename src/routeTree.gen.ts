@@ -44,6 +44,7 @@ import { Route as AuthenticatedAdvertiserCreateRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdvertiserFundsRouteImport } from './routes/_authenticated/advertiser/funds'
 import { Route as AuthenticatedAdvertiserHelpRouteImport } from './routes/_authenticated/advertiser/help'
 import { Route as AuthenticatedAdvertiserReferralRouteImport } from './routes/_authenticated/advertiser/referral'
+import { Route as AuthenticatedAdvertiserReviewsRouteImport } from './routes/_authenticated/advertiser/reviews'
 import { Route as AuthenticatedAdvertiserTransactionsRouteImport } from './routes/_authenticated/advertiser/transactions'
 import { Route as AuthenticatedMicrotaskProofIdRouteImport } from './routes/_authenticated/microtask-proof.$id'
 import { Route as AuthenticatedMicrotaskIdRouteImport } from './routes/_authenticated/microtask.$id'
@@ -239,6 +240,12 @@ const AuthenticatedAdvertiserReferralRoute =
     path: '/advertiser/referral',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdvertiserReviewsRoute =
+  AuthenticatedAdvertiserReviewsRouteImport.update({
+    id: '/advertiser/reviews',
+    path: '/advertiser/reviews',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdvertiserTransactionsRoute =
   AuthenticatedAdvertiserTransactionsRouteImport.update({
     id: '/advertiser/transactions',
@@ -345,6 +352,7 @@ export interface FileRoutesByFullPath {
   '/advertiser/funds': typeof AuthenticatedAdvertiserFundsRoute
   '/advertiser/help': typeof AuthenticatedAdvertiserHelpRoute
   '/advertiser/referral': typeof AuthenticatedAdvertiserReferralRoute
+  '/advertiser/reviews': typeof AuthenticatedAdvertiserReviewsRoute
   '/advertiser/transactions': typeof AuthenticatedAdvertiserTransactionsRoute
   '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
@@ -393,6 +401,7 @@ export interface FileRoutesByTo {
   '/advertiser/funds': typeof AuthenticatedAdvertiserFundsRoute
   '/advertiser/help': typeof AuthenticatedAdvertiserHelpRoute
   '/advertiser/referral': typeof AuthenticatedAdvertiserReferralRoute
+  '/advertiser/reviews': typeof AuthenticatedAdvertiserReviewsRoute
   '/advertiser/transactions': typeof AuthenticatedAdvertiserTransactionsRoute
   '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
@@ -443,6 +452,7 @@ export interface FileRoutesById {
   '/_authenticated/advertiser/funds': typeof AuthenticatedAdvertiserFundsRoute
   '/_authenticated/advertiser/help': typeof AuthenticatedAdvertiserHelpRoute
   '/_authenticated/advertiser/referral': typeof AuthenticatedAdvertiserReferralRoute
+  '/_authenticated/advertiser/reviews': typeof AuthenticatedAdvertiserReviewsRoute
   '/_authenticated/advertiser/transactions': typeof AuthenticatedAdvertiserTransactionsRoute
   '/_authenticated/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/_authenticated/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
@@ -493,6 +503,7 @@ export interface FileRouteTypes {
     | '/advertiser/funds'
     | '/advertiser/help'
     | '/advertiser/referral'
+    | '/advertiser/reviews'
     | '/advertiser/transactions'
     | '/microtask-proof/$id'
     | '/microtask/$id'
@@ -541,6 +552,7 @@ export interface FileRouteTypes {
     | '/advertiser/funds'
     | '/advertiser/help'
     | '/advertiser/referral'
+    | '/advertiser/reviews'
     | '/advertiser/transactions'
     | '/microtask-proof/$id'
     | '/microtask/$id'
@@ -590,6 +602,7 @@ export interface FileRouteTypes {
     | '/_authenticated/advertiser/funds'
     | '/_authenticated/advertiser/help'
     | '/_authenticated/advertiser/referral'
+    | '/_authenticated/advertiser/reviews'
     | '/_authenticated/advertiser/transactions'
     | '/_authenticated/microtask-proof/$id'
     | '/_authenticated/microtask/$id'
@@ -874,6 +887,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdvertiserReferralRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/advertiser/reviews': {
+      id: '/_authenticated/advertiser/reviews'
+      path: '/advertiser/reviews'
+      fullPath: '/advertiser/reviews'
+      preLoaderRoute: typeof AuthenticatedAdvertiserReviewsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/advertiser/transactions': {
       id: '/_authenticated/advertiser/transactions'
       path: '/advertiser/transactions'
@@ -982,6 +1002,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdvertiserFundsRoute: typeof AuthenticatedAdvertiserFundsRoute
   AuthenticatedAdvertiserHelpRoute: typeof AuthenticatedAdvertiserHelpRoute
   AuthenticatedAdvertiserReferralRoute: typeof AuthenticatedAdvertiserReferralRoute
+  AuthenticatedAdvertiserReviewsRoute: typeof AuthenticatedAdvertiserReviewsRoute
   AuthenticatedAdvertiserTransactionsRoute: typeof AuthenticatedAdvertiserTransactionsRoute
   AuthenticatedMicrotaskProofIdRoute: typeof AuthenticatedMicrotaskProofIdRoute
   AuthenticatedMicrotaskIdRoute: typeof AuthenticatedMicrotaskIdRoute
@@ -1012,6 +1033,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdvertiserFundsRoute: AuthenticatedAdvertiserFundsRoute,
   AuthenticatedAdvertiserHelpRoute: AuthenticatedAdvertiserHelpRoute,
   AuthenticatedAdvertiserReferralRoute: AuthenticatedAdvertiserReferralRoute,
+  AuthenticatedAdvertiserReviewsRoute: AuthenticatedAdvertiserReviewsRoute,
   AuthenticatedAdvertiserTransactionsRoute:
     AuthenticatedAdvertiserTransactionsRoute,
   AuthenticatedMicrotaskProofIdRoute: AuthenticatedMicrotaskProofIdRoute,

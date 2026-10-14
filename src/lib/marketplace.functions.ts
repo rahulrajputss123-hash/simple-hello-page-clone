@@ -357,3 +357,26 @@ export const listCategories = createServerFn({ method: "POST" })
     const { listCategoriesWithSubcategoriesImpl } = await import("./marketplace/categories.server");
     return listCategoriesWithSubcategoriesImpl();
   });
+
+
+export const listPendingReviews = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { listPendingReviewsImpl } = await import("./marketplace/advertiser.server");
+    return listPendingReviewsImpl(context.userId);
+  });
+
+export const reviewSubmission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => 
+    z.object({
+      submissionId: z.string().uuid(),
+      decision: z.enum(["approved", "rejected"]),
+      reason: z.string().optional(),
+    }).parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const { reviewSubmissionImpl } = await import("./marketplace/advertiser.server");
+    await reviewSubmissionImpl(context.userId, data.submissionId, data.decision, data.reason);
+    return { ok: true };
+  });

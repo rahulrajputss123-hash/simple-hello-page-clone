@@ -88,6 +88,8 @@ function CreateCampaignPage() {
   const [subcategoryId, setSubcategoryId] = useState("");
   const [landingUrl, setLandingUrl] = useState("");
   const [estimatedMinutes, setEstimatedMinutes] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [reviewWindow, setReviewWindow] = useState(24); // Default 24h
   const [featured, setFeatured] = useState(false);
   const [featuredDays, setFeaturedDays] = useState("7");
   const [trackingUrl, setTrackingUrl] = useState("");
@@ -193,6 +195,8 @@ function CreateCampaignPage() {
           proofMinImages: verification === "proof" ? proofMinImages : undefined,
           proofMaxImages: verification === "proof" ? proofMaxImages : undefined,
           proofFields: verification === "proof" && proofFields.length > 0 ? proofFields : undefined,
+          // Advanced settings
+          reviewWindow: verification === "proof" && reviewWindow ? reviewWindow : undefined,
           rulesAccepted,
         },
       }),
@@ -576,6 +580,42 @@ function CreateCampaignPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {verification === "proof" && (
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex w-full items-center justify-between rounded-xl border border-border bg-card p-3 text-left text-sm font-semibold hover:bg-muted/50"
+            >
+              <span>Advanced settings</span>
+              <span className="text-muted-foreground">{showAdvanced ? "−" : "+"}</span>
+            </button>
+            {showAdvanced && (
+              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="c-review-window">Review within</Label>
+                  <select
+                    id="c-review-window"
+                    className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+                    value={reviewWindow}
+                    onChange={(e) => setReviewWindow(Number(e.target.value))}
+                  >
+                    <option value={6}>6 hours</option>
+                    <option value={12}>12 hours</option>
+                    <option value={24}>24 hours (recommended)</option>
+                    <option value={48}>48 hours</option>
+                    <option value={72}>72 hours</option>
+                    <option value={168}>7 days</option>
+                  </select>
+                  <p className="text-[11px] text-muted-foreground">
+                    If you do not review a submission in this time, it is approved automatically and the earner is paid.
+                  </p>
+                </div>
               </div>
             )}
           </div>
