@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { PlusCircle, Star } from "lucide-react";
+import { PlusCircle, Star, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -27,6 +27,39 @@ export const Route = createFileRoute("/_authenticated/advertiser/create")({
 const COUNTRIES = ["Worldwide", "United States", "India", "United Kingdom", "Canada", "Brazil", "Germany"];
 
 type Verification = "auto" | "proof";
+type ProofType = "screenshot" | "text" | "both";
+type ProofField = { key: string; label: string; required: boolean; maxLen: number };
+
+const PROOF_PRESETS: Record<string, { name: string; type: ProofType; minImages: number; maxImages: number; fields: Omit<ProofField, "key">[] }> = {
+  "app-install": {
+    name: "App install",
+    type: "both",
+    minImages: 1,
+    maxImages: 2,
+    fields: [{ label: "Username you used", required: true, maxLen: 80 }],
+  },
+  "social-follow": {
+    name: "Social follow",
+    type: "both",
+    minImages: 1,
+    maxImages: 2,
+    fields: [{ label: "Profile link", required: true, maxLen: 200 }],
+  },
+  "survey": {
+    name: "Survey/feedback",
+    type: "text",
+    minImages: 0,
+    maxImages: 1,
+    fields: [{ label: "Completion code", required: true, maxLen: 80 }],
+  },
+  "purchase": {
+    name: "Purchase",
+    type: "both",
+    minImages: 1,
+    maxImages: 3,
+    fields: [{ label: "Order ID", required: true, maxLen: 100 }],
+  },
+};
 
 function CreateCampaignPage() {
   const navigate = useNavigate();
@@ -43,6 +76,11 @@ function CreateCampaignPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [verification, setVerification] = useState<Verification>("proof");
+  const [proofType, setProofType] = useState<ProofType>("screenshot");
+  const [proofDescription, setProofDescription] = useState("");
+  const [proofMinImages, setProofMinImages] = useState(1);
+  const [proofMaxImages, setProofMaxImages] = useState(3);
+  const [proofFields, setProofFields] = useState<ProofField[]>([]);
   const [reward, setReward] = useState("0.50");
   const [slots, setSlots] = useState("50"); // Slots instead of budget
   const [country, setCountry] = useState("Worldwide");
@@ -92,6 +130,46 @@ function CreateCampaignPage() {
   const account = overview?.account;
   const canCreate = account?.status === "active" && account.spendable >= totals.total && slotsNum >= 15 && rulesAccepted;
 
+  const generateFieldKey = (label: string): string => {
+    return label
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, "_")
+      .substring(0, 50);
+  };
+
+  const applyProofPreset = (presetKey: string) => {
+    const preset = PROOF_PRESETS[presetKey];
+    if (!preset) return;
+    
+    setProofType(preset.type);
+    setProofMinImages(preset.minImages);
+    setProofMaxImages(preset.maxImages);
+    setProofFields(preset.fields.map((f) => ({ ...f, key: generateFieldKey(f.label) })));
+  };
+
+  const addProofField = () => {
+    if (proofFields.length >= 5) {
+      toast.error("Maximum 5 fields allowed");
+      return;
+    }
+    setProofFields([...proofFields, { key: "", label: "", required: false, maxLen: 80 }]);
+  };
+
+  const updateProofField = (index: number, updates: Partial<ProofField>) => {
+    const newFields = [...proofFields];
+    newFields[index] = { ...newFields[index], ...updates };
+    // Auto-generate key from label
+    if (updates.label !== undefined) {
+      newFields[index].key = generateFieldKey(updates.label);
+    }
+    setProofFields(newFields);
+  };
+
+  const removeProofField = (index: number) => {
+    setProofFields(proofFields.filter((_, i) => i !== index));
+  };
+
   const mutation = useMutation({
     mutationFn: () =>
       createFn({
@@ -110,6 +188,11 @@ function CreateCampaignPage() {
           featuredDays: featured ? Number(featuredDays) : undefined,
           trackingUrl: verification === "auto" && trackingUrl ? trackingUrl.trim() : undefined,
           ipAllowlist: ipAllowlist ? ipAllowlist.split(",").map((ip) => ip.trim()).filter(Boolean) : undefined,
+          // Proof fields
+          proofDescription: verification === "proof" && proofDescription ? proofDescription.trim() : undefined,
+          proofMinImages: verification === "proof" ? proofMinImages : undefined,
+          proofMaxImages: verification === "proof" ? proofMaxImages : undefined,
+          proofFields: verification === "proof" && proofFields.length > 0 ? proofFields : undefined,
           rulesAccepted,
         },
       }),
@@ -189,6 +272,37 @@ function CreateCampaignPage() {
           if (verification === "auto" && !trackingUrl.includes("{click_id}")) {
             toast.error("Tracking URL must contain {click_id} placeholder");
             return;
+          }
+          if (verification === "proof") {
+            if (!proofDescription.trim() || proofDescription.length < 10) {
+              toast.error("Proof instructions required (at least 10 characters)");
+              return;
+            }
+            if (proofType === "text" && proofFields.length === 0) {
+              toast.error("Text proof requires at least one custom field");
+              return;
+            }
+            if (proofType === "screenshot" && proofMinImages < 1) {
+              toast.error("Screenshot proof requires at least 1 image");
+              return;
+            }
+            if (proofType === "text" && proofMinImages === 0 && proofFields.length === 0) {
+              toast.error("Text-only proof requires at least one field");
+              return;
+            }
+            // Check for duplicate field keys
+            const keys = proofFields.map((f) => f.key);
+            if (new Set(keys).size !== keys.length) {
+              toast.error("Duplicate field labels detected - please use unique labels");
+              return;
+            }
+            // Check required field labels
+            for (const field of proofFields) {
+              if (!field.label.trim() || field.label.length < 2) {
+                toast.error("All field labels must be at least 2 characters");
+                return;
+              }
+            }
           }
           mutation.mutate();
         }}
@@ -311,6 +425,161 @@ function CreateCampaignPage() {
             ))}
           </div>
         </div>
+
+        {verification === "proof" && (
+          <div className="space-y-3 rounded-xl border border-gold/40 bg-gold/10 p-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="c-proof-instructions">Instructions for proof *</Label>
+              <Textarea
+                id="c-proof-instructions"
+                rows={2}
+                minLength={10}
+                maxLength={500}
+                placeholder="e.g. Upload a screenshot showing the app installed and opened with your username visible"
+                value={proofDescription}
+                onChange={(e) => setProofDescription(e.target.value)}
+                required
+              />
+              <p className="text-[11px] text-muted-foreground">Tell publishers exactly what proof they need to provide (10-500 chars)</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Proof type</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {(["screenshot", "text", "both"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => {
+                      setProofType(type);
+                      if (type === "screenshot") {
+                        setProofMinImages(1);
+                        setProofMaxImages(3);
+                        setProofFields([]);
+                      } else if (type === "text") {
+                        setProofMinImages(0);
+                        setProofMaxImages(1);
+                        if (proofFields.length === 0) {
+                          setProofFields([{ key: "completion_code", label: "Completion code", required: true, maxLen: 80 }]);
+                        }
+                      } else {
+                        setProofMinImages(1);
+                        setProofMaxImages(3);
+                        if (proofFields.length === 0) {
+                          setProofFields([{ key: "username", label: "Username", required: false, maxLen: 80 }]);
+                        }
+                      }
+                    }}
+                    className={`rounded-xl border p-2 text-xs font-medium ${
+                      proofType === type ? "border-gold-dark bg-gold/20 text-gold-dark" : "border-border bg-card text-muted-foreground"
+                    }`}
+                  >
+                    {type === "screenshot" ? "Screenshot only" : type === "text" ? "Text only" : "Screenshot + text"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Quick presets</Label>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(PROOF_PRESETS).map(([key, preset]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => applyProofPreset(key)}
+                    className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-gold-dark hover:bg-gold/10 hover:text-gold-dark"
+                  >
+                    {preset.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {proofType !== "text" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="c-proof-min-images">Min images</Label>
+                  <Input
+                    id="c-proof-min-images"
+                    type="number"
+                    min={proofType === "text" ? 0 : 1}
+                    max={5}
+                    value={proofMinImages}
+                    onChange={(e) => setProofMinImages(Math.max(proofType === "text" ? 0 : 1, Math.min(5, Number(e.target.value) || 1)))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="c-proof-max-images">Max images</Label>
+                  <Input
+                    id="c-proof-max-images"
+                    type="number"
+                    min={Math.max(1, proofMinImages)}
+                    max={5}
+                    value={proofMaxImages}
+                    onChange={(e) => setProofMaxImages(Math.max(proofMinImages, Math.min(5, Number(e.target.value) || 3)))}
+                  />
+                </div>
+              </div>
+            )}
+
+            {proofType !== "screenshot" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Custom fields</Label>
+                  {proofFields.length < 5 && (
+                    <Button type="button" variant="outline" size="sm" onClick={addProofField}>
+                      + Add field
+                    </Button>
+                  )}
+                </div>
+                {proofFields.length === 0 && (
+                  <p className="text-xs text-muted-foreground">At least one field is required for text proof</p>
+                )}
+                {proofFields.map((field, index) => (
+                  <div key={index} className="space-y-2 rounded-lg border border-border bg-card p-3">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          placeholder="Field label (e.g. Username, Order ID)"
+                          value={field.label}
+                          maxLength={60}
+                          onChange={(e) => updateProofField(index, { label: e.target.value })}
+                          required
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="number"
+                            min={10}
+                            max={500}
+                            placeholder="Max length"
+                            value={field.maxLen}
+                            onChange={(e) => updateProofField(index, { maxLen: Math.max(10, Math.min(500, Number(e.target.value) || 80)) })}
+                          />
+                          <label className="flex items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={field.required}
+                              onChange={(e) => updateProofField(index, { required: e.target.checked })}
+                            />
+                            Required
+                          </label>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeProofField(index)}
+                        className="shrink-0 text-destructive hover:text-destructive/80"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {verification === "auto" && (
           <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">

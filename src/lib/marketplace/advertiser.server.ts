@@ -835,8 +835,38 @@ export const createCampaignInput = z.object({
   // Auto verification fields
   trackingUrl: z.string().trim().url().max(2048).regex(/^https:\/\//, "Must be an HTTPS URL").optional(),
   ipAllowlist: z.array(z.string()).max(50).optional(),
+  // Proof verification fields
+  proofDescription: z.string().trim().min(10).max(500).optional(),
+  proofMinImages: z.number().int().min(0).max(5).optional(),
+  proofMaxImages: z.number().int().min(1).max(5).optional(),
+  proofFields: z.array(z.object({
+    key: z.string().regex(/^[a-z0-9_]+$/, "Field keys must be lowercase a-z, 0-9, and _").max(50),
+    label: z.string().trim().min(2).max(60),
+    required: z.boolean(),
+    maxLen: z.number().int().min(10).max(500),
+  })).max(5).optional(),
   // Offer rules confirmation
   rulesAccepted: z.boolean(),
+})
+.refine((data) => {
+  if (data.verification === "proof") {
+    // Proof description is required for manual proof
+    if (!data.proofDescription) return false;
+    // At least images or fields required
+    const hasImages = (data.proofMinImages ?? 0) >= 1;
+    const hasFields = (data.proofFields?.length ?? 0) > 0;
+    if (!hasImages && !hasFields) return false;
+    // Max >= min for images
+    if ((data.proofMaxImages ?? 3) < (data.proofMinImages ?? 1)) return false;
+    // Check for duplicate field keys
+    if (data.proofFields && data.proofFields.length > 0) {
+      const keys = data.proofFields.map((f) => f.key);
+      if (new Set(keys).size !== keys.length) return false;
+    }
+  }
+  return true;
+}, {
+  message: "Invalid proof configuration: ensure proofDescription is provided, at least one proof method (images or fields), no duplicate field keys, and max >= min images",
 });
 export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
 
@@ -970,7 +1000,10 @@ export async function createCampaignImpl(
     publisher_reward: input.reward,
     max_completions: maxCompletions,
     // Do NOT set budget_allocated - RPC does it
-    proof_description: "Please upload proof of completion",
+    proof_description: input.verification === "proof" && input.proofDescription ? input.proofDescription : "Please upload proof of completion",
+    proof_min_images: input.verification === "proof" ? (input.proofMinImages ?? 1) : 1,
+    proof_max_images: input.verification === "proof" ? (input.proofMaxImages ?? 3) : 3,
+    proof_fields: input.verification === "proof" && input.proofFields ? input.proofFields : [],
     category_id: input.categoryId,
     subcategory_id: input.subcategoryId || null,
     estimated_minutes: input.estimatedMinutes || null,
