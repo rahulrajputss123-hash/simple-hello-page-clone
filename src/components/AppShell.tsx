@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { Bell, Coins, Headset } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
@@ -76,10 +76,13 @@ export function BrandLogo({
 
 export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?: boolean }) {
   const { session, profile } = useAuth();
-  // Marketplace: only the Home header shows the role chip, and only
-  // advertiser mode swaps the wallet pill for the Campaign Balance.
+  const location = useLocation();
+  // Marketplace: all /advertiser/* routes show Campaign Balance pill instead of wallet pill.
+  // Only the Home header shows the role switcher chip.
   const { role, overview } = useRole();
-  const advertiserMode = home && role === "advertiser";
+  const isAdvertiserRoute = location.pathname.startsWith("/advertiser");
+  const showCampaignBalance = isAdvertiserRoute;
+  
   const unread = useQuery({
     queryKey: ["notifications-unread", session?.user.id],
     enabled: Boolean(session),
@@ -151,7 +154,7 @@ export function AppHeader({ subtitle, home = false }: { subtitle?: string; home?
               </span>
             )}
           </Link>
-          {advertiserMode ? (
+          {showCampaignBalance ? (
             <Link
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               to={"/advertiser/funds" as any}
