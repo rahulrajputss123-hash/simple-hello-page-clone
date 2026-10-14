@@ -9,7 +9,10 @@ import { SHOWCASE_OFFERS, type ShowcaseOffer } from "@/components/landing/landin
  * No overlay chip is drawn on the art: each panel already carries its own circular
  * badge in the lower-right corner.
  */
-function OfferCard({ offer, compact }: { offer: ShowcaseOffer; compact: boolean }) {
+function OfferCard({ offer, compact, index }: { offer: ShowcaseOffer; compact: boolean; index: number }) {
+  // First 2 cards are above the fold, load eagerly
+  const eager = index < 2;
+  
   return (
     <li
       className={`surface-card press-feedback group relative flex flex-col overflow-hidden !p-0 shadow-soft transition-all duration-200 hover:-translate-y-1 hover:shadow-gold ${
@@ -20,7 +23,7 @@ function OfferCard({ offer, compact }: { offer: ShowcaseOffer; compact: boolean 
       {/* 5/4 keeps almost all of each art panel visible — the panels run
           ~1.17-1.27 wide, so a 4/3 box would clip their lower edge. */}
       <div className="relative aspect-[5/4] w-full overflow-hidden bg-background-alt">
-        <CroppedArt src={offer.image} alt={offer.title} crop={offer.crop} />
+        <CroppedArt src={offer.image} alt={offer.title} crop={offer.crop} eager={eager} />
       </div>
 
       <div className="flex flex-1 flex-col gap-0.5 p-2.5">
@@ -65,8 +68,8 @@ export function OffersShowcase({
       }
       data-testid="offers-showcase-list"
     >
-      {SHOWCASE_OFFERS.map((offer) => (
-        <OfferCard key={offer.id} offer={offer} compact={compact} />
+      {SHOWCASE_OFFERS.map((offer, index) => (
+        <OfferCard key={offer.id} offer={offer} compact={compact} index={index} />
       ))}
     </ul>
   );

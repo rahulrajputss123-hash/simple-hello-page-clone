@@ -24,25 +24,29 @@ export type ImageCrop = {
  * @param blend Maps leftover black (and the artwork's own drop shadow) onto the
  *   dark panel behind it. Only valid on a dark surface, and only when no ancestor
  *   between the blend root and this image creates a stacking context.
+ * @param eager Set to true for above-the-fold images that should load immediately.
  */
 export function CroppedArt({
   src,
   alt,
   crop,
   blend = false,
+  eager = false,
   className = "",
 }: {
   src: string;
   alt: string;
   crop: ImageCrop;
   blend?: boolean;
+  eager?: boolean;
   className?: string;
 }) {
   return (
     <img
       src={src}
       alt={alt}
-      loading="lazy"
+      loading={eager ? "eager" : "lazy"}
+      fetchPriority={eager ? "high" : undefined}
       decoding="async"
       style={{
         width: `${crop.widthPct}%`,

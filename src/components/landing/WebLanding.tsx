@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Coins, Megaphone, ShieldCheck, Wallet } from "lucide-react";
 
 import {
@@ -9,7 +9,11 @@ import {
 import { AuthCard } from "@/components/landing/AuthCard";
 import { AppPreviewSection } from "@/components/landing/HeroPhone";
 import { EarnWaysSection } from "@/components/landing/EarnWaysSection";
-import { LiveEarningsFeed } from "@/components/landing/LiveEarningsFeed";
+const LiveEarningsFeed = lazy(() =>
+  import("@/components/landing/LiveEarningsFeed").then((mod) => ({
+    default: mod.LiveEarningsFeed,
+  }))
+);
 import { OffersShowcase } from "@/components/landing/OffersShowcase";
 import { Reveal } from "@/components/landing/Reveal";
 import { RotatingPhrase } from "@/components/landing/RotatingPhrase";
@@ -56,6 +60,9 @@ export function WebLanding() {
   const authSectionRef = useRef<HTMLDivElement | null>(null);
   const [authInView, setAuthInView] = useState(true);
 
+  const liveEarningsRef = useRef<HTMLDivElement | null>(null);
+  const [showLiveEarnings, setShowLiveEarnings] = useState(false);
+
   // The sticky mobile CTA must never cover the form or its heading.
   useEffect(() => {
     const node = authSectionRef.current;
@@ -63,6 +70,22 @@ export function WebLanding() {
     const observer = new IntersectionObserver(
       (entries) => setAuthInView(Boolean(entries[0]?.isIntersecting)),
       { threshold: 0.01 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  // Lazy-load LiveEarningsFeed when near viewport
+  useEffect(() => {
+    const node = liveEarningsRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setShowLiveEarnings(true);
+        }
+      },
+      { rootMargin: "300px" },
     );
     observer.observe(node);
     return () => observer.disconnect();
@@ -100,7 +123,7 @@ export function WebLanding() {
       {/* ------------------------------------------------------------------ */}
       {/* 1 — Sticky header                                                   */}
       {/* ------------------------------------------------------------------ */}
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/95">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <Link to="/" aria-label="CashGPT home" className="shrink-0">
             <img
@@ -159,36 +182,23 @@ export function WebLanding() {
       {/* 2 — Hero: headline + offers on the left, inline auth on the right    */}
       {/* ------------------------------------------------------------------ */}
       <section className="relative isolate overflow-hidden" aria-labelledby="landing-h1">
-        {/* Ambient background: soft jade/gold glow, faint blurred offer art and a
-            couple of slowly drifting coins. Decorative only. */}
+        {/* Ambient background: soft jade/gold glow. Decorative only. */}
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div
-            className="ambient-drift absolute -left-24 -top-32 size-[28rem] rounded-full opacity-[0.18] blur-3xl"
+            className="absolute -left-24 -top-32 size-[28rem] rounded-full opacity-[0.18]"
             style={{
               background: "radial-gradient(closest-side, var(--color-mint), transparent)",
             }}
           />
           <div
-            className="ambient-drift-slow absolute -right-28 top-10 size-[30rem] rounded-full opacity-[0.16] blur-3xl"
+            className="absolute -right-28 top-10 size-[30rem] rounded-full opacity-[0.16]"
             style={{
               background: "radial-gradient(closest-side, var(--color-gold), transparent)",
             }}
           />
-          <img
-            src={SHOWCASE_OFFERS[1]!.image}
-            alt=""
-            loading="lazy"
-            className="absolute -left-16 bottom-0 w-64 rotate-[-8deg] opacity-[0.05] blur-2xl"
-          />
-          <img
-            src={SHOWCASE_OFFERS[2]!.image}
-            alt=""
-            loading="lazy"
-            className="absolute -right-10 -bottom-16 w-72 rotate-[10deg] opacity-[0.05] blur-2xl"
-          />
-          <Coins className="coin-float absolute left-[12%] top-[38%] size-8 text-gold opacity-20" />
-          <Coins className="coin-float-b absolute right-[8%] top-[22%] size-6 text-gold opacity-[0.15]" />
-          <Coins className="coin-float-c absolute left-[62%] bottom-[12%] size-7 text-gold opacity-[0.12] lg:left-[46%]" />
+          <Coins className="absolute left-[12%] top-[38%] size-8 text-gold opacity-20" />
+          <Coins className="absolute right-[8%] top-[22%] size-6 text-gold opacity-[0.15]" />
+          <Coins className="absolute left-[62%] bottom-[12%] size-7 text-gold opacity-[0.12] lg:left-[46%]" />
         </div>
 
         <div className="mx-auto w-full max-w-6xl px-4 pb-10 pt-5 sm:px-6 sm:pb-14 sm:pt-12">
@@ -264,38 +274,54 @@ export function WebLanding() {
 
       <main className="mx-auto w-full max-w-6xl space-y-16 px-4 pb-16 sm:space-y-20 sm:px-6 sm:pb-20">
         {/* 4 — Inside the app (animated phone preview) */}
-        <Reveal>
+        <Reveal className="content-visible-auto">
           <AppPreviewSection />
         </Reveal>
 
         {/* 5 — 8 ways to earn */}
-        <Reveal>
+        <Reveal className="content-visible-auto">
           <EarnWaysSection />
         </Reveal>
 
         {/* 6 — How it works */}
-        <HowItWorks />
+        <div className="content-visible-auto">
+          <HowItWorks />
+        </div>
 
         {/* 7 — Advertisers: the other side of the marketplace */}
-        <Reveal>
+        <Reveal className="content-visible-auto">
           <AdvertiserSection onStart={startAsAdvertiser} />
         </Reveal>
 
         {/* 8 — Trust + testimonials (moved from the top, sits right before the FAQ) */}
-        <Reveal>
+        <Reveal className="content-visible-auto">
           <TrustSection />
         </Reveal>
 
         {/* 9 — FAQ */}
-        <Faq />
+        <div className="content-visible-auto">
+          <Faq />
+        </div>
 
         {/* 10 — Live earnings (kept directly before the final CTA) */}
-        <Reveal>
-          <LiveEarningsFeed />
-        </Reveal>
+        <div ref={liveEarningsRef} className="content-visible-auto" style={{ minHeight: "600px" }}>
+          {showLiveEarnings ? (
+            <Suspense
+              fallback={
+                <div className="flex min-h-[600px] items-center justify-center">
+                  <div className="text-sm text-muted-foreground">Loading live earnings...</div>
+                </div>
+              }
+            >
+              <Reveal>
+                <LiveEarningsFeed />
+              </Reveal>
+            </Suspense>
+          ) : null}
+        </div>
 
         {/* 11 — Final CTA */}
-        <Reveal>
+        <Reveal className="content-visible-auto">
           <FinalCta onStart={() => goToAuth("signup")} onAdvertise={startAsAdvertiser} />
         </Reveal>
       </main>
@@ -306,14 +332,14 @@ export function WebLanding() {
       <div
         data-testid="sticky-start-bar"
         aria-hidden={authInView}
-        className={`fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-4 py-3 shadow-lift backdrop-blur-md transition-transform duration-300 lg:hidden ${
+        className={`fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-4 py-3 shadow-lift transition-transform duration-300 lg:hidden ${
           authInView ? "pointer-events-none translate-y-full" : "translate-y-0"
         }`}
       >
         <Button
           variant="gold"
           size="lg"
-          className="shimmer-sweep w-full"
+          className="w-full"
           onClick={() => goToAuth("signup")}
           data-testid="sticky-start-btn"
         >
@@ -432,12 +458,12 @@ function FinalCta({ onStart, onAdvertise }: { onStart: () => void; onAdvertise: 
     >
       <div
         aria-hidden
-        className="ambient-drift pointer-events-none absolute -left-16 -top-20 size-56 rounded-full opacity-40 blur-3xl"
+        className="pointer-events-none absolute -left-16 -top-20 size-56 rounded-full opacity-40"
         style={{ background: "radial-gradient(closest-side, var(--color-gold), transparent)" }}
       />
       <div
         aria-hidden
-        className="ambient-drift-slow pointer-events-none absolute -bottom-24 -right-16 size-56 rounded-full opacity-30 blur-3xl"
+        className="pointer-events-none absolute -bottom-24 -right-16 size-56 rounded-full opacity-30"
         style={{ background: "radial-gradient(closest-side, var(--color-mint), transparent)" }}
       />
 
@@ -454,7 +480,7 @@ function FinalCta({ onStart, onAdvertise }: { onStart: () => void; onAdvertise: 
         <Button
           variant="gold"
           size="lg"
-          className="shimmer-sweep mt-7 px-8"
+          className="mt-7 px-8"
           onClick={onStart}
           data-testid="final-cta-btn"
         >
