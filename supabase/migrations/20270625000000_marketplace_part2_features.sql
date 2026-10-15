@@ -188,58 +188,63 @@ DECLARE
   v_advertiser_id uuid;
   v_is_auto_approved boolean;
 BEGIN
-  -- Only fire when status changes to final state
-  IF (TG_OP = 'UPDATE' AND OLD.status = 'pending' AND NEW.status IN ('approved', 'rejected')) THEN
-    -- Get campaign info
-    SELECT name, advertiser_id INTO v_campaign_name, v_advertiser_id
-      FROM public.campaigns
-     WHERE id = NEW.campaign_id;
-    
-    -- Check if this was auto-approved (decided_by is NULL or system UUID)
-    v_is_auto_approved := (NEW.decided_by IS NULL OR NEW.decided_by = '00000000-0000-0000-0000-000000000000'::uuid);
-    
-    IF NEW.status = 'approved' THEN
-      -- Notify earner: proof approved
-      IF v_is_auto_approved THEN
-        PERFORM public.mkt__notify(
-          NEW.publisher_id,
-          'Proof auto-approved',
-          'Your proof for "' || v_campaign_name || '" was automatically approved. You earned $' || NEW.publisher_reward::text || '.',
-          'success'
-        );
-        -- Notify advertiser: submission auto-approved
-        IF v_advertiser_id IS NOT NULL THEN
+  BEGIN
+    -- Only fire when status changes to final state
+    IF (TG_OP = 'UPDATE' AND OLD.status = 'pending' AND NEW.status IN ('approved', 'rejected')) THEN
+      -- Get campaign info
+      SELECT name, advertiser_id INTO v_campaign_name, v_advertiser_id
+        FROM public.campaigns
+       WHERE id = NEW.campaign_id;
+      
+      -- Check if auto-approved (reviewed_by is NULL or system UUID, or reviewer_role = 'system')
+      v_is_auto_approved := (NEW.reviewed_by IS NULL OR NEW.reviewed_by = '00000000-0000-0000-0000-000000000000'::uuid OR NEW.reviewer_role = 'system');
+      
+      IF NEW.status = 'approved' THEN
+        -- Notify earner: proof approved
+        IF v_is_auto_approved THEN
           PERFORM public.mkt__notify(
-            v_advertiser_id,
-            'Submission auto-approved',
-            'A proof in "' || v_campaign_name || '" was automatically approved (review window expired).',
-            'info'
+            NEW.user_id,
+            'Proof auto-approved',
+            format('Your proof for "%s" was automatically approved. You earned $%s.', v_campaign_name, NEW.reward_amount::text),
+            'success'
+          );
+          -- Notify advertiser: submission auto-approved
+          IF v_advertiser_id IS NOT NULL THEN
+            PERFORM public.mkt__notify(
+              v_advertiser_id,
+              'Submission auto-approved',
+              format('A proof in "%s" was automatically approved (review window expired).', v_campaign_name),
+              'info'
+            );
+          END IF;
+        ELSE
+          PERFORM public.mkt__notify(
+            NEW.user_id,
+            'Proof approved',
+            format('Your proof for "%s" was approved. You earned $%s.', v_campaign_name, NEW.reward_amount::text),
+            'success'
           );
         END IF;
-      ELSE
+      ELSIF NEW.status = 'rejected' THEN
+        -- Notify earner: proof rejected
         PERFORM public.mkt__notify(
-          NEW.publisher_id,
-          'Proof approved',
-          'Your proof for "' || v_campaign_name || '" was approved. You earned $' || NEW.publisher_reward::text || '.',
-          'success'
+          NEW.user_id,
+          'Proof rejected',
+          CASE
+            WHEN NEW.rejection_reason IS NOT NULL AND NEW.rejection_reason <> ''
+            THEN format('Your proof for "%s" was rejected: %s', v_campaign_name, NEW.rejection_reason)
+            ELSE format('Your proof for "%s" was rejected. Please try again if slots are available.', v_campaign_name)
+          END,
+          'error'
         );
       END IF;
-    ELSIF NEW.status = 'rejected' THEN
-      -- Notify earner: proof rejected
-      PERFORM public.mkt__notify(
-        NEW.publisher_id,
-        'Proof rejected',
-        CASE
-          WHEN NEW.rejection_reason IS NOT NULL AND NEW.rejection_reason <> ''
-          THEN 'Your proof for "' || v_campaign_name || '" was rejected: ' || NEW.rejection_reason
-          ELSE 'Your proof for "' || v_campaign_name || '" was rejected. Please try again if slots are available.'
-        END,
-        'error'
-      );
     END IF;
-  END IF;
-  
-  RETURN NEW;
+    
+    RETURN NEW;
+  EXCEPTION WHEN OTHERS THEN
+    -- Never break the main flow
+    RETURN NEW;
+  END;
 END;
 $fn$;
 
@@ -315,7 +320,7 @@ BEGIN
         PERFORM public.mkt__notify(
           NEW.advertiser_id,
           'Low campaign balance',
-          'Your Campaign Balance is below $5.00 (currently $' || v_current_balance::text || '). Add funds to keep campaigns running.',
+          format('Your Campaign Balance is below $5.00 (currently $%s). Add funds to keep campaigns running.', v_current_balance::text),
           'warning'
         );
       END IF;
@@ -344,6 +349,11 @@ DECLARE
   v_daily_limit integer;
   v_count_24h integer;
 BEGIN
+  -- Return early if campaign_options table doesn't exist yet
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'campaign_options') THEN
+    RETURN NEW;
+  END IF;
+  
   -- Get daily limit from campaign_options
   SELECT daily_limit INTO v_daily_limit
     FROM public.campaign_options
@@ -364,9 +374,9 @@ BEGIN
      AND status <> 'expired'
      AND created_at >= now() - interval '24 hours';
   
-  -- Check if limit reached
+  -- Check if limit reached (no longer uses RAISE ... USING MESSAGE)
   IF v_count_24h >= v_daily_limit THEN
-    RAISE EXCEPTION 'MKT_DAILY_LIMIT' USING MESSAGE = 'Daily completion limit reached for this campaign';
+    RAISE EXCEPTION 'MKT_DAILY_LIMIT: Daily completion limit reached for this campaign';
   END IF;
   
   RETURN NEW;
