@@ -52,6 +52,7 @@ import { Route as AuthenticatedOfferOfferIdRouteImport } from './routes/_authent
 import { Route as ApiCronRefreshOfferFeedRouteImport } from './routes/api/cron/refresh-offer-feed'
 import { Route as ApiPublicMarketplacePostbackRouteImport } from './routes/api/public/marketplace-postback'
 import { Route as ApiPublicRazorpayWebhookRouteImport } from './routes/api/public/razorpay-webhook'
+import { Route as AuthenticatedAdvertiserEditIdRouteImport } from './routes/_authenticated/advertiser/edit.$id'
 import { Route as AuthenticatedAdvertiserResultsIdRouteImport } from './routes/_authenticated/advertiser/results.$id'
 import { Route as AuthenticatedGoQuestKeyStepRouteImport } from './routes/_authenticated/go.$questKey.$step'
 import { Route as AuthenticatedGoLockerReturnRouteImport } from './routes/_authenticated/go.locker.return'
@@ -287,6 +288,12 @@ const ApiPublicRazorpayWebhookRoute =
     path: '/api/public/razorpay-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedAdvertiserEditIdRoute =
+  AuthenticatedAdvertiserEditIdRouteImport.update({
+    id: '/advertiser/edit/$id',
+    path: '/advertiser/edit/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdvertiserResultsIdRoute =
   AuthenticatedAdvertiserResultsIdRouteImport.update({
     id: '/advertiser/results/$id',
@@ -360,6 +367,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/marketplace-postback': typeof ApiPublicMarketplacePostbackRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
+  '/advertiser/edit/$id': typeof AuthenticatedAdvertiserEditIdRoute
   '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
@@ -409,6 +417,7 @@ export interface FileRoutesByTo {
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/marketplace-postback': typeof ApiPublicMarketplacePostbackRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
+  '/advertiser/edit/$id': typeof AuthenticatedAdvertiserEditIdRoute
   '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
@@ -460,6 +469,7 @@ export interface FileRoutesById {
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/marketplace-postback': typeof ApiPublicMarketplacePostbackRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
+  '/_authenticated/advertiser/edit/$id': typeof AuthenticatedAdvertiserEditIdRoute
   '/_authenticated/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/_authenticated/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/_authenticated/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
@@ -511,6 +521,7 @@ export interface FileRouteTypes {
     | '/api/cron/refresh-offer-feed'
     | '/api/public/marketplace-postback'
     | '/api/public/razorpay-webhook'
+    | '/advertiser/edit/$id'
     | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
@@ -560,6 +571,7 @@ export interface FileRouteTypes {
     | '/api/cron/refresh-offer-feed'
     | '/api/public/marketplace-postback'
     | '/api/public/razorpay-webhook'
+    | '/advertiser/edit/$id'
     | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
@@ -610,6 +622,7 @@ export interface FileRouteTypes {
     | '/api/cron/refresh-offer-feed'
     | '/api/public/marketplace-postback'
     | '/api/public/razorpay-webhook'
+    | '/_authenticated/advertiser/edit/$id'
     | '/_authenticated/advertiser/results/$id'
     | '/_authenticated/go/$questKey/$step'
     | '/_authenticated/go/locker/return'
@@ -943,6 +956,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRazorpayWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/advertiser/edit/$id': {
+      id: '/_authenticated/advertiser/edit/$id'
+      path: '/advertiser/edit/$id'
+      fullPath: '/advertiser/edit/$id'
+      preLoaderRoute: typeof AuthenticatedAdvertiserEditIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/advertiser/results/$id': {
       id: '/_authenticated/advertiser/results/$id'
       path: '/advertiser/results/$id'
@@ -1007,6 +1027,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMicrotaskProofIdRoute: typeof AuthenticatedMicrotaskProofIdRoute
   AuthenticatedMicrotaskIdRoute: typeof AuthenticatedMicrotaskIdRoute
   AuthenticatedOfferOfferIdRoute: typeof AuthenticatedOfferOfferIdRoute
+  AuthenticatedAdvertiserEditIdRoute: typeof AuthenticatedAdvertiserEditIdRoute
   AuthenticatedAdvertiserResultsIdRoute: typeof AuthenticatedAdvertiserResultsIdRoute
   AuthenticatedGoQuestKeyStepRoute: typeof AuthenticatedGoQuestKeyStepRoute
   AuthenticatedGoLockerReturnRoute: typeof AuthenticatedGoLockerReturnRoute
@@ -1039,6 +1060,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMicrotaskProofIdRoute: AuthenticatedMicrotaskProofIdRoute,
   AuthenticatedMicrotaskIdRoute: AuthenticatedMicrotaskIdRoute,
   AuthenticatedOfferOfferIdRoute: AuthenticatedOfferOfferIdRoute,
+  AuthenticatedAdvertiserEditIdRoute: AuthenticatedAdvertiserEditIdRoute,
   AuthenticatedAdvertiserResultsIdRoute: AuthenticatedAdvertiserResultsIdRoute,
   AuthenticatedGoQuestKeyStepRoute: AuthenticatedGoQuestKeyStepRoute,
   AuthenticatedGoLockerReturnRoute: AuthenticatedGoLockerReturnRoute,

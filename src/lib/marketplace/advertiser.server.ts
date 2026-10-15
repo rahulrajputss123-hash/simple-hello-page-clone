@@ -1465,6 +1465,190 @@ export async function rotateCampaignSecretImpl(
   return { secret: newSecret, url };
 }
 
+/* ---------------------------------------------------------------- edit campaign */
+
+export const editCampaignInput = z.object({
+  campaignId: z.string().uuid(),
+  // Content fields - always editable in draft/rejected/paused
+  title: z.string().trim().min(3).max(80).optional(),
+  description: z.string().trim().min(10).max(1000).optional(),
+  landingUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(2048)
+    .regex(/^https:\/\//, "Must be an HTTPS URL")
+    .optional(),
+  estimatedMinutes: z.number().int().min(1).max(1440).optional().nullable(),
+  proofDescription: z.string().trim().min(10).max(500).optional(),
+  proofMinImages: z.number().int().min(0).max(5).optional(),
+  proofMaxImages: z.number().int().min(1).max(5).optional(),
+  proofFields: z
+    .array(
+      z.object({
+        key: z
+          .string()
+          .regex(/^[a-z0-9_]+$/, "Field keys must be lowercase a-z, 0-9, and _")
+          .max(50),
+        label: z.string().trim().min(2).max(60),
+        required: z.boolean(),
+        maxLen: z.number().int().min(10).max(500),
+      }),
+    )
+    .max(5)
+    .optional(),
+  proofExampleUrl: z.string().url().optional().nullable(),
+  trackingUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(2048)
+    .regex(/^https:\/\//, "Must be an HTTPS URL")
+    .optional(),
+  ipAllowlist: z.array(z.string()).max(50).optional().nullable(),
+  startsAt: z.string().datetime().optional().nullable(),
+  endsAt: z.string().datetime().optional().nullable(),
+  devices: z
+    .array(z.enum(["android", "ios", "desktop"]))
+    .max(3)
+    .optional()
+    .nullable(),
+  eligibilityNote: z.string().trim().max(300).optional().nullable(),
+  dailyLimit: z.number().int().min(1).optional().nullable(),
+  reviewWindow: z.number().int().min(1).max(720).optional().nullable(),
+  categoryId: z.string().uuid().optional(),
+  subcategoryId: z.string().uuid().optional().nullable(),
+  // Budget fields - only editable in draft status
+  reward: z.number().positive().min(0.05).max(1000).optional(),
+  slots: z.number().int().min(15).max(100000).optional(),
+  resubmit: z.boolean().default(false), // If true, resubmit for review after edit
+});
+export type EditCampaignInput = z.infer<typeof editCampaignInput>;
+
+/**
+ * Edit an existing campaign. Allows editing content fields for draft/rejected/paused campaigns.
+ * Slots and reward can only be changed in draft status.
+ * If resubmit=true and status is draft/rejected, submits for review after editing.
+ */
+export async function editCampaignImpl(
+  userId: string,
+  input: EditCampaignInput,
+): Promise<{ success: boolean; status?: string }> {
+  const account = await getAccount(userId);
+  if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
+
+  // Fetch the campaign
+  const { data: campaign, error: fetchErr } = await mktDb
+    .from("campaigns")
+    .select("*")
+    .eq("id", input.campaignId)
+    .single();
+
+  if (fetchErr || !campaign) {
+    throw new DepositError("MKT_CAMPAIGN_NOT_FOUND", "Campaign not found.");
+  }
+
+  if (campaign.advertiser_id !== userId) {
+    throw new DepositError("MKT_NOT_OWNER", "You don't own this campaign.");
+  }
+
+  // Check status - only allow editing draft, rejected, or paused campaigns
+  const allowedStatuses = ["draft", "rejected", "paused"];
+  if (!allowedStatuses.includes(campaign.status)) {
+    throw new DepositError(
+      "MKT_WRONG_STATUS",
+      "Campaign can only be edited in draft, rejected, or paused status.",
+    );
+  }
+
+  // Build update object with only provided fields
+  const updates: Record<string, any> = {};
+
+  // Content fields - always allowed
+  if (input.title !== undefined) updates.name = input.title;
+  if (input.description !== undefined) {
+    updates.description = input.description;
+    updates.summary = input.description.slice(0, 140);
+  }
+  if (input.landingUrl !== undefined) updates.landing_url = input.landingUrl;
+  if (input.estimatedMinutes !== undefined) updates.estimated_minutes = input.estimatedMinutes;
+  if (input.proofDescription !== undefined) updates.proof_description = input.proofDescription;
+  if (input.proofMinImages !== undefined) updates.proof_min_images = input.proofMinImages;
+  if (input.proofMaxImages !== undefined) updates.proof_max_images = input.proofMaxImages;
+  if (input.proofFields !== undefined) updates.proof_fields = input.proofFields;
+  if (input.proofExampleUrl !== undefined) updates.proof_example_url = input.proofExampleUrl;
+  if (input.trackingUrl !== undefined) updates.tracking_url = input.trackingUrl;
+  if (input.ipAllowlist !== undefined) updates.ip_allowlist = input.ipAllowlist;
+  if (input.startsAt !== undefined) updates.starts_at = input.startsAt;
+  if (input.endsAt !== undefined) updates.ends_at = input.endsAt;
+  if (input.devices !== undefined) updates.devices = input.devices;
+  if (input.eligibilityNote !== undefined) updates.eligibility_notes = input.eligibilityNote;
+  if (input.dailyLimit !== undefined) updates.daily_limit = input.dailyLimit;
+  if (input.reviewWindow !== undefined) updates.review_window_hours = input.reviewWindow;
+  if (input.categoryId !== undefined) updates.category_id = input.categoryId;
+  if (input.subcategoryId !== undefined) updates.subcategory_id = input.subcategoryId;
+
+  // Budget fields - only allowed in draft status
+  if (campaign.status === "draft") {
+    if (input.reward !== undefined) updates.publisher_reward = input.reward;
+    if (input.slots !== undefined) updates.max_completions = input.slots;
+  } else if (input.reward !== undefined || input.slots !== undefined) {
+    throw new DepositError(
+      "MKT_WRONG_STATUS",
+      "Reward and slots can only be edited in draft status.",
+    );
+  }
+
+  // Validate category/subcategory relationship if changed
+  if (input.subcategoryId) {
+    const categoryId = input.categoryId ?? campaign.category_id;
+    const { data: subcat, error: subcatErr } = await mktDb
+      .from("marketplace_subcategories")
+      .select("category_id")
+      .eq("id", input.subcategoryId)
+      .maybeSingle();
+
+    if (subcatErr) throw new DepositError("INVALID_SUBCATEGORY", "Invalid subcategory.");
+    if (!subcat || subcat.category_id !== categoryId) {
+      throw new DepositError(
+        "CATEGORY_MISMATCH",
+        "Subcategory does not belong to the selected category.",
+      );
+    }
+  }
+
+  // Update the campaign
+  if (Object.keys(updates).length > 0) {
+    updates.updated_at = new Date().toISOString();
+
+    const { error: updateErr } = await mktDb
+      .from("campaigns")
+      .update(updates)
+      .eq("id", input.campaignId);
+
+    if (updateErr) {
+      throw new DepositError("UPDATE_FAILED", `Failed to update campaign: ${updateErr.message}`);
+    }
+  }
+
+  // If resubmit flag is set and status allows it, submit for review
+  let finalStatus = campaign.status;
+  if (input.resubmit && (campaign.status === "draft" || campaign.status === "rejected")) {
+    try {
+      const result = await mktRpc("mkt_submit_campaign_with_fee", {
+        p_campaign_id: input.campaignId,
+        p_actor: userId,
+      });
+      finalStatus = result.status || "pending_review";
+    } catch (err) {
+      if (err instanceof MktRpcError) throw new DepositError(err.code, humanMktError(err.code));
+      throw err;
+    }
+  }
+
+  return { success: true, status: finalStatus };
+}
+
 /* ------------------------------------------------------------ advertiser reviews */
 
 export async function listPendingReviewsImpl(userId: string): Promise<any[]> {

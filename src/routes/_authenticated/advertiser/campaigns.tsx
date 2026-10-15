@@ -1,19 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronRight, Key, Loader2, Megaphone, Pause, Play } from "lucide-react";
+import { ChevronRight, Edit, Key, Loader2, Megaphone, Pause, Play, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { BackLink, VerificationBadge } from "@/components/marketplace/Preview";
 import { PostbackSecretModal } from "@/components/marketplace/PostbackSecretModal";
 import { useAuth } from "@/lib/auth";
 import { formatMoney } from "@/lib/coinquest";
-import { campaignAction, listMyCampaigns, rotateCampaignSecret } from "@/lib/marketplace.functions";
+import {
+  addCampaignBudget,
+  campaignAction,
+  editCampaign,
+  listMyCampaigns,
+  rotateCampaignSecret,
+} from "@/lib/marketplace.functions";
 import type { CampaignView } from "@/lib/marketplace/advertiser.server";
 import { useRole } from "@/lib/marketplace/role";
 
@@ -65,14 +81,18 @@ const STATUS_STYLE: Record<Group, string> = {
 
 function MyCampaignsPage() {
   const { session } = useAuth();
-  const { refreshOverview } = useRole();
+  const { refreshOverview, overview } = useRole();
   const queryClient = useQueryClient();
   const list = useServerFn(listMyCampaigns);
   const act = useServerFn(campaignAction);
   const rotate = useServerFn(rotateCampaignSecret);
+  const addBudget = useServerFn(addCampaignBudget);
   const [tab, setTab] = useState<Group>("active");
   const [showRotateModal, setShowRotateModal] = useState(false);
   const [rotatedInfo, setRotatedInfo] = useState<{ url: string; secret: string } | null>(null);
+  const [showAddSlotsModal, setShowAddSlotsModal] = useState(false);
+  const [addSlotsCampaign, setAddSlotsCampaign] = useState<CampaignView | null>(null);
+  const [additionalSlots, setAdditionalSlots] = useState("50");
 
   const key = ["my-campaigns", session?.user.id];
   const campaigns = useQuery({
@@ -120,6 +140,55 @@ function MyCampaignsPage() {
         description: err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : undefined,
       }),
   });
+
+  const addBudgetMutation = useMutation({
+    mutationFn: (input: { campaignId: string; additionalSlots: number }) =>
+      addBudget({ data: input }),
+    onSuccess: async () => {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: key }), refreshOverview()]);
+      setShowAddSlotsModal(false);
+      setAddSlotsCampaign(null);
+      setAdditionalSlots("50");
+      toast.success("Budget added successfully");
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Failed to add budget";
+      // Map common errors to friendly messages
+      const friendlyMsg = msg.includes("INSUFFICIENT_FUNDS")
+        ? "Not enough balance. Add funds first."
+        : msg.includes("NOT_OWNER")
+          ? "You don't own this campaign."
+          : msg.includes("WRONG_STATUS")
+            ? "Campaign must be active or paused to add budget."
+            : msg;
+      toast.error("Couldn't add budget", { description: friendlyMsg });
+    },
+  });
+
+  const handleAddSlots = (campaign: CampaignView) => {
+    setAddSlotsCampaign(campaign);
+    setAdditionalSlots("50");
+    setShowAddSlotsModal(true);
+  };
+
+  const confirmAddSlots = () => {
+    if (!addSlotsCampaign) return;
+    const slots = Number(additionalSlots);
+    if (!slots || slots < 1) {
+      toast.error("Enter a valid number of slots (minimum 1)");
+      return;
+    }
+    addBudgetMutation.mutate({ campaignId: addSlotsCampaign.id, additionalSlots: slots });
+  };
+
+  // Calculate cost for add slots
+  const platformFeePercent = overview?.settings?.platformFeePercent ?? 5;
+  const slotsNum = Number(additionalSlots) || 0;
+  const costPerSlot = addSlotsCampaign
+    ? addSlotsCampaign.costPerCompletion || addSlotsCampaign.reward * (1 + platformFeePercent / 100)
+    : 0;
+  const totalCost = slotsNum * costPerSlot;
+  const spendable = overview?.account?.spendable ?? 0;
 
   const all = campaigns.data ?? [];
   const visible = all.filter((c) => c.group === tab);
@@ -299,49 +368,83 @@ function MyCampaignsPage() {
                 )}
                 <div className="mt-3 flex gap-2">
                   {(c.status === "active" || c.status === "budget_exhausted") && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      disabled={pending}
-                      data-testid={`pause-${c.id}`}
-                      onClick={() => mutation.mutate({ campaignId: c.id, action: "pause" })}
-                    >
-                      {pending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Pause className="size-4" />
-                      )}{" "}
-                      Pause
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        disabled={pending}
+                        data-testid={`pause-${c.id}`}
+                        onClick={() => mutation.mutate({ campaignId: c.id, action: "pause" })}
+                      >
+                        {pending ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Pause className="size-4" />
+                        )}{" "}
+                        Pause
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => handleAddSlots(c)}
+                        title="Add more slots"
+                      >
+                        <Plus className="size-4" /> Slots
+                      </Button>
+                    </>
                   )}
                   {c.status === "paused" && c.pausedBy !== "admin" && (
-                    <Button
-                      size="sm"
-                      variant="mint"
-                      className="flex-1"
-                      disabled={pending}
-                      onClick={() => mutation.mutate({ campaignId: c.id, action: "resume" })}
-                    >
-                      {pending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Play className="size-4" />
-                      )}{" "}
-                      Resume
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="mint"
+                        className="flex-1"
+                        disabled={pending}
+                        onClick={() => mutation.mutate({ campaignId: c.id, action: "resume" })}
+                      >
+                        {pending ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Play className="size-4" />
+                        )}{" "}
+                        Resume
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => handleAddSlots(c)}
+                        title="Add more slots"
+                      >
+                        <Plus className="size-4" /> Slots
+                      </Button>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link to="/advertiser/edit/$id" params={{ id: c.id }}>
+                          <Edit className="size-4" /> Edit
+                        </Link>
+                      </Button>
+                    </>
                   )}
                   {(c.status === "draft" || c.status === "rejected") && (
-                    <Button
-                      size="sm"
-                      variant="jade"
-                      className="flex-1"
-                      disabled={pending}
-                      onClick={() => mutation.mutate({ campaignId: c.id, action: "submit" })}
-                    >
-                      {pending ? <Loader2 className="size-4 animate-spin" /> : null} Submit for
-                      approval
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="jade"
+                        className="flex-1"
+                        disabled={pending}
+                        onClick={() => mutation.mutate({ campaignId: c.id, action: "submit" })}
+                      >
+                        {pending ? <Loader2 className="size-4 animate-spin" /> : null} Submit for
+                        approval
+                      </Button>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link to="/advertiser/edit/$id" params={{ id: c.id }}>
+                          <Edit className="size-4" /> Edit
+                        </Link>
+                      </Button>
+                    </>
                   )}
                   {c.verification === "auto" && (
                     <Button
@@ -383,6 +486,71 @@ function MyCampaignsPage() {
         postbackSecret={rotatedInfo?.secret || ""}
         isRotation={true}
       />
+
+      <Dialog open={showAddSlotsModal} onOpenChange={setShowAddSlotsModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Slots</DialogTitle>
+            <DialogDescription>
+              Add more slots to {addSlotsCampaign?.title || "this campaign"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="additional-slots">Number of slots to add</Label>
+              <Input
+                id="additional-slots"
+                type="number"
+                min="1"
+                max="10000"
+                value={additionalSlots}
+                onChange={(e) => setAdditionalSlots(e.target.value)}
+                placeholder="e.g. 50"
+              />
+              <p className="text-xs text-muted-foreground">
+                Each slot allows one more person to complete this campaign.
+              </p>
+            </div>
+            {slotsNum > 0 && addSlotsCampaign && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cost per slot:</span>
+                  <span className="font-medium">{formatMoney(costPerSlot)}</span>
+                </div>
+                <div className="mt-1 flex justify-between border-t border-border pt-2">
+                  <span className="font-semibold">Total cost:</span>
+                  <span className="font-semibold text-primary">{formatMoney(totalCost)}</span>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Your balance: {formatMoney(spendable)}
+                  {totalCost > spendable && (
+                    <span className="ml-1 text-destructive">(insufficient)</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAddSlotsModal(false)}
+              disabled={addBudgetMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="jade"
+              onClick={confirmAddSlots}
+              disabled={addBudgetMutation.isPending || totalCost > spendable || slotsNum < 1}
+            >
+              {addBudgetMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              Add {slotsNum} Slot{slotsNum !== 1 ? "s" : ""} for {formatMoney(totalCost)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
