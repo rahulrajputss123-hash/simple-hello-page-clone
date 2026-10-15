@@ -301,27 +301,7 @@ export async function submitProofImpl(
       p_fields: input.fieldValues || {},
       p_note: input.userNote || null,
     });
-
-    // Fire-and-forget notification to advertiser about new proof
-    // Get campaign and advertiser info
-    void (async () => {
-      try {
-        const { data: submission } = await mktDb
-          .from("campaign_submissions")
-          .select("campaign_id, campaigns!inner(advertiser_id, name)")
-          .eq("id", result.submission_id)
-          .maybeSingle();
-
-        if (submission) {
-          const { notifyProofWaitingForReview } = await import("./notifications.server");
-          const campaign = submission.campaigns as any;
-          void notifyProofWaitingForReview(campaign.advertiser_id, campaign.name);
-        }
-      } catch (err) {
-        // Silent fail - don't break the main flow
-        console.error("[submitProof] Failed to send notification:", err);
-      }
-    })();
+    // Notification sent by database trigger mkt_notify_new_submission
 
     return { submissionId: result.submission_id };
   } catch (err) {

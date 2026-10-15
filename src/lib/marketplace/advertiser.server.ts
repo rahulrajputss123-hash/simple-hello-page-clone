@@ -1572,14 +1572,7 @@ export async function reviewSubmissionImpl(
       p_decision: decision,
       p_reason: decision === "rejected" ? reason : null,
     });
-
-    // Fire-and-forget notification to earner
-    const { notifyProofApproved, notifyProofRejected } = await import("./notifications.server");
-    if (decision === "approved") {
-      void notifyProofApproved(submission.publisher_id, campaign.name, submission.publisher_reward);
-    } else {
-      void notifyProofRejected(submission.publisher_id, campaign.name, reason);
-    }
+    // Notification sent by database trigger mkt_notify_proof_decision
   } catch (err) {
     if (err instanceof MktRpcError) {
       // Provide human-readable error messages

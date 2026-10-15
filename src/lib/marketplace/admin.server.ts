@@ -243,17 +243,7 @@ export async function reviewCampaignImpl(
       p_decision: decision,
       p_note: note,
     });
-
-    // Fire-and-forget notification to advertiser
-    if (campaign) {
-      const { notifyCampaignApproved, notifyCampaignRejected } =
-        await import("./notifications.server");
-      if (decision === "approved") {
-        void notifyCampaignApproved(campaign.advertiser_id, campaign.name);
-      } else {
-        void notifyCampaignRejected(campaign.advertiser_id, campaign.name, note);
-      }
-    }
+    // Notification sent by database trigger mkt_notify_campaign_reviewed
   } catch (err) {
     if (err instanceof MktRpcError) {
       throw new AdminActionError(err.code, humanAdminError(err.code));
@@ -298,21 +288,7 @@ export async function reviewProofImpl(
       p_decision: decision,
       p_reason: reason || null,
     });
-
-    // Fire-and-forget notification to earner
-    if (submission) {
-      const { notifyProofApproved, notifyProofRejected } = await import("./notifications.server");
-      const campaign = submission.campaigns as any;
-      if (decision === "approved") {
-        void notifyProofApproved(
-          submission.publisher_id,
-          campaign.name,
-          submission.publisher_reward,
-        );
-      } else {
-        void notifyProofRejected(submission.publisher_id, campaign.name, reason || undefined);
-      }
-    }
+    // Notification sent by database trigger mkt_notify_proof_decision
   } catch (err) {
     if (err instanceof MktRpcError) {
       throw new AdminActionError(err.code, humanAdminError(err.code));
