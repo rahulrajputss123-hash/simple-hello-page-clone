@@ -113,7 +113,7 @@ export function TasksManager() {
       // Resize to max 400px and convert to WebP at 82% quality
       toast.info("Resizing and converting to WebP...");
       const optimizedFile = await resizeAndConvertToWebP(file, 400, 0.82);
-      
+
       const { uploadUrl, token, publicUrl } = await requestUpload({
         data: { filename: optimizedFile.name.slice(0, 120) },
       });

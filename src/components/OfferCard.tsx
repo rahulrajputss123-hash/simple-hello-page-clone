@@ -46,16 +46,18 @@ export const OfferCard = memo(function OfferCard({
   const showImage = Boolean(image_url) && !broken;
 
   // Generate optimized image URL if from Supabase Storage
-  const imageSrc = image_url && image_url.includes('supabase.co/storage')
-    ? `${image_url}?width=360&quality=70`
-    : image_url;
+  const imageSrc =
+    image_url && image_url.includes("supabase.co/storage")
+      ? `${image_url}?width=360&quality=70`
+      : image_url;
 
   const displayBadge = offerDisplayBadge({ display_price, display_percent });
 
   // Show status badge if claim exists
   const showStatusBadge = claim_status === "started" || claim_status === "pending";
   const statusText = claim_status === "started" ? "In progress" : "Pending";
-  const statusColor = claim_status === "started" ? "bg-primary text-primary-foreground" : "bg-amber-500 text-white";
+  const statusColor =
+    claim_status === "started" ? "bg-primary text-primary-foreground" : "bg-amber-500 text-white";
 
   return (
     <li
@@ -97,7 +99,9 @@ export const OfferCard = memo(function OfferCard({
             className="absolute left-1.5 top-1.5"
           />
           {showStatusBadge && (
-            <span className={`absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${statusColor}`}>
+            <span
+              className={`absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${statusColor}`}
+            >
               {statusText}
             </span>
           )}
@@ -111,9 +115,7 @@ export const OfferCard = memo(function OfferCard({
 
         <div className="flex flex-1 flex-col gap-0.5 p-2.5">
           <p className="truncate text-[13px] font-semibold leading-tight">{title}</p>
-          <p className="truncate text-[11px] leading-snug text-muted-foreground">
-            {description}
-          </p>
+          <p className="truncate text-[11px] leading-snug text-muted-foreground">{description}</p>
           <span
             className="text-amount mt-auto pt-1 text-base leading-none text-gold-dark"
             data-testid={`featured-offer-amount-${id}`}

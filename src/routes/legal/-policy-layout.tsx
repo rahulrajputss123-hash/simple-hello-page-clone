@@ -103,7 +103,6 @@ export function PolicyLayout({
             data-testid="policy-siblings-nav"
           >
             {siblings.map((s) => (
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               <Link
                 key={s.href}
                 to={s.href as any}

@@ -39,7 +39,7 @@ const OfferwallCard = memo(function OfferwallCard({
   onImageError: (id: string) => void;
 }) {
   const [broken, setBroken] = useState(false);
-  
+
   const handleError = useCallback(() => {
     setBroken(true);
     onImageError(provider.id);

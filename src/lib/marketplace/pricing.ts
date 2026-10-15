@@ -1,7 +1,7 @@
 /**
  * Shared pricing calculation module for marketplace campaigns.
  * Used by both server-side preflight checks and client-side UI.
- * 
+ *
  * Mirrors SQL functions:
  * - mkt__cost: calculates advertiser cost per slot
  * - Campaign fee logic from mkt_submit_campaign_with_fee
@@ -10,7 +10,7 @@
 /**
  * Calculate cost per slot (mirrors SQL mkt__cost function).
  * Rounds UP to the cent to match database behavior.
- * 
+ *
  * @param reward - Publisher reward per completion
  * @param feePercent - Platform fee percentage (0-100)
  * @returns Cost per slot rounded up to nearest cent
@@ -33,15 +33,15 @@ export type CampaignTotalsInput = {
 };
 
 export type CampaignTotals = {
-  allocation: number;        // Budget allocated to slots (slots × cost per slot)
-  campaignFee: number;       // Campaign creation fee
-  featuredFee: number;       // Featured placement fee
-  total: number;             // Total cost (allocation + campaignFee + featuredFee)
+  allocation: number; // Budget allocated to slots (slots × cost per slot)
+  campaignFee: number; // Campaign creation fee
+  featuredFee: number; // Featured placement fee
+  total: number; // Total cost (allocation + campaignFee + featuredFee)
 };
 
 /**
  * Calculate complete campaign cost breakdown.
- * 
+ *
  * @param input - Campaign configuration
  * @returns Breakdown of all costs
  */
@@ -76,11 +76,11 @@ export function campaignTotals(input: CampaignTotalsInput): CampaignTotals {
 
 /**
  * Check if advertiser has sufficient funds for campaign creation.
- * 
+ *
  * Preflight rule:
  * - Total spendable (deposit + bonus) must cover total cost
  * - Deposit alone must cover campaign fee + featured fee (fees can't use bonus)
- * 
+ *
  * @param params - Object with spendable, deposit, and totals
  * @returns true if funds are sufficient
  */

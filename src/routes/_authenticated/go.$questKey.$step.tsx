@@ -55,10 +55,10 @@ function GoPage() {
         const result = await complete({ data: { questKey, step: stepNum } });
         if (cancelled) return;
         setState({ kind: "success", ...result });
-        
+
         // Always invalidate quest-sessions after successful step completion
         void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
-        
+
         // If quest is completed and credited, invalidate additional queries
         if (result.completed && result.credited) {
           void queryClient.invalidateQueries({ queryKey: ["profile"] });

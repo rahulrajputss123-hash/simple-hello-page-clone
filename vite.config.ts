@@ -30,20 +30,34 @@ export default defineConfig({
     routeRules: {
       // Immutable hashed assets - 1 year cache
       "/assets/**": { headers: { "cache-control": "public, max-age=31536000, immutable" } },
-      
+
       // Icons and images - 30 days with stale-while-revalidate
-      "/icons/**": { headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" } },
-      "/assistant-mascot.webp": { headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" } },
-      "/icon-128.webp": { headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" } },
-      "/logo-horizontal-light.webp": { headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" } },
-      "/logo-horizontal-dark.webp": { headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" } },
-      "/**/*.webp": { headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" } },
-      "/landing/**": { headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" } },
-      
+      "/icons/**": {
+        headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" },
+      },
+      "/assistant-mascot.webp": {
+        headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" },
+      },
+      "/icon-128.webp": {
+        headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" },
+      },
+      "/logo-horizontal-light.webp": {
+        headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" },
+      },
+      "/logo-horizontal-dark.webp": {
+        headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" },
+      },
+      "/**/*.webp": {
+        headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" },
+      },
+      "/landing/**": {
+        headers: { "cache-control": "public, max-age=2592000, stale-while-revalidate=86400" },
+      },
+
       // Fonts - 1 year cache
       "/**/*.woff2": { headers: { "cache-control": "public, max-age=31536000, immutable" } },
       "/**/*.woff": { headers: { "cache-control": "public, max-age=31536000, immutable" } },
-      
+
       // No caching for HTML, APIs, server functions, auth
       "/**/*.html": { headers: { "cache-control": "no-cache, no-store, must-revalidate" } },
       "/_serverFn/**": { headers: { "cache-control": "no-cache, no-store, must-revalidate" } },

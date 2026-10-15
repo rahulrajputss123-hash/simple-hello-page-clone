@@ -61,7 +61,8 @@ export function PostbackSecretModal({
               You will not see this secret again
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Save your postback URL and secret securely. You cannot retrieve them later, only rotate to a new secret.
+              Save your postback URL and secret securely. You cannot retrieve them later, only
+              rotate to a new secret.
             </p>
           </div>
 
@@ -92,14 +93,18 @@ export function PostbackSecretModal({
               </Button>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Use this URL to send postbacks from your tracking system. Replace {"{click_id}"} and {"{transaction_id}"}{" "}
-              with actual values.
+              Use this URL to send postbacks from your tracking system. Replace {"{click_id}"} and{" "}
+              {"{transaction_id}"} with actual values.
             </p>
           </div>
 
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
             <p className="font-semibold text-foreground">Network setup</p>
-            <p className="mt-1">Pass <code className="rounded bg-muted px-1">{"{click_id}"}</code> in your network's sub-id parameter of the tracking URL, then set the network postback to the URL above using the network's click ID and transaction ID macros.</p>
+            <p className="mt-1">
+              Pass <code className="rounded bg-muted px-1">{"{click_id}"}</code> in your network's
+              sub-id parameter of the tracking URL, then set the network postback to the URL above
+              using the network's click ID and transaction ID macros.
+            </p>
           </div>
 
           <div>

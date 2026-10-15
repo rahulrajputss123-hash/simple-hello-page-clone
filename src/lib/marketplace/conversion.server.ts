@@ -45,16 +45,16 @@ export class ConversionError extends Error {
 
 /**
  * Records a conversion from a postback webhook.
- * 
+ *
  * Authentication and IP verification are performed by postback.ts before calling this.
- * 
+ *
  * Uses mkt_record_conversion which:
  * - Validates campaign is auto mode
  * - Checks for duplicates (by external_txn_id and click_id)
  * - Validates click exists and is active
  * - Decides outcome: credited, held_for_review, or budget_exhausted
  * - Pays publisher immediately if credited
- * 
+ *
  * Returns recorded: false if duplicate or invalid, true if recorded.
  */
 export async function recordConversionImpl(
@@ -96,7 +96,7 @@ export async function recordConversionImpl(
 
     return {
       recorded: result.recorded,
-      ...( result.status ? { status: result.status } : {}),
+      ...(result.status ? { status: result.status } : {}),
       ...(result.conversion_id ? { conversionId: result.conversion_id } : {}),
       ...(result.user_id ? { userId: result.user_id } : {}),
       ...(result.hold_reason !== undefined ? { holdReason: result.hold_reason } : {}),

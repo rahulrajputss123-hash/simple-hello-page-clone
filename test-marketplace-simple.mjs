@@ -1,7 +1,7 @@
 /**
  * Simple Live Database Test for Marketplace Phase 3-5
  * Tests ACTUAL function signatures against live Supabase
- * 
+ *
  * Run with: node test-marketplace-simple.mjs
  */
 

@@ -102,7 +102,9 @@ export function TrustSection() {
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <StarRow />
                 <span className="text-sm font-semibold text-foreground">4.8</span>
-                <span className="whitespace-nowrap text-[11px] text-muted-foreground">average rating</span>
+                <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                  average rating
+                </span>
               </div>
             </div>
           </div>

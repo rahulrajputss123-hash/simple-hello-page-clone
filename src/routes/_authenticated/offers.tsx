@@ -81,7 +81,6 @@ function OffersPage() {
 
 function ViewAllLink({ to, testid }: { to: string; testid: string }) {
   return (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     <Link
       to={to as any}
       data-testid={testid}

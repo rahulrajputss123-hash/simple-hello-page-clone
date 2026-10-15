@@ -2,17 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Coins, Megaphone, ShieldCheck, Wallet } from "lucide-react";
 
-import {
-  ADVERTISER_ANCHOR_ID,
-  AdvertiserSection,
-} from "@/components/landing/AdvertiserSection";
+import { ADVERTISER_ANCHOR_ID, AdvertiserSection } from "@/components/landing/AdvertiserSection";
 import { AuthCard } from "@/components/landing/AuthCard";
 import { AppPreviewSection } from "@/components/landing/HeroPhone";
 import { EarnWaysSection } from "@/components/landing/EarnWaysSection";
 const LiveEarningsFeed = lazy(() =>
   import("@/components/landing/LiveEarningsFeed").then((mod) => ({
     default: mod.LiveEarningsFeed,
-  }))
+  })),
 );
 import { OffersShowcase } from "@/components/landing/OffersShowcase";
 import { Reveal } from "@/components/landing/Reveal";

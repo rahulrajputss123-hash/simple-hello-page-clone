@@ -1,4 +1,9 @@
-import { REFERRAL_MILESTONE_BONUS, REFERRAL_MAX_BONUS, REFERRAL_WINDOW_DAYS, formatMoney } from "@/lib/coinquest";
+import {
+  REFERRAL_MILESTONE_BONUS,
+  REFERRAL_MAX_BONUS,
+  REFERRAL_WINDOW_DAYS,
+  formatMoney,
+} from "@/lib/coinquest";
 
 export const ADVERTISER_REFERRAL_PERCENT = 50;
 export const ADVERTISER_REFERRAL_CAP_USD = 100;
@@ -16,7 +21,7 @@ export const PUBLISHER_REFERRAL_RULES = [
 export const ADVERTISER_REFERRAL_RULES = [
   "Your invite link works for two separate programs: publisher referral and advertiser referral. Advertiser rewards are added on top of publisher rewards.",
   `When a friend you invited becomes an advertiser and makes a deposit of at least ${formatMoney(ADVERTISER_REFERRAL_MIN_DEPOSIT_USD)}, you earn ${ADVERTISER_REFERRAL_PERCENT}% of that deposit.`,
-  `Example: if your friend deposits $100, you earn ${formatMoney(100 * ADVERTISER_REFERRAL_PERCENT / 100)}.`,
+  `Example: if your friend deposits $100, you earn ${formatMoney((100 * ADVERTISER_REFERRAL_PERCENT) / 100)}.`,
   `You can earn up to ${formatMoney(ADVERTISER_REFERRAL_CAP_USD)} in total per referred advertiser. Deposits beyond that earn no extra bonus.`,
   `The bonus shows as Pending for ${ADVERTISER_REFERRAL_HOLD_DAYS} days after the deposit clears, then it is Credited to your main wallet.`,
   "If a deposit is refunded, reversed or charged back, the related bonus is cancelled, and deducted if it was already credited.",
@@ -32,7 +37,8 @@ export const ADVERTISER_REFERRAL = {
   REFERRAL_HEADLINE_MAX,
 };
 
-export const formatAdvertiserReferralHeadline = () => `Invite friends, earn up to $${REFERRAL_HEADLINE_MAX}`;
+export const formatAdvertiserReferralHeadline = () =>
+  `Invite friends, earn up to $${REFERRAL_HEADLINE_MAX}`;
 
 export const formatAdvertiserReferralLine = (publisherBonus: number) =>
   `Earn ${formatMoney(publisherBonus)} per friend who completes all 3 publisher milestones, plus ${ADVERTISER_REFERRAL_PERCENT}% of an advertiser friend's deposit (up to ${formatMoney(ADVERTISER_REFERRAL_CAP_USD)}).`;

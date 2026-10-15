@@ -17,7 +17,7 @@ const getPreferredRoleInput = z.object({
 });
 
 export const getPreferredRoleImpl = async (
-  input: z.infer<typeof getPreferredRoleInput>
+  input: z.infer<typeof getPreferredRoleInput>,
 ): Promise<UserRole | null> => {
   const { userId } = getPreferredRoleInput.parse(input);
 
@@ -45,7 +45,7 @@ const setPreferredRoleInput = z.object({
 });
 
 export const setPreferredRoleImpl = async (
-  input: z.infer<typeof setPreferredRoleInput>
+  input: z.infer<typeof setPreferredRoleInput>,
 ): Promise<{ success: boolean }> => {
   const { userId, role } = setPreferredRoleInput.parse(input);
 

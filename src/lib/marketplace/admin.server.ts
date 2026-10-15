@@ -82,7 +82,9 @@ export async function listPendingCampaignsImpl(): Promise<AdminCampaignView[]> {
   const autoApproveMinutes = settings?.auto_approve_after_minutes ?? 10;
   const skipFirstCampaign = settings?.auto_approve_skip_first_campaign ?? true;
 
-  const campaigns = (data ?? []) as Array<CampaignRow & { advertiser_accounts: { display_name: string; user_id: string } | null }>;
+  const campaigns = (data ?? []) as Array<
+    CampaignRow & { advertiser_accounts: { display_name: string; user_id: string } | null }
+  >;
 
   // For each campaign, check auto-approval eligibility
   return await Promise.all(
@@ -158,7 +160,7 @@ export async function listPendingCampaignsImpl(): Promise<AdminCampaignView[]> {
         autoApproveEligible,
         autoApproveReason,
       };
-    })
+    }),
   );
 }
 
@@ -189,9 +191,7 @@ export async function listPendingProofsImpl(): Promise<AdminProofView[]> {
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
   return (
-    (data ?? []) as Array<
-      CampaignSubmissionRow & { campaigns: { name: string } | null }
-    >
+    (data ?? []) as Array<CampaignSubmissionRow & { campaigns: { name: string } | null }>
   ).map((s) => ({
     id: s.id,
     campaignId: s.campaign_id,
@@ -246,7 +246,8 @@ export async function reviewCampaignImpl(
 
     // Fire-and-forget notification to advertiser
     if (campaign) {
-      const { notifyCampaignApproved, notifyCampaignRejected } = await import("./notifications.server");
+      const { notifyCampaignApproved, notifyCampaignRejected } =
+        await import("./notifications.server");
       if (decision === "approved") {
         void notifyCampaignApproved(campaign.advertiser_id, campaign.name);
       } else {
@@ -275,7 +276,10 @@ export async function reviewProofImpl(
 ): Promise<void> {
   // Validate reason required for rejection
   if (decision === "rejected" && !reason) {
-    throw new AdminActionError("REASON_REQUIRED", "Reason is required when rejecting a submission.");
+    throw new AdminActionError(
+      "REASON_REQUIRED",
+      "Reason is required when rejecting a submission.",
+    );
   }
 
   // Get submission data for notifications
@@ -286,7 +290,8 @@ export async function reviewProofImpl(
     .maybeSingle();
 
   try {
-    await mktRpc("mkt_decide_submission", { // SINGLE function!
+    await mktRpc("mkt_decide_submission", {
+      // SINGLE function!
       p_submission_id: submissionId,
       p_actor: actorId,
       p_role: role,
@@ -297,9 +302,13 @@ export async function reviewProofImpl(
     // Fire-and-forget notification to earner
     if (submission) {
       const { notifyProofApproved, notifyProofRejected } = await import("./notifications.server");
-      const campaign = (submission.campaigns as any);
+      const campaign = submission.campaigns as any;
       if (decision === "approved") {
-        void notifyProofApproved(submission.publisher_id, campaign.name, submission.publisher_reward);
+        void notifyProofApproved(
+          submission.publisher_id,
+          campaign.name,
+          submission.publisher_reward,
+        );
       } else {
         void notifyProofRejected(submission.publisher_id, campaign.name, reason || undefined);
       }

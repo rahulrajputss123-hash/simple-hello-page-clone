@@ -1,7 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, Clock, CreditCard, Loader2, ShieldCheck, Wallet, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  Loader2,
+  ShieldCheck,
+  Wallet,
+  XCircle,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -142,7 +150,9 @@ function FundsPage() {
           }).catch((err) => {
             // Signature mismatch etc. The webhook is still the source of truth,
             // so keep polling — but tell the user something looked off.
-            toast.error("Couldn't verify the payment response", { description: friendlyError(err) });
+            toast.error("Couldn't verify the payment response", {
+              description: friendlyError(err),
+            });
           });
         },
         modal: {
@@ -178,7 +188,8 @@ function FundsPage() {
         : settings && !settings.razorpayConfigured
           ? "Payments aren't configured yet."
           : null;
-  const busy = stage.kind === "creating" || stage.kind === "checkout" || stage.kind === "confirming";
+  const busy =
+    stage.kind === "creating" || stage.kind === "checkout" || stage.kind === "confirming";
 
   return (
     <AppShell subtitle="Advertiser" mainClass="page-fade-in">
@@ -211,7 +222,10 @@ function FundsPage() {
       </div>
 
       {stage.kind === "confirming" && (
-        <div className="surface-card mt-3 flex items-center gap-3 p-4" data-testid="deposit-confirming">
+        <div
+          className="surface-card mt-3 flex items-center gap-3 p-4"
+          data-testid="deposit-confirming"
+        >
           <Loader2 className="size-5 shrink-0 animate-spin text-primary" />
           <div className="text-sm">
             <p className="font-semibold">Payment received — confirming with Razorpay</p>
@@ -223,7 +237,10 @@ function FundsPage() {
         </div>
       )}
       {stage.kind === "succeeded" && (
-        <div className="mt-3 flex items-center gap-3 rounded-2xl bg-mint/15 p-4" data-testid="deposit-success">
+        <div
+          className="mt-3 flex items-center gap-3 rounded-2xl bg-mint/15 p-4"
+          data-testid="deposit-success"
+        >
           <CheckCircle2 className="size-5 shrink-0 text-primary" />
           <p className="text-sm font-semibold text-primary">
             {formatMoney(stage.amountUsd)} added to your Campaign Balance.
@@ -231,11 +248,16 @@ function FundsPage() {
         </div>
       )}
       {stage.kind === "failed" && (
-        <div className="mt-3 flex items-center gap-3 rounded-2xl bg-destructive/10 p-4" data-testid="deposit-failed">
+        <div
+          className="mt-3 flex items-center gap-3 rounded-2xl bg-destructive/10 p-4"
+          data-testid="deposit-failed"
+        >
           <XCircle className="size-5 shrink-0 text-destructive" />
           <div className="text-sm">
             <p className="font-semibold text-destructive">Payment didn't go through</p>
-            <p className="text-xs text-muted-foreground">{stage.reason} You haven't been charged.</p>
+            <p className="text-xs text-muted-foreground">
+              {stage.reason} You haven't been charged.
+            </p>
           </div>
         </div>
       )}
@@ -276,7 +298,9 @@ function FundsPage() {
               disabled={busy}
               onClick={() => setAmount(String(p))}
               className={`rounded-xl border px-2 py-2 text-sm font-semibold ${
-                amount === String(p) ? "border-primary bg-primary/10 text-primary" : "border-border bg-card"
+                amount === String(p)
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card"
               }`}
             >
               ${p}
@@ -285,8 +309,9 @@ function FundsPage() {
         </div>
         {settings?.promoActive && account && account.lifetimeDeposited === 0 && (
           <p className="rounded-xl bg-gold/10 p-3 text-xs font-semibold text-gold-dark">
-            🎁 Launch offer: your first deposit gets a {overview?.userBonusPercent ?? settings.firstDepositBonusPercent}% bonus that
-            unlocks as you spend.
+            🎁 Launch offer: your first deposit gets a{" "}
+            {overview?.userBonusPercent ?? settings.firstDepositBonusPercent}% bonus that unlocks as
+            you spend.
           </p>
         )}
         <p className="text-[11px] text-muted-foreground">
@@ -322,11 +347,11 @@ function FundsPage() {
       {(recent.data?.length ?? 0) > 0 && (
         <>
           <SectionHeading
-          variant="ribbon"
-          icon={Clock}
-          iconSrc="/icons/icon-deposit-refund.webp"
-          title="Recent deposits"
-        />
+            variant="ribbon"
+            icon={Clock}
+            iconSrc="/icons/icon-deposit-refund.webp"
+            title="Recent deposits"
+          />
           <ul className="surface-card divide-y divide-border" data-testid="recent-deposits">
             {recent.data!.map((d) => (
               <li key={d.id} className="flex items-center justify-between p-3.5 text-sm">
@@ -334,7 +359,9 @@ function FundsPage() {
                   <p className="font-semibold">{formatMoney(d.amountUsd)}</p>
                   <p className="text-xs text-muted-foreground">
                     {formatShortDate(d.createdAt)}
-                    {d.chargeCurrency !== "USD" ? ` · ${d.chargeCurrency} ${d.chargeAmount.toFixed(2)}` : ""}
+                    {d.chargeCurrency !== "USD"
+                      ? ` · ${d.chargeCurrency} ${d.chargeAmount.toFixed(2)}`
+                      : ""}
                   </p>
                 </div>
                 <span

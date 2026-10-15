@@ -138,11 +138,14 @@ export function CampaignApprovals() {
     mutationFn: (input: { campaignId: string; decision: "approved" | "rejected"; note: string }) =>
       reviewFn({ data: input }),
     onSuccess: (_, vars) => {
-      toast.success(vars.decision === "approved" ? "Campaign approved — now live." : "Campaign rejected.");
+      toast.success(
+        vars.decision === "approved" ? "Campaign approved — now live." : "Campaign rejected.",
+      );
       void queryClient.invalidateQueries({ queryKey: ["admin-pending-campaigns"] });
     },
     onError: (err) => {
-      const msg = err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
+      const msg =
+        err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
       toast.error("Couldn't review campaign", { description: msg });
     },
   });
@@ -157,7 +160,9 @@ export function CampaignApprovals() {
       ) : campaigns.isError ? (
         <p className="surface-card mt-3 p-4 text-sm text-destructive">Couldn't load campaigns.</p>
       ) : campaigns.data.length === 0 ? (
-        <p className="surface-card mt-3 p-4 text-center text-sm text-muted-foreground">No campaigns pending approval.</p>
+        <p className="surface-card mt-3 p-4 text-center text-sm text-muted-foreground">
+          No campaigns pending approval.
+        </p>
       ) : (
         <ul className="space-y-3" data-testid="admin-campaign-approvals">
           {campaigns.data.map((c) => (
@@ -167,7 +172,8 @@ export function CampaignApprovals() {
                   <VerificationBadge verification={c.verification} />
                   <p className="mt-1.5 truncate font-semibold">{c.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    by {c.advertiserName} · {c.countries.join(", ")} · submitted {formatShortDate(c.submittedAt)}
+                    by {c.advertiserName} · {c.countries.join(", ")} · submitted{" "}
+                    {formatShortDate(c.submittedAt)}
                   </p>
                   <AutoApprovalCountdown
                     autoApproveAt={c.autoApproveAt}
@@ -183,8 +189,16 @@ export function CampaignApprovals() {
               <p className="mt-2 text-sm text-muted-foreground">{c.summary}</p>
               <ApproveReject
                 id={c.id}
-                onApprove={() => mutation.mutate({ campaignId: c.id, decision: "approved", note: "Campaign approved for launch" })}
-                onReject={(reason) => mutation.mutate({ campaignId: c.id, decision: "rejected", note: reason })}
+                onApprove={() =>
+                  mutation.mutate({
+                    campaignId: c.id,
+                    decision: "approved",
+                    note: "Campaign approved for launch",
+                  })
+                }
+                onReject={(reason) =>
+                  mutation.mutate({ campaignId: c.id, decision: "rejected", note: reason })
+                }
                 isPending={mutation.isPending && mutation.variables?.campaignId === c.id}
               />
             </li>
@@ -206,16 +220,23 @@ export function ProofReviews() {
   });
 
   const mutation = useMutation({
-    mutationFn: (input: { submissionId: string; role?: "admin" | "advertiser"; decision: "approved" | "rejected"; reason: string | null }) =>
-      reviewFn({ data: { role: "admin", ...input } }),
+    mutationFn: (input: {
+      submissionId: string;
+      role?: "admin" | "advertiser";
+      decision: "approved" | "rejected";
+      reason: string | null;
+    }) => reviewFn({ data: { role: "admin", ...input } }),
     onSuccess: (_, vars) => {
       toast.success(
-        vars.decision === "approved" ? "Proof approved — publisher rewarded." : "Proof rejected — publisher notified.",
+        vars.decision === "approved"
+          ? "Proof approved — publisher rewarded."
+          : "Proof rejected — publisher notified.",
       );
       void queryClient.invalidateQueries({ queryKey: ["admin-pending-proofs"] });
     },
     onError: (err) => {
-      const msg = err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
+      const msg =
+        err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
       toast.error("Couldn't review proof", { description: msg });
     },
   });
@@ -224,7 +245,8 @@ export function ProofReviews() {
     <>
       <SectionTitle>Proof submissions</SectionTitle>
       <p className="mb-3 text-xs text-muted-foreground">
-        Rejection reasons are shown to the publisher and can be appealed from their My Submissions screen.
+        Rejection reasons are shown to the publisher and can be appealed from their My Submissions
+        screen.
       </p>
 
       {proofs.isPending ? (
@@ -234,7 +256,9 @@ export function ProofReviews() {
       ) : proofs.isError ? (
         <p className="surface-card mt-3 p-4 text-sm text-destructive">Couldn't load proofs.</p>
       ) : proofs.data.length === 0 ? (
-        <p className="surface-card mt-3 p-4 text-center text-sm text-muted-foreground">No proofs pending review.</p>
+        <p className="surface-card mt-3 p-4 text-center text-sm text-muted-foreground">
+          No proofs pending review.
+        </p>
       ) : (
         <ul className="space-y-3" data-testid="admin-proof-reviews">
           {proofs.data.map((p) => (
@@ -257,7 +281,8 @@ export function ProofReviews() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{p.campaignTitle}</p>
                   <p className="text-xs text-muted-foreground">
-                    Publisher <strong>{p.publisherName}</strong> · {formatShortDate(p.submittedAt)} · {formatMoney(p.reward)}
+                    Publisher <strong>{p.publisherName}</strong> · {formatShortDate(p.submittedAt)}{" "}
+                    · {formatMoney(p.reward)}
                   </p>
                   {p.appealText && (
                     <p className="mt-2 rounded-xl bg-primary/10 p-2 text-xs">
@@ -267,15 +292,23 @@ export function ProofReviews() {
                   )}
                   {p.userNote && (
                     <p className="mt-2 rounded-xl bg-background-alt p-2 text-xs">
-                      {p.userNote ? `"${p.userNote}"` : <em className="text-muted-foreground">No notes</em>}
+                      {p.userNote ? (
+                        `"${p.userNote}"`
+                      ) : (
+                        <em className="text-muted-foreground">No notes</em>
+                      )}
                     </p>
                   )}
                 </div>
               </div>
               <ApproveReject
                 id={p.id}
-                onApprove={() => mutation.mutate({ submissionId: p.id, decision: "approved", reason: null })}
-                onReject={(reason) => mutation.mutate({ submissionId: p.id, decision: "rejected", reason })}
+                onApprove={() =>
+                  mutation.mutate({ submissionId: p.id, decision: "approved", reason: null })
+                }
+                onReject={(reason) =>
+                  mutation.mutate({ submissionId: p.id, decision: "rejected", reason })
+                }
                 isPending={mutation.isPending && mutation.variables?.submissionId === p.id}
               />
             </li>
@@ -298,14 +331,18 @@ export function AdvertisersList() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: (input: { advertiserId: string; status: "active" | "restricted" | "suspended"; reason: string }) =>
-      setStatus({ data: { ...input, adminId: user?.id ?? "" } }),
+    mutationFn: (input: {
+      advertiserId: string;
+      status: "active" | "restricted" | "suspended";
+      reason: string;
+    }) => setStatus({ data: { ...input, adminId: user?.id ?? "" } }),
     onSuccess: (_, vars) => {
       toast.success(`Advertiser ${vars.status === "active" ? "activated" : vars.status}.`);
       void queryClient.invalidateQueries({ queryKey: ["admin-advertisers"] });
     },
     onError: (err) => {
-      const msg = err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
+      const msg =
+        err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
       toast.error("Couldn't update advertiser status", { description: msg });
     },
   });
@@ -321,7 +358,9 @@ export function AdvertisersList() {
       ) : advertisers.isError ? (
         <p className="surface-card mt-3 p-4 text-sm text-destructive">Couldn't load advertisers.</p>
       ) : advertisers.data.length === 0 ? (
-        <p className="surface-card mt-3 p-4 text-center text-sm text-muted-foreground">No advertisers yet.</p>
+        <p className="surface-card mt-3 p-4 text-center text-sm text-muted-foreground">
+          No advertisers yet.
+        </p>
       ) : (
         <ul className="space-y-3">
           {advertisers.data.map((adv) => (
@@ -335,20 +374,27 @@ export function AdvertisersList() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {adv.contact_email} · {adv.campaign_count} campaigns · joined {formatShortDate(adv.created_at)}
+                    {adv.contact_email} · {adv.campaign_count} campaigns · joined{" "}
+                    {formatShortDate(adv.created_at)}
                   </p>
                   <div className="mt-2 flex gap-4 text-xs">
                     <div>
                       <p className="text-muted-foreground">Balance</p>
-                      <p className="font-mono text-sm font-semibold">{formatMoney(adv.deposit_balance)}</p>
+                      <p className="font-mono text-sm font-semibold">
+                        {formatMoney(adv.deposit_balance)}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Deposited</p>
-                      <p className="font-mono text-sm font-semibold">{formatMoney(adv.lifetime_deposited)}</p>
+                      <p className="font-mono text-sm font-semibold">
+                        {formatMoney(adv.lifetime_deposited)}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Spent</p>
-                      <p className="font-mono text-sm font-semibold">{formatMoney(adv.lifetime_spent)}</p>
+                      <p className="font-mono text-sm font-semibold">
+                        {formatMoney(adv.lifetime_spent)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -384,12 +430,14 @@ export function AdvertisersList() {
               </div>
               {adv.status_reason && (
                 <p className="mt-2 rounded-xl bg-background-alt p-2 text-xs text-muted-foreground">
-                  <strong>Reason: </strong>{adv.status_reason}
+                  <strong>Reason: </strong>
+                  {adv.status_reason}
                 </p>
               )}
               {adv.flagged_for_review && adv.flag_reason && (
                 <p className="mt-2 rounded-xl bg-destructive/10 p-2 text-xs text-destructive">
-                  <strong>Flagged: </strong>{adv.flag_reason}
+                  <strong>Flagged: </strong>
+                  {adv.flag_reason}
                 </p>
               )}
             </li>
@@ -421,7 +469,12 @@ export function FinancialOverview() {
     return (
       <p className="surface-card p-4 text-sm text-destructive">
         Couldn't load financial overview.
-        {overview.error && <><br/>{String(overview.error)}</>}
+        {overview.error && (
+          <>
+            <br />
+            {String(overview.error)}
+          </>
+        )}
       </p>
     );
   }

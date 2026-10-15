@@ -775,7 +775,7 @@ export async function startOfferClaimImpl(userId: string, offerId: string) {
     .eq("offer_id", offerId)
     .in("status", ["started", "pending", "approved"])
     .maybeSingle();
-  
+
   if (existing.data) {
     // Idempotent: if already started, return it
     if (existing.data.status === "started") {
@@ -794,7 +794,7 @@ export async function startOfferClaimImpl(userId: string, offerId: string) {
     } as never)
     .select("*")
     .single();
-  
+
   if (created.error) throw new Error("Could not start this offer.");
   return created.data;
 }
@@ -832,9 +832,9 @@ export async function submitOfferProofImpl(userId: string, offerId: string, proo
 
   const updated = await supabaseAdmin
     .from("offer_claims")
-    .update({ 
-      status: "pending", 
-      proof_url: proofPath 
+    .update({
+      status: "pending",
+      proof_url: proofPath,
     } as never)
     .eq("id", claim.data.id)
     .select("*")
@@ -850,7 +850,7 @@ export async function submitOfferProofImpl(userId: string, offerId: string, proo
     `${offer.title} is pending review. We'll credit it once approved.`,
     "offer",
   );
-  
+
   return updated.data;
 }
 

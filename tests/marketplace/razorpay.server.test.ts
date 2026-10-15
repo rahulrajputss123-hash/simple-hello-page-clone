@@ -1,14 +1,19 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createHmac } from "node:crypto";
 
-import { signWebhookBody, verifyCheckoutSignature, verifyWebhookSignature } from "../../src/lib/marketplace/razorpay.server";
+import {
+  signWebhookBody,
+  verifyCheckoutSignature,
+  verifyWebhookSignature,
+} from "../../src/lib/marketplace/razorpay.server";
 
 const WEBHOOK = "unit-test-webhook-secret";
 const KEY_SECRET = "unit-test-key-secret";
 const saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
-  for (const k of ["RAZORPAY_WEBHOOK_SECRET", "RAZORPAY_KEY_SECRET", "RAZORPAY_KEY_ID"]) saved[k] = process.env[k];
+  for (const k of ["RAZORPAY_WEBHOOK_SECRET", "RAZORPAY_KEY_SECRET", "RAZORPAY_KEY_ID"])
+    saved[k] = process.env[k];
   process.env["RAZORPAY_WEBHOOK_SECRET"] = WEBHOOK;
   process.env["RAZORPAY_KEY_SECRET"] = KEY_SECRET;
   process.env["RAZORPAY_KEY_ID"] = "rzp_test_unit";
@@ -21,7 +26,10 @@ afterEach(() => {
 });
 
 describe("webhook signature", () => {
-  const body = JSON.stringify({ event: "payment.captured", payload: { payment: { entity: { id: "pay_1" } } } });
+  const body = JSON.stringify({
+    event: "payment.captured",
+    payload: { payment: { entity: { id: "pay_1" } } },
+  });
 
   test("accepts a correct HMAC over the raw body", () => {
     expect(verifyWebhookSignature(body, signWebhookBody(body, WEBHOOK))).toBe(true);
@@ -50,8 +58,12 @@ describe("checkout signature", () => {
     expect(verifyCheckoutSignature({ orderId, paymentId, signature: good })).toBe(true);
   });
   test("rejects a signature for a different order/payment pair", () => {
-    expect(verifyCheckoutSignature({ orderId: "order_other", paymentId, signature: good })).toBe(false);
-    expect(verifyCheckoutSignature({ orderId, paymentId: "pay_other", signature: good })).toBe(false);
+    expect(verifyCheckoutSignature({ orderId: "order_other", paymentId, signature: good })).toBe(
+      false,
+    );
+    expect(verifyCheckoutSignature({ orderId, paymentId: "pay_other", signature: good })).toBe(
+      false,
+    );
     expect(verifyCheckoutSignature({ orderId, paymentId, signature: "" })).toBe(false);
   });
 });

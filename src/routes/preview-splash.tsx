@@ -17,11 +17,11 @@ export const Route = createFileRoute("/preview-splash")({
 });
 
 function PreviewSplash() {
+  const [view, setView] = useState<"loading" | "splash">("loading");
+
   if (!import.meta.env.DEV) {
     return <Navigate to="/" replace />;
   }
-  
-  const [view, setView] = useState<"loading" | "splash">("loading");
 
   return (
     <>

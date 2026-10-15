@@ -21,7 +21,11 @@ export const Route = createFileRoute("/_authenticated/advertiser/reviews")({
 
 function ReviewsPage() {
   const queryClient = useQueryClient();
-  const { data: submissions, isLoading, error } = useQuery({
+  const {
+    data: submissions,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["pending-reviews"],
     queryFn: () => listPendingReviews({}),
     refetchInterval: 30000, // Refresh every 30s
@@ -31,19 +35,26 @@ function ReviewsPage() {
   const [rejectReason, setRejectReason] = useState("");
 
   const reviewMutation = useMutation({
-    mutationFn: ({ submissionId, decision, reason }: { submissionId: string; decision: "approved" | "rejected"; reason?: string }) =>
-      reviewSubmission({ data: { submissionId, decision, reason } }),
+    mutationFn: ({
+      submissionId,
+      decision,
+      reason,
+    }: {
+      submissionId: string;
+      decision: "approved" | "rejected";
+      reason?: string;
+    }) => reviewSubmission({ data: { submissionId, decision, reason } }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pending-reviews"] });
       queryClient.invalidateQueries({ queryKey: ["my-campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["advertiser-overview"] });
-      
+
       if (variables.decision === "approved") {
         toast.success("Submission approved — earner will be paid");
       } else {
         toast.success("Submission rejected — earner can appeal");
       }
-      
+
       setExpandedId(null);
       setRejectReason("");
     },
@@ -51,11 +62,11 @@ function ReviewsPage() {
       const msg = err instanceof Error ? err.message : "Could not process review";
       if (msg.includes("ADMIN_REVIEW_REQUIRED")) {
         toast.error("Admin review required", {
-          description: "This submission requires admin review and cannot be decided by you."
+          description: "This submission requires admin review and cannot be decided by you.",
         });
       } else if (msg.includes("ALREADY_DECIDED")) {
         toast.error("Already reviewed", {
-          description: "This submission has already been reviewed."
+          description: "This submission has already been reviewed.",
         });
       } else {
         toast.error(msg);
@@ -67,12 +78,12 @@ function ReviewsPage() {
     const now = new Date();
     const target = new Date(autoApproveAt);
     const diffMs = target.getTime() - now.getTime();
-    
+
     if (diffMs <= 0) return "Auto-approving soon";
-    
+
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (hours > 0) {
       return `Auto-approves in ${hours}h ${minutes}m`;
     }
@@ -103,7 +114,7 @@ function ReviewsPage() {
   return (
     <AppShell subtitle="Advertiser" mainClass="page-fade-in">
       <BackLink to="/advertiser/campaigns" label="Back to Campaigns" />
-      
+
       <SectionHeading
         variant="ribbon"
         size="page"
@@ -115,27 +126,34 @@ function ReviewsPage() {
       />
 
       <div className="surface-card mt-3 rounded-xl border border-gold/40 bg-gold/10 p-3 text-xs text-gold-dark">
-        <AlertTriangle className="mb-1 inline size-3.5" /> <strong>Review guidelines:</strong> Rejections can be appealed by the earner and reviewed by admin. Be fair and provide clear reasons for rejection. If you do not review a submission within the time window, it will be auto-approved and the earner will be paid.
+        <AlertTriangle className="mb-1 inline size-3.5" /> <strong>Review guidelines:</strong>{" "}
+        Rejections can be appealed by the earner and reviewed by admin. Be fair and provide clear
+        reasons for rejection. If you do not review a submission within the time window, it will be
+        auto-approved and the earner will be paid.
       </div>
 
       {!submissions || submissions.length === 0 ? (
         <div className="surface-card mt-4 p-8 text-center">
           <CheckCircle className="mx-auto size-12 text-muted-foreground" />
           <p className="mt-3 text-sm font-semibold">No pending reviews</p>
-          <p className="mt-1 text-xs text-muted-foreground">All submissions have been reviewed or auto-approved.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            All submissions have been reviewed or auto-approved.
+          </p>
         </div>
       ) : (
         <div className="mt-4 space-y-3">
           {submissions.map((sub: any) => {
             const isExpanded = expandedId === sub.id;
-            
+
             return (
               <div key={sub.id} className="surface-card overflow-hidden p-0">
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold">{sub.campaignName}</p>
-                      <p className="text-amount text-sm text-gold-dark">{formatMoney(sub.publisherReward)}</p>
+                      <p className="text-amount text-sm text-gold-dark">
+                        {formatMoney(sub.publisherReward)}
+                      </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         <Clock className="mr-1 inline size-3" />
                         {getTimeRemaining(sub.autoApproveAt)}
@@ -171,30 +189,34 @@ function ReviewsPage() {
                     )}
 
                     {/* Field Values */}
-                    {sub.proofFields && sub.proofFields.length > 0 && Object.keys(sub.fieldValues).length > 0 && (
-                      <div className="space-y-2">
-                        <Label className="text-xs">Submitted information</Label>
-                        <div className="space-y-1 rounded-xl border border-border bg-background-alt p-3">
-                          {sub.proofFields.map((field: any) => {
-                            const value = sub.fieldValues[field.key];
-                            if (!value) return null;
-                            
-                            return (
-                              <div key={field.key} className="flex justify-between gap-2 text-sm">
-                                <span className="text-muted-foreground">{field.label}:</span>
-                                <span className="font-medium">{value}</span>
-                              </div>
-                            );
-                          })}
+                    {sub.proofFields &&
+                      sub.proofFields.length > 0 &&
+                      Object.keys(sub.fieldValues).length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-xs">Submitted information</Label>
+                          <div className="space-y-1 rounded-xl border border-border bg-background-alt p-3">
+                            {sub.proofFields.map((field: any) => {
+                              const value = sub.fieldValues[field.key];
+                              if (!value) return null;
+
+                              return (
+                                <div key={field.key} className="flex justify-between gap-2 text-sm">
+                                  <span className="text-muted-foreground">{field.label}:</span>
+                                  <span className="font-medium">{value}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* User Note */}
                     {sub.userNote && (
                       <div className="space-y-2">
                         <Label className="text-xs">Publisher note</Label>
-                        <p className="rounded-xl border border-border bg-background-alt p-3 text-sm">{sub.userNote}</p>
+                        <p className="rounded-xl border border-border bg-background-alt p-3 text-sm">
+                          {sub.userNote}
+                        </p>
                       </div>
                     )}
 

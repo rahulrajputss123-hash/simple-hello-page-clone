@@ -26,7 +26,7 @@ export function FeaturedOffers({
 }) {
   const fetchFeed = useServerFn(getFeaturedFeed);
   const queryClient = useQueryClient();
-  
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["featured-feed", scope],
     queryFn: () => fetchFeed({ data: { scope } }),
@@ -80,7 +80,7 @@ export function FeaturedOffers({
           setVisibleCount((prev) => prev + LOAD_MORE);
         }
       },
-      { rootMargin: "600px" }
+      { rootMargin: "600px" },
     );
 
     observer.observe(sentinel);
@@ -99,13 +99,10 @@ export function FeaturedOffers({
   }, [data?.offers, deferredFilter]);
 
   // Memoize visible offers
-  const visibleOffers = useMemo(
-    () => offers.slice(0, visibleCount),
-    [offers, visibleCount]
-  );
+  const visibleOffers = useMemo(() => offers.slice(0, visibleCount), [offers, visibleCount]);
 
   // Prefetch offer data on card hover/touch
-  const handleCardPrefetch = (offer: typeof offers[number]) => {
+  const handleCardPrefetch = (offer: (typeof offers)[number]) => {
     // Set offer data in cache so the page loads instantly
     queryClient.setQueryData(["offer", offer.id], offer);
   };
@@ -119,9 +116,9 @@ export function FeaturedOffers({
       </div>
     );
   }
-  
+
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
-  
+
   if (!offers.length) {
     return (
       <EmptyState
@@ -158,7 +155,7 @@ export function FeaturedOffers({
           />
         ))}
       </ul>
-      
+
       {/* Sentinel for progressive loading - only render if more offers available */}
       {visibleCount < offers.length && (
         <div ref={sentinelRef} className="h-px" aria-hidden="true" />

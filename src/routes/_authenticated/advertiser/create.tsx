@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -25,13 +25,30 @@ export const Route = createFileRoute("/_authenticated/advertiser/create")({
   component: CreateCampaignPage,
 });
 
-const COUNTRIES = ["Worldwide", "United States", "India", "United Kingdom", "Canada", "Brazil", "Germany"];
+const COUNTRIES = [
+  "Worldwide",
+  "United States",
+  "India",
+  "United Kingdom",
+  "Canada",
+  "Brazil",
+  "Germany",
+];
 
 type Verification = "auto" | "proof";
 type ProofType = "screenshot" | "text" | "both";
 type ProofField = { key: string; label: string; required: boolean; maxLen: number };
 
-const PROOF_PRESETS: Record<string, { name: string; type: ProofType; minImages: number; maxImages: number; fields: Omit<ProofField, "key">[] }> = {
+const PROOF_PRESETS: Record<
+  string,
+  {
+    name: string;
+    type: ProofType;
+    minImages: number;
+    maxImages: number;
+    fields: Omit<ProofField, "key">[];
+  }
+> = {
   "app-install": {
     name: "App install",
     type: "both",
@@ -46,14 +63,14 @@ const PROOF_PRESETS: Record<string, { name: string; type: ProofType; minImages: 
     maxImages: 2,
     fields: [{ label: "Profile link", required: true, maxLen: 200 }],
   },
-  "survey": {
+  survey: {
     name: "Survey/feedback",
     type: "text",
     minImages: 0,
     maxImages: 1,
     fields: [{ label: "Completion code", required: true, maxLen: 80 }],
   },
-  "purchase": {
+  purchase: {
     name: "Purchase",
     type: "both",
     minImages: 1,
@@ -110,7 +127,7 @@ function CreateCampaignPage() {
 
   const selectedCategory = useMemo(
     () => categories.data?.find((c) => c.id === categoryId),
-    [categories.data, categoryId]
+    [categories.data, categoryId],
   );
 
   const rewardNum = Number(reward) || 0;
@@ -120,10 +137,10 @@ function CreateCampaignPage() {
   const feesEnabled = overview?.settings?.feesEnabled ?? false;
   const campaignFeeUsd = overview?.settings?.campaignFeeUsd ?? 0.5;
   const campaignFeeType = overview?.settings?.campaignFeeType ?? "per_campaign";
-  
+
   const featuredDaysNum = Number(featuredDays) || 0;
   const featuredFee = featured && featuredDaysNum > 0 ? featuredDaysNum * featuredPricePerDay : 0;
-  
+
   // Use pricing module for calculations
   const totals = useMemo(
     () =>
@@ -136,11 +153,23 @@ function CreateCampaignPage() {
         feeType: campaignFeeType,
         featuredFee,
       }),
-    [slotsNum, rewardNum, platformFeePercent, feesEnabled, campaignFeeUsd, campaignFeeType, featuredFee]
+    [
+      slotsNum,
+      rewardNum,
+      platformFeePercent,
+      feesEnabled,
+      campaignFeeUsd,
+      campaignFeeType,
+      featuredFee,
+    ],
   );
 
   const account = overview?.account;
-  const canCreate = account?.status === "active" && account.spendable >= totals.total && slotsNum >= 15 && rulesAccepted;
+  const canCreate =
+    account?.status === "active" &&
+    account.spendable >= totals.total &&
+    slotsNum >= 15 &&
+    rulesAccepted;
 
   const generateFieldKey = (label: string): string => {
     return label
@@ -153,7 +182,7 @@ function CreateCampaignPage() {
   const applyProofPreset = (presetKey: string) => {
     const preset = PROOF_PRESETS[presetKey];
     if (!preset) return;
-    
+
     setProofType(preset.type);
     setProofMinImages(preset.minImages);
     setProofMaxImages(preset.maxImages);
@@ -200,20 +229,18 @@ function CreateCampaignPage() {
           throw new Error(`Failed to upload proof example: ${uploadError.message}`);
         }
 
-        const { data: { publicUrl } } = supabase.storage
-          .from("campaign-proof-examples")
-          .getPublicUrl(uploadData.path);
-        
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("campaign-proof-examples").getPublicUrl(uploadData.path);
+
         uploadedExampleUrl = publicUrl;
       }
 
       // Build dates in UTC
-      const startsAt = startDate && startTime
-        ? new Date(`${startDate}T${startTime}`).toISOString()
-        : undefined;
-      const endsAt = endDate && endTime
-        ? new Date(`${endDate}T${endTime}`).toISOString()
-        : undefined;
+      const startsAt =
+        startDate && startTime ? new Date(`${startDate}T${startTime}`).toISOString() : undefined;
+      const endsAt =
+        endDate && endTime ? new Date(`${endDate}T${endTime}`).toISOString() : undefined;
 
       return createFn({
         data: {
@@ -222,7 +249,19 @@ function CreateCampaignPage() {
           verification,
           reward: rewardNum,
           slots: slotsNum,
-          countries: country === "Worldwide" ? [] : [{ "United States": "US", India: "IN", "United Kingdom": "GB", Canada: "CA", Brazil: "BR", Germany: "DE" }[country] ?? country],
+          countries:
+            country === "Worldwide"
+              ? []
+              : [
+                  {
+                    "United States": "US",
+                    India: "IN",
+                    "United Kingdom": "GB",
+                    Canada: "CA",
+                    Brazil: "BR",
+                    Germany: "DE",
+                  }[country] ?? country,
+                ],
           categoryId,
           subcategoryId: subcategoryId || undefined,
           landingUrl: landingUrl.trim(),
@@ -230,9 +269,15 @@ function CreateCampaignPage() {
           featured: featured,
           featuredDays: featured ? Number(featuredDays) : undefined,
           trackingUrl: verification === "auto" && trackingUrl ? trackingUrl.trim() : undefined,
-          ipAllowlist: ipAllowlist ? ipAllowlist.split(",").map((ip) => ip.trim()).filter(Boolean) : undefined,
+          ipAllowlist: ipAllowlist
+            ? ipAllowlist
+                .split(",")
+                .map((ip) => ip.trim())
+                .filter(Boolean)
+            : undefined,
           // Proof fields
-          proofDescription: verification === "proof" && proofDescription ? proofDescription.trim() : undefined,
+          proofDescription:
+            verification === "proof" && proofDescription ? proofDescription.trim() : undefined,
           proofMinImages: verification === "proof" ? proofMinImages : undefined,
           proofMaxImages: verification === "proof" ? proofMaxImages : undefined,
           proofFields: verification === "proof" && proofFields.length > 0 ? proofFields : undefined,
@@ -249,30 +294,36 @@ function CreateCampaignPage() {
       });
     },
     onSuccess: async (result) => {
-      await Promise.all([refreshOverview(), queryClient.invalidateQueries({ queryKey: ["my-campaigns"] })]);
-      
+      await Promise.all([
+        refreshOverview(),
+        queryClient.invalidateQueries({ queryKey: ["my-campaigns"] }),
+      ]);
+
       // Store postback info if returned
       if (result.postbackUrl && result.postbackSecret) {
         setPostbackInfo({ url: result.postbackUrl, secret: result.postbackSecret });
         setShowPostback(true);
       }
-      
+
       // Handle featured placement result
       if (result.featuredApplied === false && result.featuredError) {
-        toast.warning(`Campaign submitted. Featured placement wasn't applied: ${result.featuredError}`);
+        toast.warning(
+          `Campaign submitted. Featured placement wasn't applied: ${result.featuredError}`,
+        );
       } else if (result.featuredApplied === true) {
         toast.success("Campaign submitted for review with featured placement");
       } else {
         toast.success("Campaign submitted for review");
       }
-      
+
       // Don't navigate if showing postback info
       if (!result.postbackUrl) {
         navigate({ to: "/advertiser/campaigns" });
       }
     },
     onError: (err) => {
-      const msg = err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
+      const msg =
+        err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
       toast.error("Couldn't create campaign", { description: msg });
     },
   });
@@ -325,7 +376,11 @@ function CreateCampaignPage() {
             toast.error("Tracking URL must contain {click_id} placeholder");
             return;
           }
-          if (startDate && endDate && new Date(`${endDate}T${endTime}`) <= new Date(`${startDate}T${startTime}`)) {
+          if (
+            startDate &&
+            endDate &&
+            new Date(`${endDate}T${endTime}`) <= new Date(`${startDate}T${startTime}`)
+          ) {
             toast.error("End date must be after start date");
             return;
           }
@@ -456,7 +511,9 @@ function CreateCampaignPage() {
             value={estimatedMinutes}
             onChange={(e) => setEstimatedMinutes(e.target.value)}
           />
-          <p className="text-[11px] text-muted-foreground">How many minutes to complete? (1-1440)</p>
+          <p className="text-[11px] text-muted-foreground">
+            How many minutes to complete? (1-1440)
+          </p>
         </div>
 
         <div className="space-y-1.5">
@@ -500,7 +557,9 @@ function CreateCampaignPage() {
                 onChange={(e) => setProofDescription(e.target.value)}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">Tell publishers exactly what proof they need to provide (10-500 chars)</p>
+              <p className="text-[11px] text-muted-foreground">
+                Tell publishers exactly what proof they need to provide (10-500 chars)
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -520,21 +579,36 @@ function CreateCampaignPage() {
                         setProofMinImages(0);
                         setProofMaxImages(1);
                         if (proofFields.length === 0) {
-                          setProofFields([{ key: "completion_code", label: "Completion code", required: true, maxLen: 80 }]);
+                          setProofFields([
+                            {
+                              key: "completion_code",
+                              label: "Completion code",
+                              required: true,
+                              maxLen: 80,
+                            },
+                          ]);
                         }
                       } else {
                         setProofMinImages(1);
                         setProofMaxImages(3);
                         if (proofFields.length === 0) {
-                          setProofFields([{ key: "username", label: "Username", required: false, maxLen: 80 }]);
+                          setProofFields([
+                            { key: "username", label: "Username", required: false, maxLen: 80 },
+                          ]);
                         }
                       }
                     }}
                     className={`rounded-xl border p-2 text-xs font-medium ${
-                      proofType === type ? "border-gold-dark bg-gold/20 text-gold-dark" : "border-border bg-card text-muted-foreground"
+                      proofType === type
+                        ? "border-gold-dark bg-gold/20 text-gold-dark"
+                        : "border-border bg-card text-muted-foreground"
                     }`}
                   >
-                    {type === "screenshot" ? "Screenshot only" : type === "text" ? "Text only" : "Screenshot + text"}
+                    {type === "screenshot"
+                      ? "Screenshot only"
+                      : type === "text"
+                        ? "Text only"
+                        : "Screenshot + text"}
                   </button>
                 ))}
               </div>
@@ -566,7 +640,14 @@ function CreateCampaignPage() {
                     min={proofType === "text" ? 0 : 1}
                     max={5}
                     value={proofMinImages}
-                    onChange={(e) => setProofMinImages(Math.max(proofType === "text" ? 0 : 1, Math.min(5, Number(e.target.value) || 1)))}
+                    onChange={(e) =>
+                      setProofMinImages(
+                        Math.max(
+                          proofType === "text" ? 0 : 1,
+                          Math.min(5, Number(e.target.value) || 1),
+                        ),
+                      )
+                    }
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -577,7 +658,11 @@ function CreateCampaignPage() {
                     min={Math.max(1, proofMinImages)}
                     max={5}
                     value={proofMaxImages}
-                    onChange={(e) => setProofMaxImages(Math.max(proofMinImages, Math.min(5, Number(e.target.value) || 3)))}
+                    onChange={(e) =>
+                      setProofMaxImages(
+                        Math.max(proofMinImages, Math.min(5, Number(e.target.value) || 3)),
+                      )
+                    }
                   />
                 </div>
               </div>
@@ -594,10 +679,15 @@ function CreateCampaignPage() {
                   )}
                 </div>
                 {proofFields.length === 0 && (
-                  <p className="text-xs text-muted-foreground">At least one field is required for text proof</p>
+                  <p className="text-xs text-muted-foreground">
+                    At least one field is required for text proof
+                  </p>
                 )}
                 {proofFields.map((field, index) => (
-                  <div key={index} className="space-y-2 rounded-lg border border-border bg-card p-3">
+                  <div
+                    key={index}
+                    className="space-y-2 rounded-lg border border-border bg-card p-3"
+                  >
                     <div className="flex items-start gap-2">
                       <div className="flex-1 space-y-2">
                         <Input
@@ -614,13 +704,19 @@ function CreateCampaignPage() {
                             max={500}
                             placeholder="Max length"
                             value={field.maxLen}
-                            onChange={(e) => updateProofField(index, { maxLen: Math.max(10, Math.min(500, Number(e.target.value) || 80)) })}
+                            onChange={(e) =>
+                              updateProofField(index, {
+                                maxLen: Math.max(10, Math.min(500, Number(e.target.value) || 80)),
+                              })
+                            }
                           />
                           <label className="flex items-center gap-2 text-xs">
                             <input
                               type="checkbox"
                               checked={field.required}
-                              onChange={(e) => updateProofField(index, { required: e.target.checked })}
+                              onChange={(e) =>
+                                updateProofField(index, { required: e.target.checked })
+                              }
                             />
                             Required
                           </label>
@@ -669,7 +765,8 @@ function CreateCampaignPage() {
                     <option value={168}>7 days</option>
                   </select>
                   <p className="text-[11px] text-muted-foreground">
-                    If you do not review a submission in this time, it is approved automatically and the earner is paid.
+                    If you do not review a submission in this time, it is approved automatically and
+                    the earner is paid.
                   </p>
                 </div>
 
@@ -843,7 +940,8 @@ function CreateCampaignPage() {
                 required
               />
               <p className="text-[11px] text-muted-foreground">
-                Must be HTTPS and include <code className="rounded bg-muted px-1">{"click_id"}</code> placeholder
+                Must be HTTPS and include{" "}
+                <code className="rounded bg-muted px-1">{"click_id"}</code> placeholder
               </p>
             </div>
             <div className="space-y-1.5">
@@ -854,7 +952,9 @@ function CreateCampaignPage() {
                 value={ipAllowlist}
                 onChange={(e) => setIpAllowlist(e.target.value)}
               />
-              <p className="text-[11px] text-muted-foreground">Comma-separated IPs that can send postbacks</p>
+              <p className="text-[11px] text-muted-foreground">
+                Comma-separated IPs that can send postbacks
+              </p>
             </div>
           </div>
         )}
@@ -919,7 +1019,10 @@ function CreateCampaignPage() {
           </div>
           {totals.campaignFee > 0 && (
             <div className="flex justify-between">
-              <span>Campaign fee ({campaignFeeType === "per_campaign" ? "one-time" : `${slotsNum} slots`}):</span>
+              <span>
+                Campaign fee (
+                {campaignFeeType === "per_campaign" ? "one-time" : `${slotsNum} slots`}):
+              </span>
               <strong>${totals.campaignFee.toFixed(2)}</strong>
             </div>
           )}
@@ -957,7 +1060,9 @@ function CreateCampaignPage() {
               <Star className="size-4 fill-gold text-gold-dark" />
               <div>
                 <Label htmlFor="c-featured">Featured placement</Label>
-                <p className="text-[11px] text-muted-foreground">Get more visibility in the marketplace.</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Get more visibility in the marketplace.
+                </p>
               </div>
             </div>
             <Switch
@@ -993,11 +1098,18 @@ function CreateCampaignPage() {
             <div className="space-y-2 text-xs text-muted-foreground">
               <div>
                 <p className="font-medium text-foreground mb-1">✅ Allowed:</p>
-                <p>App install, signup, website visit, free/paid trial, purchase, lead form, survey, video watch, social actions with proof, app testing.</p>
+                <p>
+                  App install, signup, website visit, free/paid trial, purchase, lead form, survey,
+                  video watch, social actions with proof, app testing.
+                </p>
               </div>
               <div>
                 <p className="font-medium text-foreground mb-1">❌ Not allowed:</p>
-                <p>Requests for card/ID/OTP, crypto wallet connect/seed phrase, adult/illegal/misleading offers, phishing/malware, APKs outside stores, fake reviews, impersonation.</p>
+                <p>
+                  Requests for card/ID/OTP, crypto wallet connect/seed phrase,
+                  adult/illegal/misleading offers, phishing/malware, APKs outside stores, fake
+                  reviews, impersonation.
+                </p>
               </div>
             </div>
           </div>
@@ -1017,8 +1129,11 @@ function CreateCampaignPage() {
 
         {!canCreate && account && (
           <p className="rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            Not enough Campaign Balance. You have ${account.spendable.toFixed(2)}, need ${totals.total.toFixed(2)}
-            {(totals.campaignFee > 0 || totals.featuredFee > 0) && ` ($${totals.allocation.toFixed(2)} budget${totals.campaignFee > 0 ? ` + $${totals.campaignFee.toFixed(2)} fee` : ""}${totals.featuredFee > 0 ? ` + $${totals.featuredFee.toFixed(2)} featured` : ""})`}.
+            Not enough Campaign Balance. You have ${account.spendable.toFixed(2)}, need $
+            {totals.total.toFixed(2)}
+            {(totals.campaignFee > 0 || totals.featuredFee > 0) &&
+              ` ($${totals.allocation.toFixed(2)} budget${totals.campaignFee > 0 ? ` + $${totals.campaignFee.toFixed(2)} fee` : ""}${totals.featuredFee > 0 ? ` + $${totals.featuredFee.toFixed(2)} featured` : ""})`}
+            .
           </p>
         )}
 

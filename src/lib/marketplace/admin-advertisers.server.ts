@@ -49,7 +49,7 @@ export const listAdvertisersImpl = async (): Promise<AdvertiserAccount[]> => {
         ...advertiser,
         campaign_count: count ?? 0,
       };
-    })
+    }),
   );
 
   return advertisersWithCounts;
@@ -69,7 +69,7 @@ const setAdvertiserStatusInput = z.object({
 });
 
 export const setAdvertiserStatusImpl = async (
-  input: z.infer<typeof setAdvertiserStatusInput>
+  input: z.infer<typeof setAdvertiserStatusInput>,
 ): Promise<{ status: string }> => {
   const { advertiserId, adminId, status, reason } = setAdvertiserStatusInput.parse(input);
 
@@ -100,7 +100,7 @@ const clearAdvertiserFlagInput = z.object({
 });
 
 export const clearAdvertiserFlagImpl = async (
-  input: z.infer<typeof clearAdvertiserFlagInput>
+  input: z.infer<typeof clearAdvertiserFlagInput>,
 ): Promise<{ cleared: boolean }> => {
   const { advertiserId, adminId, note } = clearAdvertiserFlagInput.parse(input);
 

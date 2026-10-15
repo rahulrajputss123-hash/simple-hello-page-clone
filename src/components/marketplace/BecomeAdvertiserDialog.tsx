@@ -56,7 +56,10 @@ export function BecomeAdvertiserDialog({
       setRole("advertiser");
       onOpenChange(false);
       if (created && session?.user.id) {
-        safeStorage.setItem(advertiserOnboardingActivationKey(session.user.id), new Date().toISOString());
+        safeStorage.setItem(
+          advertiserOnboardingActivationKey(session.user.id),
+          new Date().toISOString(),
+        );
       }
       toast.success(created ? "You're an advertiser now" : "Advertiser mode on", {
         description: created ? "Add Campaign Funds to launch your first task." : undefined,
@@ -83,8 +86,8 @@ export function BecomeAdvertiserDialog({
             Become an Advertiser
           </DialogTitle>
           <DialogDescription>
-            Create campaigns that CashGPT members complete for you. You only pay when a
-            task is completed.
+            Create campaigns that CashGPT members complete for you. You only pay when a task is
+            completed.
           </DialogDescription>
         </DialogHeader>
 
@@ -141,7 +144,14 @@ export function BecomeAdvertiserDialog({
             </span>
           </label>
           <DialogFooter>
-            <Button type="submit" variant="jade" size="lg" className="w-full" disabled={!canSubmit} data-testid="adv-activate">
+            <Button
+              type="submit"
+              variant="jade"
+              size="lg"
+              className="w-full"
+              disabled={!canSubmit}
+              data-testid="adv-activate"
+            >
               {mutation.isPending ? "Activating…" : "Activate advertiser mode"}
             </Button>
           </DialogFooter>

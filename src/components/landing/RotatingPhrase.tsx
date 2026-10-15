@@ -18,8 +18,7 @@ export function RotatingPhrase({ phrases, className = "" }: RotatingPhraseProps)
   const [activeIndex, cyclePhrase] = useReducer((i: number) => (i + 1) % phrases.length, 0);
   const timerRef = useRef<number | null>(null);
   const prefersReducedMotion =
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   useEffect(() => {
     if (prefersReducedMotion || phrases.length <= 1) return;

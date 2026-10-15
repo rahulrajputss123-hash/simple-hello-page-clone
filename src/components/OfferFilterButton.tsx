@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 /**
  * Offer-type filter bottom sheet. Used only on the Offers page.
  * Selection is a single value; "All" means no filter.
- * 
+ *
  * Controlled sheet with smooth animations: closes first, then applies filter
  * in startTransition to avoid blocking the animation.
  */
@@ -71,7 +71,7 @@ export function OfferFilterButton({
       >
         {/* Drag handle */}
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-muted" />
-        
+
         <SheetHeader>
           <SheetTitle>Filter offers</SheetTitle>
         </SheetHeader>

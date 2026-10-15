@@ -18,14 +18,15 @@ import type { QuestRow } from "@/lib/quests.server";
  */
 export function LiveActivityCard({ activity }: { activity: SimulatedActivity }) {
   const [avatarError, setAvatarError] = useState(false);
-  
+
   // Fallback avatar: use the first available avatar from AVATAR_OPTIONS if the
   // primary avatar fails to load. This prevents infinite error loops by using a
   // different URL rather than retrying the same failed URL.
   const fallbackAvatarUrl = AVATAR_OPTIONS[0]?.imageUrl ?? null;
-  const displayAvatarUrl = avatarError && activity.avatarUrl !== fallbackAvatarUrl
-    ? fallbackAvatarUrl
-    : activity.avatarUrl;
+  const displayAvatarUrl =
+    avatarError && activity.avatarUrl !== fallbackAvatarUrl
+      ? fallbackAvatarUrl
+      : activity.avatarUrl;
 
   return (
     <article

@@ -78,7 +78,7 @@ export async function listSubcategoriesImpl(categoryId: string): Promise<Subcate
  */
 export async function listCategoriesWithSubcategoriesImpl(): Promise<CategoryWithSubcategories[]> {
   const categories = await listCategoriesImpl();
-  
+
   const { data: subcatsData, error: subcatsError } = await mktDb
     .from("marketplace_subcategories")
     .select("id, category_id, slug, name, description, sort_order")

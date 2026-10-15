@@ -29,19 +29,20 @@ import {
  * falling back to request origin.
  */
 function getSiteUrl(): string {
-  const envUrl = process.env['SITE_URL'];
-  if (envUrl) return envUrl.replace(/\/$/, ''); // remove trailing slash
-  
+  const envUrl = process.env["SITE_URL"];
+  if (envUrl) return envUrl.replace(/\/$/, ""); // remove trailing slash
+
   const request = getRequest();
   if (request?.headers) {
-    const origin = request.headers.get('origin') || 
-                   request.headers.get('referer')?.split('/').slice(0, 3).join('/') ||
-                   '';
-    if (origin) return origin.replace(/\/$/, '');
+    const origin =
+      request.headers.get("origin") ||
+      request.headers.get("referer")?.split("/").slice(0, 3).join("/") ||
+      "";
+    if (origin) return origin.replace(/\/$/, "");
   }
-  
+
   // Fallback to empty string (will produce relative URL)
-  return '';
+  return "";
 }
 
 /**
@@ -317,36 +318,92 @@ async function pendingReviewCounts(campaignIds: string[]): Promise<Map<string, n
 const CAMPAIGN_COLS =
   "id, advertiser_id, type_key, name, summary, verification_mode, countries, publisher_reward, advertiser_cost, max_completions, completions_count, budget_allocated, budget_remaining, budget_reserved, budget_spent, budget_released, status, paused_by, needs_review, review_note, created_at, activated_at";
 
-async function postbackLogsForCampaigns(campaignIds: string[]): Promise<Map<string, PostbackLogView[]>> {
+async function postbackLogsForCampaigns(
+  campaignIds: string[],
+): Promise<Map<string, PostbackLogView[]>> {
   const result = new Map<string, PostbackLogView[]>();
   if (!campaignIds.length) return result;
-  const { data, error } = await mktDb.from("campaign_postback_log")
+  const { data, error } = await mktDb
+    .from("campaign_postback_log")
     .select("campaign_id, received_at, result, click_id, txn_id, http_status")
-    .in("campaign_id", campaignIds).order("received_at", { ascending: false });
+    .in("campaign_id", campaignIds)
+    .order("received_at", { ascending: false });
   if (error) throw new Error(`campaign_postback_log: ${error.message}`);
-  for (const row of (data ?? []) as Array<{ campaign_id: string; received_at: string; result: PostbackLogView["result"]; click_id: string | null; txn_id: string | null; http_status: number | null }>) {
+  for (const row of (data ?? []) as Array<{
+    campaign_id: string;
+    received_at: string;
+    result: PostbackLogView["result"];
+    click_id: string | null;
+    txn_id: string | null;
+    http_status: number | null;
+  }>) {
     const logs = result.get(row.campaign_id) ?? [];
-    if (logs.length < 20) logs.push({ receivedAt: row.received_at, result: row.result, clickId: row.click_id, txnId: row.txn_id, httpStatus: row.http_status });
+    if (logs.length < 20)
+      logs.push({
+        receivedAt: row.received_at,
+        result: row.result,
+        clickId: row.click_id,
+        txnId: row.txn_id,
+        httpStatus: row.http_status,
+      });
     result.set(row.campaign_id, logs);
   }
   return result;
 }
 
 export async function getCampaignResultsImpl(userId: string, campaignId: string) {
-  const { data: campaign, error } = await mktDb.from("campaigns").select("id,name,verification_mode,countries,publisher_reward,advertiser_cost,status,budget_allocated,budget_spent,budget_remaining,completions_count,max_completions").eq("id", campaignId).eq("advertiser_id", userId).maybeSingle();
+  const { data: campaign, error } = await mktDb
+    .from("campaigns")
+    .select(
+      "id,name,verification_mode,countries,publisher_reward,advertiser_cost,status,budget_allocated,budget_spent,budget_remaining,completions_count,max_completions",
+    )
+    .eq("id", campaignId)
+    .eq("advertiser_id", userId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   if (!campaign) return null;
-  const [{ data: clicks }, { data: submissions }, { count: credited }, { data: postbacks }] = await Promise.all([
-    mktDb.from("campaign_clicks").select("status").eq("campaign_id", campaignId),
-    mktDb.from("campaign_submissions").select("status,created_at").eq("campaign_id", campaignId),
-    mktDb.from("campaign_conversions").select("id", { count: "exact", head: true }).eq("campaign_id", campaignId).eq("status", "credited"),
-    campaign.verification_mode === "auto" ? mktDb.from("campaign_postback_log").select("received_at,result,click_id,txn_id,http_status").eq("campaign_id", campaignId).order("received_at", { ascending: false }).limit(20) : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (submissions?.error || postbacks?.error) throw new Error(submissions?.error?.message || postbacks?.error?.message);
+  const [{ data: clicks }, { data: submissions }, { count: credited }, { data: postbacks }] =
+    await Promise.all([
+      mktDb.from("campaign_clicks").select("status").eq("campaign_id", campaignId),
+      mktDb.from("campaign_submissions").select("status,created_at").eq("campaign_id", campaignId),
+      mktDb
+        .from("campaign_conversions")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", campaignId)
+        .eq("status", "credited"),
+      campaign.verification_mode === "auto"
+        ? mktDb
+            .from("campaign_postback_log")
+            .select("received_at,result,click_id,txn_id,http_status")
+            .eq("campaign_id", campaignId)
+            .order("received_at", { ascending: false })
+            .limit(20)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+  if (submissions?.error || postbacks?.error)
+    throw new Error(submissions?.error?.message || postbacks?.error?.message);
   const counts = { pending: 0, approved: 0, rejected: 0, appealed: 0 };
-  for (const row of submissions ?? []) if (row.status in counts) counts[row.status as keyof typeof counts]++;
+  for (const row of submissions ?? [])
+    if (row.status in counts) counts[row.status as keyof typeof counts]++;
   const clickRows = clicks ?? [];
-  return { ...campaign, countries: campaign.countries?.length ? campaign.countries.join(", ") : "Worldwide", publisher_reward: num(campaign.publisher_reward), advertiser_cost: num(campaign.advertiser_cost), budget_allocated: num(campaign.budget_allocated), budget_spent: num(campaign.budget_spent), budget_remaining: num(campaign.budget_remaining), funnel: { clicks: clickRows.length, started: clickRows.filter((r: { status: string }) => ["active", "converted"].includes(r.status)).length, completed: (credited ?? 0) + counts.approved }, submissions: counts, postbacks: postbacks ?? [] };
+  return {
+    ...campaign,
+    countries: campaign.countries?.length ? campaign.countries.join(", ") : "Worldwide",
+    publisher_reward: num(campaign.publisher_reward),
+    advertiser_cost: num(campaign.advertiser_cost),
+    budget_allocated: num(campaign.budget_allocated),
+    budget_spent: num(campaign.budget_spent),
+    budget_remaining: num(campaign.budget_remaining),
+    funnel: {
+      clicks: clickRows.length,
+      started: clickRows.filter((r: { status: string }) =>
+        ["active", "converted"].includes(r.status),
+      ).length,
+      completed: (credited ?? 0) + counts.approved,
+    },
+    submissions: counts,
+    postbacks: postbacks ?? [],
+  };
 }
 
 export async function listCampaignsImpl(userId: string): Promise<CampaignView[]> {
@@ -362,25 +419,30 @@ export async function listCampaignsImpl(userId: string): Promise<CampaignView[]>
   const logs = await postbackLogsForCampaigns(rows.map((r) => r.id));
   return rows.map((r) => ({
     ...campaignView(r, pending.get(r.id) ?? 0),
-    ...(r.verification_mode === "auto" ? { postbackUrl: `${getSiteUrl()}/api/public/marketplace-postback`, postbackLogs: logs.get(r.id) ?? [] } : {}),
+    ...(r.verification_mode === "auto"
+      ? {
+          postbackUrl: `${getSiteUrl()}/api/public/marketplace-postback`,
+          postbackLogs: logs.get(r.id) ?? [],
+        }
+      : {}),
   }));
 }
 
 export async function getOverviewImpl(userId: string): Promise<AdvertiserOverview> {
   const [account, settings] = await Promise.all([getAccount(userId), loadMarketplaceSettings()]);
-  
+
   // Calculate user's effective bonus (first_deposit_bonus - referral_split if they have a referrer)
   const { data: referralData } = await mktDb
     .from("referrals")
     .select("referrer_id")
     .eq("referred_id", userId)
     .maybeSingle();
-  
+
   const hasReferrer = Boolean(referralData?.referrer_id);
   const userBonusPercent = hasReferrer
     ? num(settings.first_deposit_bonus_percent) - num(settings.referral_bonus_split_percent)
     : num(settings.first_deposit_bonus_percent);
-  
+
   const base: AdvertiserOverview = {
     account: account ? accountView(account) : null,
     settings: settingsView(settings),
@@ -415,7 +477,10 @@ export async function getOverviewImpl(userId: string): Promise<AdvertiserOvervie
   };
 }
 
-export async function listTransactionsImpl(userId: string, limit = 100): Promise<TransactionView[]> {
+export async function listTransactionsImpl(
+  userId: string,
+  limit = 100,
+): Promise<TransactionView[]> {
   const { data, error } = await mktDb
     .from("advertiser_ledger")
     .select(
@@ -446,7 +511,10 @@ export async function listTransactionsImpl(userId: string, limit = 100): Promise
   }));
 }
 
-export async function getDepositImpl(userId: string, depositId: string): Promise<DepositView | null> {
+export async function getDepositImpl(
+  userId: string,
+  depositId: string,
+): Promise<DepositView | null> {
   const { data, error } = await mktDb
     .from("advertiser_deposits")
     .select("*")
@@ -555,15 +623,23 @@ export type CreateDepositResult = {
  * Razorpay for an order, records the order id and moves the row to `pending`
  * (allowed transition). No balance changes here.
  */
-export async function createDepositImpl(userId: string, amountUsd: number): Promise<CreateDepositResult> {
+export async function createDepositImpl(
+  userId: string,
+  amountUsd: number,
+): Promise<CreateDepositResult> {
   const account = await getAccount(userId);
   if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
   if (account.status !== "active") {
-    throw new DepositError("ACCOUNT_" + account.status.toUpperCase(), "Your advertiser account can't deposit right now.");
+    throw new DepositError(
+      "ACCOUNT_" + account.status.toUpperCase(),
+      "Your advertiser account can't deposit right now.",
+    );
   }
   const s = await loadMarketplaceSettings();
-  if (!s.deposits_enabled) throw new DepositError("DEPOSITS_DISABLED", "Deposits are temporarily unavailable.");
-  if (!razorpayConfigured()) throw new DepositError("GATEWAY_NOT_CONFIGURED", "Payments are not configured yet.");
+  if (!s.deposits_enabled)
+    throw new DepositError("DEPOSITS_DISABLED", "Deposits are temporarily unavailable.");
+  if (!razorpayConfigured())
+    throw new DepositError("GATEWAY_NOT_CONFIGURED", "Payments are not configured yet.");
 
   const amount = Math.round(amountUsd * 100) / 100;
   if (!(amount >= num(s.min_deposit_usd) && amount <= num(s.max_deposit_usd))) {
@@ -608,7 +684,8 @@ export async function createDepositImpl(userId: string, amountUsd: number): Prom
       .from("advertiser_deposits")
       .update({
         status: "failed",
-        failure_reason: `order_create_failed: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500),
+        failure_reason:
+          `order_create_failed: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500),
       })
       .eq("id", depositId);
     throw new DepositError("ORDER_FAILED", "Couldn't start the payment. Please try again.");
@@ -649,8 +726,10 @@ export async function confirmCheckoutImpl(
   if (error) throw new Error(`advertiser_deposits: ${error.message}`);
   const d = data as AdvertiserDepositRow | null;
   if (!d) throw new DepositError("NOT_FOUND", "Deposit not found.");
-  if (d.gateway_order_id !== input.orderId) throw new DepositError("ORDER_MISMATCH", "Order does not match.");
-  if (!verifyCheckoutSignature(input)) throw new DepositError("BAD_SIGNATURE", "Payment signature check failed.");
+  if (d.gateway_order_id !== input.orderId)
+    throw new DepositError("ORDER_MISMATCH", "Order does not match.");
+  if (!verifyCheckoutSignature(input))
+    throw new DepositError("BAD_SIGNATURE", "Payment signature check failed.");
 
   // Already credited by the webhook (common — Razorpay is fast): nothing to record.
   if (d.status === "succeeded" || d.status === "reversed") return depositView(d);
@@ -660,7 +739,11 @@ export async function confirmCheckoutImpl(
       .from("advertiser_deposits")
       .update({
         gateway_payment_id: input.paymentId,
-        last_event: { source: "checkout", payment_id: input.paymentId, at: new Date().toISOString() },
+        last_event: {
+          source: "checkout",
+          payment_id: input.paymentId,
+          at: new Date().toISOString(),
+        },
       })
       .eq("id", d.id)
       .eq("status", "pending");
@@ -675,7 +758,11 @@ export async function confirmCheckoutImpl(
 }
 
 /** Browser gave up / Checkout dismissed. Only created|pending → failed. */
-export async function abandonDepositImpl(userId: string, depositId: string, reason: string): Promise<void> {
+export async function abandonDepositImpl(
+  userId: string,
+  depositId: string,
+  reason: string,
+): Promise<void> {
   await mktDb
     .from("advertiser_deposits")
     .update({ status: "failed", failure_reason: reason.slice(0, 200) })
@@ -694,21 +781,34 @@ export type WebhookOutcome = {
   detail?: unknown;
 };
 
-async function depositByOrder(orderId: string | null | undefined): Promise<AdvertiserDepositRow | null> {
+async function depositByOrder(
+  orderId: string | null | undefined,
+): Promise<AdvertiserDepositRow | null> {
   if (!orderId) return null;
-  const { data, error } = await mktDb.from("advertiser_deposits").select("*").eq("gateway_order_id", orderId).maybeSingle();
+  const { data, error } = await mktDb
+    .from("advertiser_deposits")
+    .select("*")
+    .eq("gateway_order_id", orderId)
+    .maybeSingle();
   if (error) throw new Error(`advertiser_deposits by order: ${error.message}`);
   return (data as AdvertiserDepositRow | null) ?? null;
 }
 
-async function depositByPayment(paymentId: string | null | undefined): Promise<AdvertiserDepositRow | null> {
+async function depositByPayment(
+  paymentId: string | null | undefined,
+): Promise<AdvertiserDepositRow | null> {
   if (!paymentId) return null;
-  const { data, error } = await mktDb.from("advertiser_deposits").select("*").eq("gateway_payment_id", paymentId).maybeSingle();
+  const { data, error } = await mktDb
+    .from("advertiser_deposits")
+    .select("*")
+    .eq("gateway_payment_id", paymentId)
+    .maybeSingle();
   if (error) throw new Error(`advertiser_deposits by payment: ${error.message}`);
   return (data as AdvertiserDepositRow | null) ?? null;
 }
 
-const minorToUsd = (minor: number, fxRate: number) => Math.round((minor / 100 / fxRate) * 100) / 100;
+const minorToUsd = (minor: number, fxRate: number) =>
+  Math.round((minor / 100 / fxRate) * 100) / 100;
 
 /**
  * The ONLY code path that credits or reverses advertiser deposits.
@@ -723,7 +823,10 @@ const minorToUsd = (minor: number, fxRate: number) => Math.round((minor / 100 / 
  * - Anything else → acknowledged, no-op. Always answer 200 once the signature
  *   verifies so Razorpay stops retrying; a bad signature is a 401.
  */
-export async function processRazorpayWebhook(rawBody: string, signature: string | null): Promise<WebhookOutcome & { httpStatus: number }> {
+export async function processRazorpayWebhook(
+  rawBody: string,
+  signature: string | null,
+): Promise<WebhookOutcome & { httpStatus: number }> {
   if (!verifyWebhookSignature(rawBody, signature)) {
     return { ok: false, event: "?", action: "rejected_bad_signature", httpStatus: 401 };
   }
@@ -747,18 +850,37 @@ export async function routeWebhookEvent(evt: RazorpayWebhookEvent): Promise<Webh
     if (!d) return { ok: true, event, action: "ignored_unknown_order", detail: { orderId } };
     if (payment && payment.status !== "captured") {
       // order.paid can arrive with the payment entity; only credit captured money.
-      return { ok: true, event, action: "ignored_not_captured", depositId: d.id, detail: payment.status };
+      return {
+        ok: true,
+        event,
+        action: "ignored_not_captured",
+        depositId: d.id,
+        detail: payment.status,
+      };
     }
     const paymentId = payment?.id ?? d.gateway_payment_id;
     if (!paymentId) return { ok: true, event, action: "ignored_no_payment_id", depositId: d.id };
 
     // Amount sanity: the captured amount must match what we asked Razorpay for.
-    if (payment && (payment.amount !== toMinor(num(d.charge_amount)) || payment.currency !== d.charge_currency)) {
+    if (
+      payment &&
+      (payment.amount !== toMinor(num(d.charge_amount)) || payment.currency !== d.charge_currency)
+    ) {
       await mktDb
         .from("advertiser_deposits")
-        .update({ last_event: { event, payment_id: paymentId, mismatch: { amount: payment.amount, currency: payment.currency } } })
+        .update({
+          last_event: {
+            event,
+            payment_id: paymentId,
+            mismatch: { amount: payment.amount, currency: payment.currency },
+          },
+        })
         .eq("id", d.id);
-      console.error("[razorpay-webhook] amount mismatch", { depositId: d.id, expected: d.charge_amount, got: payment.amount });
+      console.error("[razorpay-webhook] amount mismatch", {
+        depositId: d.id,
+        expected: d.charge_amount,
+        got: payment.amount,
+      });
       return { ok: true, event, action: "held_amount_mismatch", depositId: d.id };
     }
 
@@ -768,19 +890,30 @@ export async function routeWebhookEvent(evt: RazorpayWebhookEvent): Promise<Webh
       p_event: { event, payment_id: paymentId, created_at: evt.created_at ?? null },
       p_confirmed_by: null,
     });
-    return { ok: true, event, action: result["credited"] ? "credited" : `noop_${String(result["reason"] ?? "")}`, depositId: d.id, detail: result };
+    return {
+      ok: true,
+      event,
+      action: result["credited"] ? "credited" : `noop_${String(result["reason"] ?? "")}`,
+      depositId: d.id,
+      detail: result,
+    };
   }
 
   if (event === "payment.failed") {
     const d = await depositByOrder(payment?.order_id);
     if (!d) return { ok: true, event, action: "ignored_unknown_order" };
-    if (d.status !== "pending" && d.status !== "created") return { ok: true, event, action: "ignored_terminal", depositId: d.id };
+    if (d.status !== "pending" && d.status !== "created")
+      return { ok: true, event, action: "ignored_terminal", depositId: d.id };
     const { error } = await mktDb
       .from("advertiser_deposits")
       .update({
         status: "failed",
         gateway_payment_id: payment?.id ?? null,
-        failure_reason: [payment?.error_code, payment?.error_description].filter(Boolean).join(": ").slice(0, 500) || "payment_failed",
+        failure_reason:
+          [payment?.error_code, payment?.error_description]
+            .filter(Boolean)
+            .join(": ")
+            .slice(0, 500) || "payment_failed",
         last_event: { event, payment_id: payment?.id ?? null },
       })
       .eq("id", d.id)
@@ -789,13 +922,18 @@ export async function routeWebhookEvent(evt: RazorpayWebhookEvent): Promise<Webh
     return { ok: true, event, action: "marked_failed", depositId: d.id };
   }
 
-  if (event === "refund.created" || event === "refund.processed" || event === "payment.dispute.lost") {
+  if (
+    event === "refund.created" ||
+    event === "refund.processed" ||
+    event === "payment.dispute.lost"
+  ) {
     const refund = evt.payload?.refund?.entity;
     const dispute = evt.payload?.dispute?.entity;
     const paymentId = refund?.payment_id ?? dispute?.payment_id ?? payment?.id ?? null;
     const d = await depositByPayment(paymentId);
     if (!d) return { ok: true, event, action: "ignored_unknown_payment", detail: { paymentId } };
-    if (!d.credited_at) return { ok: true, event, action: "ignored_never_credited", depositId: d.id };
+    if (!d.credited_at)
+      return { ok: true, event, action: "ignored_never_credited", depositId: d.id };
     const amountMinor = refund?.amount ?? dispute?.amount ?? toMinor(num(d.charge_amount));
     const amountUsd = Math.min(num(d.amount_usd), minorToUsd(amountMinor, num(d.fx_rate)));
     const key = refund?.id ?? dispute?.id ?? `${event}:${paymentId}`;
@@ -807,9 +945,16 @@ export async function routeWebhookEvent(evt: RazorpayWebhookEvent): Promise<Webh
         p_reason: event,
         p_event: { event, refund_id: refund?.id ?? null, dispute_id: dispute?.id ?? null },
       });
-      return { ok: true, event, action: result["reversed"] ? "reversed" : `noop_${String(result["reason"] ?? "")}`, depositId: d.id, detail: result };
+      return {
+        ok: true,
+        event,
+        action: result["reversed"] ? "reversed" : `noop_${String(result["reason"] ?? "")}`,
+        depositId: d.id,
+        detail: result,
+      };
     } catch (err) {
-      if (err instanceof MktRpcError) return { ok: false, event, action: `reverse_failed_${err.code}`, depositId: d.id };
+      if (err instanceof MktRpcError)
+        return { ok: false, event, action: `reverse_failed_${err.code}`, depositId: d.id };
       throw err;
     }
   }
@@ -819,67 +964,108 @@ export async function routeWebhookEvent(evt: RazorpayWebhookEvent): Promise<Webh
 
 /* ------------------------------------------------------------ campaigns */
 
-export const createCampaignInput = z.object({
-  title: z.string().trim().min(3).max(80),
-  description: z.string().trim().min(10).max(1000),
-  verification: z.enum(["auto", "proof"]),
-  reward: z.number().positive().min(0.05).max(1000),
-  slots: z.number().int().min(15).max(100000), // Slots-first budgeting (min 15)
-  countries: z.array(z.string().trim().toUpperCase().refine((value) => /^[A-Z]{2}$/.test(value) || ["*", "ALL", "WW"].includes(value), "Countries must be ISO-2 codes")).max(20).transform((values) => values.some((value) => ["*", "ALL", "WW"].includes(value)) ? [] : values),
-  categoryId: z.string().uuid(),
-  subcategoryId: z.string().uuid().optional(),
-  landingUrl: z.string().trim().url().max(2048).regex(/^https:\/\//, "Must be an HTTPS URL"),
-  estimatedMinutes: z.number().int().min(1).max(1440).optional(),
-  featured: z.boolean().optional(),
-  featuredDays: z.number().int().min(1).max(30).optional(),
-  // Auto verification fields
-  trackingUrl: z.string().trim().url().max(2048).regex(/^https:\/\//, "Must be an HTTPS URL").optional(),
-  ipAllowlist: z.array(z.string()).max(50).optional(),
-  // Proof verification fields
-  proofDescription: z.string().trim().min(10).max(500).optional(),
-  proofMinImages: z.number().int().min(0).max(5).optional(),
-  proofMaxImages: z.number().int().min(1).max(5).optional(),
-  proofFields: z.array(z.object({
-    key: z.string().regex(/^[a-z0-9_]+$/, "Field keys must be lowercase a-z, 0-9, and _").max(50),
-    label: z.string().trim().min(2).max(60),
-    required: z.boolean(),
-    maxLen: z.number().int().min(10).max(500),
-  })).max(5).optional(),
-  // Advanced settings
-  reviewWindow: z.number().int().min(1).max(720).optional(), // Review window in hours
-  proofExampleUrl: z.string().url().optional(), // Public URL to example proof image
-  startsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
-  endsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
-  devices: z.array(z.enum(["android", "ios", "desktop"])).max(3).optional(),
-  eligibilityNote: z.string().trim().max(300).optional(),
-  dailyLimit: z.number().int().min(1).optional(), // Max completions per rolling 24h
-  // Offer rules confirmation
-  rulesAccepted: z.boolean(),
-})
-.refine((data) => {
-  if (data.verification === "proof") {
-    // Proof description is required for manual proof
-    if (!data.proofDescription) return false;
-    // At least images or fields required
-    const hasImages = (data.proofMinImages ?? 0) >= 1;
-    const hasFields = (data.proofFields?.length ?? 0) > 0;
-    if (!hasImages && !hasFields) return false;
-    // Max >= min for images
-    if ((data.proofMaxImages ?? 3) < (data.proofMinImages ?? 1)) return false;
-    // Check for duplicate field keys
-    if (data.proofFields && data.proofFields.length > 0) {
-      const keys = data.proofFields.map((f) => f.key);
-      if (new Set(keys).size !== keys.length) return false;
-    }
-  }
-  // Validate date range
-  if (data.startsAt && data.endsAt && new Date(data.endsAt) <= new Date(data.startsAt)) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Invalid proof configuration: ensure proofDescription is provided, at least one proof method (images or fields), no duplicate field keys, max >= min images, and end date after start date",
-});
+export const createCampaignInput = z
+  .object({
+    title: z.string().trim().min(3).max(80),
+    description: z.string().trim().min(10).max(1000),
+    verification: z.enum(["auto", "proof"]),
+    reward: z.number().positive().min(0.05).max(1000),
+    slots: z.number().int().min(15).max(100000), // Slots-first budgeting (min 15)
+    countries: z
+      .array(
+        z
+          .string()
+          .trim()
+          .toUpperCase()
+          .refine(
+            (value) => /^[A-Z]{2}$/.test(value) || ["*", "ALL", "WW"].includes(value),
+            "Countries must be ISO-2 codes",
+          ),
+      )
+      .max(20)
+      .transform((values) =>
+        values.some((value) => ["*", "ALL", "WW"].includes(value)) ? [] : values,
+      ),
+    categoryId: z.string().uuid(),
+    subcategoryId: z.string().uuid().optional(),
+    landingUrl: z
+      .string()
+      .trim()
+      .url()
+      .max(2048)
+      .regex(/^https:\/\//, "Must be an HTTPS URL"),
+    estimatedMinutes: z.number().int().min(1).max(1440).optional(),
+    featured: z.boolean().optional(),
+    featuredDays: z.number().int().min(1).max(30).optional(),
+    // Auto verification fields
+    trackingUrl: z
+      .string()
+      .trim()
+      .url()
+      .max(2048)
+      .regex(/^https:\/\//, "Must be an HTTPS URL")
+      .optional(),
+    ipAllowlist: z.array(z.string()).max(50).optional(),
+    // Proof verification fields
+    proofDescription: z.string().trim().min(10).max(500).optional(),
+    proofMinImages: z.number().int().min(0).max(5).optional(),
+    proofMaxImages: z.number().int().min(1).max(5).optional(),
+    proofFields: z
+      .array(
+        z.object({
+          key: z
+            .string()
+            .regex(/^[a-z0-9_]+$/, "Field keys must be lowercase a-z, 0-9, and _")
+            .max(50),
+          label: z.string().trim().min(2).max(60),
+          required: z.boolean(),
+          maxLen: z.number().int().min(10).max(500),
+        }),
+      )
+      .max(5)
+      .optional(),
+    // Advanced settings
+    reviewWindow: z.number().int().min(1).max(720).optional(), // Review window in hours
+    proofExampleUrl: z.string().url().optional(), // Public URL to example proof image
+    startsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
+    endsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
+    devices: z
+      .array(z.enum(["android", "ios", "desktop"]))
+      .max(3)
+      .optional(),
+    eligibilityNote: z.string().trim().max(300).optional(),
+    dailyLimit: z.number().int().min(1).optional(), // Max completions per rolling 24h
+    // Offer rules confirmation
+    rulesAccepted: z.boolean(),
+  })
+  .refine(
+    (data) => {
+      if (data.verification === "proof") {
+        // Proof description is required for manual proof
+        if (!data.proofDescription) return false;
+        // At least images or fields required
+        const hasImages = (data.proofMinImages ?? 0) >= 1;
+        const hasFields = (data.proofFields?.length ?? 0) > 0;
+        if (!hasImages && !hasFields) return false;
+        // Max >= min for images
+        if ((data.proofMaxImages ?? 3) < (data.proofMinImages ?? 1)) return false;
+        // Check for duplicate field keys
+        if (data.proofFields && data.proofFields.length > 0) {
+          const keys = data.proofFields.map((f) => f.key);
+          if (new Set(keys).size !== keys.length) return false;
+        }
+      }
+      // Validate date range
+      if (data.startsAt && data.endsAt && new Date(data.endsAt) <= new Date(data.startsAt)) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message:
+        "Invalid proof configuration: ensure proofDescription is provided, at least one proof method (images or fields), no duplicate field keys, max >= min images, and end date after start date",
+    },
+  );
 export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
 
 /**
@@ -887,23 +1073,23 @@ export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
  * NOTE: mkt_create_campaign() doesn't exist - we INSERT then call mkt_submit_campaign_with_fee()
  * CRITICAL: campaigns_guard trigger only allows INSERT of empty draft (advertiser_cost
  * and fee_percent must be NULL). Pricing is set by mkt_submit_campaign.
- * 
+ *
  * CAMPAIGN FEES: If fees_enabled=true, mkt_submit_campaign_with_fee charges the fee once
  * before submitting, using pricing.ts for preflight validation.
- * 
+ *
  * FEATURED PLACEMENT: If featured=true, charges the featured fee from advertiser balance
  * atomically with campaign creation. Fee is calculated server-side only (never trust client).
- * 
+ *
  * SLOTS-FIRST BUDGETING: Budget = slots × reward × (1 + platform_fee_percent/100).
  * Server calculates budget; never trust client amounts.
  */
 export async function createCampaignImpl(
   userId: string,
   input: CreateCampaignInput,
-): Promise<{ 
-  campaignId: string; 
-  status: CampaignDbStatus; 
-  featuredApplied?: boolean; 
+): Promise<{
+  campaignId: string;
+  status: CampaignDbStatus;
+  featuredApplied?: boolean;
   featuredError?: string;
   postbackUrl?: string;
   postbackSecret?: string;
@@ -911,31 +1097,43 @@ export async function createCampaignImpl(
   const account = await getAccount(userId);
   if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
   if (account.status !== "active") {
-    throw new DepositError("ACCOUNT_RESTRICTED", "Your advertiser account cannot create campaigns.");
+    throw new DepositError(
+      "ACCOUNT_RESTRICTED",
+      "Your advertiser account cannot create campaigns.",
+    );
   }
 
   // Validate offer rules acceptance
   if (!input.rulesAccepted) {
-    throw new DepositError("RULES_NOT_ACCEPTED", "You must accept the offer rules before creating a campaign.");
+    throw new DepositError(
+      "RULES_NOT_ACCEPTED",
+      "You must accept the offer rules before creating a campaign.",
+    );
   }
 
   // Validate auto verification requirements
   if (input.verification === "auto") {
     if (!input.trackingUrl) {
-      throw new DepositError("TRACKING_URL_REQUIRED", "Tracking URL is required for auto verification.");
+      throw new DepositError(
+        "TRACKING_URL_REQUIRED",
+        "Tracking URL is required for auto verification.",
+      );
     }
     if (!input.trackingUrl.includes("{click_id}")) {
-      throw new DepositError("INVALID_TRACKING_URL", "Tracking URL must contain {click_id} placeholder.");
+      throw new DepositError(
+        "INVALID_TRACKING_URL",
+        "Tracking URL must contain {click_id} placeholder.",
+      );
     }
   }
 
   // Load settings for budget calculation and featured pricing
   const settings = await loadMarketplaceSettings();
-  
+
   // Calculate totals using pricing module
   const featuredDays = input.featured && input.featuredDays ? input.featuredDays : 0;
   const featuredFee = featuredDays > 0 ? num(settings.featured_price_per_day) * featuredDays : 0;
-  
+
   const totals = campaignTotals({
     slots: input.slots,
     reward: input.reward,
@@ -947,21 +1145,24 @@ export async function createCampaignImpl(
   });
 
   // Calculate spendable balance
-  const spendable = Math.round((num(account.deposit_balance) + num(account.bonus_available)) * 100) / 100;
+  const spendable =
+    Math.round((num(account.deposit_balance) + num(account.bonus_available)) * 100) / 100;
 
   // Preflight check using pricing module
-  if (!hasSufficientFunds({
-    spendable,
-    deposit: num(account.deposit_balance),
-    totals,
-  })) {
+  if (
+    !hasSufficientFunds({
+      spendable,
+      deposit: num(account.deposit_balance),
+      totals,
+    })
+  ) {
     throw new DepositError(
       "INSUFFICIENT_FUNDS",
       `Not enough balance. Need $${totals.total.toFixed(2)} (campaign: $${totals.allocation.toFixed(2)}${
         totals.campaignFee > 0 ? `, fee: $${totals.campaignFee.toFixed(2)}` : ""
       }${
         totals.featuredFee > 0 ? `, featured: $${totals.featuredFee.toFixed(2)}` : ""
-      }), have $${spendable.toFixed(2)}.`
+      }), have $${spendable.toFixed(2)}.`,
     );
   }
 
@@ -972,10 +1173,13 @@ export async function createCampaignImpl(
       .select("category_id")
       .eq("id", input.subcategoryId)
       .maybeSingle();
-    
+
     if (subcatErr) throw new DepositError("INVALID_SUBCATEGORY", "Invalid subcategory.");
     if (!subcat || subcat.category_id !== input.categoryId) {
-      throw new DepositError("CATEGORY_MISMATCH", "Subcategory does not belong to the selected category.");
+      throw new DepositError(
+        "CATEGORY_MISMATCH",
+        "Subcategory does not belong to the selected category.",
+      );
     }
   }
 
@@ -988,8 +1192,8 @@ export async function createCampaignImpl(
   if (input.verification === "auto") {
     // Generate cryptographically secure 32-character hex string
     postbackSecret = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
   }
 
   // Step 1: INSERT campaign in draft status
@@ -1016,7 +1220,10 @@ export async function createCampaignImpl(
     publisher_reward: input.reward,
     max_completions: maxCompletions,
     // Do NOT set budget_allocated - RPC does it
-    proof_description: input.verification === "proof" && input.proofDescription ? input.proofDescription : "Please upload proof of completion",
+    proof_description:
+      input.verification === "proof" && input.proofDescription
+        ? input.proofDescription
+        : "Please upload proof of completion",
     proof_min_images: input.verification === "proof" ? (input.proofMinImages ?? 1) : 1,
     proof_max_images: input.verification === "proof" ? (input.proofMaxImages ?? 3) : 3,
     proof_fields: input.verification === "proof" && input.proofFields ? input.proofFields : [],
@@ -1039,19 +1246,20 @@ export async function createCampaignImpl(
 
   // Step 1.5: Store postback secret if auto verification
   if (input.verification === "auto" && postbackSecret) {
-    const { error: secretError } = await mktDb
-      .from("campaign_secrets")
-      .insert({
-        campaign_id: campaign.id,
-        auth_mode: "token",
-        secret: postbackSecret,
-        ip_allowlist: input.ipAllowlist || [],
-      });
+    const { error: secretError } = await mktDb.from("campaign_secrets").insert({
+      campaign_id: campaign.id,
+      auth_mode: "token",
+      secret: postbackSecret,
+      ip_allowlist: input.ipAllowlist || [],
+    });
 
     if (secretError) {
       // Rollback: delete the campaign
       await mktDb.from("campaigns").delete().eq("id", campaign.id);
-      throw new DepositError("SECRET_FAILED", `Failed to store postback secret: ${secretError.message}`);
+      throw new DepositError(
+        "SECRET_FAILED",
+        `Failed to store postback secret: ${secretError.message}`,
+      );
     }
   }
 
@@ -1068,11 +1276,14 @@ export async function createCampaignImpl(
   }
 
   // Step 2.5: Store campaign options if advanced settings specified
-  if (input.verification === "proof" && (input.reviewWindow || input.proofExampleUrl || input.dailyLimit)) {
+  if (
+    input.verification === "proof" &&
+    (input.reviewWindow || input.proofExampleUrl || input.dailyLimit)
+  ) {
     const optionsData: Record<string, any> = {
       campaign_id: campaign.id,
     };
-    
+
     if (input.reviewWindow) {
       optionsData.review_window_hours = input.reviewWindow;
     }
@@ -1101,13 +1312,13 @@ export async function createCampaignImpl(
   if (input.featured && input.featuredDays && input.featuredDays > 0) {
     try {
       const featuredDays = Math.min(Math.max(input.featuredDays, 1), 30); // Clamp to 1-30
-      
+
       await mktRpc("mkt_charge_featured", {
         p_campaign_id: campaign.id,
         p_days: featuredDays,
         p_actor: userId,
       });
-      
+
       featuredApplied = true;
     } catch (err) {
       // Featured billing failed, but campaign is already submitted
@@ -1124,24 +1335,45 @@ export async function createCampaignImpl(
   return {
     campaignId: campaign.id,
     status: "pending_review" as CampaignDbStatus,
-    ...(input.featured ? { featuredApplied: featuredApplied || undefined, featuredError: featuredError || undefined } : {}),
-    ...(postbackSecret ? { postbackUrl: `${siteUrl}/api/public/marketplace-postback?click_id={click_id}&token=${postbackSecret}&txn_id={transaction_id}`, postbackSecret } : {}),
+    ...(input.featured
+      ? { featuredApplied: featuredApplied || undefined, featuredError: featuredError || undefined }
+      : {}),
+    ...(postbackSecret
+      ? {
+          postbackUrl: `${siteUrl}/api/public/marketplace-postback?click_id={click_id}&token=${postbackSecret}&txn_id={transaction_id}`,
+          postbackSecret,
+        }
+      : {}),
   };
 }
 
 export type CampaignAction = "pause" | "resume" | "submit" | "complete" | "archive";
 
-export async function campaignActionImpl(userId: string, campaignId: string, action: CampaignAction): Promise<Record<string, unknown>> {
+export async function campaignActionImpl(
+  userId: string,
+  campaignId: string,
+  action: CampaignAction,
+): Promise<Record<string, unknown>> {
   try {
     switch (action) {
       case "submit":
         // Always use mkt_submit_campaign_with_fee (fee is 0 when fees are disabled)
-        return await mktRpc("mkt_submit_campaign_with_fee", { p_campaign_id: campaignId, p_actor: userId });
+        return await mktRpc("mkt_submit_campaign_with_fee", {
+          p_campaign_id: campaignId,
+          p_actor: userId,
+        });
       case "pause":
       case "resume":
       case "complete":
       case "archive": {
-        const target = action === "resume" ? "active" : action === "pause" ? "paused" : action === "complete" ? "completed" : "archived";
+        const target =
+          action === "resume"
+            ? "active"
+            : action === "pause"
+              ? "paused"
+              : action === "complete"
+                ? "completed"
+                : "archived";
         return await mktRpc("mkt_set_campaign_status", {
           p_campaign_id: campaignId,
           p_actor: userId,
@@ -1214,8 +1446,8 @@ export async function rotateCampaignSecretImpl(
 
   // Generate new secret
   const newSecret = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 
   // Update secret
   const { error: updateErr } = await mktDb
@@ -1233,14 +1465,14 @@ export async function rotateCampaignSecretImpl(
   return { secret: newSecret, url };
 }
 
-
 /* ------------------------------------------------------------ advertiser reviews */
 
 export async function listPendingReviewsImpl(userId: string): Promise<any[]> {
   // Get pending submissions for advertiser's campaigns with campaign details
   const { data: submissions, error } = await mktDb
     .from("campaign_submissions")
-    .select(`
+    .select(
+      `
       id,
       campaign_id,
       user_id,
@@ -1255,7 +1487,8 @@ export async function listPendingReviewsImpl(userId: string): Promise<any[]> {
         advertiser_id,
         proof_fields
       )
-    `)
+    `,
+    )
     .eq("campaigns.advertiser_id", userId)
     .eq("status", "pending")
     .eq("requires_admin", false)
@@ -1273,7 +1506,7 @@ export async function listPendingReviewsImpl(userId: string): Promise<any[]> {
       const { data: urlData } = await supabaseService.storage
         .from("offer-proofs")
         .createSignedUrl(path, 3600); // 1 hour expiry
-      
+
       if (urlData?.signedUrl) {
         signedUrls.push(urlData.signedUrl);
       }
@@ -1305,12 +1538,14 @@ export async function reviewSubmissionImpl(
   // Verify ownership through campaign and get data for notifications
   const { data: submission, error: subErr } = await mktDb
     .from("campaign_submissions")
-    .select(`
+    .select(
+      `
       campaign_id,
       publisher_id,
       publisher_reward,
       campaigns!inner(advertiser_id, name)
-    `)
+    `,
+    )
     .eq("id", submissionId)
     .maybeSingle();
 
@@ -1318,7 +1553,7 @@ export async function reviewSubmissionImpl(
     throw new DepositError("NOT_FOUND", "Submission not found.");
   }
 
-  const campaign = (submission.campaigns as any);
+  const campaign = submission.campaigns as any;
   if (campaign.advertiser_id !== userId) {
     throw new DepositError("NOT_OWNER", "That submission isn't for your campaign.");
   }
@@ -1351,13 +1586,10 @@ export async function reviewSubmissionImpl(
       if (err.code === "MKT_ADMIN_DECISION_REQUIRED") {
         throw new DepositError(
           "ADMIN_REVIEW_REQUIRED",
-          "This submission requires admin review and cannot be decided by the advertiser."
+          "This submission requires admin review and cannot be decided by the advertiser.",
         );
       } else if (err.code === "MKT_INVALID_STATUS") {
-        throw new DepositError(
-          "ALREADY_DECIDED",
-          "This submission has already been reviewed."
-        );
+        throw new DepositError("ALREADY_DECIDED", "This submission has already been reviewed.");
       }
       throw new DepositError(err.code, humanMktError(err.code));
     }

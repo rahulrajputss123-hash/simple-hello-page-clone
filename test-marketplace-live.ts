@@ -1,8 +1,8 @@
 /**
  * Live Database Test Script for Marketplace Phase 3-5
- * 
+ *
  * This script tests the ACTUAL function signatures against the live Supabase database
- * 
+ *
  * Run with: npx tsx test-marketplace-live.ts
  */
 
@@ -126,13 +126,10 @@ async function testPhase3_CreateCampaign() {
     // Test 2: Submit for review using mkt_submit_campaign
     console.log("\n2. Submitting campaign for review (mkt_submit_campaign)...");
 
-    const { data: submitResult, error: submitError } = await supabase.rpc(
-      "mkt_submit_campaign",
-      {
-        p_campaign_id: createdCampaignId,
-        p_actor: TEST_ADVERTISER_ID,
-      }
-    );
+    const { data: submitResult, error: submitError } = await supabase.rpc("mkt_submit_campaign", {
+      p_campaign_id: createdCampaignId,
+      p_actor: TEST_ADVERTISER_ID,
+    });
 
     if (submitError) {
       console.error("❌ mkt_submit_campaign failed:", submitError);
@@ -144,15 +141,12 @@ async function testPhase3_CreateCampaign() {
     // Test 3: Admin review campaign
     console.log("\n3. Admin reviewing campaign (mkt_review_campaign)...");
 
-    const { data: reviewResult, error: reviewError } = await supabase.rpc(
-      "mkt_review_campaign",
-      {
-        p_campaign_id: createdCampaignId,
-        p_admin: TEST_ADMIN_ID,
-        p_decision: "approved",
-        p_note: "Test approval - looks good!",
-      }
-    );
+    const { data: reviewResult, error: reviewError } = await supabase.rpc("mkt_review_campaign", {
+      p_campaign_id: createdCampaignId,
+      p_admin: TEST_ADMIN_ID,
+      p_decision: "approved",
+      p_note: "Test approval - looks good!",
+    });
 
     if (reviewError) {
       console.error("❌ mkt_review_campaign failed:", reviewError);
@@ -164,14 +158,11 @@ async function testPhase3_CreateCampaign() {
     // Test 4: Add budget
     console.log("\n4. Adding budget (mkt_add_budget)...");
 
-    const { data: budgetResult, error: budgetError } = await supabase.rpc(
-      "mkt_add_budget",
-      {
-        p_campaign_id: createdCampaignId,
-        p_actor: TEST_ADVERTISER_ID,
-        p_completions: 50,
-      }
-    );
+    const { data: budgetResult, error: budgetError } = await supabase.rpc("mkt_add_budget", {
+      p_campaign_id: createdCampaignId,
+      p_actor: TEST_ADVERTISER_ID,
+      p_completions: 50,
+    });
 
     if (budgetError) {
       console.error("❌ mkt_add_budget failed:", budgetError);
@@ -200,10 +191,7 @@ async function testPhase4_ManualProof() {
     // Test 1: Publisher starts campaign (mkt_start)
     console.log("\n1. Publisher starting campaign (mkt_start)...");
 
-    const ipHash = crypto
-      .createHash("sha256")
-      .update("192.168.1.100")
-      .digest("hex");
+    const ipHash = crypto.createHash("sha256").update("192.168.1.100").digest("hex");
 
     const { data: startResult, error: startError } = await supabase.rpc("mkt_start", {
       p_campaign_id: createdCampaignId,
@@ -226,16 +214,13 @@ async function testPhase4_ManualProof() {
     // Test 2: Publisher submits proof (mkt_submit_proof)
     console.log("\n2. Publisher submitting proof (mkt_submit_proof)...");
 
-    const { data: proofResult, error: proofError } = await supabase.rpc(
-      "mkt_submit_proof",
-      {
-        p_click_id: createdClickId,
-        p_user_id: TEST_PUBLISHER_ID, // NOT publisher_id!
-        p_paths: ["https://example.com/proof1.jpg", "https://example.com/proof2.jpg"], // ARRAY!
-        p_fields: { task_completed: true, time_spent: "5 minutes" },
-        p_note: "I completed this task successfully. Please review!",
-      }
-    );
+    const { data: proofResult, error: proofError } = await supabase.rpc("mkt_submit_proof", {
+      p_click_id: createdClickId,
+      p_user_id: TEST_PUBLISHER_ID, // NOT publisher_id!
+      p_paths: ["https://example.com/proof1.jpg", "https://example.com/proof2.jpg"], // ARRAY!
+      p_fields: { task_completed: true, time_spent: "5 minutes" },
+      p_note: "I completed this task successfully. Please review!",
+    });
 
     if (proofError) {
       console.error("❌ mkt_submit_proof failed:", proofError);
@@ -256,7 +241,7 @@ async function testPhase4_ManualProof() {
         p_role: "admin",
         p_decision: "rejected", // Test rejection first to test appeal
         p_reason: "The screenshot is not clear enough. Please resubmit with better quality.",
-      }
+      },
     );
 
     if (decisionError) {
@@ -272,7 +257,8 @@ async function testPhase4_ManualProof() {
     const { data: appealResult, error: appealError } = await supabase.rpc("mkt_appeal", {
       p_submission_id: createdSubmissionId,
       p_user_id: TEST_PUBLISHER_ID, // NOT publisher_id!
-      p_text: "I believe my proof was clear. Please review again. The screenshot shows all required elements.",
+      p_text:
+        "I believe my proof was clear. Please review again. The screenshot shows all required elements.",
     });
 
     if (appealError) {
@@ -285,15 +271,12 @@ async function testPhase4_ManualProof() {
     // Test 5: Admin resolves appeal (mkt_resolve_appeal)
     console.log("\n5. Admin resolving appeal (mkt_resolve_appeal)...");
 
-    const { data: resolveResult, error: resolveError } = await supabase.rpc(
-      "mkt_resolve_appeal",
-      {
-        p_submission_id: createdSubmissionId,
-        p_admin: TEST_ADMIN_ID,
-        p_decision: "approved",
-        p_note: "After reviewing again, the proof is acceptable. Approved.",
-      }
-    );
+    const { data: resolveResult, error: resolveError } = await supabase.rpc("mkt_resolve_appeal", {
+      p_submission_id: createdSubmissionId,
+      p_admin: TEST_ADMIN_ID,
+      p_decision: "approved",
+      p_note: "After reviewing again, the proof is acceptable. Approved.",
+    });
 
     if (resolveError) {
       console.error("❌ mkt_resolve_appeal failed:", resolveError);
@@ -363,10 +346,7 @@ async function testPhase5_AutoConversion() {
     // Test 2: Publisher starts auto campaign
     console.log("\n2. Publisher starting auto campaign (mkt_start)...");
 
-    const ipHash2 = crypto
-      .createHash("sha256")
-      .update("203.0.113.42")
-      .digest("hex");
+    const ipHash2 = crypto.createHash("sha256").update("203.0.113.42").digest("hex");
 
     const { data: autoStart, error: autoStartError } = await supabase.rpc("mkt_start", {
       p_campaign_id: autoCampaignId,
@@ -388,10 +368,7 @@ async function testPhase5_AutoConversion() {
     // Test 3: Record conversion (mkt_record_conversion)
     console.log("\n3. Recording conversion (mkt_record_conversion)...");
 
-    const sourceIpHash = crypto
-      .createHash("sha256")
-      .update("198.51.100.10")
-      .digest("hex");
+    const sourceIpHash = crypto.createHash("sha256").update("198.51.100.10").digest("hex");
 
     const { data: conversionResult, error: conversionError } = await supabase.rpc(
       "mkt_record_conversion",
@@ -408,7 +385,7 @@ async function testPhase5_AutoConversion() {
             partner_id: "test_partner",
           },
         },
-      }
+      },
     );
 
     if (conversionError) {
@@ -430,7 +407,7 @@ async function testPhase5_AutoConversion() {
           p_admin: TEST_ADMIN_ID,
           p_decision: "approved",
           p_note: "Looks legitimate, approved.",
-        }
+        },
       );
 
       if (decideError) {

@@ -14,7 +14,15 @@ import {
   SlidersHorizontal,
   Star,
 } from "lucide-react";
-import { memo, startTransition, useDeferredValue, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  memo,
+  startTransition,
+  useDeferredValue,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { AppShell } from "@/components/AppShell";
@@ -28,7 +36,12 @@ import { listActiveCampaigns, listMySubmissions } from "@/lib/marketplace.functi
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/task")({
-  head: () => ({ meta: [{ title: "Microtasks — CashGPT" }, { name: "description", content: "Short tasks from advertisers that pay into your wallet." }] }),
+  head: () => ({
+    meta: [
+      { title: "Microtasks — CashGPT" },
+      { name: "description", content: "Short tasks from advertisers that pay into your wallet." },
+    ],
+  }),
   component: MicrotasksPage,
 });
 
@@ -52,18 +65,24 @@ type DisplayCampaign = {
 };
 
 function mapCampaignToDisplay(c: any): DisplayCampaign {
-  const normalizedCountries = (c.countries ?? []).some((value: string) => ["*", "ALL", "WW"].includes(value.toUpperCase())) ? [] : (c.countries ?? []);
+  const normalizedCountries = (c.countries ?? []).some((value: string) =>
+    ["*", "ALL", "WW"].includes(value.toUpperCase()),
+  )
+    ? []
+    : (c.countries ?? []);
   const countryFlag = normalizedCountries.length === 0 ? "🌍" : "🇺🇸";
-  const countryLabel = normalizedCountries.length === 0 ? "Worldwide" : normalizedCountries.join(", ");
-  
+  const countryLabel =
+    normalizedCountries.length === 0 ? "Worldwide" : normalizedCountries.join(", ");
+
   // Format estimated time with fallback
   let estimatedTime = "5-10 min";
   if (c.estimatedMinutes) {
-    estimatedTime = c.estimatedMinutes < 60 
-      ? `${c.estimatedMinutes} min` 
-      : `${Math.round(c.estimatedMinutes / 60)} hr`;
+    estimatedTime =
+      c.estimatedMinutes < 60
+        ? `${c.estimatedMinutes} min`
+        : `${Math.round(c.estimatedMinutes / 60)} hr`;
   }
-  
+
   return {
     id: c.id,
     title: c.title,
@@ -86,10 +105,22 @@ type TaskCardProps = { campaign: DisplayCampaign };
 const TaskCard = memo(function TaskCard({ campaign }: TaskCardProps) {
   const VerificationIcon = campaign.verification === "auto" ? ShieldCheck : Shield;
   return (
-    <Link to="/microtask/$id" params={{ id: campaign.id }} data-testid={`microtask-card-${campaign.id}`} className="surface-card hover-lift press-feedback block p-4">
+    <Link
+      to="/microtask/$id"
+      params={{ id: campaign.id }}
+      data-testid={`microtask-card-${campaign.id}`}
+      className="surface-card hover-lift press-feedback block p-4"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap gap-1.5">
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold", campaign.verification === "auto" ? "bg-mint/20 text-primary" : "bg-gold/15 text-gold-dark")}>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold",
+              campaign.verification === "auto"
+                ? "bg-mint/20 text-primary"
+                : "bg-gold/15 text-gold-dark",
+            )}
+          >
             <VerificationIcon className="size-3" />
             {campaign.verification === "auto" ? "Auto Verified" : "Proof Required"}
           </span>
@@ -100,7 +131,9 @@ const TaskCard = memo(function TaskCard({ campaign }: TaskCardProps) {
           )}
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-amount text-xl leading-none text-gold-dark">{formatMoney(campaign.reward)}</p>
+          <p className="text-amount text-xl leading-none text-gold-dark">
+            {formatMoney(campaign.reward)}
+          </p>
           <p className="mt-1 text-[10px] text-muted-foreground">{campaign.estimatedTime}</p>
         </div>
       </div>
@@ -156,11 +189,19 @@ function MicrotasksPage() {
     return (campaigns.data || []).map(mapCampaignToDisplay);
   }, [campaigns.data]);
 
-  const categories = useMemo(() => [...new Set(displayCampaigns.map((task) => task.category))], [displayCampaigns]);
-  const countries = useMemo(() => [...new Set(displayCampaigns.flatMap((task) => task.countries))], [displayCampaigns]);
+  const categories = useMemo(
+    () => [...new Set(displayCampaigns.map((task) => task.category))],
+    [displayCampaigns],
+  );
+  const countries = useMemo(
+    () => [...new Set(displayCampaigns.flatMap((task) => task.countries))],
+    [displayCampaigns],
+  );
   const devices = ["Any", "Android", "iOS", "Desktop"];
 
-  const pending = (submissions.data ?? []).filter((s) => s.status === "pending" || s.status === "appealed").length;
+  const pending = (submissions.data ?? []).filter(
+    (s) => s.status === "pending" || s.status === "appealed",
+  ).length;
   const statusCounts = {
     pending,
     approved: (submissions.data ?? []).filter((s) => s.status === "approved").length,
@@ -168,13 +209,18 @@ function MicrotasksPage() {
   };
 
   const filtered = useMemo(() => {
-    let result = displayCampaigns.filter(
+    const result = displayCampaigns.filter(
       (task) =>
         (!featured || task.featured) &&
         (!verification || task.verification === verification) &&
         (!selectedCategories.length || selectedCategories.includes(task.category)) &&
-        (!selectedCountries.length || task.countries.length === 0 || task.countries.some((country) => selectedCountries.includes(country))) &&
-        (!selectedDevices.length || selectedDevices.includes("Any") || selectedDevices.includes(task.device) || (selectedDevices.includes("Any") && task.device !== "iOS"))
+        (!selectedCountries.length ||
+          task.countries.length === 0 ||
+          task.countries.some((country) => selectedCountries.includes(country))) &&
+        (!selectedDevices.length ||
+          selectedDevices.includes("Any") ||
+          selectedDevices.includes(task.device) ||
+          (selectedDevices.includes("Any") && task.device !== "iOS")),
     );
 
     return [...result].sort((a, b) => {
@@ -182,18 +228,31 @@ function MicrotasksPage() {
       if (sort === "featured") return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
       return (b.featured ? 1 : 0) - (a.featured ? 1 : 0); // default: featured first
     });
-  }, [displayCampaigns, sort, featured, verification, selectedCategories, selectedCountries, selectedDevices]);
+  }, [
+    displayCampaigns,
+    sort,
+    featured,
+    verification,
+    selectedCategories,
+    selectedCountries,
+    selectedDevices,
+  ]);
 
   const deferredFiltered = useDeferredValue(filtered);
 
-  const activeFilters = Number(featured) + Number(Boolean(verification)) + selectedCategories.length + selectedCountries.length + selectedDevices.length;
+  const activeFilters =
+    Number(featured) +
+    Number(Boolean(verification)) +
+    selectedCategories.length +
+    selectedCountries.length +
+    selectedDevices.length;
 
   const applyFilters = (
     newFeatured: boolean,
     newVerification: "auto" | "proof" | null,
     newCategories: string[],
     newCountries: string[],
-    newDevices: string[]
+    newDevices: string[],
   ) => {
     // Close sheet first
     setOpen(false);
@@ -244,20 +303,31 @@ function MicrotasksPage() {
             <ListChecks className="size-4" />
           </span>
           <span className="min-w-0 flex-1">
-            <b className="block truncate whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider opacity-75">Available</b>
-            <span className="block truncate whitespace-nowrap text-lg font-extrabold">{campaigns.isPending ? "..." : filtered.length}</span>
+            <b className="block truncate whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider opacity-75">
+              Available
+            </b>
+            <span className="block truncate whitespace-nowrap text-lg font-extrabold">
+              {campaigns.isPending ? "..." : filtered.length}
+            </span>
           </span>
           <ChevronRight className="size-4 shrink-0 text-primary-foreground/60" />
         </button>
-        <Link to="/my-submissions" className="flex min-w-0 items-center gap-2 rounded-2xl p-3 transition-transform active:scale-[0.98]">
+        <Link
+          to="/my-submissions"
+          className="flex min-w-0 items-center gap-2 rounded-2xl p-3 transition-transform active:scale-[0.98]"
+        >
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gold/20 text-gold">
             <Check className="size-4" />
           </span>
           <span className="min-w-0 flex-1">
-            <b className="block truncate whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider opacity-75">My submissions</b>
+            <b className="block truncate whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider opacity-75">
+              My submissions
+            </b>
             <span className="flex items-center gap-1.5 whitespace-nowrap text-lg font-extrabold">
               <span>{submissions.isPending ? "..." : pending}</span>
-              <span className="rounded-full bg-gold/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gold">pending</span>
+              <span className="rounded-full bg-gold/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gold">
+                pending
+              </span>
             </span>
           </span>
           <ChevronRight className="size-4 shrink-0 text-primary-foreground/60" />
@@ -266,17 +336,19 @@ function MicrotasksPage() {
 
       <div className="mt-3 flex items-center gap-2">
         <div className="flex min-w-0 flex-1 rounded-full bg-background-alt p-1">
-          {([
-            ["all", Grid2X2, "All tasks"],
-            ["reward", ArrowDownUp, "Highest reward"],
-            ["featured", Star, "Featured"],
-          ] as const).map(([value, Icon, label]) => (
+          {(
+            [
+              ["all", Grid2X2, "All tasks"],
+              ["reward", ArrowDownUp, "Highest reward"],
+              ["featured", Star, "Featured"],
+            ] as const
+          ).map(([value, Icon, label]) => (
             <button
               key={value}
               onClick={() => setSort(value)}
               className={cn(
                 "flex min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 py-2 text-[11px] font-semibold",
-                sort === value && "bg-primary text-primary-foreground"
+                sort === value && "bg-primary text-primary-foreground",
               )}
             >
               <Icon className="size-3.5 shrink-0" />
@@ -300,12 +372,14 @@ function MicrotasksPage() {
 
       <div ref={listRef} className="mt-5 flex items-end justify-between">
         <SectionHeading
-            variant="ribbon"
-            icon={ListChecks}
-            iconSrc="/icons/icon-task-checklist.webp"
-            title="Available Tasks"
-          />
-        <span className="mb-3 text-xs text-muted-foreground">{campaigns.isPending ? "..." : filtered.length} tasks</span>
+          variant="ribbon"
+          icon={ListChecks}
+          iconSrc="/icons/icon-task-checklist.webp"
+          title="Available Tasks"
+        />
+        <span className="mb-3 text-xs text-muted-foreground">
+          {campaigns.isPending ? "..." : filtered.length} tasks
+        </span>
       </div>
 
       {campaigns.isPending ? (
@@ -320,7 +394,10 @@ function MicrotasksPage() {
           No tasks match your filters. Try adjusting your search.
         </p>
       ) : (
-        <ol className={cn("space-y-3", isFirstMountRef.current && "stagger-children")} data-testid="microtask-list">
+        <ol
+          className={cn("space-y-3", isFirstMountRef.current && "stagger-children")}
+          data-testid="microtask-list"
+        >
           {deferredFiltered.map((campaign) => (
             <li key={campaign.id}>
               <TaskCard campaign={campaign} />
@@ -349,7 +426,8 @@ function MicrotasksPage() {
         <span className="min-w-0">
           <b className="block">My Submissions</b>
           <span className="text-xs text-muted-foreground">
-            {statusCounts.pending} pending • {statusCounts.approved} approved • {statusCounts.rejected} rejected
+            {statusCounts.pending} pending • {statusCounts.approved} approved •{" "}
+            {statusCounts.rejected} rejected
           </span>
         </span>
         <ChevronRight className="ml-auto size-4 text-muted-foreground" />
@@ -383,7 +461,17 @@ function FilterRow({ label, children }: { label: string; children: ReactNode }) 
   );
 }
 
-function ChipGroup({ label, options, selected, toggle }: { label: string; options: string[]; selected: string[]; toggle: (value: string) => void }) {
+function ChipGroup({
+  label,
+  options,
+  selected,
+  toggle,
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  toggle: (value: string) => void;
+}) {
   return (
     <div>
       <p className="mb-2 text-sm font-semibold">{label}</p>
@@ -392,7 +480,10 @@ function ChipGroup({ label, options, selected, toggle }: { label: string; option
           <button
             key={option}
             onClick={() => toggle(option)}
-            className={cn("rounded-full border border-border px-3 py-1.5 text-xs transition-colors", selected.includes(option) && "border-primary bg-primary text-primary-foreground")}
+            className={cn(
+              "rounded-full border border-border px-3 py-1.5 text-xs transition-colors",
+              selected.includes(option) && "border-primary bg-primary text-primary-foreground",
+            )}
           >
             {option}
           </button>
@@ -419,7 +510,7 @@ type TaskFilterSheetProps = {
     verification: "auto" | "proof" | null,
     categories: string[],
     countries: string[],
-    devices: string[]
+    devices: string[],
   ) => void;
   onReset: () => void;
 };
@@ -456,7 +547,9 @@ function TaskFilterSheet({
   }, [initialFeatured, initialVerification, initialCategories, initialCountries, initialDevices]);
 
   const toggle = (value: string, current: string[], setter: (next: string[]) => void) =>
-    setter(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+    setter(
+      current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
+    );
 
   const handleApply = () => {
     onApply(draftFeatured, draftVerification, draftCategories, draftCountries, draftDevices);
@@ -504,10 +597,16 @@ function TaskFilterSheet({
           <Switch checked={draftFeatured} onCheckedChange={setDraftFeatured} />
         </FilterRow>
         <FilterRow label="Auto verified">
-          <Switch checked={draftVerification === "auto"} onCheckedChange={(checked) => setDraftVerification(checked ? "auto" : null)} />
+          <Switch
+            checked={draftVerification === "auto"}
+            onCheckedChange={(checked) => setDraftVerification(checked ? "auto" : null)}
+          />
         </FilterRow>
         <FilterRow label="Proof required">
-          <Switch checked={draftVerification === "proof"} onCheckedChange={(checked) => setDraftVerification(checked ? "proof" : null)} />
+          <Switch
+            checked={draftVerification === "proof"}
+            onCheckedChange={(checked) => setDraftVerification(checked ? "proof" : null)}
+          />
         </FilterRow>
         <ChipGroup
           label="Categories"
@@ -521,7 +620,12 @@ function TaskFilterSheet({
           selected={draftCountries}
           toggle={(v) => toggle(v, draftCountries, setDraftCountries)}
         />
-        <ChipGroup label="Devices" options={devices} selected={draftDevices} toggle={(v) => toggle(v, draftDevices, setDraftDevices)} />
+        <ChipGroup
+          label="Devices"
+          options={devices}
+          selected={draftDevices}
+          toggle={(v) => toggle(v, draftDevices, setDraftDevices)}
+        />
       </div>
     </AppBottomSheet>
   );

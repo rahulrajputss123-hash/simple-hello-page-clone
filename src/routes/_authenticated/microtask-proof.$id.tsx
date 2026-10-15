@@ -9,10 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  BackLink,
-  VerificationBadge,
-} from "@/components/marketplace/Preview";
+import { BackLink, VerificationBadge } from "@/components/marketplace/Preview";
 import { formatMoney } from "@/lib/coinquest";
 import { getCampaignForEarner, submitProof } from "@/lib/marketplace.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,63 +24,80 @@ function ProofSubmissionPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const { session } = useAuth();
-  const { data: c, isLoading } = useQuery({ queryKey: ["earner-campaign", id], queryFn: () => getCampaignForEarner({ data: { campaignId: id } }) });
+  const { data: c, isLoading } = useQuery({
+    queryKey: ["earner-campaign", id],
+    queryFn: () => getCampaignForEarner({ data: { campaignId: id } }),
+  });
   const [files, setFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const submitMutation = useMutation({ mutationFn: async () => {
-    if (!session?.user.id || !c?.clickId) throw new Error("Start this task before submitting proof.");
-    
-    // Validate required images
-    const minImages = c.proof_min_images ?? 1;
-    const maxImages = c.proof_max_images ?? 3;
-    if (maxImages > 0 && files.length < minImages) {
-      throw new Error(`Please upload at least ${minImages} image${minImages === 1 ? "" : "s"}.`);
-    }
-    if (files.length > maxImages) {
-      throw new Error(`Maximum ${maxImages} images allowed.`);
-    }
-    
-    // Validate required fields
-    const proofFields = (c.proof_fields as any[]) ?? [];
-    for (const field of proofFields) {
-      if (field.required && !fieldValues[field.key]?.trim()) {
-        throw new Error(`${field.label} is required.`);
-      }
-      const value = fieldValues[field.key] || "";
-      if (value.length > field.maxLen) {
-        throw new Error(`${field.label} must be ${field.maxLen} characters or less.`);
-      }
-    }
-    
-    // Upload images
-    const paths: string[] = [];
-    for (const file of files) {
-      const path = `${session.user.id}/${c.clickId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      const { error } = await supabase.storage.from("offer-proofs").upload(path, file, { contentType: file.type, upsert: false });
-      if (error) throw new Error(error.message);
-      paths.push(path);
-    }
-    
-    // Submit proof with field values
-    return submitProof({ data: { clickId: c.clickId, proofPaths: paths, fieldValues, userNote: notes } });
-  }, onSuccess: () => navigate({ to: "/submissions" }), onError: (error) => {
-    const msg = error instanceof Error ? error.message : "Could not submit proof";
-    // Parse MKT_INVALID_PROOF error details
-    if (msg.includes("MKT_INVALID_PROOF")) {
-      const match = msg.match(/missing ([\w\s]+)/i);
-      if (match) {
-        setErrorMessage(`Please provide: ${match[1]}`);
-        return;
-      }
-    }
-    setErrorMessage(msg);
-  } });
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      if (!session?.user.id || !c?.clickId)
+        throw new Error("Start this task before submitting proof.");
 
-  if (isLoading) return <AppShell subtitle="Tasks"><p className="mt-8 text-center text-sm text-muted-foreground">Loading task…</p></AppShell>;
+      // Validate required images
+      const minImages = c.proof_min_images ?? 1;
+      const maxImages = c.proof_max_images ?? 3;
+      if (maxImages > 0 && files.length < minImages) {
+        throw new Error(`Please upload at least ${minImages} image${minImages === 1 ? "" : "s"}.`);
+      }
+      if (files.length > maxImages) {
+        throw new Error(`Maximum ${maxImages} images allowed.`);
+      }
+
+      // Validate required fields
+      const proofFields = (c.proof_fields as any[]) ?? [];
+      for (const field of proofFields) {
+        if (field.required && !fieldValues[field.key]?.trim()) {
+          throw new Error(`${field.label} is required.`);
+        }
+        const value = fieldValues[field.key] || "";
+        if (value.length > field.maxLen) {
+          throw new Error(`${field.label} must be ${field.maxLen} characters or less.`);
+        }
+      }
+
+      // Upload images
+      const paths: string[] = [];
+      for (const file of files) {
+        const path = `${session.user.id}/${c.clickId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        const { error } = await supabase.storage
+          .from("offer-proofs")
+          .upload(path, file, { contentType: file.type, upsert: false });
+        if (error) throw new Error(error.message);
+        paths.push(path);
+      }
+
+      // Submit proof with field values
+      return submitProof({
+        data: { clickId: c.clickId, proofPaths: paths, fieldValues, userNote: notes },
+      });
+    },
+    onSuccess: () => navigate({ to: "/submissions" }),
+    onError: (error) => {
+      const msg = error instanceof Error ? error.message : "Could not submit proof";
+      // Parse MKT_INVALID_PROOF error details
+      if (msg.includes("MKT_INVALID_PROOF")) {
+        const match = msg.match(/missing ([\w\s]+)/i);
+        if (match) {
+          setErrorMessage(`Please provide: ${match[1]}`);
+          return;
+        }
+      }
+      setErrorMessage(msg);
+    },
+  });
+
+  if (isLoading)
+    return (
+      <AppShell subtitle="Tasks">
+        <p className="mt-8 text-center text-sm text-muted-foreground">Loading task…</p>
+      </AppShell>
+    );
   if (!c) {
     return (
       <AppShell subtitle="Tasks">
@@ -111,8 +125,8 @@ function ProofSubmissionPage() {
           </span>
           <h1 className="text-lg">Task started</h1>
           <p className="max-w-xs text-sm text-muted-foreground">
-            Complete <strong>{c.name}</strong> and your {formatMoney(Number(c.publisher_reward))} reward is credited
-            automatically — nothing to upload.
+            Complete <strong>{c.name}</strong> and your {formatMoney(Number(c.publisher_reward))}{" "}
+            reward is credited automatically — nothing to upload.
           </p>
           <Button variant="jade" className="mt-2 w-full" onClick={() => navigate(backTo)}>
             Got it
@@ -129,7 +143,9 @@ function ProofSubmissionPage() {
       <div className="surface-card mt-3 p-4">
         <VerificationBadge verification="proof" />
         <p className="mt-1.5 font-semibold">{c.name}</p>
-        <p className="text-amount text-sm text-gold-dark">{formatMoney(Number(c.publisher_reward))} on approval</p>
+        <p className="text-amount text-sm text-gold-dark">
+          {formatMoney(Number(c.publisher_reward))} on approval
+        </p>
       </div>
 
       <SectionHeading
@@ -158,7 +174,11 @@ function ProofSubmissionPage() {
             <Label className="text-xs text-muted-foreground">Example of a good proof:</Label>
             <div className="overflow-hidden rounded-xl border border-border">
               {/* @ts-ignore */}
-              <img src={c.campaign_options[0].proof_example_url} alt="Proof example" className="w-full object-contain bg-background-alt" />
+              <img
+                src={c.campaign_options[0].proof_example_url}
+                alt="Proof example"
+                className="w-full object-contain bg-background-alt"
+              />
             </div>
           </div>
         )}
@@ -166,11 +186,17 @@ function ProofSubmissionPage() {
         {(c.proof_max_images ?? 3) > 0 && (
           <div className="space-y-1.5">
             <Label htmlFor="proof-file">
-              Screenshot{(c.proof_min_images ?? 1) > 1 ? "s" : ""} {(c.proof_min_images ?? 1) > 0 && `(${c.proof_min_images}-${c.proof_max_images} required)`}
+              Screenshot{(c.proof_min_images ?? 1) > 1 ? "s" : ""}{" "}
+              {(c.proof_min_images ?? 1) > 0 &&
+                `(${c.proof_min_images}-${c.proof_max_images} required)`}
             </Label>
             {preview ? (
               <div className="relative overflow-hidden rounded-2xl border border-border">
-                <img src={preview} alt="Proof preview" className="max-h-72 w-full object-contain bg-background-alt" />
+                <img
+                  src={preview}
+                  alt="Proof preview"
+                  className="max-h-72 w-full object-contain bg-background-alt"
+                />
                 <button
                   type="button"
                   aria-label="Remove screenshot"
@@ -195,8 +221,12 @@ function ProofSubmissionPage() {
                 className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border bg-background-alt px-4 py-8 text-center"
               >
                 <ImagePlus className="size-7 text-primary" />
-                <span className="text-sm font-semibold">Tap to add screenshot{(c.proof_max_images ?? 3) > 1 ? "s" : ""}</span>
-                <span className="text-xs text-muted-foreground">PNG, JPG or WebP · up to {c.proof_max_images} images, 5 MB each</span>
+                <span className="text-sm font-semibold">
+                  Tap to add screenshot{(c.proof_max_images ?? 3) > 1 ? "s" : ""}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  PNG, JPG or WebP · up to {c.proof_max_images} images, 5 MB each
+                </span>
               </label>
             )}
             <input
@@ -208,9 +238,17 @@ function ProofSubmissionPage() {
               onChange={(e) => {
                 const selected = Array.from(e.target.files ?? []);
                 const maxFiles = c.proof_max_images ?? 3;
-                const valid = selected.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 5 * 1024 * 1024).slice(0, maxFiles);
+                const valid = selected
+                  .filter(
+                    (file) =>
+                      ["image/jpeg", "image/png", "image/webp"].includes(file.type) &&
+                      file.size <= 5 * 1024 * 1024,
+                  )
+                  .slice(0, maxFiles);
                 if (valid.length !== selected.length || selected.length > maxFiles) {
-                  setErrorMessage(`Use up to ${maxFiles} JPEG, PNG, or WebP images, each no larger than 5 MB.`);
+                  setErrorMessage(
+                    `Use up to ${maxFiles} JPEG, PNG, or WebP images, each no larger than 5 MB.`,
+                  );
                 }
                 setFiles(valid);
                 setPreview(valid[0] ? URL.createObjectURL(valid[0]) : null);
@@ -252,8 +290,19 @@ function ProofSubmissionPage() {
           />
         </div>
 
-        {(errorMessage || submitMutation.isError) && <p className="text-sm text-destructive">{errorMessage || "Could not submit proof. Please try again."}</p>}
-        <Button type="submit" variant="gold" size="lg" className="w-full" disabled={submitMutation.isPending} data-testid="proof-submit">
+        {(errorMessage || submitMutation.isError) && (
+          <p className="text-sm text-destructive">
+            {errorMessage || "Could not submit proof. Please try again."}
+          </p>
+        )}
+        <Button
+          type="submit"
+          variant="gold"
+          size="lg"
+          className="w-full"
+          disabled={submitMutation.isPending}
+          data-testid="proof-submit"
+        >
           Submit for review
         </Button>
       </form>

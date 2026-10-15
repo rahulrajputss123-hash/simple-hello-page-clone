@@ -29,7 +29,9 @@ function Flow({ steps }: { steps: string[] }) {
         <li key={step} className="flex items-center text-[11px] font-semibold">
           <span
             className={`rounded-full px-2.5 py-1 ${
-              i === 0 ? "bg-jade-gradient text-primary-foreground" : "bg-background-alt text-foreground"
+              i === 0
+                ? "bg-jade-gradient text-primary-foreground"
+                : "bg-background-alt text-foreground"
             }`}
           >
             {step}
@@ -142,12 +144,14 @@ function MicrotaskDetailPage() {
       </section>
 
       <SectionHeading
-          variant="ribbon"
-          icon={Info}
-          iconSrc="/icons/icon-document-info.webp"
-          title="About This Task"
-        />
-      <div className="surface-card p-4 text-sm leading-relaxed text-muted-foreground">{c.description}</div>
+        variant="ribbon"
+        icon={Info}
+        iconSrc="/icons/icon-document-info.webp"
+        title="About This Task"
+      />
+      <div className="surface-card p-4 text-sm leading-relaxed text-muted-foreground">
+        {c.description}
+      </div>
 
       <div className="surface-card mt-3 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -174,29 +178,30 @@ function MicrotaskDetailPage() {
           </Button>
         ) : (
           <>
-          <Button
-            variant="jade"
-            size="lg"
-            className="w-full"
-            data-testid="start-task-btn"
-            onClick={() => {
-              popupRef.current = c.verification === "auto" ? window.open("about:blank", "_blank") : null;
-              clickMutation.mutate();
-            }}
-            disabled={clickMutation.isPending}
-          >
-            {clickMutation.isPending ? "Starting..." : "Start Task"}
-          </Button>
-          {redirectUrl && (
-            <a
-              href={redirectUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 block text-center text-sm font-semibold text-primary underline"
+            <Button
+              variant="jade"
+              size="lg"
+              className="w-full"
+              data-testid="start-task-btn"
+              onClick={() => {
+                popupRef.current =
+                  c.verification === "auto" ? window.open("about:blank", "_blank") : null;
+                clickMutation.mutate();
+              }}
+              disabled={clickMutation.isPending}
             >
-              Open offer
-            </a>
-          )}
+              {clickMutation.isPending ? "Starting..." : "Start Task"}
+            </Button>
+            {redirectUrl && (
+              <a
+                href={redirectUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 block text-center text-sm font-semibold text-primary underline"
+              >
+                Open offer
+              </a>
+            )}
           </>
         )}
       </div>

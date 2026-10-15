@@ -124,7 +124,7 @@ export function SdkOfferwallManager() {
       // Resize to max 256px and convert to WebP at 82% quality
       toast.info("Resizing and converting to WebP...");
       const optimizedFile = await resizeAndConvertToWebP(file, 256, 0.82);
-      
+
       const { uploadUrl, token, publicUrl } = await requestUpload({
         data: { filename: optimizedFile.name.slice(0, 120) },
       });
@@ -554,7 +554,7 @@ export function SdkOfferwallManager() {
                   {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {(provider as any).lock_type !== "none" && (
                     <p className="text-xs text-amber-600">
-                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      {}
                       🔒{" "}
                       {(provider as any).lock_type === "time"
                         ? // eslint-disable-next-line @typescript-eslint/no-explicit-any

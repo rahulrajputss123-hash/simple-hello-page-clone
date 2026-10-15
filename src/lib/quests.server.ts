@@ -359,7 +359,19 @@ export async function startLockerQuestImpl(userId: string, questKey: string) {
   if (existing.data) {
     // Resume where the chain left off. Clamped so a session whose quest later
     // had lockers removed still points at a URL that exists.
-    const index = Math.min(Math.max(0, Number(existing.data.current_step ?? 0)), urls.length - 1);
+    const currentStep = Number(existing.data.current_step ?? 0);
+    const index = Math.min(Math.max(0, currentStep), urls.length - 1);
+
+    // For every locker in the chain, set issued_step and step_issued_at.
+    // This ensures the locker was actually opened before we credit on return.
+    const nextStep = currentStep + 1;
+    if (nextStep <= urls.length) {
+      await db
+        .from("quest_sessions")
+        .update({ issued_step: nextStep, step_issued_at: new Date().toISOString() })
+        .eq("id", existing.data.id);
+    }
+
     return {
       sessionId: existing.data.id as string,
       lockerUrl: urls[index]!,
@@ -378,6 +390,8 @@ export async function startLockerQuestImpl(userId: string, questKey: string) {
       reward_amount: quest.reward_amount,
       quest_type: "locker",
       current_step: 0,
+      issued_step: 1, // First locker is now issued
+      step_issued_at: new Date().toISOString(),
       session_token: sessionToken,
     } as never)
     .select("id")
@@ -395,6 +409,13 @@ export async function startLockerQuestImpl(userId: string, questKey: string) {
  * back. Because AdBlueMedia's redirect URL is static (no per-session token
  * macro), we match on (userId, questKey, status='started') ordered by
  * started_at DESC — i.e. the most recently started session wins.
+ *
+ * ⚠️  SECURITY: This function now requires issued_step === current_step + 1
+ * and a minimum time elapsed since step_issued_at. This is a TIME-BASED
+ * MITIGATION ONLY. The proper verification would be a server-to-server
+ * postback from the locker network confirming the user completed the challenge.
+ * Without that postback, a user who knows the return URL can hit it directly
+ * after the minimum time and claim credit without actually completing the locker.
  *
  * ⚠️  KNOWN LIMITATION: if the same user has two browser tabs or devices
  * simultaneously running the same locker quest, the OLDER session will never
@@ -427,6 +448,8 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
 
   // Each return hit completes one locker in the chain.
   const total = Math.max(1, quest.locker_urls.length);
+  const currentStep = Number(session.data.current_step ?? 0);
+  const issuedStep = Number(session.data.issued_step ?? 0);
 
   if (session.data.status === "verified") {
     const reward = Number(quest.reward_amount);
@@ -446,13 +469,34 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
       nextUrl: null,
     };
   }
-  const completedCount = Number(session.data.current_step ?? 0) + 1;
+
+  // SECURITY: Require that a locker was actually opened (issued_step === current_step + 1)
+  // and that the minimum time has elapsed since step_issued_at.
+  if (issuedStep !== currentStep + 1) {
+    throw new Error("No locker is currently open. Please start from the app.");
+  }
+
+  const issuedAt = session.data.step_issued_at
+    ? new Date(session.data.step_issued_at as string).getTime()
+    : 0;
+  const elapsed = (Date.now() - issuedAt) / 1000;
+  if (!issuedAt || elapsed < quest.min_seconds_per_step) {
+    throw new Error(
+      `Locker opened too quickly. Please spend at least ${quest.min_seconds_per_step} seconds completing it.`,
+    );
+  }
+
+  const completedCount = currentStep + 1;
 
   // --- More lockers left: advance and hand back the next URL -----------------
   if (completedCount < total) {
     await db
       .from("quest_sessions")
-      .update({ current_step: completedCount, step_issued_at: new Date().toISOString() })
+      .update({
+        current_step: completedCount,
+        issued_step: 0,
+        step_issued_at: null,
+      })
       .eq("id", session.data.id);
 
     return {
@@ -474,6 +518,7 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
     .from("quest_sessions")
     .update({
       current_step: completedCount,
+      issued_step: 0,
       step_issued_at: null,
       status: "verified",
       verified_at: new Date().toISOString(),
@@ -519,18 +564,24 @@ export async function startShortlinkStepImpl(userId: string, questKey: string, s
   if (!session.data) throw new Error("Start the quest first.");
 
   const currentStep = Number(session.data.current_step ?? 0);
-  if (step > currentStep + 1) throw new Error("Complete the previous step first.");
+  const issuedStep = Number(session.data.issued_step ?? 0);
 
-  const nextStep = Math.max(currentStep, step);
+  // Only allow opening the next step (current_step + 1), or re-opening the same pending step
+  if (step !== currentStep + 1 && step !== issuedStep) {
+    throw new Error("Complete the previous step first.");
+  }
+
+  // Set only issued_step and step_issued_at. Never touch current_step on open.
+  // Re-opening the same step is idempotent (updates step_issued_at timestamp).
   await db
     .from("quest_sessions")
-    .update({ current_step: nextStep, step_issued_at: new Date().toISOString() })
+    .update({ issued_step: step, step_issued_at: new Date().toISOString() })
     .eq("id", session.data.id);
 
   const url = quest.shortlink_steps[step - 1]?.url ?? null;
   return {
     sessionId: session.data.id as string,
-    step: nextStep,
+    step,
     url,
     minSeconds: quest.min_seconds_per_step,
   };
@@ -562,11 +613,30 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
       reward,
       `Shortlink quest — ${quest.label}`,
     );
-    return { completed: true, credited: true, reward, nextStep: null };
+    // Step count is whatever the admin configured (1-10) — no fixed assumption.
+    const total = Math.max(1, quest.shortlink_steps.length);
+    return {
+      completed: true,
+      credited: true,
+      reward,
+      nextStep: null,
+      nextUrl: null,
+      step: total,
+      total,
+    };
   }
 
   const currentStep = Number(session.data.current_step ?? 0);
-  if (currentStep !== step) throw new Error("Wrong step — go back and start from the app.");
+  const issuedStep = Number(session.data.issued_step ?? 0);
+
+  // Require that this step was actually opened (issued_step === step)
+  // and that it's the next sequential step (step === current_step + 1)
+  if (issuedStep !== step) {
+    throw new Error("This step was not opened. Please start from the app.");
+  }
+  if (step !== currentStep + 1) {
+    throw new Error("Wrong step — go back and start from the app.");
+  }
 
   const issuedAt = session.data.step_issued_at
     ? new Date(session.data.step_issued_at as string).getTime()
@@ -589,6 +659,7 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
       .from("quest_sessions")
       .update({
         current_step: step,
+        issued_step: 0,
         step_issued_at: null,
         status: "verified",
         verified_at: new Date().toISOString(),
@@ -602,12 +673,21 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
       reward,
       `Shortlink quest — ${quest.label}`,
     );
-    return { completed: true, credited: true, reward, nextStep: null };
+    return {
+      completed: true,
+      credited: true,
+      reward,
+      nextStep: null,
+      nextUrl: null,
+      step: total,
+      total,
+    };
   }
 
+  // Non-final step: set current_step = step (mark this step as completed), clear issued_step
   await db
     .from("quest_sessions")
-    .update({ current_step: step, step_issued_at: null })
+    .update({ current_step: step, issued_step: 0, step_issued_at: null })
     .eq("id", session.data.id);
 
   return {
@@ -616,5 +696,7 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
     reward: 0,
     nextStep: step + 1,
     nextUrl: quest.shortlink_steps[step]?.url ?? null,
+    step,
+    total,
   };
 }

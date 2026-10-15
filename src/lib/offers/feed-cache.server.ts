@@ -274,15 +274,15 @@ async function enabledProviders(): Promise<OfferProvider[]> {
     .select("*")
     .eq("enabled", true);
   if (error) throw error;
-  
+
   const providers = (data ?? []) as unknown as OfferProvider[];
-  
+
   // Cache for 60s
-  _enabledProvidersCache = { 
-    data: providers, 
-    expires: Date.now() + PROVIDERS_CACHE_TTL_MS 
+  _enabledProvidersCache = {
+    data: providers,
+    expires: Date.now() + PROVIDERS_CACHE_TTL_MS,
   };
-  
+
   return providers;
 }
 
@@ -307,10 +307,7 @@ export async function assembleFeaturedImpl(
     return visible;
   }
 
-  const [providers, hasImageUrl] = await Promise.all([
-    enabledProviders(),
-    offersHasImageUrl(),
-  ]);
+  const [providers, hasImageUrl] = await Promise.all([enabledProviders(), offersHasImageUrl()]);
 
   const weightByProviderId = new Map(
     providers.map((p) => [p.id, readNetworkFeedConfig(p.slug, p.sync_config).weight]),
@@ -319,7 +316,7 @@ export async function assembleFeaturedImpl(
 
   // Gather network offer ids per provider for this country (refresh on miss/expiry) - IN PARALLEL
   const collected = new Map<string, number>(); // offerId -> highest provider weight
-  
+
   const providerResults = await Promise.all(
     providers.map(async (provider) => {
       let list = await getOrRefreshProviderCountry(provider, country, settings, ip);
@@ -331,7 +328,7 @@ export async function assembleFeaturedImpl(
         list = await getOrRefreshProviderCountry(provider, settings.defaultCountry, settings, ip);
       }
       return { provider, list };
-    })
+    }),
   );
 
   // Collect results
@@ -593,10 +590,10 @@ export async function getFeaturedFeedImpl(
   const settings = await getFeedSettingsImpl();
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
   let offers = await assembleFeaturedImpl(requestedCountry, scope, settings, ip, userId);
-  
+
   // Enrich with user's claim status
   offers = await enrichOffersWithClaimStatus(offers, userId);
-  
+
   return { country, offers };
 }
 
@@ -609,7 +606,7 @@ export async function getOfferByIdImpl(
   userId: string | null,
 ): Promise<FeaturedOffer | null> {
   const hasImageUrl = await offersHasImageUrl();
-  
+
   const { data: offer } = await supabaseAdmin
     .from("offers")
     .select("*")
@@ -716,10 +713,10 @@ export async function adminRefreshProviderImpl(providerId: string, country?: str
   if (!provider.enabled) throw new Error("Provider is disabled.");
   const target = normalizeCountry(country) ?? settings.defaultCountry;
   const list = await refreshProviderCountry(provider as unknown as OfferProvider, target, settings);
-  
+
   // Clear assembled cache after provider sync
   clearAssembledCache();
-  
+
   return { provider: provider.slug, country: target, count: list.length };
 }
 

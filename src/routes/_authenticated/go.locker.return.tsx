@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Home, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, Home, Loader2, XCircle } from "lucide-react";
 import { z } from "zod";
 
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { completeLockerQuest } from "@/lib/quests.functions";
+import { completeLockerQuest, startLockerQuest } from "@/lib/quests.functions";
 import { formatMoney } from "@/lib/coinquest";
 import { useAuth } from "@/lib/auth";
 
@@ -39,15 +39,17 @@ export const Route = createFileRoute("/_authenticated/go/locker/return")({
 type State =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  /** One locker in a multi-locker chain finished; the next one is opening. */
-  | { kind: "advancing"; step: number; total: number }
+  /** One locker in a multi-locker chain finished; show "Open Locker N+1" button. */
+  | { kind: "advancing"; step: number; total: number; nextStep: number; nextUrl: string }
   | { kind: "success"; reward: number };
 
 function LockerReturnPage() {
   const { questKey } = useSearch({ from: "/_authenticated/go/locker/return" });
   const navigate = useNavigate();
   const complete = useServerFn(completeLockerQuest);
+  const openNext = useServerFn(startLockerQuest);
   const [state, setState] = useState<State>({ kind: "loading" });
+  const [openingNext, setOpeningNext] = useState(false);
   const queryClient = useQueryClient();
   const { session } = useAuth();
 
@@ -62,14 +64,18 @@ function LockerReturnPage() {
         const result = await complete({ data: { questKey } });
         if (cancelled) return;
 
-        // Multi-locker chain: more lockers to go. Show a brief hand-off and
-        // send the browser into the next locker, the same way a shortlink step
-        // advances to its next URL.
+        // Multi-locker chain: more lockers to go. Show "Locker N done" and "Open Locker N+1" button
+        // instead of auto-redirecting, matching the shortlink UX.
         if (!result.completed && result.nextUrl) {
-          setState({ kind: "advancing", step: result.step, total: result.total });
-          setTimeout(() => {
-            if (!cancelled) window.location.href = result.nextUrl as string;
-          }, 1200);
+          setState({
+            kind: "advancing",
+            step: result.step,
+            total: result.total,
+            nextStep: result.nextStep as number,
+            nextUrl: result.nextUrl,
+          });
+          // Invalidate to show progress immediately
+          void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
           return;
         }
 
@@ -83,14 +89,14 @@ function LockerReturnPage() {
         }
 
         setState({ kind: "success", reward: result.reward });
-        
+
         // Invalidate queries to show wallet credit immediately
         void queryClient.invalidateQueries({ queryKey: ["profile"] });
         void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
         void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
         void queryClient.invalidateQueries({ queryKey: ["transactions"] });
         void queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
-        
+
         // Auto-redirect to home after 3 seconds.
         setTimeout(() => {
           if (!cancelled) void navigate({ to: "/home" });
@@ -112,6 +118,23 @@ function LockerReturnPage() {
 
   const goHome = () => void navigate({ to: "/home" });
 
+  const handleOpenNext = async () => {
+    if (state.kind !== "advancing" || !questKey) return;
+    setOpeningNext(true);
+    try {
+      const result = await openNext({ data: { questKey } });
+      if (!("unavailable" in result) && result.lockerUrl) {
+        window.open(result.lockerUrl, "_blank", "noopener,noreferrer");
+      }
+      goHome();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not open the next locker.";
+      setState({ kind: "error", message });
+    } finally {
+      setOpeningNext(false);
+    }
+  };
+
   return (
     <AppShell subtitle="Quest reward">
       <div
@@ -128,13 +151,29 @@ function LockerReturnPage() {
         {state.kind === "advancing" && (
           <>
             <CheckCircle2 className="success-pop size-10 text-primary" />
-            <p className="text-lg font-semibold" data-testid="locker-step-advancing">
-              Locker {state.step} of {state.total} done — opening the next one…
+            <p className="text-lg font-semibold" data-testid="locker-step-done">
+              Locker {state.step} of {state.total} done
             </p>
-            <Loader2 className="size-6 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">
+              Continue to locker {state.nextStep} to keep going.
+            </p>
             <p className="text-xs text-muted-foreground">
               Your reward is credited once all {state.total} lockers are complete.
             </p>
+            <div className="flex gap-2">
+              <Button
+                variant="jade"
+                disabled={openingNext}
+                onClick={handleOpenNext}
+                data-testid="locker-open-next"
+              >
+                {openingNext ? "Opening…" : `Open Locker ${state.nextStep}`}
+                <ExternalLink className="ml-1 size-4" />
+              </Button>
+              <Button variant="outline" onClick={goHome} data-testid="locker-back-home">
+                <Home className="mr-1 size-4" /> Home
+              </Button>
+            </div>
           </>
         )}
 

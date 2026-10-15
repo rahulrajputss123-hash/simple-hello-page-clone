@@ -206,7 +206,7 @@ export function BannersManager() {
       // Resize to max 1200px wide and convert to WebP at 82% quality
       toast.info("Resizing and converting to WebP...");
       const optimizedFile = await resizeAndConvertToWebP(file, 1200, 0.82);
-      
+
       const { uploadUrl, token, publicUrl } = await requestUpload({
         data: { filename: optimizedFile.name.slice(0, 120) },
       });

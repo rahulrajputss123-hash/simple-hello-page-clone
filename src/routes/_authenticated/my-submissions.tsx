@@ -49,7 +49,8 @@ function SubmissionCard({ s }: { s: SubmissionView }) {
       void queryClient.invalidateQueries({ queryKey: ["my-submissions"] });
     },
     onError: (err) => {
-      const msg = err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
+      const msg =
+        err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Something went wrong";
       toast.error("Couldn't submit appeal", { description: msg });
     },
   });
@@ -59,7 +60,9 @@ function SubmissionCard({ s }: { s: SubmissionView }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="mt-1.5 truncate font-semibold">{s.campaignTitle}</p>
-          <p className="text-xs text-muted-foreground">Submitted {formatShortDate(s.submittedAt)}</p>
+          <p className="text-xs text-muted-foreground">
+            Submitted {formatShortDate(s.submittedAt)}
+          </p>
         </div>
         <div className="shrink-0 text-right">
           <p className="text-amount text-sm text-gold-dark">{formatMoney(s.reward)}</p>
@@ -99,7 +102,13 @@ function SubmissionCard({ s }: { s: SubmissionView }) {
                 onChange={(e) => setReason(e.target.value)}
               />
               <div className="flex gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => setAppealing(false)} disabled={mutation.isPending}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAppealing(false)}
+                  disabled={mutation.isPending}
+                >
                   Cancel
                 </Button>
                 <Button
@@ -166,7 +175,9 @@ function MySubmissionsPage() {
           <Skeleton className="h-32 rounded-2xl" />
         </div>
       ) : submissions.isError ? (
-        <p className="surface-card mt-3 p-4 text-sm text-destructive">Couldn't load your submissions.</p>
+        <p className="surface-card mt-3 p-4 text-sm text-destructive">
+          Couldn't load your submissions.
+        </p>
       ) : submissions.data.length === 0 ? (
         <p className="surface-card mt-3 p-4 text-center text-sm text-muted-foreground">
           No submissions yet. Complete a microtask to get started!

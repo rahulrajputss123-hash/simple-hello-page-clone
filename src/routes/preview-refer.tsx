@@ -97,10 +97,6 @@ const MOCK_AUTH = {
 };
 
 function PreviewRefer() {
-  if (!import.meta.env.DEV) {
-    return <Navigate to="/" replace />;
-  }
-  
   const queryClient = useQueryClient();
   const [ready, setReady] = useState(false);
 
@@ -108,6 +104,10 @@ function PreviewRefer() {
     queryClient.setQueryData(["referrals", USER_ID], REFERRALS);
     setReady(true);
   }, [queryClient]);
+
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
 
   if (!ready) return null;
 

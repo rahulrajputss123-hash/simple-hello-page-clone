@@ -18,13 +18,31 @@ import { mktDb } from "@/lib/marketplace/db.server";
 
 const testRequests = new Map<string, number[]>();
 
-function logPostback(campaignId: string, result: string, clickId: string | null, txnId: string | null, httpStatus: number) {
+function logPostback(
+  campaignId: string,
+  result: string,
+  clickId: string | null,
+  txnId: string | null,
+  httpStatus: number,
+) {
   void (async () => {
     try {
-      await mktDb.from("campaign_postback_log").insert({ campaign_id: campaignId, result, click_id: clickId, txn_id: txnId, http_status: httpStatus });
-      const { data: overflow } = await mktDb.from("campaign_postback_log").select("id").eq("campaign_id", campaignId).order("received_at", { ascending: false }).range(200, 1000);
+      await mktDb.from("campaign_postback_log").insert({
+        campaign_id: campaignId,
+        result,
+        click_id: clickId,
+        txn_id: txnId,
+        http_status: httpStatus,
+      });
+      const { data: overflow } = await mktDb
+        .from("campaign_postback_log")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .order("received_at", { ascending: false })
+        .range(200, 1000);
       const overflowIds = (overflow ?? []).map((row) => row.id);
-      if (overflowIds.length) await mktDb.from("campaign_postback_log").delete().in("id", overflowIds);
+      if (overflowIds.length)
+        await mktDb.from("campaign_postback_log").delete().in("id", overflowIds);
     } catch (error) {
       console.error("[postback] log write failed", error instanceof Error ? error.message : error);
     }
@@ -58,7 +76,11 @@ async function handle(request: Request) {
   try {
     // Step 1: Resolve campaign from click_id using service client
     const { data: click, error: clickErr } = clickId
-      ? await mktDb.from("campaign_clicks").select("campaign_id").eq("click_id", clickId).maybeSingle()
+      ? await mktDb
+          .from("campaign_clicks")
+          .select("campaign_id")
+          .eq("click_id", clickId)
+          .maybeSingle()
       : { data: campaignIdParam ? { campaign_id: campaignIdParam } : null, error: null };
 
     if (clickErr) {
@@ -71,7 +93,8 @@ async function handle(request: Request) {
     }
 
     const campaignId = click.campaign_id;
-    const logResult = (result: string, status: number) => logPostback(campaignId, result, clickId, txnId, status);
+    const logResult = (result: string, status: number) =>
+      logPostback(campaignId, result, clickId, txnId, status);
 
     // Step 2: Fetch campaign_secrets with service client
     const { data: secrets, error: secretErr } = await mktDb
@@ -91,9 +114,13 @@ async function handle(request: Request) {
     }
 
     // Step 3: Verify IP allowlist if configured
-    if (secrets.ip_allowlist && Array.isArray(secrets.ip_allowlist) && secrets.ip_allowlist.length > 0) {
+    if (
+      secrets.ip_allowlist &&
+      Array.isArray(secrets.ip_allowlist) &&
+      secrets.ip_allowlist.length > 0
+    ) {
       const sourceIp = clientIp(request);
-      
+
       if (!secrets.ip_allowlist.includes(sourceIp)) {
         logResult("unauthorized", 401);
         return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -106,7 +133,7 @@ async function handle(request: Request) {
     if (secrets.auth_mode === "token") {
       // Token mode: compare query param token with secret using timing-safe comparison
       const providedToken = url.searchParams.get("token");
-      
+
       if (!providedToken) {
         logResult("unauthorized", 401);
         return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -120,7 +147,7 @@ async function handle(request: Request) {
       try {
         signatureValid = crypto.timingSafeEqual(
           Buffer.from(providedToken),
-          Buffer.from(secrets.secret)
+          Buffer.from(secrets.secret),
         );
       } catch {
         signatureValid = false;
@@ -133,7 +160,7 @@ async function handle(request: Request) {
     } else if (secrets.auth_mode === "hmac") {
       // HMAC mode: verify X-Signature header
       const signature = request.headers.get("x-signature");
-      
+
       if (!signature) {
         logResult("unauthorized", 401);
         return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -159,7 +186,7 @@ async function handle(request: Request) {
       try {
         signatureValid = crypto.timingSafeEqual(
           Buffer.from(signature),
-          Buffer.from(expectedSignature)
+          Buffer.from(expectedSignature),
         );
       } catch {
         signatureValid = false;
@@ -177,7 +204,8 @@ async function handle(request: Request) {
       // Test requests can never credit anyone: this branch never calls mkt_record_conversion.
       const now = Date.now();
       const recent = (testRequests.get(campaignId) ?? []).filter((time) => now - time < 60_000);
-      if (recent.length >= 30) return Response.json({ ok: false, error: "rate limited" }, { status: 429 });
+      if (recent.length >= 30)
+        return Response.json({ ok: false, error: "rate limited" }, { status: 429 });
       recent.push(now);
       testRequests.set(campaignId, recent);
       logResult("test_ok", 200);
@@ -203,13 +231,16 @@ async function handle(request: Request) {
       txnId,
       sourceIp,
       eventData,
-      signatureValid
+      signatureValid,
     );
 
     if (!result.recorded) {
       const outcome = result.reason === "held" ? "held" : "duplicate";
       logResult(outcome, 200);
-      return Response.json({ ok: true, message: result.reason || "already_credited" }, { status: 200 });
+      return Response.json(
+        { ok: true, message: result.reason || "already_credited" },
+        { status: 200 },
+      );
     }
 
     logResult("credited", 200);
@@ -222,7 +253,10 @@ async function handle(request: Request) {
       { status: 200 },
     );
   } catch (err) {
-    console.error("[postback] error", { clickId, error: err instanceof Error ? err.message : String(err) });
+    console.error("[postback] error", {
+      clickId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return Response.json({ ok: false, error: "internal error" }, { status: 500 });
   }
 }

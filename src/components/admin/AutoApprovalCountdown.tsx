@@ -9,17 +9,17 @@ interface AutoApprovalCountdownProps {
 
 function formatTimeRemaining(ms: number): string {
   if (ms <= 0) return "Due now";
-  
+
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  
+
   if (minutes > 60) {
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
     return `${hours}h ${remainingMinutes}m`;
   }
-  
+
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
@@ -78,7 +78,9 @@ export function AutoApprovalCountdown({
       >
         <Clock className="size-3.5 shrink-0 animate-pulse" />
         <span>
-          {isOverdue ? "Auto-approving..." : `Auto-approves in ${formatTimeRemaining(timeRemaining)}`}
+          {isOverdue
+            ? "Auto-approving..."
+            : `Auto-approves in ${formatTimeRemaining(timeRemaining)}`}
         </span>
       </div>
     );
