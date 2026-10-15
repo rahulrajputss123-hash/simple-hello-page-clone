@@ -81,15 +81,18 @@ CREATE OR REPLACE FUNCTION public.mkt__notify(
   p_kind text DEFAULT 'info'
 )
 RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 BEGIN
-  INSERT INTO public.notifications (user_id, title, body, kind)
-  VALUES (p_user_id, p_title, p_body, p_kind);
-EXCEPTION WHEN OTHERS THEN
-  -- Silent fail - never break the main flow
-  RAISE WARNING 'mkt__notify failed for user %: %', p_user_id, SQLERRM;
+  -- Insert only the required columns, wrap in exception block
+  BEGIN
+    INSERT INTO public.notifications (user_id, title, body, kind)
+    VALUES (p_user_id, p_title, p_body, p_kind);
+  EXCEPTION WHEN OTHERS THEN
+    -- Silent fail - never break the main flow
+    NULL;
+  END;
 END;
-$$;
+$fn$;
 
 REVOKE ALL ON FUNCTION public.mkt__notify FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mkt__notify TO service_role;
@@ -105,7 +108,7 @@ COMMENT ON FUNCTION public.mkt__notify IS
 -- Trigger: Campaign review decision (approved/rejected)
 CREATE OR REPLACE FUNCTION public.mkt__notify_campaign_reviewed()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 BEGIN
   -- Only fire when status changes to 'active' (approved) or 'rejected'
   IF (TG_OP = 'UPDATE' AND OLD.status <> NEW.status) THEN
@@ -134,7 +137,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_notify_campaign_reviewed ON public.campaigns;
 CREATE TRIGGER mkt_notify_campaign_reviewed
@@ -145,7 +148,7 @@ CREATE TRIGGER mkt_notify_campaign_reviewed
 -- Trigger: New proof submission (notify advertiser)
 CREATE OR REPLACE FUNCTION public.mkt__notify_new_submission()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_campaign_name text;
   v_advertiser_id uuid;
@@ -166,7 +169,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_notify_new_submission ON public.campaign_submissions;
 CREATE TRIGGER mkt_notify_new_submission
@@ -179,7 +182,7 @@ CREATE TRIGGER mkt_notify_new_submission
 -- Trigger: Proof decision (approved/rejected/auto-approved)
 CREATE OR REPLACE FUNCTION public.mkt__notify_proof_decision()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_campaign_name text;
   v_advertiser_id uuid;
@@ -238,7 +241,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_notify_proof_decision ON public.campaign_submissions;
 CREATE TRIGGER mkt_notify_proof_decision
@@ -249,7 +252,7 @@ CREATE TRIGGER mkt_notify_proof_decision
 -- Trigger: Campaign completed or budget exhausted
 CREATE OR REPLACE FUNCTION public.mkt__notify_campaign_ended()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_reason text;
 BEGIN
@@ -270,7 +273,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_notify_campaign_ended ON public.campaigns;
 CREATE TRIGGER mkt_notify_campaign_ended
@@ -282,7 +285,7 @@ CREATE TRIGGER mkt_notify_campaign_ended
 -- This runs on advertiser_ledger inserts that bring deposit_balance below threshold
 CREATE OR REPLACE FUNCTION public.mkt__check_low_balance()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_current_balance numeric;
   v_already_notified boolean;
@@ -321,7 +324,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_check_low_balance ON public.advertiser_ledger;
 CREATE TRIGGER mkt_check_low_balance
@@ -336,7 +339,7 @@ CREATE TRIGGER mkt_check_low_balance
 -- Trigger: Enforce daily limit on campaign clicks
 CREATE OR REPLACE FUNCTION public.mkt__check_daily_limit()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_daily_limit integer;
   v_count_24h integer;
@@ -368,7 +371,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_check_daily_limit ON public.campaign_clicks;
 CREATE TRIGGER mkt_check_daily_limit
@@ -395,7 +398,7 @@ CREATE OR REPLACE FUNCTION public.mkt_calculate_topup_cost(
   p_additional_completions integer
 )
 RETURNS jsonb
-LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $fn$
 DECLARE
   v_campaign record;
   v_settings record;
@@ -435,7 +438,7 @@ BEGIN
     'completions', p_additional_completions
   );
 END;
-$$;
+$fn$;
 
 REVOKE ALL ON FUNCTION public.mkt_calculate_topup_cost FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mkt_calculate_topup_cost TO service_role;

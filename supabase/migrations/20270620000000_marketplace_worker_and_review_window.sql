@@ -300,8 +300,8 @@ GRANT EXECUTE ON FUNCTION public.mkt_run_due_work TO service_role;
 -- 5. PG_CRON JOB SETUP
 -- =============================================================================
 
--- Schedule mkt_run_due_work every minute using safe pattern
-DO $$
+-- Schedule mkt_run_due_work every minute using safe pattern with distinct dollar quotes
+DO $do$
 BEGIN
   -- Check if job already exists, unschedule if present
   IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'mkt-process-due-work') THEN
@@ -312,9 +312,9 @@ BEGIN
   PERFORM cron.schedule(
     'mkt-process-due-work',
     '* * * * *', -- Every minute
-    $$SELECT public.mkt_run_due_work(200);$$
+    $cron$SELECT public.mkt_run_due_work(200);$cron$
   );
-END $$;
+END $do$;
 
 -- Grant necessary permissions for cron job execution
 GRANT USAGE ON SCHEMA cron TO postgres;
