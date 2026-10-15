@@ -81,15 +81,18 @@ CREATE OR REPLACE FUNCTION public.mkt__notify(
   p_kind text DEFAULT 'info'
 )
 RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 BEGIN
-  INSERT INTO public.notifications (user_id, title, body, kind)
-  VALUES (p_user_id, p_title, p_body, p_kind);
-EXCEPTION WHEN OTHERS THEN
-  -- Silent fail - never break the main flow
-  RAISE WARNING 'mkt__notify failed for user %: %', p_user_id, SQLERRM;
+  -- Insert only the required columns, wrap in exception block
+  BEGIN
+    INSERT INTO public.notifications (user_id, title, body, kind)
+    VALUES (p_user_id, p_title, p_body, p_kind);
+  EXCEPTION WHEN OTHERS THEN
+    -- Silent fail - never break the main flow
+    NULL;
+  END;
 END;
-$$;
+$fn$;
 
 REVOKE ALL ON FUNCTION public.mkt__notify FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mkt__notify TO service_role;
@@ -105,7 +108,7 @@ COMMENT ON FUNCTION public.mkt__notify IS
 -- Trigger: Campaign review decision (approved/rejected)
 CREATE OR REPLACE FUNCTION public.mkt__notify_campaign_reviewed()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 BEGIN
   -- Only fire when status changes to 'active' (approved) or 'rejected'
   IF (TG_OP = 'UPDATE' AND OLD.status <> NEW.status) THEN
@@ -134,7 +137,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_notify_campaign_reviewed ON public.campaigns;
 CREATE TRIGGER mkt_notify_campaign_reviewed
@@ -145,7 +148,7 @@ CREATE TRIGGER mkt_notify_campaign_reviewed
 -- Trigger: New proof submission (notify advertiser)
 CREATE OR REPLACE FUNCTION public.mkt__notify_new_submission()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_campaign_name text;
   v_advertiser_id uuid;
@@ -166,7 +169,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_notify_new_submission ON public.campaign_submissions;
 CREATE TRIGGER mkt_notify_new_submission
@@ -179,66 +182,71 @@ CREATE TRIGGER mkt_notify_new_submission
 -- Trigger: Proof decision (approved/rejected/auto-approved)
 CREATE OR REPLACE FUNCTION public.mkt__notify_proof_decision()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_campaign_name text;
   v_advertiser_id uuid;
   v_is_auto_approved boolean;
 BEGIN
-  -- Only fire when status changes to final state
-  IF (TG_OP = 'UPDATE' AND OLD.status = 'pending' AND NEW.status IN ('approved', 'rejected')) THEN
-    -- Get campaign info
-    SELECT name, advertiser_id INTO v_campaign_name, v_advertiser_id
-      FROM public.campaigns
-     WHERE id = NEW.campaign_id;
-    
-    -- Check if this was auto-approved (decided_by is NULL or system UUID)
-    v_is_auto_approved := (NEW.decided_by IS NULL OR NEW.decided_by = '00000000-0000-0000-0000-000000000000'::uuid);
-    
-    IF NEW.status = 'approved' THEN
-      -- Notify earner: proof approved
-      IF v_is_auto_approved THEN
-        PERFORM public.mkt__notify(
-          NEW.publisher_id,
-          'Proof auto-approved',
-          'Your proof for "' || v_campaign_name || '" was automatically approved. You earned $' || NEW.publisher_reward::text || '.',
-          'success'
-        );
-        -- Notify advertiser: submission auto-approved
-        IF v_advertiser_id IS NOT NULL THEN
+  BEGIN
+    -- Only fire when status changes to final state
+    IF (TG_OP = 'UPDATE' AND OLD.status = 'pending' AND NEW.status IN ('approved', 'rejected')) THEN
+      -- Get campaign info
+      SELECT name, advertiser_id INTO v_campaign_name, v_advertiser_id
+        FROM public.campaigns
+       WHERE id = NEW.campaign_id;
+      
+      -- Check if auto-approved (reviewed_by is NULL or system UUID, or reviewer_role = 'system')
+      v_is_auto_approved := (NEW.reviewed_by IS NULL OR NEW.reviewed_by = '00000000-0000-0000-0000-000000000000'::uuid OR NEW.reviewer_role = 'system');
+      
+      IF NEW.status = 'approved' THEN
+        -- Notify earner: proof approved
+        IF v_is_auto_approved THEN
           PERFORM public.mkt__notify(
-            v_advertiser_id,
-            'Submission auto-approved',
-            'A proof in "' || v_campaign_name || '" was automatically approved (review window expired).',
-            'info'
+            NEW.user_id,
+            'Proof auto-approved',
+            format('Your proof for "%s" was automatically approved. You earned $%s.', v_campaign_name, NEW.reward_amount::text),
+            'success'
+          );
+          -- Notify advertiser: submission auto-approved
+          IF v_advertiser_id IS NOT NULL THEN
+            PERFORM public.mkt__notify(
+              v_advertiser_id,
+              'Submission auto-approved',
+              format('A proof in "%s" was automatically approved (review window expired).', v_campaign_name),
+              'info'
+            );
+          END IF;
+        ELSE
+          PERFORM public.mkt__notify(
+            NEW.user_id,
+            'Proof approved',
+            format('Your proof for "%s" was approved. You earned $%s.', v_campaign_name, NEW.reward_amount::text),
+            'success'
           );
         END IF;
-      ELSE
+      ELSIF NEW.status = 'rejected' THEN
+        -- Notify earner: proof rejected
         PERFORM public.mkt__notify(
-          NEW.publisher_id,
-          'Proof approved',
-          'Your proof for "' || v_campaign_name || '" was approved. You earned $' || NEW.publisher_reward::text || '.',
-          'success'
+          NEW.user_id,
+          'Proof rejected',
+          CASE
+            WHEN NEW.rejection_reason IS NOT NULL AND NEW.rejection_reason <> ''
+            THEN format('Your proof for "%s" was rejected: %s', v_campaign_name, NEW.rejection_reason)
+            ELSE format('Your proof for "%s" was rejected. Please try again if slots are available.', v_campaign_name)
+          END,
+          'error'
         );
       END IF;
-    ELSIF NEW.status = 'rejected' THEN
-      -- Notify earner: proof rejected
-      PERFORM public.mkt__notify(
-        NEW.publisher_id,
-        'Proof rejected',
-        CASE
-          WHEN NEW.rejection_reason IS NOT NULL AND NEW.rejection_reason <> ''
-          THEN 'Your proof for "' || v_campaign_name || '" was rejected: ' || NEW.rejection_reason
-          ELSE 'Your proof for "' || v_campaign_name || '" was rejected. Please try again if slots are available.'
-        END,
-        'error'
-      );
     END IF;
-  END IF;
-  
-  RETURN NEW;
+    
+    RETURN NEW;
+  EXCEPTION WHEN OTHERS THEN
+    -- Never break the main flow
+    RETURN NEW;
+  END;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_notify_proof_decision ON public.campaign_submissions;
 CREATE TRIGGER mkt_notify_proof_decision
@@ -249,7 +257,7 @@ CREATE TRIGGER mkt_notify_proof_decision
 -- Trigger: Campaign completed or budget exhausted
 CREATE OR REPLACE FUNCTION public.mkt__notify_campaign_ended()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_reason text;
 BEGIN
@@ -270,7 +278,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_notify_campaign_ended ON public.campaigns;
 CREATE TRIGGER mkt_notify_campaign_ended
@@ -282,7 +290,7 @@ CREATE TRIGGER mkt_notify_campaign_ended
 -- This runs on advertiser_ledger inserts that bring deposit_balance below threshold
 CREATE OR REPLACE FUNCTION public.mkt__check_low_balance()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_current_balance numeric;
   v_already_notified boolean;
@@ -312,7 +320,7 @@ BEGIN
         PERFORM public.mkt__notify(
           NEW.advertiser_id,
           'Low campaign balance',
-          'Your Campaign Balance is below $5.00 (currently $' || v_current_balance::text || '). Add funds to keep campaigns running.',
+          format('Your Campaign Balance is below $5.00 (currently $%s). Add funds to keep campaigns running.', v_current_balance::text),
           'warning'
         );
       END IF;
@@ -321,7 +329,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_check_low_balance ON public.advertiser_ledger;
 CREATE TRIGGER mkt_check_low_balance
@@ -336,11 +344,16 @@ CREATE TRIGGER mkt_check_low_balance
 -- Trigger: Enforce daily limit on campaign clicks
 CREATE OR REPLACE FUNCTION public.mkt__check_daily_limit()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_daily_limit integer;
   v_count_24h integer;
 BEGIN
+  -- Return early if campaign_options table doesn't exist yet
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'campaign_options') THEN
+    RETURN NEW;
+  END IF;
+  
   -- Get daily limit from campaign_options
   SELECT daily_limit INTO v_daily_limit
     FROM public.campaign_options
@@ -361,14 +374,14 @@ BEGIN
      AND status <> 'expired'
      AND created_at >= now() - interval '24 hours';
   
-  -- Check if limit reached
+  -- Check if limit reached (no longer uses RAISE ... USING MESSAGE)
   IF v_count_24h >= v_daily_limit THEN
-    RAISE EXCEPTION 'MKT_DAILY_LIMIT' USING MESSAGE = 'Daily completion limit reached for this campaign';
+    RAISE EXCEPTION 'MKT_DAILY_LIMIT: Daily completion limit reached for this campaign';
   END IF;
   
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS mkt_check_daily_limit ON public.campaign_clicks;
 CREATE TRIGGER mkt_check_daily_limit
@@ -395,7 +408,7 @@ CREATE OR REPLACE FUNCTION public.mkt_calculate_topup_cost(
   p_additional_completions integer
 )
 RETURNS jsonb
-LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $fn$
 DECLARE
   v_campaign record;
   v_settings record;
@@ -435,7 +448,7 @@ BEGIN
     'completions', p_additional_completions
   );
 END;
-$$;
+$fn$;
 
 REVOKE ALL ON FUNCTION public.mkt_calculate_topup_cost FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mkt_calculate_topup_cost TO service_role;
