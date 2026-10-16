@@ -102,6 +102,7 @@ export type SettingsView = {
   campaignFeeType: "per_campaign" | "per_slot";
   termsVersion: string;
   razorpayConfigured: boolean;
+  nowpaymentsConfigured: boolean;
 };
 
 export type CampaignView = {
@@ -200,6 +201,7 @@ function accountView(a: AdvertiserAccountRow): AdvertiserAccountView {
 
 function settingsView(s: MarketplaceSettingsRow): SettingsView {
   const promoEnds = s.promo_ends_at ? new Date(s.promo_ends_at) : null;
+  const { nowpaymentsConfigured } = require("./nowpayments.server");
   return {
     depositsEnabled: s.deposits_enabled,
     minDepositUsd: num(s.min_deposit_usd),
@@ -215,6 +217,7 @@ function settingsView(s: MarketplaceSettingsRow): SettingsView {
     campaignFeeType: s.campaign_fee_type,
     termsVersion: s.terms_version,
     razorpayConfigured: razorpayConfigured(),
+    nowpaymentsConfigured: nowpaymentsConfigured(),
   };
 }
 
@@ -831,6 +834,100 @@ export async function abandonDepositImpl(
     .eq("id", depositId)
     .eq("advertiser_id", userId)
     .in("status", ["created", "pending"]);
+}
+
+/* --------------------------------------------------------- nowpayments */
+
+/**
+ * Create a NOWPayments crypto deposit.
+ * Always charges in USD (crypto pricing). Returns invoice URL for redirect.
+ */
+export async function createNowpaymentsDepositImpl(
+  userId: string,
+  amountUsd: number,
+): Promise<{ depositId: string; invoiceUrl: string }> {
+  const account = await getAccount(userId);
+  if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
+  if (account.status !== "active") {
+    throw new DepositError(
+      "ACCOUNT_" + account.status.toUpperCase(),
+      "Your advertiser account can't deposit right now.",
+    );
+  }
+
+  const s = await loadMarketplaceSettings();
+  if (!s.deposits_enabled)
+    throw new DepositError("DEPOSITS_DISABLED", "Deposits are temporarily unavailable.");
+
+  const { nowpaymentsConfigured } = await import("./nowpayments.server");
+  if (!nowpaymentsConfigured())
+    throw new DepositError("GATEWAY_NOT_CONFIGURED", "Crypto payments are not configured yet.");
+
+  const amount = Math.round(amountUsd * 100) / 100;
+  if (!(amount >= num(s.min_deposit_usd) && amount <= num(s.max_deposit_usd))) {
+    throw new DepositError(
+      "AMOUNT_OUT_OF_RANGE",
+      `Deposit between $${num(s.min_deposit_usd).toFixed(2)} and $${num(s.max_deposit_usd).toFixed(2)}.`,
+    );
+  }
+
+  // Always charge in USD for crypto (fx_rate = 1)
+  const currency = "USD";
+  const chargeAmount = amount;
+  const fxRate = 1;
+
+  const { data: created, error: insErr } = await mktDb
+    .from("advertiser_deposits")
+    .insert({
+      advertiser_id: userId,
+      amount_usd: amount,
+      gateway: "nowpayments",
+      charge_currency: currency,
+      charge_amount: chargeAmount,
+      fx_rate: fxRate,
+      terms_version: s.terms_version,
+    })
+    .select("id")
+    .single();
+  if (insErr) throw new Error(`advertiser_deposits insert: ${insErr.message}`);
+  const depositId = (created as { id: string }).id;
+
+  let invoice;
+  try {
+    const { createNowpaymentsInvoice } = await import("./nowpayments.server");
+    const siteUrl = getSiteUrl();
+    invoice = await createNowpaymentsInvoice({
+      depositId,
+      amountUsd: amount,
+      successUrl: `${siteUrl}/advertiser/funds?deposit=${depositId}`,
+      cancelUrl: `${siteUrl}/advertiser/funds?cancelled=${depositId}`,
+      ipnCallbackUrl: `${siteUrl}/api/public/nowpayments-ipn`,
+    });
+  } catch (err) {
+    await mktDb
+      .from("advertiser_deposits")
+      .update({
+        status: "failed",
+        failure_reason:
+          `invoice_create_failed: ${err instanceof Error ? err.message : String(err)}`.slice(
+            0,
+            500,
+          ),
+      })
+      .eq("id", depositId);
+    throw new DepositError("INVOICE_FAILED", "Couldn't create the invoice. Please try again.");
+  }
+
+  const { error: updErr } = await mktDb
+    .from("advertiser_deposits")
+    .update({ gateway_order_id: invoice.invoiceId, status: "pending" })
+    .eq("id", depositId);
+  if (updErr) throw new Error(`advertiser_deposits invoice update: ${updErr.message}`);
+
+  return {
+    depositId,
+    invoiceUrl: invoice.invoiceUrl,
+  };
 }
 
 /* --------------------------------------------------------------- webhook */

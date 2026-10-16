@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   CheckCircle2,
@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Wallet,
   XCircle,
+  Coins,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ import {
   abandonDeposit,
   confirmCheckout,
   createDeposit,
+  createNowpaymentsDeposit,
   getDepositStatus,
 } from "@/lib/marketplace.functions";
 import type { DepositView } from "@/lib/marketplace/advertiser.server";
@@ -48,11 +50,18 @@ const PRESETS = [25, 50, 100, 250];
  *   4. Razorpay's `payment.captured` webhook hits /api/public/razorpay-webhook →
  *      mkt_credit_deposit. THAT is the only step that credits the balance.
  *   5. This screen polls getDepositStatus until succeeded / failed.
+ * 
+ * NOWPayments flow:
+ *   1. createNowpaymentsDeposit → server creates invoice, redirects to invoice_url
+ *   2. User pays on NOWPayments site
+ *   3. IPN webhook credits via mkt_credit_deposit
+ *   4. Poll status when returning from invoice
  */
 type Stage =
   | { kind: "idle" }
   | { kind: "creating" }
   | { kind: "checkout"; depositId: string }
+  | { kind: "crypto_redirect"; depositId: string }
   | { kind: "confirming"; depositId: string; amountUsd: number }
   | { kind: "succeeded"; amountUsd: number }
   | { kind: "failed"; reason: string };
@@ -67,8 +76,10 @@ function FundsPage() {
   const { overview, refreshOverview, advertiserActivated, overviewLoading } = useRole();
   const settings = overview?.settings;
   const account = overview?.account;
+  const router = useRouter();
 
   const create = useServerFn(createDeposit);
+  const createCrypto = useServerFn(createNowpaymentsDeposit);
   const confirm = useServerFn(confirmCheckout);
   const abandon = useServerFn(abandonDeposit);
   const status = useServerFn(getDepositStatus);
@@ -83,6 +94,15 @@ function FundsPage() {
     queryFn: async () => overview?.recentDeposits ?? [],
     enabled: Boolean(overview),
   });
+
+  // Handle return from NOWPayments (deposit query param)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const depositId = params.get("deposit");
+    if (depositId && stage.kind === "idle") {
+      setStage({ kind: "confirming", depositId, amountUsd: Number(amount) || 0 });
+    }
+  }, [amount, stage.kind]);
 
   // Poll for the webhook outcome while "confirming".
   useEffect(() => {
@@ -175,6 +195,23 @@ function FundsPage() {
     },
   });
 
+  const depositCrypto = useMutation({
+    mutationFn: async (amountUsd: number) => {
+      setStage({ kind: "creating" });
+      const result = await createCrypto({ data: { amountUsd } });
+      setStage({ kind: "crypto_redirect", depositId: result.depositId });
+      return result;
+    },
+    onSuccess: (result) => {
+      // Redirect to NOWPayments invoice
+      window.location.href = result.invoiceUrl;
+    },
+    onError: (err) => {
+      setStage({ kind: "idle" });
+      toast.error("Couldn't start the crypto deposit", { description: friendlyError(err) });
+    },
+  });
+
   const n = Number(amount) || 0;
   const min = settings?.minDepositUsd ?? 10;
   const max = settings?.maxDepositUsd ?? 1000;
@@ -189,7 +226,20 @@ function FundsPage() {
           ? "Payments aren't configured yet."
           : null;
   const busy =
-    stage.kind === "creating" || stage.kind === "checkout" || stage.kind === "confirming";
+    stage.kind === "creating" ||
+    stage.kind === "checkout" ||
+    stage.kind === "crypto_redirect" ||
+    stage.kind === "confirming";
+
+  const cryptoDisabledReason = !advertiserActivated
+    ? "Activate advertiser mode first."
+    : account && account.status !== "active"
+      ? `Your account is ${account.status}.`
+      : settings && !settings.depositsEnabled
+        ? "Deposits are temporarily unavailable."
+        : settings && !settings.nowpaymentsConfigured
+          ? "Crypto payments aren't configured yet."
+          : null;
 
   return (
     <AppShell subtitle="Advertiser" mainClass="page-fade-in">
@@ -342,6 +392,45 @@ function FundsPage() {
         <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
           <ShieldCheck className="size-3" /> Secured by Razorpay · UPI, cards, net banking, wallets
         </p>
+
+        {settings?.nowpaymentsConfigured && (
+          <>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="w-full"
+              disabled={Boolean(cryptoDisabledReason) || !inRange || busy}
+              onClick={() => {
+                if (cryptoDisabledReason || !inRange || busy) return;
+                depositCrypto.mutate(Math.round(n * 100) / 100);
+              }}
+            >
+              {stage.kind === "crypto_redirect" ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Redirecting to invoice…
+                </>
+              ) : (
+                <>
+                  <Coins className="size-4" /> Pay {formatMoney(n)} with crypto
+                </>
+              )}
+            </Button>
+            <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+              <ShieldCheck className="size-3" /> Secured by NOWPayments · BTC, ETH, USDT, and 200+
+              coins
+            </p>
+          </>
+        )}
       </form>
 
       {(recent.data?.length ?? 0) > 0 && (
