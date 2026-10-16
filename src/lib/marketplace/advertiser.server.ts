@@ -1735,17 +1735,14 @@ export async function editCampaignImpl(
   if (input.proofMinImages !== undefined) updates.proof_min_images = input.proofMinImages;
   if (input.proofMaxImages !== undefined) updates.proof_max_images = input.proofMaxImages;
   if (input.proofFields !== undefined) updates.proof_fields = input.proofFields;
-  if (input.proofExampleUrl !== undefined) updates.proof_example_url = input.proofExampleUrl;
   if (input.trackingUrl !== undefined) updates.tracking_url = input.trackingUrl;
   if (input.ipAllowlist !== undefined) updates.ip_allowlist = input.ipAllowlist;
   if (input.startsAt !== undefined) updates.starts_at = input.startsAt;
   if (input.endsAt !== undefined) updates.ends_at = input.endsAt;
   if (input.devices !== undefined) updates.devices = input.devices;
   if (input.eligibilityNote !== undefined) updates.eligibility_notes = input.eligibilityNote;
-  if (input.dailyLimit !== undefined) updates.daily_limit = input.dailyLimit;
-  if (input.reviewWindow !== undefined) updates.review_window_hours = input.reviewWindow;
-  if (input.categoryId !== undefined) updates.category_id = input.categoryId;
-  if (input.subcategoryId !== undefined) updates.subcategory_id = input.subcategoryId;
+  // category_id and subcategory_id are NOT allowed in edit (database guard rejects them)
+  // They must be set only at creation time
 
   // Budget fields - only allowed in draft status
   if (campaign.status === "draft") {
@@ -1758,7 +1755,7 @@ export async function editCampaignImpl(
     );
   }
 
-  // Validate category/subcategory relationship if changed
+  // Validate category/subcategory relationship if changed (but don't update them)
   if (input.subcategoryId) {
     const categoryId = input.categoryId ?? campaign.category_id;
     const { data: subcat, error: subcatErr } = await mktDb
@@ -1776,7 +1773,41 @@ export async function editCampaignImpl(
     }
   }
 
-  // Update the campaign
+  // Build campaign_options updates (these belong to campaign_options table, not campaigns)
+  const optionsUpdates: Record<string, any> = {};
+  let hasOptionsChanges = false;
+
+  if (input.proofExampleUrl !== undefined) {
+    optionsUpdates.proof_example_url = input.proofExampleUrl;
+    hasOptionsChanges = true;
+  }
+  if (input.reviewWindow !== undefined) {
+    optionsUpdates.review_window_hours = input.reviewWindow;
+    hasOptionsChanges = true;
+  }
+  if (input.dailyLimit !== undefined) {
+    optionsUpdates.daily_limit = input.dailyLimit;
+    hasOptionsChanges = true;
+  }
+
+  // Update campaign_options if any of those fields changed
+  if (hasOptionsChanges) {
+    optionsUpdates.campaign_id = input.campaignId;
+    optionsUpdates.updated_at = new Date().toISOString();
+
+    const { error: optionsErr } = await mktDb
+      .from("campaign_options")
+      .upsert(optionsUpdates, { onConflict: "campaign_id" });
+
+    if (optionsErr) {
+      throw new DepositError(
+        "UPDATE_FAILED",
+        `Failed to update campaign options: ${optionsErr.message}`,
+      );
+    }
+  }
+
+  // Update the campaigns table
   if (Object.keys(updates).length > 0) {
     updates.updated_at = new Date().toISOString();
 
