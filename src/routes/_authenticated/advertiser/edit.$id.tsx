@@ -13,9 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { BackLink } from "@/components/marketplace/Preview";
-import { editCampaign, getCampaignResults, listCategories } from "@/lib/marketplace.functions";
+import { editCampaign, getCampaignForEdit, listCategories } from "@/lib/marketplace.functions";
 import { useRole } from "@/lib/marketplace/role";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/advertiser/edit/$id")({
   head: () => ({ meta: [{ title: "Edit Campaign — CashGPT" }] }),
@@ -30,7 +29,7 @@ function EditCampaignPage() {
   const queryClient = useQueryClient();
   const { overview, refreshOverview } = useRole();
   const editFn = useServerFn(editCampaign);
-  const getCampaign = useServerFn(getCampaignResults);
+  const getCampaign = useServerFn(getCampaignForEdit);
   const categoriesFn = useServerFn(listCategories);
 
   const campaign = useQuery({
@@ -129,13 +128,16 @@ function EditCampaignPage() {
     mutationFn: async () => {
       const updates: Record<string, any> = { campaignId: id };
 
-      // Only include changed fields
+      // Only include changed fields (send undefined to explicitly clear nullable fields)
       if (title !== campaign.data?.name) updates.title = title.trim();
       if (description !== campaign.data?.description) updates.description = description.trim();
       if (landingUrl !== campaign.data?.landingUrl) updates.landingUrl = landingUrl.trim();
-      if (estimatedMinutes && Number(estimatedMinutes) !== campaign.data?.estimatedMinutes) {
-        updates.estimatedMinutes = Number(estimatedMinutes);
+      
+      const estMin = estimatedMinutes ? Number(estimatedMinutes) : null;
+      if (estMin !== campaign.data?.estimatedMinutes) {
+        updates.estimatedMinutes = estMin;
       }
+      
       if (proofDescription !== campaign.data?.proofDescription) {
         updates.proofDescription = proofDescription.trim();
       }
@@ -157,9 +159,12 @@ function EditCampaignPage() {
       if (eligibilityNote !== campaign.data?.eligibilityNotes) {
         updates.eligibilityNote = eligibilityNote.trim() || null;
       }
-      if (dailyLimit && Number(dailyLimit) !== campaign.data?.dailyLimit) {
-        updates.dailyLimit = Number(dailyLimit);
+      
+      const dayLim = dailyLimit ? Number(dailyLimit) : null;
+      if (dayLim !== campaign.data?.dailyLimit) {
+        updates.dailyLimit = dayLim;
       }
+      
       if (reviewWindow !== campaign.data?.reviewWindowHours) {
         updates.reviewWindow = reviewWindow;
       }
