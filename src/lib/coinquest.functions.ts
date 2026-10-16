@@ -115,6 +115,30 @@ export const createWithdrawal = createServerFn({ method: "POST" })
     return createWithdrawalImpl(context.userId, data.amount, data.payoutMethodId);
   });
 
+export const savePayoutMethod = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        methodType: z.string(),
+        label: z.string().trim().max(200),
+        holderName: z.string().trim().max(80).nullable().optional(),
+        upiId: z.string().trim().max(120).nullable().optional(),
+        paypalEmail: z.string().trim().max(200).nullable().optional(),
+        accountNumber: z.string().trim().max(60).nullable().optional(),
+        countryBankCode: z.string().trim().max(20).nullable().optional(),
+        bankName: z.string().trim().max(120).nullable().optional(),
+        country: z.string().trim().max(80).nullable().optional(),
+        giftCardRecipientEmail: z.string().trim().max(200).nullable().optional(),
+        walletAddress: z.string().trim().max(120).nullable().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { savePayoutMethodImpl } = await import("./coinquest.server");
+    return savePayoutMethodImpl(context.userId, data);
+  });
+
 export const cancelWithdrawal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
@@ -140,6 +164,7 @@ export const adminUpdateWithdrawal = createServerFn({ method: "POST" })
         status: z.enum(["approved", "rejected"]),
         note: z.string().trim().max(300).nullable().optional(),
         referenceId: z.string().trim().max(200).nullable().optional(),
+        transactionHash: z.string().trim().max(200).nullable().optional(),
       })
       .parse(input),
   )
@@ -151,6 +176,7 @@ export const adminUpdateWithdrawal = createServerFn({ method: "POST" })
       data.status,
       data.note ?? null,
       data.referenceId ?? null,
+      data.transactionHash ?? null,
     );
   });
 

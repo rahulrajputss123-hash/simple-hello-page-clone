@@ -145,6 +145,7 @@ export async function requestWithdrawalRpc(input: {
   payoutMethodId: string;
   methodType: string;
   snapshot: Json;
+  networkFee?: number | null;
 }) {
   return callWalletRpc("withdrawal_request", {
     p_user_id: input.userId,
@@ -152,6 +153,7 @@ export async function requestWithdrawalRpc(input: {
     p_payout_method_id: input.payoutMethodId,
     p_method_type: input.methodType,
     p_snapshot: input.snapshot,
+    p_network_fee: input.networkFee ?? null,
   });
 }
 
@@ -171,20 +173,22 @@ export type WithdrawalSettleResult = {
 
 /**
  * Admin approve/reject. Money moves only on the transition out of 'pending';
- * re-approving an approved request only updates the reference/note. Throws
- * WITHDRAWAL_ALREADY_SETTLED for any other change to a settled request.
+ * re-approving an approved request only updates the reference/note/transaction_hash.
+ * Throws WITHDRAWAL_ALREADY_SETTLED for any other change to a settled request.
  */
 export async function settleWithdrawalRpc(input: {
   requestId: string;
   decision: "approved" | "rejected";
   note: string | null;
   reference: string | null;
+  transactionHash?: string | null;
 }): Promise<WithdrawalSettleResult> {
   const data = await callWalletRpc("withdrawal_settle", {
     p_request_id: input.requestId,
     p_decision: input.decision,
     p_note: input.note,
     p_reference: input.reference,
+    p_transaction_hash: input.transactionHash ?? null,
   });
   return {
     settled: data.settled === true,

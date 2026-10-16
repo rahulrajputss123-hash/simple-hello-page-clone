@@ -34,7 +34,7 @@ import {
   type PayoutFieldName,
   type PayoutMethodType,
 } from "@/lib/payout-methods";
-import { cancelWithdrawal, createWithdrawal } from "@/lib/coinquest.functions";
+import { cancelWithdrawal, createWithdrawal, savePayoutMethod } from "@/lib/coinquest.functions";
 
 export const Route = createFileRoute("/_authenticated/wallet")({
   head: () => ({
@@ -60,6 +60,7 @@ function WalletPage() {
   const queryClient = useQueryClient();
   const withdraw = useServerFn(createWithdrawal);
   const cancel = useServerFn(cancelWithdrawal);
+  const savePayout = useServerFn(savePayoutMethod);
   const [amount, setAmount] = useState("");
   const [methodId, setMethodId] = useState<string>("");
   const [methodOpen, setMethodOpen] = useState(false);
@@ -118,22 +119,21 @@ function WalletPage() {
 
   const addMethod = useMutation({
     mutationFn: async (values: { type: PayoutMethodType; label: string; fields: DraftFields }) => {
-      const trimmed = (name: PayoutFieldName) => values.fields[name]?.trim() || null;
-      const { error } = await supabase.from("payout_methods").insert({
-        user_id: session!.user.id,
-        method_type: values.type,
-        label: values.label.trim() || payoutMethodLabel(values.type),
-        holder_name: trimmed("holder_name"),
-        upi_id: trimmed("upi_id"),
-        paypal_email: trimmed("paypal_email"),
-        account_number: trimmed("account_number"),
-        country_bank_code: trimmed("country_bank_code"),
-        bank_name: trimmed("bank_name"),
-        country: trimmed("country"),
-        gift_card_recipient_email: trimmed("gift_card_recipient_email"),
-        wallet_address: trimmed("wallet_address"),
+      await savePayout({
+        data: {
+          methodType: values.type,
+          label: values.label.trim() || payoutMethodLabel(values.type),
+          holderName: values.fields["holder_name"]?.trim() || null,
+          upiId: values.fields["upi_id"]?.trim() || null,
+          paypalEmail: values.fields["paypal_email"]?.trim() || null,
+          accountNumber: values.fields["account_number"]?.trim() || null,
+          countryBankCode: values.fields["country_bank_code"]?.trim() || null,
+          bankName: values.fields["bank_name"]?.trim() || null,
+          country: values.fields["country"]?.trim() || null,
+          giftCardRecipientEmail: values.fields["gift_card_recipient_email"]?.trim() || null,
+          walletAddress: values.fields["wallet_address"]?.trim() || null,
+        },
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Payout method saved.");
@@ -142,7 +142,7 @@ function WalletPage() {
       setDraftLabel("");
       void queryClient.invalidateQueries({ queryKey: ["payout-methods"] });
     },
-    onError: () => toast.error("Couldn't save that payout method."),
+    onError: (error: Error) => toast.error(error.message || "Couldn't save that payout method."),
   });
 
   const requestWithdrawal = useMutation({
@@ -172,6 +172,13 @@ function WalletPage() {
 
   const canWithdraw =
     Number(amount) >= MIN_WITHDRAWAL && Number(amount) <= balance - pending && Boolean(methodId);
+
+  // Calculate network fee preview for crypto methods
+  const selectedMethod = methods.data?.find((m) => m.id === methodId);
+  const selectedSpec = selectedMethod ? payoutMethodSpec(selectedMethod.method_type) : null;
+  const networkFee = selectedSpec?.networkFeeUsd ?? 0;
+  const methodMinimum = selectedSpec?.minWithdrawalUsd ?? MIN_WITHDRAWAL;
+  const netAmount = Number(amount) > 0 ? Number(amount) - networkFee : 0;
 
   return (
     <AppShell subtitle="Wallet" mainClass="page-fade-in">
@@ -325,6 +332,35 @@ function WalletPage() {
                   </div>
                 ))}
 
+                {/* Crypto network warning */}
+                {payoutMethodSpec(draftType)?.networkWarning && (
+                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-900 dark:text-amber-100">
+                    {payoutMethodSpec(draftType)?.networkWarning}
+                  </div>
+                )}
+
+                {/* Method info for crypto */}
+                {payoutMethodSpec(draftType)?.networkLabel && (
+                  <div className="rounded-xl bg-primary/5 border border-primary/10 p-3 space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Network:</span>
+                      <span className="font-semibold">{payoutMethodSpec(draftType)?.networkLabel}</span>
+                    </div>
+                    {payoutMethodSpec(draftType)?.minWithdrawalUsd && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Minimum withdrawal:</span>
+                        <span className="font-semibold">{formatMoney(payoutMethodSpec(draftType)!.minWithdrawalUsd!)}</span>
+                      </div>
+                    )}
+                    {payoutMethodSpec(draftType)?.networkFeeUsd && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Network fee:</span>
+                        <span className="font-semibold">{formatMoney(payoutMethodSpec(draftType)!.networkFeeUsd!)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <DialogFooter>
                   <Button
                     type="submit"
@@ -400,10 +436,44 @@ function WalletPage() {
           </div>
         )}
 
+        {/* Crypto network warning */}
+        {selectedSpec?.networkWarning && (
+          <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-900 dark:text-amber-100">
+            {selectedSpec.networkWarning}
+          </div>
+        )}
+
+        {/* Network fee preview for crypto */}
+        {networkFee > 0 && Number(amount) > 0 && (
+          <div className="rounded-xl bg-primary/5 border border-primary/10 p-3 space-y-1">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Withdrawal amount:</span>
+              <span className="font-semibold">{formatMoney(Number(amount))}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Network fee:</span>
+              <span className="font-semibold text-amber-600 dark:text-amber-400">
+                −{formatMoney(networkFee)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm border-t border-primary/10 pt-1 mt-1">
+              <span className="font-semibold">You receive:</span>
+              <span className="font-bold text-primary">{formatMoney(netAmount)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Method-specific minimum */}
+        {selectedSpec && methodMinimum > MIN_WITHDRAWAL && Number(amount) < methodMinimum && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            ⚠️ Minimum withdrawal for {selectedSpec.label} is {formatMoney(methodMinimum)}
+          </p>
+        )}
+
         <Button
           variant="gold"
           className="w-full gap-2"
-          disabled={!canWithdraw || requestWithdrawal.isPending}
+          disabled={!canWithdraw || requestWithdrawal.isPending || Number(amount) < methodMinimum}
           onClick={() => requestWithdrawal.mutate()}
           data-testid="wallet-request-withdrawal"
         >
@@ -432,26 +502,34 @@ function WalletPage() {
       ) : (
         <ul className="space-y-2">
           {withdrawals.data.map((request) => (
-            <li key={request.id} className="surface-card flex items-center justify-between p-3">
-              <div>
-                <p className="text-amount">{formatMoney(request.amount)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDateTime(request.created_at)}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
-                  {request.status}
-                </span>
-                {request.status === "pending" && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => cancelRequest.mutate(request.id)}
-                  >
-                    Cancel
-                  </Button>
-                )}
+            <li key={request.id} className="surface-card p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-amount">{formatMoney(request.amount)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateTime(request.created_at)}
+                  </p>
+                  {request.network_fee && Number(request.network_fee) > 0 && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Network fee: {formatMoney(request.network_fee)} · You receive:{" "}
+                      {formatMoney(request.amount - Number(request.network_fee))}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
+                    {request.status}
+                  </span>
+                  {request.status === "pending" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => cancelRequest.mutate(request.id)}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </div>
               </div>
             </li>
           ))}

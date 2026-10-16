@@ -854,6 +854,63 @@ export async function submitOfferProofImpl(userId: string, offerId: string, proo
   return updated.data;
 }
 
+export async function savePayoutMethodImpl(
+  userId: string,
+  input: {
+    methodType: string;
+    label: string;
+    holderName?: string | null;
+    upiId?: string | null;
+    paypalEmail?: string | null;
+    accountNumber?: string | null;
+    countryBankCode?: string | null;
+    bankName?: string | null;
+    country?: string | null;
+    giftCardRecipientEmail?: string | null;
+    walletAddress?: string | null;
+  },
+) {
+  const methodSpec = payoutMethodSpec(input.methodType);
+  if (!methodSpec?.available) {
+    throw new Error(`${methodSpec?.label ?? "That payout method"} is not available yet.`);
+  }
+
+  // Validate crypto wallet addresses server-side
+  if (input.walletAddress) {
+    const { validateCryptoAddress } = await import("./payout-methods");
+    const validation = validateCryptoAddress(input.methodType, input.walletAddress);
+    if (!validation.valid) {
+      throw new Error(validation.error || "Invalid wallet address");
+    }
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("payout_methods")
+    .insert({
+      user_id: userId,
+      method_type: input.methodType,
+      label: input.label || methodSpec.label,
+      holder_name: input.holderName?.trim() || null,
+      upi_id: input.upiId?.trim() || null,
+      paypal_email: input.paypalEmail?.trim() || null,
+      account_number: input.accountNumber?.trim() || null,
+      country_bank_code: input.countryBankCode?.trim() || null,
+      bank_name: input.bankName?.trim() || null,
+      country: input.country?.trim() || null,
+      gift_card_recipient_email: input.giftCardRecipientEmail?.trim() || null,
+      wallet_address: input.walletAddress?.trim() || null,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("[payout-method] save failed", { userId, error });
+    throw new Error("Could not save that payout method.");
+  }
+
+  return data;
+}
+
 export async function createWithdrawalImpl(userId: string, amount: number, payoutMethodId: string) {
   if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL) {
     throw new Error(`Minimum withdrawal is $${MIN_WITHDRAWAL.toFixed(2)}.`);
@@ -873,6 +930,22 @@ export async function createWithdrawalImpl(userId: string, amount: number, payou
     throw new Error(`${methodSpec?.label ?? "That payout method"} is not available yet.`);
   }
 
+  // Enforce per-method minimum withdrawal for crypto
+  const methodMin = methodSpec.minWithdrawalUsd ?? MIN_WITHDRAWAL;
+  if (amount < methodMin) {
+    throw new Error(
+      `Minimum withdrawal for ${methodSpec.label} is $${methodMin.toFixed(2)}.`,
+    );
+  }
+
+  // Calculate network fee for crypto methods
+  const networkFee = methodSpec.networkFeeUsd ?? 0;
+  if (networkFee > 0 && amount <= networkFee) {
+    throw new Error(
+      `Withdrawal amount must be greater than the network fee of $${networkFee.toFixed(2)}.`,
+    );
+  }
+
   // Balance check, one-pending rule, hold and ledger row run in one locked
   // transaction (withdrawal_request), so two simultaneous requests can no
   // longer both pass. method_type and the masked snapshot are captured so the
@@ -885,6 +958,7 @@ export async function createWithdrawalImpl(userId: string, amount: number, payou
       payoutMethodId,
       methodType: method.data.method_type,
       snapshot: buildPayoutSnapshot(method.data) as Json,
+      networkFee: networkFee > 0 ? networkFee : null,
     });
   } catch (error) {
     if (isWalletError(error, "WITHDRAWAL_INSUFFICIENT")) {
@@ -898,10 +972,12 @@ export async function createWithdrawalImpl(userId: string, amount: number, payou
     throw new Error("Could not submit that withdrawal.");
   }
 
+  const netAmount = amount - networkFee;
+  const feeNotice = networkFee > 0 ? ` (you receive $${netAmount.toFixed(2)} after a $${networkFee.toFixed(2)} network fee)` : "";
   await notify(
     userId,
     "Withdrawal submitted",
-    `$${amount.toFixed(2)} is pending review.`,
+    `$${amount.toFixed(2)} is pending review${feeNotice}.`,
     "wallet",
   );
   return created;
@@ -939,12 +1015,28 @@ export async function adminUpdateWithdrawalImpl(
   status: string,
   note: string | null,
   referenceId: string | null = null,
+  transactionHash: string | null = null,
 ) {
   if (status !== "approved" && status !== "rejected") throw new Error("Unsupported status.");
 
+  // Fetch the withdrawal request to check if it's a crypto method
+  const withdrawal = await supabaseAdmin
+    .from("withdrawal_requests")
+    .select("method_type")
+    .eq("id", id)
+    .maybeSingle();
+  
+  if (!withdrawal.data) throw new Error("Request not found.");
+
+  // Crypto methods require transaction_hash when approving
+  const { isCryptoMethod } = await import("./payout-methods");
+  if (status === "approved" && isCryptoMethod(withdrawal.data.method_type) && !transactionHash?.trim()) {
+    throw new Error("Transaction hash is required for crypto withdrawals.");
+  }
+
   // Money moves only on the transition out of 'pending', under a row lock
   // (withdrawal_settle). Re-approving an approved request only updates the
-  // fulfilment reference / note — it used to deduct the balance again.
+  // fulfilment reference / note / transaction_hash — it used to deduct the balance again.
   let result: Awaited<ReturnType<typeof settleWithdrawalRpc>>;
   try {
     result = await settleWithdrawalRpc({
@@ -952,6 +1044,7 @@ export async function adminUpdateWithdrawalImpl(
       decision: status,
       note,
       reference: referenceId,
+      transactionHash,
     });
   } catch (error) {
     if (isWalletError(error, "WITHDRAWAL_NOT_FOUND")) throw new Error("Request not found.");
