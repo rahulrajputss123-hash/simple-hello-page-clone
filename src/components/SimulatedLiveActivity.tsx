@@ -119,12 +119,12 @@ function questImageUrl(icon: string | null | undefined): string | null {
  * Purely presentational: nothing here writes data or triggers tracking.
  */
 export function SimulatedLiveActivity() {
-  const { data } = useQuery<FeaturedFeedResult>({
+  const { data, isSuccess: feedLoaded } = useQuery<FeaturedFeedResult>({
     queryKey: ["featured-feed", "home"],
     queryFn: skipToken,
   });
 
-  const { data: quests } = useQuery<QuestRow[]>({
+  const { data: quests, isSuccess: questsLoaded } = useQuery<QuestRow[]>({
     queryKey: ["quests-active"],
     queryFn: skipToken,
   });
@@ -149,20 +149,42 @@ export function SimulatedLiveActivity() {
 
   const activity = useSimulatedActivityFeed(items);
 
+  const queriesFinished = feedLoaded && questsLoaded;
+  const hasNoItems = queriesFinished && items.length === 0;
+
+  // Reserve height from first paint: show placeholder until first activity arrives
+  const showPlaceholder = !activity && !hasNoItems;
+
   return (
     <div
       // grid-rows 0fr→1fr animates the one-time reveal of the first activity so
       // the banner below never jumps. After that the slot stays at 1fr for good:
       // the feed replaces activities in place and never collapses again, so the
       // container height is stable and there is no blank gap between activities.
+      // If queries finish with no items, collapse to 0fr.
       className={`live-activity-slot grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        activity ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        activity || showPlaceholder ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
       }`}
       aria-live="polite"
       aria-atomic="true"
       data-testid="live-activity-slot"
     >
       <div className="overflow-hidden">
+        {showPlaceholder && (
+          <div className="pt-3">
+            <div
+              className="surface-card flex h-[56px] items-center gap-2.5 rounded-2xl p-2.5 shadow-soft"
+              data-testid="live-activity-placeholder"
+            >
+              <div className="size-9 shrink-0 rounded-full bg-muted" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-3 w-3/4 rounded bg-muted" />
+                <div className="h-3 w-1/2 rounded bg-muted" />
+              </div>
+              <div className="size-9 shrink-0 rounded-xl bg-muted" />
+            </div>
+          </div>
+        )}
         {activity && (
           <div className="pt-3">
             {/* Keying on activity.id swaps the card synchronously — React mounts

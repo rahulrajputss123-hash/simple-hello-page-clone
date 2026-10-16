@@ -92,7 +92,9 @@ function MyCampaignsPage() {
   const [rotatedInfo, setRotatedInfo] = useState<{ url: string; secret: string } | null>(null);
   const [showAddSlotsModal, setShowAddSlotsModal] = useState(false);
   const [addSlotsCampaign, setAddSlotsCampaign] = useState<CampaignView | null>(null);
-  const [additionalSlots, setAdditionalSlots] = useState("50");
+  const [additionalSlots, setAdditionalSlots] = useState("");
+  const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+  const [pauseCampaign, setPauseCampaign] = useState<CampaignView | null>(null);
 
   const key = ["my-campaigns", session?.user.id];
   const campaigns = useQuery({
@@ -148,13 +150,13 @@ function MyCampaignsPage() {
       await Promise.all([queryClient.invalidateQueries({ queryKey: key }), refreshOverview()]);
       setShowAddSlotsModal(false);
       setAddSlotsCampaign(null);
-      setAdditionalSlots("50");
+      setAdditionalSlots("10");
       toast.success("Budget added successfully");
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message.replace(/^[A-Z_]+: /, "") : "Failed to add budget";
       // Map common errors to friendly messages
-      const friendlyMsg = msg.includes("INSUFFICIENT_FUNDS")
+      const friendlyMsg = msg.includes("INSUFFICIENT_FUNDS") || msg.includes("Not enough balance")
         ? "Not enough balance. Add funds first."
         : msg.includes("NOT_OWNER")
           ? "You don't own this campaign."
@@ -167,8 +169,20 @@ function MyCampaignsPage() {
 
   const handleAddSlots = (campaign: CampaignView) => {
     setAddSlotsCampaign(campaign);
-    setAdditionalSlots("50");
+    setAdditionalSlots("10");
     setShowAddSlotsModal(true);
+  };
+
+  const handlePause = (campaign: CampaignView) => {
+    setPauseCampaign(campaign);
+    setShowPauseConfirm(true);
+  };
+
+  const confirmPause = () => {
+    if (!pauseCampaign) return;
+    mutation.mutate({ campaignId: pauseCampaign.id, action: "pause" });
+    setShowPauseConfirm(false);
+    setPauseCampaign(null);
   };
 
   const confirmAddSlots = () => {
@@ -375,7 +389,7 @@ function MyCampaignsPage() {
                         className="flex-1"
                         disabled={pending}
                         data-testid={`pause-${c.id}`}
-                        onClick={() => mutation.mutate({ campaignId: c.id, action: "pause" })}
+                        onClick={() => handlePause(c)}
                       >
                         {pending ? (
                           <Loader2 className="size-4 animate-spin" />
@@ -496,8 +510,20 @@ function MyCampaignsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {addSlotsCampaign && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Current slots:</span>
+                  <span className="font-medium">
+                    {addSlotsCampaign.maxCompletions} ({addSlotsCampaign.completions} completed,{" "}
+                    {addSlotsCampaign.maxCompletions - addSlotsCampaign.completions} open)
+                  </span>
+                </div>
+              </div>
+            )}
+            
             <div className="space-y-2">
-              <Label htmlFor="additional-slots">Number of slots to add</Label>
+              <Label htmlFor="additional-slots">Extra slots to add</Label>
               <Input
                 id="additional-slots"
                 type="number"
@@ -505,28 +531,61 @@ function MyCampaignsPage() {
                 max="10000"
                 value={additionalSlots}
                 onChange={(e) => setAdditionalSlots(e.target.value)}
-                placeholder="e.g. 50"
+                placeholder="e.g. 10"
               />
               <p className="text-xs text-muted-foreground">
                 Each slot allows one more person to complete this campaign.
               </p>
             </div>
+
             {slotsNum > 0 && addSlotsCampaign && (
               <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Cost per slot:</span>
-                  <span className="font-medium">{formatMoney(costPerSlot)}</span>
+                  <span className="text-muted-foreground">New total:</span>
+                  <span className="font-medium">
+                    {addSlotsCampaign.maxCompletions} + {slotsNum} = {addSlotsCampaign.maxCompletions + slotsNum}
+                  </span>
                 </div>
-                <div className="mt-1 flex justify-between border-t border-border pt-2">
-                  <span className="font-semibold">Total cost:</span>
-                  <span className="font-semibold text-primary">{formatMoney(totalCost)}</span>
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Your balance: {formatMoney(spendable)}
-                  {totalCost > spendable && (
-                    <span className="ml-1 text-destructive">(insufficient)</span>
-                  )}
-                </div>
+                
+                {addSlotsCampaign.status === "active" ? (
+                  <>
+                    <div className="mt-2 flex justify-between border-t border-border pt-2">
+                      <span className="font-semibold">Cost now:</span>
+                      <span className="font-semibold text-primary">
+                        {slotsNum} × {formatMoney(costPerSlot)} = {formatMoney(totalCost)}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Your balance: {formatMoney(spendable)}
+                      {totalCost > spendable && (
+                        <span className="ml-1 text-destructive">(insufficient)</span>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-2 space-y-2 border-t border-border pt-2">
+                    <p className="text-xs font-semibold text-gold-dark">
+                      ⚠️ This campaign is paused
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Pausing returned the unspent budget to your balance, and resuming will reserve
+                      budget for ALL open slots (current open slots + the new ones).
+                    </p>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Resume will reserve:</span>
+                      <span className="font-medium">
+                        {addSlotsCampaign.maxCompletions - addSlotsCampaign.completions + slotsNum} ×{" "}
+                        {formatMoney(costPerSlot)} = {formatMoney((addSlotsCampaign.maxCompletions - addSlotsCampaign.completions + slotsNum) * costPerSlot)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Your balance: {formatMoney(spendable)}
+                      {(addSlotsCampaign.maxCompletions - addSlotsCampaign.completions + slotsNum) * costPerSlot > spendable && (
+                        <span className="ml-1 text-destructive">(insufficient for resume)</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -541,12 +600,50 @@ function MyCampaignsPage() {
             <Button
               variant="jade"
               onClick={confirmAddSlots}
-              disabled={addBudgetMutation.isPending || totalCost > spendable || slotsNum < 1}
+              disabled={
+                addBudgetMutation.isPending ||
+                slotsNum < 1 ||
+                (addSlotsCampaign?.status === "active" && totalCost > spendable)
+              }
             >
               {addBudgetMutation.isPending ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : null}
-              Add {slotsNum} Slot{slotsNum !== 1 ? "s" : ""} for {formatMoney(totalCost)}
+              Add {slotsNum} Slot{slotsNum !== 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPauseConfirm} onOpenChange={setShowPauseConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pause Campaign?</DialogTitle>
+            <DialogDescription>
+              Pausing {pauseCampaign?.title || "this campaign"} will stop accepting new completions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {pauseCampaign && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                <p className="text-muted-foreground">
+                  Unspent budget ({formatMoney(pauseCampaign.remaining || 0)}) will be returned to
+                  your Campaign Balance; resuming reserves it again.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowPauseConfirm(false)}
+              disabled={mutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmPause} disabled={mutation.isPending}>
+              {mutation.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+              Pause Campaign
             </Button>
           </DialogFooter>
         </DialogContent>

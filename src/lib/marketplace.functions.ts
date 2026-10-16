@@ -239,6 +239,14 @@ export const getCampaignResults = createServerFn({ method: "POST" })
     return getCampaignResultsImpl(context.userId, data.campaignId);
   });
 
+export const getCampaignForEdit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { getCampaignForEditImpl } = await import("./marketplace/advertiser.server");
+    return getCampaignForEditImpl(context.userId, data.campaignId);
+  });
+
 export const getCampaignForEarner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))

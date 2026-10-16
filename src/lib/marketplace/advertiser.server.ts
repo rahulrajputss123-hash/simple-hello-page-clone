@@ -406,6 +406,68 @@ export async function getCampaignResultsImpl(userId: string, campaignId: string)
   };
 }
 
+/**
+ * Get campaign data for editing. Returns all editable fields plus read-only values.
+ * Verifies ownership and returns null if not found or not owned by user.
+ */
+export async function getCampaignForEditImpl(userId: string, campaignId: string) {
+  const { data: campaign, error } = await mktDb
+    .from("campaigns")
+    .select("*")
+    .eq("id", campaignId)
+    .eq("advertiser_id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!campaign) return null;
+
+  // Get campaign_options if they exist
+  const { data: options } = await mktDb
+    .from("campaign_options")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .maybeSingle();
+
+  return {
+    id: campaign.id,
+    name: campaign.name,
+    summary: campaign.summary,
+    description: campaign.description,
+    status: campaign.status as CampaignDbStatus,
+    verificationMode: campaign.verification_mode,
+    // Content fields
+    steps: campaign.steps,
+    rules: campaign.rules,
+    proofDescription: campaign.proof_description,
+    proofMinImages: campaign.proof_min_images,
+    proofMaxImages: campaign.proof_max_images,
+    proofFields: campaign.proof_fields || [],
+    proofExampleUrl: options?.proof_example_url || null,
+    // Location & targeting
+    categoryId: campaign.category_id,
+    subcategoryId: campaign.subcategory_id,
+    landingUrl: campaign.landing_url,
+    trackingUrl: campaign.tracking_url,
+    countries: campaign.countries || [],
+    devices: campaign.devices || [],
+    eligibilityNotes: campaign.eligibility_notes,
+    estimatedMinutes: campaign.estimated_minutes,
+    startsAt: campaign.starts_at,
+    endsAt: campaign.ends_at,
+    // Campaign options
+    reviewWindowHours: options?.review_window_hours || 24,
+    dailyLimit: options?.daily_limit || null,
+    // Read-only values
+    publisherReward: num(campaign.publisher_reward),
+    advertiserCost: num(campaign.advertiser_cost),
+    maxCompletions: campaign.max_completions,
+    completionsCount: campaign.completions_count,
+    budgetAllocated: num(campaign.budget_allocated),
+    budgetSpent: num(campaign.budget_spent),
+    budgetRemaining: num(campaign.budget_remaining),
+  };
+}
+
 export async function listCampaignsImpl(userId: string): Promise<CampaignView[]> {
   const { data, error } = await mktDb
     .from("campaigns")
