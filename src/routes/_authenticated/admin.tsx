@@ -19,7 +19,7 @@ import {
   adminUpdateOfferClaim,
   adminUpdateWithdrawal,
 } from "@/lib/coinquest.functions";
-import { payoutMethodLabel } from "@/lib/payout-methods";
+import { payoutMethodLabel, isCryptoMethod, getExplorerUrl } from "@/lib/payout-methods";
 import { OffersManager } from "@/components/admin/OffersManager";
 import { PremiumOnboardingManager } from "@/components/admin/PremiumOnboardingManager";
 import { QuestsManager } from "@/components/admin/QuestsManager";
@@ -117,6 +117,8 @@ function AdminPage() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   /** Admin-entered fulfilment reference, keyed by withdrawal id. */
   const [references, setReferences] = useState<Record<string, string>>({});
+  /** Transaction hash for crypto withdrawals, keyed by withdrawal id. */
+  const [transactionHashes, setTransactionHashes] = useState<Record<string, string>>({});
 
   const data = useQuery({
     queryKey: ["admin-overview"],
@@ -133,6 +135,7 @@ function AdminPage() {
       status: "approved" | "rejected";
       note?: string;
       referenceId?: string;
+      transactionHash?: string;
     }) =>
       updateWithdrawal({
         data: {
@@ -140,6 +143,7 @@ function AdminPage() {
           status: input.status,
           note: input.note ?? null,
           referenceId: input.referenceId?.trim() ? input.referenceId.trim() : null,
+          transactionHash: input.transactionHash?.trim() ? input.transactionHash.trim() : null,
         },
       }),
     onSuccess: () => {
@@ -250,6 +254,9 @@ function AdminPage() {
   const reference = (id: string) => references[id] ?? "";
   const setReference = (id: string, value: string) =>
     setReferences((prev) => ({ ...prev, [id]: value }));
+  const transactionHash = (id: string) => transactionHashes[id] ?? "";
+  const setTransactionHash = (id: string, value: string) =>
+    setTransactionHashes((prev) => ({ ...prev, [id]: value }));
 
   return (
     <AppShell subtitle="Admin">
@@ -448,13 +455,30 @@ function AdminPage() {
                         onChange={(event) => setNote(request.id, event.target.value)}
                         maxLength={300}
                       />
-                      <Input
-                        placeholder="Fulfilment reference (payout id / gift-card order / BTC txid)"
-                        value={reference(request.id)}
-                        onChange={(event) => setReference(request.id, event.target.value)}
-                        maxLength={200}
-                        data-testid={`admin-withdrawal-reference-${request.id}`}
-                      />
+                      {isCryptoMethod(request.method_type) ? (
+                        <>
+                          <Input
+                            placeholder="Transaction hash (required for crypto) *"
+                            value={transactionHash(request.id)}
+                            onChange={(event) => setTransactionHash(request.id, event.target.value)}
+                            maxLength={200}
+                            required
+                            data-testid={`admin-withdrawal-txhash-${request.id}`}
+                            className="font-mono text-xs"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            ⚠️ Transaction hash is required for crypto withdrawals
+                          </p>
+                        </>
+                      ) : (
+                        <Input
+                          placeholder="Fulfilment reference (payout id / gift-card order)"
+                          value={reference(request.id)}
+                          onChange={(event) => setReference(request.id, event.target.value)}
+                          maxLength={200}
+                          data-testid={`admin-withdrawal-reference-${request.id}`}
+                        />
+                      )}
                       <div className="flex gap-2">
                         <Button
                           size="sm"
@@ -466,6 +490,7 @@ function AdminPage() {
                               status: "approved",
                               note: note(request.id),
                               referenceId: reference(request.id),
+                              transactionHash: transactionHash(request.id),
                             })
                           }
                         >
@@ -494,6 +519,31 @@ function AdminPage() {
                   {request.reference_id && (
                     <p className="mt-1 text-xs text-muted-foreground">
                       Ref: <span className="font-mono">{request.reference_id}</span>
+                    </p>
+                  )}
+                  {request.transaction_hash && (
+                    <div className="mt-1 text-xs">
+                      <span className="text-muted-foreground">Txid: </span>
+                      <span className="font-mono">{request.transaction_hash}</span>
+                      {getExplorerUrl(request.method_type, request.transaction_hash) && (
+                        <>
+                          {" · "}
+                          <a
+                            href={getExplorerUrl(request.method_type, request.transaction_hash)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            View on explorer ↗
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {request.network_fee && Number(request.network_fee) > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Network fee: {formatMoney(request.network_fee)} (User receives:{" "}
+                      {formatMoney(request.amount - Number(request.network_fee))})
                     </p>
                   )}
                 </li>

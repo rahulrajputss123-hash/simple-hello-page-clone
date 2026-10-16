@@ -128,17 +128,21 @@ function EditCampaignPage() {
     mutationFn: async () => {
       const updates: Record<string, any> = { campaignId: id };
 
-      // Only include changed fields (send undefined to explicitly clear nullable fields)
-      if (title !== campaign.data?.name) updates.title = title.trim();
-      if (description !== campaign.data?.description) updates.description = description.trim();
-      if (landingUrl !== campaign.data?.landingUrl) updates.landingUrl = landingUrl.trim();
-      
+      // Helper to check if a value changed (treat null, undefined, and "" as equal)
+      const normalize = (val: any) => (val === null || val === undefined || val === "" ? null : val);
+      const changed = (newVal: any, oldVal: any) => normalize(newVal) !== normalize(oldVal);
+
+      // Only include changed fields
+      if (changed(title, campaign.data?.name)) updates.title = title.trim();
+      if (changed(description, campaign.data?.description)) updates.description = description.trim();
+      if (changed(landingUrl, campaign.data?.landingUrl)) updates.landingUrl = landingUrl.trim();
+
       const estMin = estimatedMinutes ? Number(estimatedMinutes) : null;
-      if (estMin !== campaign.data?.estimatedMinutes) {
+      if (changed(estMin, campaign.data?.estimatedMinutes)) {
         updates.estimatedMinutes = estMin;
       }
-      
-      if (proofDescription !== campaign.data?.proofDescription) {
+
+      if (changed(proofDescription, campaign.data?.proofDescription)) {
         updates.proofDescription = proofDescription.trim();
       }
       if (proofMinImages !== campaign.data?.proofMinImages) {
@@ -150,30 +154,27 @@ function EditCampaignPage() {
       if (JSON.stringify(proofFields) !== JSON.stringify(campaign.data?.proofFields || [])) {
         updates.proofFields = proofFields;
       }
-      if (proofExampleUrl !== campaign.data?.proofExampleUrl) {
+      if (changed(proofExampleUrl, campaign.data?.proofExampleUrl)) {
         updates.proofExampleUrl = proofExampleUrl || null;
       }
-      if (trackingUrl !== campaign.data?.trackingUrl) {
+      if (changed(trackingUrl, campaign.data?.trackingUrl)) {
         updates.trackingUrl = trackingUrl.trim() || null;
       }
-      if (eligibilityNote !== campaign.data?.eligibilityNotes) {
+      if (changed(eligibilityNote, campaign.data?.eligibilityNotes)) {
         updates.eligibilityNote = eligibilityNote.trim() || null;
       }
-      
+
       const dayLim = dailyLimit ? Number(dailyLimit) : null;
-      if (dayLim !== campaign.data?.dailyLimit) {
+      if (changed(dayLim, campaign.data?.dailyLimit)) {
         updates.dailyLimit = dayLim;
       }
-      
+
       if (reviewWindow !== campaign.data?.reviewWindowHours) {
         updates.reviewWindow = reviewWindow;
       }
-      if (categoryId !== campaign.data?.categoryId) {
-        updates.categoryId = categoryId;
-      }
-      if (subcategoryId !== campaign.data?.subcategoryId) {
-        updates.subcategoryId = subcategoryId || null;
-      }
+
+      // Category and subcategory are read-only in edit mode (never sent)
+      // The database guard rejects them anyway
 
       // Budget fields - only for draft campaigns
       if (isDraft) {
@@ -280,10 +281,6 @@ function EditCampaignPage() {
         className="surface-card mt-3 space-y-4 p-4"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!categoryId) {
-            toast.error("Select a category");
-            return;
-          }
           if (!landingUrl.trim()) {
             toast.error("Enter a destination URL");
             return;
@@ -328,41 +325,18 @@ function EditCampaignPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="c-category">Category</Label>
-            <select
-              id="c-category"
-              className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
-              value={categoryId}
-              onChange={(e) => {
-                setCategoryId(e.target.value);
-                setSubcategoryId("");
-              }}
-              required
-            >
-              <option value="">Select category</option>
-              {(categories.data ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <Label htmlFor="c-category">Category (read-only)</Label>
+            <div className="flex h-11 items-center rounded-xl border border-border bg-muted px-3 text-sm text-muted-foreground">
+              {selectedCategory?.name || "—"}
+            </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="c-subcategory">Subcategory (optional)</Label>
-            <select
-              id="c-subcategory"
-              className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
-              value={subcategoryId}
-              onChange={(e) => setSubcategoryId(e.target.value)}
-              disabled={!selectedCategory}
-            >
-              <option value="">None</option>
-              {(selectedCategory?.subcategories ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+            <Label htmlFor="c-subcategory">Subcategory (read-only)</Label>
+            <div className="flex h-11 items-center rounded-xl border border-border bg-muted px-3 text-sm text-muted-foreground">
+              {subcategoryId
+                ? selectedCategory?.subcategories?.find((s) => s.id === subcategoryId)?.name || "—"
+                : "None"}
+            </div>
           </div>
         </div>
 

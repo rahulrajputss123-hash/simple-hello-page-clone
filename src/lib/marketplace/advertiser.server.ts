@@ -102,6 +102,7 @@ export type SettingsView = {
   campaignFeeType: "per_campaign" | "per_slot";
   termsVersion: string;
   razorpayConfigured: boolean;
+  nowpaymentsConfigured: boolean;
 };
 
 export type CampaignView = {
@@ -200,6 +201,7 @@ function accountView(a: AdvertiserAccountRow): AdvertiserAccountView {
 
 function settingsView(s: MarketplaceSettingsRow): SettingsView {
   const promoEnds = s.promo_ends_at ? new Date(s.promo_ends_at) : null;
+  const { nowpaymentsConfigured } = require("./nowpayments.server");
   return {
     depositsEnabled: s.deposits_enabled,
     minDepositUsd: num(s.min_deposit_usd),
@@ -215,6 +217,7 @@ function settingsView(s: MarketplaceSettingsRow): SettingsView {
     campaignFeeType: s.campaign_fee_type,
     termsVersion: s.terms_version,
     razorpayConfigured: razorpayConfigured(),
+    nowpaymentsConfigured: nowpaymentsConfigured(),
   };
 }
 
@@ -831,6 +834,100 @@ export async function abandonDepositImpl(
     .eq("id", depositId)
     .eq("advertiser_id", userId)
     .in("status", ["created", "pending"]);
+}
+
+/* --------------------------------------------------------- nowpayments */
+
+/**
+ * Create a NOWPayments crypto deposit.
+ * Always charges in USD (crypto pricing). Returns invoice URL for redirect.
+ */
+export async function createNowpaymentsDepositImpl(
+  userId: string,
+  amountUsd: number,
+): Promise<{ depositId: string; invoiceUrl: string }> {
+  const account = await getAccount(userId);
+  if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
+  if (account.status !== "active") {
+    throw new DepositError(
+      "ACCOUNT_" + account.status.toUpperCase(),
+      "Your advertiser account can't deposit right now.",
+    );
+  }
+
+  const s = await loadMarketplaceSettings();
+  if (!s.deposits_enabled)
+    throw new DepositError("DEPOSITS_DISABLED", "Deposits are temporarily unavailable.");
+
+  const { nowpaymentsConfigured } = await import("./nowpayments.server");
+  if (!nowpaymentsConfigured())
+    throw new DepositError("GATEWAY_NOT_CONFIGURED", "Crypto payments are not configured yet.");
+
+  const amount = Math.round(amountUsd * 100) / 100;
+  if (!(amount >= num(s.min_deposit_usd) && amount <= num(s.max_deposit_usd))) {
+    throw new DepositError(
+      "AMOUNT_OUT_OF_RANGE",
+      `Deposit between $${num(s.min_deposit_usd).toFixed(2)} and $${num(s.max_deposit_usd).toFixed(2)}.`,
+    );
+  }
+
+  // Always charge in USD for crypto (fx_rate = 1)
+  const currency = "USD";
+  const chargeAmount = amount;
+  const fxRate = 1;
+
+  const { data: created, error: insErr } = await mktDb
+    .from("advertiser_deposits")
+    .insert({
+      advertiser_id: userId,
+      amount_usd: amount,
+      gateway: "nowpayments",
+      charge_currency: currency,
+      charge_amount: chargeAmount,
+      fx_rate: fxRate,
+      terms_version: s.terms_version,
+    })
+    .select("id")
+    .single();
+  if (insErr) throw new Error(`advertiser_deposits insert: ${insErr.message}`);
+  const depositId = (created as { id: string }).id;
+
+  let invoice;
+  try {
+    const { createNowpaymentsInvoice } = await import("./nowpayments.server");
+    const siteUrl = getSiteUrl();
+    invoice = await createNowpaymentsInvoice({
+      depositId,
+      amountUsd: amount,
+      successUrl: `${siteUrl}/advertiser/funds?deposit=${depositId}`,
+      cancelUrl: `${siteUrl}/advertiser/funds?cancelled=${depositId}`,
+      ipnCallbackUrl: `${siteUrl}/api/public/nowpayments-ipn`,
+    });
+  } catch (err) {
+    await mktDb
+      .from("advertiser_deposits")
+      .update({
+        status: "failed",
+        failure_reason:
+          `invoice_create_failed: ${err instanceof Error ? err.message : String(err)}`.slice(
+            0,
+            500,
+          ),
+      })
+      .eq("id", depositId);
+    throw new DepositError("INVOICE_FAILED", "Couldn't create the invoice. Please try again.");
+  }
+
+  const { error: updErr } = await mktDb
+    .from("advertiser_deposits")
+    .update({ gateway_order_id: invoice.invoiceId, status: "pending" })
+    .eq("id", depositId);
+  if (updErr) throw new Error(`advertiser_deposits invoice update: ${updErr.message}`);
+
+  return {
+    depositId,
+    invoiceUrl: invoice.invoiceUrl,
+  };
 }
 
 /* --------------------------------------------------------------- webhook */
@@ -1638,17 +1735,14 @@ export async function editCampaignImpl(
   if (input.proofMinImages !== undefined) updates.proof_min_images = input.proofMinImages;
   if (input.proofMaxImages !== undefined) updates.proof_max_images = input.proofMaxImages;
   if (input.proofFields !== undefined) updates.proof_fields = input.proofFields;
-  if (input.proofExampleUrl !== undefined) updates.proof_example_url = input.proofExampleUrl;
   if (input.trackingUrl !== undefined) updates.tracking_url = input.trackingUrl;
   if (input.ipAllowlist !== undefined) updates.ip_allowlist = input.ipAllowlist;
   if (input.startsAt !== undefined) updates.starts_at = input.startsAt;
   if (input.endsAt !== undefined) updates.ends_at = input.endsAt;
   if (input.devices !== undefined) updates.devices = input.devices;
   if (input.eligibilityNote !== undefined) updates.eligibility_notes = input.eligibilityNote;
-  if (input.dailyLimit !== undefined) updates.daily_limit = input.dailyLimit;
-  if (input.reviewWindow !== undefined) updates.review_window_hours = input.reviewWindow;
-  if (input.categoryId !== undefined) updates.category_id = input.categoryId;
-  if (input.subcategoryId !== undefined) updates.subcategory_id = input.subcategoryId;
+  // category_id and subcategory_id are NOT allowed in edit (database guard rejects them)
+  // They must be set only at creation time
 
   // Budget fields - only allowed in draft status
   if (campaign.status === "draft") {
@@ -1661,7 +1755,7 @@ export async function editCampaignImpl(
     );
   }
 
-  // Validate category/subcategory relationship if changed
+  // Validate category/subcategory relationship if changed (but don't update them)
   if (input.subcategoryId) {
     const categoryId = input.categoryId ?? campaign.category_id;
     const { data: subcat, error: subcatErr } = await mktDb
@@ -1679,7 +1773,41 @@ export async function editCampaignImpl(
     }
   }
 
-  // Update the campaign
+  // Build campaign_options updates (these belong to campaign_options table, not campaigns)
+  const optionsUpdates: Record<string, any> = {};
+  let hasOptionsChanges = false;
+
+  if (input.proofExampleUrl !== undefined) {
+    optionsUpdates.proof_example_url = input.proofExampleUrl;
+    hasOptionsChanges = true;
+  }
+  if (input.reviewWindow !== undefined) {
+    optionsUpdates.review_window_hours = input.reviewWindow;
+    hasOptionsChanges = true;
+  }
+  if (input.dailyLimit !== undefined) {
+    optionsUpdates.daily_limit = input.dailyLimit;
+    hasOptionsChanges = true;
+  }
+
+  // Update campaign_options if any of those fields changed
+  if (hasOptionsChanges) {
+    optionsUpdates.campaign_id = input.campaignId;
+    optionsUpdates.updated_at = new Date().toISOString();
+
+    const { error: optionsErr } = await mktDb
+      .from("campaign_options")
+      .upsert(optionsUpdates, { onConflict: "campaign_id" });
+
+    if (optionsErr) {
+      throw new DepositError(
+        "UPDATE_FAILED",
+        `Failed to update campaign options: ${optionsErr.message}`,
+      );
+    }
+  }
+
+  // Update the campaigns table
   if (Object.keys(updates).length > 0) {
     updates.updated_at = new Date().toISOString();
 
