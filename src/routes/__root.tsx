@@ -40,12 +40,45 @@ function NotFoundComponent() {
   );
 }
 
+function isChunkLoadError(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return (
+    error.name === "ChunkLoadError" ||
+    message.includes("failed to fetch dynamically imported module") ||
+    message.includes("error loading dynamically imported module") ||
+    message.includes("importing a module script failed") ||
+    message.includes("unable to preload css")
+  );
+}
+
+const RELOAD_GUARD_KEY = "chunk-reload-attempted";
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+
+    // Auto-reload once for chunk-load errors
+    if (isChunkLoadError(error)) {
+      const hasReloaded = sessionStorage.getItem(RELOAD_GUARD_KEY);
+      if (!hasReloaded) {
+        sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
+        window.location.reload();
+      }
+    }
   }, [error]);
+
+  const handleTryAgain = () => {
+    if (isChunkLoadError(error)) {
+      sessionStorage.removeItem(RELOAD_GUARD_KEY);
+      window.location.reload();
+    } else {
+      router.invalidate();
+      reset();
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -56,10 +89,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
+            onClick={handleTryAgain}
             className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-soft"
           >
             Try again
@@ -71,6 +101,19 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             Go home
           </a>
         </div>
+        <details className="mt-6 text-left">
+          <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+            Technical details
+          </summary>
+          <div className="mt-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
+            <p>
+              <span className="font-medium">Error:</span> {error.name}
+            </p>
+            <p className="mt-1 break-words">
+              <span className="font-medium">Message:</span> {error.message}
+            </p>
+          </div>
+        </details>
       </div>
     </div>
   );
@@ -132,6 +175,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 const NATIVE_PROBE = `try{var c=window.Capacitor;if(c&&(typeof c.isNativePlatform==="function"?c.isNativePlatform():/^(android|ios)$/.test(c.platform||""))){document.documentElement.setAttribute("data-native","1")}}catch(e){}`;
 
 function RootShell({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    // Handle Vite preload errors
+    const handlePreloadError = (event: Event) => {
+      event.preventDefault();
+      const hasReloaded = sessionStorage.getItem(RELOAD_GUARD_KEY);
+      if (!hasReloaded) {
+        sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
+        window.location.reload();
+      }
+    };
+
+    window.addEventListener("vite:preloadError", handlePreloadError);
+    return () => window.removeEventListener("vite:preloadError", handlePreloadError);
+  }, []);
+
   return (
     <html lang="en">
       <head>
