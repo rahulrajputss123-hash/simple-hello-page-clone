@@ -4,6 +4,10 @@
 -- Extends the withdrawal_settle function to accept an optional p_transaction_hash
 -- parameter and store it on the withdrawal_requests row. This is required for
 -- crypto withdrawals when settling as 'approved'.
+-- 
+-- IMPORTANT: When dropping and recreating a function, permissions must be
+-- restored. Production requires strict access control: only service_role can
+-- execute this function.
 -- =============================================================================
 
 DROP FUNCTION IF EXISTS public.withdrawal_settle(uuid, text, text, text);
@@ -89,5 +93,11 @@ BEGIN
 END;
 $$;
 
+-- Restore permissions: REVOKE all, then GRANT to service_role only
+REVOKE ALL ON FUNCTION public.withdrawal_settle(uuid, text, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.withdrawal_settle(uuid, text, text, text, text) FROM anon;
+REVOKE ALL ON FUNCTION public.withdrawal_settle(uuid, text, text, text, text) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.withdrawal_settle(uuid, text, text, text, text) TO service_role;
+
 COMMENT ON FUNCTION public.withdrawal_settle IS
-  'Admin approve/reject for withdrawals. Money moves only on transition out of pending. Now accepts optional transaction_hash for crypto payouts.';
+  'Admin approve/reject for withdrawals. Money moves only on transition out of pending. Now accepts optional transaction_hash for crypto payouts. Restricted to service_role only.';
