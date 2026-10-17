@@ -114,6 +114,9 @@ const updateMarketplaceSettingsInput = z.object({
   campaign_fee_usd: z.number().min(0).max(100).optional(),
   campaign_fee_type: z.enum(["per_campaign", "per_slot"]).optional(),
   featured_price_per_day: z.number().min(0).max(1000).optional(),
+  // Deposit settings
+  deposits_enabled: z.boolean().optional(),
+  manual_deposits_enabled: z.boolean().optional(),
 });
 
 export const updateMarketplaceSettingsImpl = async (
