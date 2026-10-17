@@ -69,6 +69,22 @@ export const createNowpaymentsDeposit = createServerFn({ method: "POST" })
     }
   });
 
+export const createQropayDeposit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ amountUsd: z.number().positive().max(100000) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { createQropayDepositImpl, DepositError } =
+      await import("./marketplace/advertiser.server");
+    try {
+      return await createQropayDepositImpl(context.userId, data.amountUsd);
+    } catch (err) {
+      if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
+      throw err;
+    }
+  });
+
 export const confirmCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>

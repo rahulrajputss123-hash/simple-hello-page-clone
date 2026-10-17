@@ -27,6 +27,7 @@ import {
   confirmCheckout,
   createDeposit,
   createNowpaymentsDeposit,
+  createQropayDeposit,
   getDepositStatus,
 } from "@/lib/marketplace.functions";
 import type { DepositView } from "@/lib/marketplace/advertiser.server";
@@ -80,6 +81,7 @@ function FundsPage() {
 
   const create = useServerFn(createDeposit);
   const createCrypto = useServerFn(createNowpaymentsDeposit);
+  const createQropay = useServerFn(createQropayDeposit);
   const confirm = useServerFn(confirmCheckout);
   const abandon = useServerFn(abandonDeposit);
   const status = useServerFn(getDepositStatus);
@@ -212,6 +214,23 @@ function FundsPage() {
     },
   });
 
+  const depositQropay = useMutation({
+    mutationFn: async (amountUsd: number) => {
+      setStage({ kind: "creating" });
+      const result = await createQropay({ data: { amountUsd } });
+      setStage({ kind: "crypto_redirect", depositId: result.depositId });
+      return result;
+    },
+    onSuccess: (result) => {
+      // Redirect to QroPay payment page
+      window.location.href = result.paymentUrl;
+    },
+    onError: (err) => {
+      setStage({ kind: "idle" });
+      toast.error("Couldn't start the UPI deposit", { description: friendlyError(err) });
+    },
+  });
+
   const n = Number(amount) || 0;
   const min = settings?.minDepositUsd ?? 10;
   const max = settings?.maxDepositUsd ?? 1000;
@@ -220,7 +239,8 @@ function FundsPage() {
   // Check which gateways are usable
   const razorpayUsable = settings?.depositsEnabled && settings?.razorpayConfigured;
   const nowpaymentsUsable = settings?.depositsEnabled && settings?.nowpaymentsConfigured;
-  const anyGatewayUsable = razorpayUsable || nowpaymentsUsable;
+  const qropayUsable = settings?.depositsEnabled && settings?.qropayConfigured;
+  const anyGatewayUsable = razorpayUsable || nowpaymentsUsable || qropayUsable;
 
   // Generic disabled reason (applies when no gateway is available)
   const genericDisabledReason = !advertiserActivated
@@ -241,6 +261,12 @@ function FundsPage() {
   // NOWPayments-specific disabled reason
   const cryptoDisabledReason = genericDisabledReason || !nowpaymentsUsable
     ? genericDisabledReason || "Crypto payments aren't configured yet."
+    : null;
+
+  // QroPay-specific disabled reason
+  const qropayDisabledReason = genericDisabledReason || !qropayUsable
+    ? genericDisabledReason || "QroPay UPI is not configured."
+
     : null;
 
   const busy =
@@ -444,6 +470,45 @@ function FundsPage() {
             <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
               <ShieldCheck className="size-3" /> Secured by NOWPayments · BTC, ETH, USDT, and 200+
               coins
+            </p>
+          </>
+        )}
+
+        {qropayUsable && (
+          <>
+            {(razorpayUsable || nowpaymentsUsable) && (
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or</span>
+                </div>
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="w-full"
+              disabled={Boolean(qropayDisabledReason) || !inRange || busy}
+              onClick={() => {
+                if (qropayDisabledReason || !inRange || busy) return;
+                depositQropay.mutate(Math.round(n * 100) / 100);
+              }}
+            >
+              {stage.kind === "crypto_redirect" ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Redirecting…
+                </>
+              ) : (
+                <>
+                  <Wallet className="size-4" /> Pay {formatMoney(n)} with UPI (QroPay)
+                </>
+              )}
+            </Button>
+            <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+              <ShieldCheck className="size-3" /> Secured by QroPay · UPI payments in INR
             </p>
           </>
         )}

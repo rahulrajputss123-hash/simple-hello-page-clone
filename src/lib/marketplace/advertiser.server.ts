@@ -203,6 +203,7 @@ function accountView(a: AdvertiserAccountRow): AdvertiserAccountView {
 function settingsView(s: MarketplaceSettingsRow): SettingsView {
   const promoEnds = s.promo_ends_at ? new Date(s.promo_ends_at) : null;
   const { nowpaymentsConfigured } = require("./nowpayments.server");
+  const { qropayConfigured } = require("./qropay.server");
   return {
     depositsEnabled: s.deposits_enabled,
     minDepositUsd: num(s.min_deposit_usd),
@@ -219,6 +220,7 @@ function settingsView(s: MarketplaceSettingsRow): SettingsView {
     termsVersion: s.terms_version,
     razorpayConfigured: razorpayConfigured(),
     nowpaymentsConfigured: nowpaymentsConfigured(),
+    qropayConfigured: qropayConfigured(),
   };
 }
 
@@ -928,6 +930,130 @@ export async function createNowpaymentsDepositImpl(
   return {
     depositId,
     invoiceUrl: invoice.invoiceUrl,
+  };
+}
+
+/**
+ * QroPay deposit: charge in INR, create QroPay order, redirect to payment_url.
+ * Always charges in INR (UPI only). Returns payment URL for redirect.
+ * 
+ * Extra safety: prevent duplicate pending deposits with same INR amount within expiry window.
+ */
+export async function createQropayDepositImpl(
+  userId: string,
+  amountUsd: number,
+): Promise<{ depositId: string; paymentUrl: string }> {
+  const account = await getAccount(userId);
+  if (!account) throw new DepositError("NOT_ADVERTISER", "Activate advertiser mode first.");
+  if (account.status !== "active") {
+    throw new DepositError(
+      "ACCOUNT_" + account.status.toUpperCase(),
+      "Your advertiser account can't deposit right now.",
+    );
+  }
+
+  const s = await loadMarketplaceSettings();
+  if (!s.deposits_enabled)
+    throw new DepositError("DEPOSITS_DISABLED", "Deposits are temporarily unavailable.");
+
+  const { qropayConfigured } = await import("./qropay.server");
+  if (!qropayConfigured())
+    throw new DepositError("GATEWAY_NOT_CONFIGURED", "QroPay UPI payments are not configured yet.");
+
+  if (!s.inr_per_usd || s.inr_per_usd <= 0)
+    throw new DepositError("FX_RATE_MISSING", "INR exchange rate not configured.");
+
+  const amount = Math.round(amountUsd * 100) / 100;
+  if (!(amount >= num(s.min_deposit_usd) && amount <= num(s.max_deposit_usd))) {
+    throw new DepositError(
+      "AMOUNT_OUT_OF_RANGE",
+      `Deposit between $${num(s.min_deposit_usd).toFixed(2)} and $${num(s.max_deposit_usd).toFixed(2)}.`,
+    );
+  }
+
+  // Charge in INR, rounded UP to whole rupees (no paise mismatches)
+  const fxRate = num(s.inr_per_usd);
+  const chargeAmount = Math.ceil(amount * fxRate); // Round UP to whole rupees
+  const currency = "INR";
+
+  // Safety check: prevent duplicate pending deposits with same INR amount within expiry window (30 min)
+  const expiryMinutes = 30;
+  const expiryThreshold = new Date(Date.now() - expiryMinutes * 60 * 1000).toISOString();
+
+  const { data: existingPending } = await mktDb
+    .from("advertiser_deposits")
+    .select("id")
+    .eq("gateway", "qropay")
+    .eq("status", "pending")
+    .eq("charge_amount", chargeAmount)
+    .eq("charge_currency", "INR")
+    .gt("created_at", expiryThreshold)
+    .maybeSingle();
+
+  if (existingPending) {
+    throw new DepositError(
+      "DUPLICATE_PENDING",
+      "Please try again in a few minutes or choose a slightly different amount.",
+    );
+  }
+
+  const { data: created, error: insErr } = await mktDb
+    .from("advertiser_deposits")
+    .insert({
+      advertiser_id: userId,
+      amount_usd: amount,
+      gateway: "qropay",
+      charge_currency: currency,
+      charge_amount: chargeAmount,
+      fx_rate: fxRate,
+      terms_version: s.terms_version,
+    })
+    .select("id")
+    .single();
+  if (insErr) throw new Error(`advertiser_deposits insert: ${insErr.message}`);
+  const depositId = (created as { id: string }).id;
+
+  let order;
+  try {
+    const { createQropayOrder } = await import("./qropay.server");
+    const siteUrl = getSiteUrl();
+    // Get user email from session if available
+    const { data: profile } = await mktDb
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+    
+    order = await createQropayOrder({
+      depositId,
+      amountInr: chargeAmount,
+      customerEmail: profile?.email || "support@cashgpt.com",
+      redirectUrl: `${siteUrl}/advertiser/funds?deposit=${depositId}`,
+    });
+  } catch (err) {
+    await mktDb
+      .from("advertiser_deposits")
+      .update({
+        status: "failed",
+        failure_reason:
+          `order_create_failed: ${err instanceof Error ? err.message : String(err)}`.slice(
+            0,
+            500,
+          ),
+      })
+      .eq("id", depositId);
+    throw new DepositError("ORDER_FAILED", "Couldn't create the payment order. Please try again.");
+  }
+
+  const { error: updErr } = await mktDb
+    .from("advertiser_deposits")
+    .update({ gateway_order_id: order.qropayOrderId, status: "pending" })
+    .eq("id", depositId);
+  if (updErr) throw new Error(`advertiser_deposits order update: ${updErr.message}`);
+
+  return {
+    depositId,
+    paymentUrl: order.paymentUrl,
   };
 }
 
