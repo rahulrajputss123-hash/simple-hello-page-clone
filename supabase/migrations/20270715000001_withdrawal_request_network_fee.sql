@@ -5,8 +5,16 @@
 -- parameter and store it on the withdrawal_requests row. This fee represents
 -- the flat network cost (in USD) deducted from crypto withdrawals, shown to
 -- the user before they confirm.
+-- 
+-- IMPORTANT: When dropping and recreating a function, permissions must be
+-- restored. Production requires strict access control: only service_role can
+-- execute this function.
 -- =============================================================================
 
+-- Drop the old 5-arg version
+DROP FUNCTION IF EXISTS public.withdrawal_request(uuid, numeric, uuid, text, jsonb);
+
+-- Create the new 6-arg version with p_network_fee
 CREATE OR REPLACE FUNCTION public.withdrawal_request(
   p_user_id uuid,
   p_amount numeric,
@@ -77,5 +85,11 @@ BEGIN
 END;
 $$;
 
+-- Restore permissions: REVOKE all, then GRANT to service_role only
+REVOKE ALL ON FUNCTION public.withdrawal_request(uuid, numeric, uuid, text, jsonb, numeric) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.withdrawal_request(uuid, numeric, uuid, text, jsonb, numeric) FROM anon;
+REVOKE ALL ON FUNCTION public.withdrawal_request(uuid, numeric, uuid, text, jsonb, numeric) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.withdrawal_request(uuid, numeric, uuid, text, jsonb, numeric) TO service_role;
+
 COMMENT ON FUNCTION public.withdrawal_request IS
-  'Creates a pending withdrawal request and holds the funds. Now accepts optional network_fee for crypto withdrawals. Throws WITHDRAWAL_INSUFFICIENT or WITHDRAWAL_ALREADY_PENDING.';
+  'Creates a pending withdrawal request and holds the funds. Now accepts optional network_fee for crypto withdrawals. Throws WITHDRAWAL_INSUFFICIENT or WITHDRAWAL_ALREADY_PENDING. Restricted to service_role only.';

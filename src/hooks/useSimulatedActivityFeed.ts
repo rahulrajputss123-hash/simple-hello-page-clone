@@ -52,7 +52,7 @@ export type SimulatedActivity = {
 export const ROTATE_MIN_MS = 18_000;
 export const ROTATE_MAX_MS = 24_000;
 /** Short delay before the first activity appears, then it stays for good. */
-const FIRST_SHOW_MS = 1_200;
+const FIRST_SHOW_MS = 400;
 
 /**
  * Hard ceiling. A payout of exactly $50.00 is allowed; anything above it must
@@ -240,6 +240,16 @@ function pickOne<T>(list: readonly T[]): T | null {
 }
 
 /**
+ * Module-level variable to persist the last shown activity across navigation.
+ * Browser-only: never shared on the server.
+ */
+let lastShownActivity: SimulatedActivity | null = null;
+if (typeof window !== "undefined") {
+  // Initialize from browser storage only
+  lastShownActivity = null;
+}
+
+/**
  * Splits the pool into payout tiers by rank, not by fixed dollar thresholds, so
  * the tiering adapts to whatever payouts actually exist: the cheapest ~60% are
  * "low", the next ~30% "mid", the dearest ~10% "high". Ranking by position keeps
@@ -347,14 +357,22 @@ function buildActivity(
  * @param items Real offers + active quests. Stays idle until non-empty.
  */
 export function useSimulatedActivityFeed(items: readonly ActivityItem[]): SimulatedActivity | null {
-  const [current, setCurrent] = useState<SimulatedActivity | null>(null);
+  // Initialize from the persisted activity (browser-only)
+  const [current, setCurrent] = useState<SimulatedActivity | null>(() => {
+    if (typeof window !== "undefined") {
+      return lastShownActivity;
+    }
+    return null;
+  });
 
   // Read the pool through a ref so a refreshed list is picked up without
   // tearing down and restarting the timer chain.
   const itemsRef = useRef(items);
   itemsRef.current = items;
 
-  const lastComboRef = useRef<string | null>(null);
+  const lastComboRef = useRef<string | null>(
+    current ? `${current.username}|${current.offerId}` : null,
+  );
   const hasItems = items.length > 0;
 
   useEffect(() => {
@@ -372,11 +390,18 @@ export function useSimulatedActivityFeed(items: readonly ActivityItem[]): Simula
       if (next) {
         lastComboRef.current = `${next.username}|${next.offerId}`;
         setCurrent(next);
+        // Persist to module-level variable (browser-only)
+        if (typeof window !== "undefined") {
+          lastShownActivity = next;
+        }
       }
       timer = setTimeout(rotate, randInt(ROTATE_MIN_MS, ROTATE_MAX_MS));
     };
 
-    timer = setTimeout(rotate, FIRST_SHOW_MS);
+    // If we already have an activity from a previous mount, schedule the next
+    // rotation after the normal delay. Otherwise, use the shorter first-show delay.
+    const initialDelay = current ? randInt(ROTATE_MIN_MS, ROTATE_MAX_MS) : FIRST_SHOW_MS;
+    timer = setTimeout(rotate, initialDelay);
 
     return () => {
       cancelled = true;
@@ -384,7 +409,7 @@ export function useSimulatedActivityFeed(items: readonly ActivityItem[]): Simula
       // Deliberately NOT clearing `current`: if the pool briefly empties the
       // last activity stays on screen instead of flashing to blank.
     };
-  }, [hasItems]);
+  }, [hasItems, current]);
 
   return current;
 }

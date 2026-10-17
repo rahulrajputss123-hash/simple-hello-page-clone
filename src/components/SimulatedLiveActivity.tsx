@@ -152,7 +152,8 @@ export function SimulatedLiveActivity() {
   const queriesFinished = feedLoaded && questsLoaded;
   const hasNoItems = queriesFinished && items.length === 0;
 
-  // Reserve height from first paint: show placeholder until first activity arrives
+  // Show placeholder only if no activity exists yet (first visit)
+  // Once an activity has been shown, keep the slot open for smooth transitions
   const showPlaceholder = !activity && !hasNoItems;
 
   return (

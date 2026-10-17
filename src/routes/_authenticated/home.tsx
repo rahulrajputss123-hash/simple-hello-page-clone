@@ -23,6 +23,8 @@ import { SocialLinks } from "@/components/SocialLinks";
 import { StarterQuests } from "@/components/StarterQuests";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
+import { StoreButtons, StoreDialog } from "@/components/landing/StoreButtons";
+import { useStoreDialog } from "@/components/landing/useStoreDialog";
 import { useAuth } from "@/lib/auth";
 import { useCountUpOnVisible } from "@/hooks/useCountUp";
 import { completeOnboarding } from "@/lib/coinquest.functions";
@@ -73,6 +75,7 @@ function HomePage() {
   const save = useServerFn(completeOnboarding);
   const autoOnboarded = useRef(false);
   const communityStat = useCountUpOnVisible(50000);
+  const storeDialog = useStoreDialog();
   // Marketplace preview: advertiser mode swaps the Home content for the dashboard.
   // Local state only — see src/lib/marketplace/role.tsx.
   const { role, overview: advertiserOverview } = useRole();
@@ -458,8 +461,21 @@ function HomePage() {
             </Button>
           </div>
 
+          {/* Get the App section */}
+          <section data-testid="get-app-section" className="rise-in mt-4">
+            <div className="surface-card p-5 text-center">
+              <h2 className="font-display text-xl text-foreground">Get the CashGPT app</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Earn faster on your phone.</p>
+
+              {/* TODO: replace popup with real store URL once the app is live. */}
+              <div className="mt-4">
+                <StoreButtons onSelect={storeDialog.select} tone="light" compact />
+              </div>
+            </div>
+          </section>
+
           {/* Footer */}
-          <footer className="mt-8 flex flex-col items-center gap-4 pb-28 text-center">
+          <footer className="mt-8 flex flex-col items-center gap-4 pb-6 text-center">
             <BrandLogo variant="light" className="h-8 w-auto max-w-[140px]" />
 
             <SocialLinks />
@@ -492,6 +508,13 @@ function HomePage() {
 
             <p className="text-xs text-muted-foreground">© 2026 CashGPT. All rights reserved.</p>
           </footer>
+
+          {/* Store dialog */}
+          <StoreDialog
+            store={storeDialog.store}
+            open={storeDialog.open}
+            onOpenChange={storeDialog.setOpen}
+          />
         </>
       )}
     </AppShell>
