@@ -19,6 +19,7 @@ export const PAYOUT_METHOD_TYPES = [
   "usdt_trc20",
   "usdt_bep20",
   "litecoin",
+  "binance_pay",
 ] as const;
 
 export type PayoutMethodType = (typeof PAYOUT_METHOD_TYPES)[number];
@@ -33,7 +34,8 @@ export type PayoutFieldName =
   | "bank_name"
   | "country"
   | "gift_card_recipient_email"
-  | "wallet_address";
+  | "wallet_address"
+  | "binance_pay_id";
 
 export type PayoutField = {
   name: PayoutFieldName;
@@ -269,6 +271,25 @@ export const PAYOUT_METHODS: PayoutMethodSpec[] = [
       },
     ],
   },
+  {
+    type: "binance_pay",
+    label: "Binance Pay (USDT)",
+    tagline: "USDT to your Binance Pay account",
+    monogram: "₿",
+    iconClass: "bg-gold-gradient text-gold-foreground",
+    available: true,
+    minWithdrawalUsd: 1,
+    networkFeeUsd: 0,
+    fields: [
+      {
+        name: "binance_pay_id",
+        label: "Binance Pay ID or registered Binance email",
+        placeholder: "e.g. 123456789 or you@example.com",
+        inputType: "email",
+        maxLength: 200,
+      },
+    ],
+  },
 ];
 
 export const AVAILABLE_PAYOUT_METHODS = PAYOUT_METHODS.filter((m) => m.available);
@@ -338,6 +359,7 @@ export type PayoutMethodRecord = {
   country?: string | null;
   gift_card_recipient_email?: string | null;
   wallet_address?: string | null;
+  binance_pay_id?: string | null;
   /** Legacy India-only field, still read so old rows display sensibly. */
   ifsc?: string | null;
 };
@@ -363,6 +385,14 @@ export function maskPayoutMethod(method: PayoutMethodRecord): string {
     case "usdt_bep20":
     case "litecoin":
       return maskWalletAddress(method.wallet_address ?? "");
+    case "binance_pay": {
+      const payId = method.binance_pay_id ?? "";
+      // If numeric Pay ID, show last 3 digits; if email, mask like email
+      if (/^\d+$/.test(payId.trim())) {
+        return `•••${payId.slice(-3)}`;
+      }
+      return maskEmailLike(payId);
+    }
     default:
       return method.account_number ? maskAccount(method.account_number) : "";
   }
@@ -393,6 +423,38 @@ export function buildPayoutSnapshot(method: PayoutMethodRecord): Record<string, 
  * format and, where applicable, checksums to reject invalid addresses before
  * they're stored.
  * ------------------------------------------------------------------------- */
+
+/**
+ * Validates a Binance Pay ID or registered Binance email.
+ * Accepts: 6-15 digit numeric Pay ID OR valid email address.
+ * Rejects everything else.
+ */
+export function validateBinancePayId(value: string): { valid: boolean; error?: string } {
+  const trimmed = value.trim();
+  if (!trimmed) return { valid: false, error: "Binance Pay ID or email is required" };
+
+  // Check if it's a numeric Pay ID (6-15 digits)
+  if (/^\d+$/.test(trimmed)) {
+    if (trimmed.length < 6) {
+      return { valid: false, error: "Binance Pay ID must be at least 6 digits" };
+    }
+    if (trimmed.length > 15) {
+      return { valid: false, error: "Binance Pay ID must be at most 15 digits" };
+    }
+    return { valid: true };
+  }
+
+  // Check if it's a valid email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (emailRegex.test(trimmed)) {
+    return { valid: true };
+  }
+
+  return {
+    valid: false,
+    error: "Please enter a valid Binance Pay ID (6-15 digits) or registered Binance email",
+  };
+}
 
 /**
  * Validates a TRON address (TRC20).

@@ -445,6 +445,11 @@ function AdminPage() {
                         {line}
                       </span>
                     ))}
+                    {request.hasDuplicateBinancePay && (
+                      <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 font-semibold text-amber-900 dark:text-amber-100">
+                        ⚠️ Duplicate Pay ID
+                      </span>
+                    )}
                   </div>
 
                   {request.status === "pending" && (
@@ -468,6 +473,21 @@ function AdminPage() {
                           />
                           <p className="text-xs text-muted-foreground">
                             ⚠️ Transaction hash is required for crypto withdrawals
+                          </p>
+                        </>
+                      ) : request.method_type === "binance_pay" ? (
+                        <>
+                          <Input
+                            placeholder="Binance Pay order ID (required) *"
+                            value={transactionHash(request.id)}
+                            onChange={(event) => setTransactionHash(request.id, event.target.value)}
+                            maxLength={200}
+                            required
+                            data-testid={`admin-withdrawal-txhash-${request.id}`}
+                            className="font-mono text-xs"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            ⚠️ Binance Pay order/transaction ID is required
                           </p>
                         </>
                       ) : (
