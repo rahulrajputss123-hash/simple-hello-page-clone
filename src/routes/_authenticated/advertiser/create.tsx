@@ -294,6 +294,7 @@ function CreateCampaignPage() {
       });
     },
     onSuccess: async (result) => {
+      // Keep mutation in pending state during navigation
       await Promise.all([
         refreshOverview(),
         queryClient.invalidateQueries({ queryKey: ["my-campaigns"] }),
@@ -318,8 +319,10 @@ function CreateCampaignPage() {
 
       // Don't navigate if showing postback info
       if (!result.postbackUrl) {
+        // Navigation happens synchronously, keeping button disabled
         navigate({ to: "/advertiser/campaigns" });
       }
+      // Button remains disabled until navigation completes or modal closes
     },
     onError: (err) => {
       const msg =

@@ -324,7 +324,7 @@ function FundsPage() {
         className="surface-card mt-3 space-y-4 p-4"
         onSubmit={(e) => {
           e.preventDefault();
-          if (disabledReason || !inRange || busy) return;
+          if (razorpayDisabledReason || !inRange || busy) return;
           deposit.mutate(Math.round(n * 100) / 100);
         }}
       >
