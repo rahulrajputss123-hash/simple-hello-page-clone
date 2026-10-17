@@ -216,30 +216,38 @@ function FundsPage() {
   const min = settings?.minDepositUsd ?? 10;
   const max = settings?.maxDepositUsd ?? 1000;
   const inRange = n >= min && n <= max;
-  const disabledReason = !advertiserActivated
+
+  // Check which gateways are usable
+  const razorpayUsable = settings?.depositsEnabled && settings?.razorpayConfigured;
+  const nowpaymentsUsable = settings?.depositsEnabled && settings?.nowpaymentsConfigured;
+  const anyGatewayUsable = razorpayUsable || nowpaymentsUsable;
+
+  // Generic disabled reason (applies when no gateway is available)
+  const genericDisabledReason = !advertiserActivated
     ? "Activate advertiser mode first."
     : account && account.status !== "active"
       ? `Your account is ${account.status}.`
       : settings && !settings.depositsEnabled
         ? "Deposits are temporarily unavailable."
-        : settings && !settings.razorpayConfigured
-          ? "Payments aren't configured yet."
+        : !anyGatewayUsable
+          ? "No payment gateways are configured."
           : null;
+
+  // Razorpay-specific disabled reason
+  const razorpayDisabledReason = genericDisabledReason || !razorpayUsable
+    ? genericDisabledReason || "Razorpay is not configured."
+    : null;
+
+  // NOWPayments-specific disabled reason
+  const cryptoDisabledReason = genericDisabledReason || !nowpaymentsUsable
+    ? genericDisabledReason || "Crypto payments aren't configured yet."
+    : null;
+
   const busy =
     stage.kind === "creating" ||
     stage.kind === "checkout" ||
     stage.kind === "crypto_redirect" ||
     stage.kind === "confirming";
-
-  const cryptoDisabledReason = !advertiserActivated
-    ? "Activate advertiser mode first."
-    : account && account.status !== "active"
-      ? `Your account is ${account.status}.`
-      : settings && !settings.depositsEnabled
-        ? "Deposits are temporarily unavailable."
-        : settings && !settings.nowpaymentsConfigured
-          ? "Crypto payments aren't configured yet."
-          : null;
 
   return (
     <AppShell subtitle="Advertiser" mainClass="page-fade-in">
@@ -316,7 +324,7 @@ function FundsPage() {
         className="surface-card mt-3 space-y-4 p-4"
         onSubmit={(e) => {
           e.preventDefault();
-          if (disabledReason || !inRange || busy) return;
+          if (razorpayDisabledReason || !inRange || busy) return;
           deposit.mutate(Math.round(n * 100) / 100);
         }}
       >
@@ -368,42 +376,50 @@ function FundsPage() {
           Campaign Funds are spent only when a publisher completes your task. Unused funds stay in
           your Campaign Balance.
         </p>
-        {disabledReason ? (
-          <p className="text-xs font-semibold text-destructive">{disabledReason}</p>
+        {genericDisabledReason && !anyGatewayUsable ? (
+          <p className="text-xs font-semibold text-destructive">{genericDisabledReason}</p>
         ) : null}
-        <Button
-          type="submit"
-          variant="jade"
-          size="lg"
-          className="w-full"
-          disabled={Boolean(disabledReason) || !inRange || busy}
-          data-testid="add-funds-submit"
-        >
-          {stage.kind === "creating" ? (
-            <>
-              <Loader2 className="size-4 animate-spin" /> Preparing payment…
-            </>
-          ) : stage.kind === "checkout" ? (
-            "Complete payment in the Razorpay window"
-          ) : (
-            `Pay ${formatMoney(n)} with Razorpay`
-          )}
-        </Button>
-        <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
-          <ShieldCheck className="size-3" /> Secured by Razorpay · UPI, cards, net banking, wallets
-        </p>
 
-        {settings?.nowpaymentsConfigured && (
+        {razorpayUsable && (
           <>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or</span>
-              </div>
-            </div>
+            <Button
+              type="submit"
+              variant="jade"
+              size="lg"
+              className="w-full"
+              disabled={Boolean(razorpayDisabledReason) || !inRange || busy}
+              data-testid="add-funds-submit"
+            >
+              {stage.kind === "creating" ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Preparing payment…
+                </>
+              ) : stage.kind === "checkout" ? (
+                "Complete payment in the Razorpay window"
+              ) : (
+                `Pay ${formatMoney(n)} with Razorpay`
+              )}
+            </Button>
+            <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+              <ShieldCheck className="size-3" /> Secured by Razorpay · UPI, cards, net banking,
+              wallets
+            </p>
+          </>
+        )}
 
+        {razorpayUsable && nowpaymentsUsable && (
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+        )}
+
+        {nowpaymentsUsable && (
+          <>
             <Button
               type="button"
               variant="outline"

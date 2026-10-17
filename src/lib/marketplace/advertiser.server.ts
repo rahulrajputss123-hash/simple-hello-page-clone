@@ -23,6 +23,7 @@ import {
   verifyCheckoutSignature,
   verifyWebhookSignature,
 } from "./razorpay.server";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 /**
  * Gets the site URL for postback URLs, preferring SITE_URL env var,
@@ -1422,19 +1423,7 @@ export async function createCampaignImpl(
     }
   }
 
-  // Step 2: Submit for review (allocates budget, charges fee if enabled)
-  // Always use mkt_submit_campaign_with_fee (fee is 0 when fees are disabled)
-  try {
-    await mktRpc("mkt_submit_campaign_with_fee", {
-      p_campaign_id: campaign.id,
-      p_actor: userId,
-    });
-  } catch (err) {
-    if (err instanceof MktRpcError) throw new DepositError(err.code, humanMktError(err.code));
-    throw err;
-  }
-
-  // Step 2.5: Store campaign options if advanced settings specified
+  // Step 2: Store campaign options if advanced settings specified (BEFORE money moves)
   if (
     input.verification === "proof" &&
     (input.reviewWindow || input.proofExampleUrl || input.dailyLimit)
@@ -1453,17 +1442,34 @@ export async function createCampaignImpl(
       optionsData.daily_limit = input.dailyLimit;
     }
 
-    const { error: optionsError } = await supabaseService
+    const { error: optionsError } = await mktDb
       .from("campaign_options")
       .upsert(optionsData);
 
     if (optionsError) {
-      // Non-fatal: log but don't fail campaign creation
-      console.error("Failed to store campaign options:", optionsError);
+      // Rollback: delete the campaign draft (no money moved yet)
+      await mktDb.from("campaigns").delete().eq("id", campaign.id);
+      throw new DepositError(
+        "OPTIONS_FAILED",
+        `Failed to store campaign options: ${optionsError.message}`,
+      );
     }
   }
 
-  // Step 3: If featured, charge the fee atomically via RPC
+  // Step 3: Submit for review (allocates budget, charges fee if enabled)
+  // Always use mkt_submit_campaign_with_fee (fee is 0 when fees are disabled)
+  // CRITICAL: Money moves here - everything before this point must succeed or rollback
+  try {
+    await mktRpc("mkt_submit_campaign_with_fee", {
+      p_campaign_id: campaign.id,
+      p_actor: userId,
+    });
+  } catch (err) {
+    if (err instanceof MktRpcError) throw new DepositError(err.code, humanMktError(err.code));
+    throw err;
+  }
+
+  // Step 4: If featured, charge the fee atomically via RPC
   // Note: Campaign is already submitted, so if this fails we DON'T delete the campaign
   let featuredApplied = false;
   let featuredError: string | undefined;
@@ -1482,10 +1488,15 @@ export async function createCampaignImpl(
     } catch (err) {
       // Featured billing failed, but campaign is already submitted
       // Return a warning instead of throwing
-      if (err instanceof MktRpcError) {
-        featuredError = humanMktError(err.code);
-      } else {
-        featuredError = "Featured placement failed due to an unexpected error.";
+      // Wrap in try/catch so error here cannot fail the campaign creation
+      try {
+        if (err instanceof MktRpcError) {
+          featuredError = humanMktError(err.code);
+        } else {
+          featuredError = "Featured placement failed due to an unexpected error.";
+        }
+      } catch {
+        featuredError = "Featured placement failed.";
       }
     }
   }
@@ -1871,13 +1882,12 @@ export async function listPendingReviewsImpl(userId: string): Promise<any[]> {
   if (error) throw new Error(error.message);
 
   // Generate signed URLs for proof images
-  const supabaseService = getSupabaseService();
   const result = [];
 
   for (const sub of submissions ?? []) {
     const signedUrls: string[] = [];
     for (const path of sub.proof_paths ?? []) {
-      const { data: urlData } = await supabaseService.storage
+      const { data: urlData } = await supabaseAdmin.storage
         .from("offer-proofs")
         .createSignedUrl(path, 3600); // 1 hour expiry
 

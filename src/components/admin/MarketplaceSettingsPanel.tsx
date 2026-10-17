@@ -44,6 +44,12 @@ export function MarketplaceSettingsPanel() {
   >(null);
   const [localFeaturedPricePerDay, setLocalFeaturedPricePerDay] = useState<number | null>(null);
 
+  // Deposit settings local state
+  const [localDepositsEnabled, setLocalDepositsEnabled] = useState<boolean | null>(null);
+  const [localManualDepositsEnabled, setLocalManualDepositsEnabled] = useState<boolean | null>(
+    null,
+  );
+
   const mutation = useMutation({
     mutationFn: (updates: {
       auto_approve_enabled?: boolean;
@@ -53,6 +59,8 @@ export function MarketplaceSettingsPanel() {
       campaign_fee_usd?: number;
       campaign_fee_type?: "per_campaign" | "per_slot";
       featured_price_per_day?: number;
+      deposits_enabled?: boolean;
+      manual_deposits_enabled?: boolean;
     }) => updateSettings({ data: updates }),
     onSuccess: () => {
       toast.success("Settings updated successfully");
@@ -66,6 +74,8 @@ export function MarketplaceSettingsPanel() {
       setLocalCampaignFeeUsd(null);
       setLocalCampaignFeeType(null);
       setLocalFeaturedPricePerDay(null);
+      setLocalDepositsEnabled(null);
+      setLocalManualDepositsEnabled(null);
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message : "Failed to update settings";
@@ -117,6 +127,10 @@ export function MarketplaceSettingsPanel() {
   const featuredPricePerDay =
     localFeaturedPricePerDay ?? settings.data.featured_price_per_day ?? 2.0;
 
+  const depositsEnabled = localDepositsEnabled ?? settings.data.deposits_enabled ?? false;
+  const manualDepositsEnabled =
+    localManualDepositsEnabled ?? settings.data.manual_deposits_enabled ?? false;
+
   const hasChanges =
     localAutoApproveEnabled !== null ||
     localAutoApproveMinutes !== null ||
@@ -124,7 +138,9 @@ export function MarketplaceSettingsPanel() {
     localFeesEnabled !== null ||
     localCampaignFeeUsd !== null ||
     localCampaignFeeType !== null ||
-    localFeaturedPricePerDay !== null;
+    localFeaturedPricePerDay !== null ||
+    localDepositsEnabled !== null ||
+    localManualDepositsEnabled !== null;
 
   return (
     <div className="space-y-6">
@@ -277,6 +293,54 @@ export function MarketplaceSettingsPanel() {
         </div>
       </div>
 
+      {/* Deposit settings */}
+      <div className="space-y-3">
+        <SectionTitle>
+          <DollarSign className="size-5" />
+          Deposit gateway settings
+        </SectionTitle>
+
+        <div className="surface-card space-y-4 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <Label htmlFor="deposits-enabled" className="text-sm font-semibold">
+                Enable all deposits
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Master switch for deposit functionality (all gateways)
+              </p>
+            </div>
+            <Switch
+              id="deposits-enabled"
+              checked={depositsEnabled}
+              onCheckedChange={(checked) => setLocalDepositsEnabled(checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <Label htmlFor="manual-deposits-enabled" className="text-sm font-semibold">
+                Enable manual deposits
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Allow admins to manually credit advertiser deposits
+              </p>
+            </div>
+            <Switch
+              id="manual-deposits-enabled"
+              checked={manualDepositsEnabled}
+              onCheckedChange={(checked) => setLocalManualDepositsEnabled(checked)}
+            />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Gateway availability: Razorpay (configured via RAZORPAY_KEY_ID/SECRET), NOWPayments
+            (configured via NOWPAYMENTS_API_KEY/IPN_SECRET). Buttons appear only when the gateway
+            is configured and deposits_enabled is true.
+          </p>
+        </div>
+      </div>
+
       {/* Save/Cancel buttons */}
       {hasChanges && (
         <div className="flex gap-2 border-t border-border pt-3">
@@ -291,6 +355,8 @@ export function MarketplaceSettingsPanel() {
               setLocalCampaignFeeUsd(null);
               setLocalCampaignFeeType(null);
               setLocalFeaturedPricePerDay(null);
+              setLocalDepositsEnabled(null);
+              setLocalManualDepositsEnabled(null);
             }}
             disabled={mutation.isPending}
           >
@@ -308,6 +374,8 @@ export function MarketplaceSettingsPanel() {
                 campaign_fee_usd?: number;
                 campaign_fee_type?: "per_campaign" | "per_slot";
                 featured_price_per_day?: number;
+                deposits_enabled?: boolean;
+                manual_deposits_enabled?: boolean;
               } = {};
               if (localAutoApproveEnabled !== null)
                 updates.auto_approve_enabled = localAutoApproveEnabled;
@@ -320,6 +388,9 @@ export function MarketplaceSettingsPanel() {
               if (localCampaignFeeType !== null) updates.campaign_fee_type = localCampaignFeeType;
               if (localFeaturedPricePerDay !== null)
                 updates.featured_price_per_day = localFeaturedPricePerDay;
+              if (localDepositsEnabled !== null) updates.deposits_enabled = localDepositsEnabled;
+              if (localManualDepositsEnabled !== null)
+                updates.manual_deposits_enabled = localManualDepositsEnabled;
               mutation.mutate(updates);
             }}
             disabled={mutation.isPending}
