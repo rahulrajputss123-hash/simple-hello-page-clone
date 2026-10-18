@@ -60,6 +60,8 @@ function EditCampaignPage() {
   const [eligibilityNote, setEligibilityNote] = useState("");
   const [dailyLimit, setDailyLimit] = useState("");
   const [reviewWindow, setReviewWindow] = useState(24);
+  const [devices, setDevices] = useState<string[]>([]);
+  const [allDevices, setAllDevices] = useState(false);
   const [resubmit, setResubmit] = useState(false);
 
   const isDraft = campaign.data?.status === "draft";
@@ -109,6 +111,16 @@ function EditCampaignPage() {
       setEligibilityNote(c.eligibilityNotes || "");
       setDailyLimit(c.dailyLimit?.toString() || "");
       setReviewWindow(c.reviewWindowHours || 24);
+      
+      // Set devices - if empty array, show all three as selected
+      const campaignDevices = c.devices || [];
+      if (campaignDevices.length === 0) {
+        setDevices(["android", "ios", "desktop"]);
+        setAllDevices(true);
+      } else {
+        setDevices(campaignDevices);
+        setAllDevices(campaignDevices.length === 3);
+      }
     }
   }, [campaign.data]);
 
@@ -196,6 +208,16 @@ function EditCampaignPage() {
 
       if (reviewWindow !== campaign.data?.reviewWindowHours) {
         updates.reviewWindow = reviewWindow;
+      }
+
+      // Devices - send empty array if all three selected, otherwise send selected devices
+      const campaignDevices = campaign.data?.devices || [];
+      const normalizedCampaignDevices = campaignDevices.length === 0 ? ["android", "ios", "desktop"] : campaignDevices;
+      const normalizedCurrentDevices = devices.length === 3 ? [] : devices;
+      const normalizedOriginalDevices = normalizedCampaignDevices.length === 3 ? [] : normalizedCampaignDevices;
+      
+      if (JSON.stringify(normalizedCurrentDevices.sort()) !== JSON.stringify(normalizedOriginalDevices.sort())) {
+        updates.devices = normalizedCurrentDevices;
       }
 
       // Category and subcategory are read-only in edit mode (never sent)
@@ -317,6 +339,10 @@ function EditCampaignPage() {
           if (campaign.data?.verificationMode === "proof") {
             if (!proofDescription.trim() || proofDescription.length < 10) {
               toast.error("Proof instructions required (at least 10 characters)");
+              return;
+            }
+            if (devices.length === 0) {
+              toast.error("Select at least one device");
               return;
             }
           }
@@ -535,12 +561,13 @@ function EditCampaignPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="c-review-window">Review within</Label>
+              <Label htmlFor="c-review-window">Review within *</Label>
               <select
                 id="c-review-window"
                 className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
                 value={reviewWindow}
                 onChange={(e) => setReviewWindow(Number(e.target.value))}
+                required
               >
                 <option value={6}>6 hours</option>
                 <option value={12}>12 hours</option>
@@ -549,6 +576,64 @@ function EditCampaignPage() {
                 <option value={72}>72 hours</option>
                 <option value={168}>7 days</option>
               </select>
+              <p className="text-[11px] text-muted-foreground">
+                If you do not review a submission in this time, it is approved automatically and
+                the earner is paid.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Devices *</Label>
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-card p-3">
+                  <span className="text-sm font-medium">All devices</span>
+                  <input
+                    type="checkbox"
+                    checked={allDevices}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setAllDevices(checked);
+                      if (checked) {
+                        setDevices(["android", "ios", "desktop"]);
+                      }
+                    }}
+                    className="size-4"
+                  />
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["android", "ios", "desktop"] as const).map((device) => (
+                    <label
+                      key={device}
+                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-colors ${
+                        devices.includes(device)
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={devices.includes(device)}
+                        onChange={(e) => {
+                          let newDevices: string[];
+                          if (e.target.checked) {
+                            newDevices = [...devices, device];
+                          } else {
+                            newDevices = devices.filter((d) => d !== device);
+                          }
+                          setDevices(newDevices);
+                          // Update "All devices" toggle
+                          setAllDevices(newDevices.length === 3);
+                        }}
+                        className="hidden"
+                      />
+                      {device === "android" ? "Android" : device === "ios" ? "iOS" : "Desktop"}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Select at least one device. If all three are selected, the offer will be available on all devices.
+              </p>
             </div>
           </div>
         )}
