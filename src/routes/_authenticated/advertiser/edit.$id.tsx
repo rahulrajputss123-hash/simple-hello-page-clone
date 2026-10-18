@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BackLink } from "@/components/marketplace/Preview";
 import { editCampaign, getCampaignForEdit, listCategories } from "@/lib/marketplace.functions";
 import { useRole } from "@/lib/marketplace/role";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/advertiser/edit/$id")({
   head: () => ({ meta: [{ title: "Edit Campaign — CashGPT" }] }),
@@ -63,6 +64,8 @@ function EditCampaignPage() {
   const [devices, setDevices] = useState<string[]>([]);
   const [allDevices, setAllDevices] = useState(false);
   const [resubmit, setResubmit] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [minSlots, setMinSlots] = useState(15);
 
   const isDraft = campaign.data?.status === "draft";
   const isRejected = campaign.data?.status === "rejected";
@@ -123,6 +126,33 @@ function EditCampaignPage() {
       }
     }
   }, [campaign.data]);
+
+  // Check if user is admin and calculate minimum slots
+  useEffect(() => {
+    async function checkAdminAndMinSlots() {
+      if (!overview?.account?.userId || !campaign.data) return;
+      
+      // Check if user has admin role
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", overview.account.userId)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      setIsAdmin(!!roleData);
+      
+      // Calculate minimum slots (used + reserved)
+      const { data: minSlotsData } = await supabase.rpc("mkt_campaign_slot_usage", {
+        p_campaign_id: campaign.data.id,
+      });
+      
+      const calculatedMin = minSlotsData || 15;
+      setMinSlots(Math.max(15, calculatedMin));
+    }
+    
+    void checkAdminAndMinSlots();
+  }, [campaign.data, overview?.account?.userId]);
 
   const selectedCategory = useMemo(
     () => categories.data?.find((c) => c.id === categoryId),
@@ -441,12 +471,22 @@ function EditCampaignPage() {
                 <Input
                   id="c-slots"
                   type="number"
-                  min={15}
+                  min={isAdmin ? minSlots : campaign.data.maxCompletions}
                   max={100000}
                   value={slots}
                   onChange={(e) => setSlots(e.target.value)}
                   required
                 />
+                {isAdmin && minSlots > 15 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Minimum {minSlots} slots (campaign has {minSlots} already consumed or reserved)
+                  </p>
+                )}
+                {!isAdmin && (
+                  <p className="text-[11px] text-muted-foreground">
+                    You can only increase slots. Admins can decrease their own campaigns.
+                  </p>
+                )}
               </div>
             </div>
           </div>
