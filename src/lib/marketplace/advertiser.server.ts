@@ -445,6 +445,7 @@ export async function getCampaignForEditImpl(userId: string, campaignId: string)
     steps: campaign.steps,
     rules: campaign.rules,
     proofDescription: campaign.proof_description,
+    proofMode: options?.proof_mode || null,
     proofMinImages: campaign.proof_min_images,
     proofMaxImages: campaign.proof_max_images,
     proofFields: campaign.proof_fields || [],
@@ -1826,6 +1827,7 @@ export const editCampaignInput = z.object({
     .optional(),
   estimatedMinutes: z.number().int().min(1).max(1440).optional().nullable(),
   proofDescription: z.string().trim().min(10).max(500).optional(),
+  proofMode: z.enum(["screenshot", "text", "both", "either"]).optional().nullable(),
   proofMinImages: z.number().int().min(0).max(5).optional(),
   proofMaxImages: z.number().int().min(1).max(5).optional(),
   proofFields: z
@@ -1963,6 +1965,10 @@ export async function editCampaignImpl(
   const optionsUpdates: Record<string, any> = {};
   let hasOptionsChanges = false;
 
+  if (input.proofMode !== undefined) {
+    optionsUpdates.proof_mode = input.proofMode;
+    hasOptionsChanges = true;
+  }
   if (input.proofExampleUrl !== undefined) {
     optionsUpdates.proof_example_url = input.proofExampleUrl;
     hasOptionsChanges = true;

@@ -45,6 +45,7 @@ function EditCampaignPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [proofDescription, setProofDescription] = useState("");
+  const [proofMode, setProofMode] = useState<"screenshot" | "text" | "both" | "either" | null>(null);
   const [proofMinImages, setProofMinImages] = useState(1);
   const [proofMaxImages, setProofMaxImages] = useState(3);
   const [proofFields, setProofFields] = useState<ProofField[]>([]);
@@ -76,6 +77,27 @@ function EditCampaignPage() {
       setProofMinImages(c.proofMinImages || 1);
       setProofMaxImages(c.proofMaxImages || 3);
       setProofFields(c.proofFields || []);
+      
+      // Set proofMode from campaign_options, or derive it from existing fields
+      if (c.proofMode) {
+        setProofMode(c.proofMode as "screenshot" | "text" | "both" | "either");
+      } else {
+        // Derive for old campaigns without proof_mode
+        const minImg = c.proofMinImages || 1;
+        const hasFields = (c.proofFields || []).length > 0;
+        const hasRequiredFields = (c.proofFields || []).some((f: any) => f.required);
+        
+        if (minImg >= 1 && !hasRequiredFields) {
+          setProofMode("screenshot");
+        } else if (minImg === 0 && hasFields) {
+          setProofMode("text");
+        } else if (minImg >= 1 && hasRequiredFields) {
+          setProofMode("both");
+        } else {
+          setProofMode("screenshot"); // fallback
+        }
+      }
+      
       setReward(c.publisherReward?.toString() || "0.50");
       setSlots(c.maxCompletions?.toString() || "50");
       setCategoryId(c.categoryId || "");
@@ -144,6 +166,9 @@ function EditCampaignPage() {
 
       if (changed(proofDescription, campaign.data?.proofDescription)) {
         updates.proofDescription = proofDescription.trim();
+      }
+      if (proofMode !== campaign.data?.proofMode) {
+        updates.proofMode = proofMode;
       }
       if (proofMinImages !== campaign.data?.proofMinImages) {
         updates.proofMinImages = proofMinImages;
