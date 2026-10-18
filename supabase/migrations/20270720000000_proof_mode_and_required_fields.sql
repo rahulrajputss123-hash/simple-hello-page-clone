@@ -11,11 +11,11 @@ COMMENT ON COLUMN public.campaign_options.proof_mode IS
 
 -- 2. Enforce "either" mode validation via trigger
 -- Drop existing trigger and function if they exist
-DROP TRIGGER IF EXISTS mktenforce__proof_mode__trigger ON public.campaign_submissions;
-DROP FUNCTION IF EXISTS public.mktenforce__proof_mode() CASCADE;
+DROP TRIGGER IF EXISTS mktenforce_proof_mode_trigger ON public.campaign_submissions;
+DROP FUNCTION IF EXISTS public.mktenforce_proof_mode() CASCADE;
 
 -- Create trigger function
-CREATE OR REPLACE FUNCTION public.mktenforce__proof_mode()
+CREATE OR REPLACE FUNCTION public.mktenforce_proof_mode()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -64,10 +64,10 @@ END;
 $fn$;
 
 -- Create trigger (fires before insert on campaign_submissions)
-CREATE TRIGGER mktenforce__proof_mode__trigger
+CREATE TRIGGER mktenforce_proof_mode_trigger
   BEFORE INSERT ON public.campaign_submissions
   FOR EACH ROW
-  EXECUTE FUNCTION public.mktenforce__proof_mode();
+  EXECUTE FUNCTION public.mktenforce_proof_mode();
 
-COMMENT ON FUNCTION public.mktenforce__proof_mode() IS 
+COMMENT ON FUNCTION public.mktenforce_proof_mode() IS 
   'Enforces proof_mode validation for campaign submissions. For "either" mode, requires at least one of: proof images OR field values.';
