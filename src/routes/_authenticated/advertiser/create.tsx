@@ -183,7 +183,7 @@ function CreateCampaignPage() {
     const preset = PROOF_PRESETS[presetKey];
     if (!preset) return;
 
-    setProofType(preset.type);
+    setProofMode(preset.type);
     setProofMinImages(preset.minImages);
     setProofMaxImages(preset.maxImages);
     setProofFields(preset.fields.map((f) => ({ ...f, key: generateFieldKey(f.label) })));
