@@ -445,6 +445,7 @@ export async function getCampaignForEditImpl(userId: string, campaignId: string)
     steps: campaign.steps,
     rules: campaign.rules,
     proofDescription: campaign.proof_description,
+    proofMode: options?.proof_mode || null,
     proofMinImages: campaign.proof_min_images,
     proofMaxImages: campaign.proof_max_images,
     proofFields: campaign.proof_fields || [],
@@ -1294,6 +1295,7 @@ export const createCampaignInput = z
     ipAllowlist: z.array(z.string()).max(50).optional(),
     // Proof verification fields
     proofDescription: z.string().trim().min(10).max(500).optional(),
+    proofMode: z.enum(["screenshot", "text", "both", "either"]).optional(),
     proofMinImages: z.number().int().min(0).max(5).optional(),
     proofMaxImages: z.number().int().min(1).max(5).optional(),
     proofFields: z
@@ -1310,15 +1312,16 @@ export const createCampaignInput = z
       )
       .max(5)
       .optional(),
+    // Required fields for proof verification
+    reviewWindow: z.number().int().min(1).max(720), // Review window in hours - REQUIRED for proof
+    devices: z
+      .array(z.enum(["android", "ios", "desktop"]))
+      .min(0) // Allow empty array (means "all devices")
+      .max(3), // REQUIRED for proof - at least one device or empty array for all
     // Advanced settings
-    reviewWindow: z.number().int().min(1).max(720).optional(), // Review window in hours
     proofExampleUrl: z.string().url().optional(), // Public URL to example proof image
     startsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
     endsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
-    devices: z
-      .array(z.enum(["android", "ios", "desktop"]))
-      .max(3)
-      .optional(),
     eligibilityNote: z.string().trim().max(300).optional(),
     dailyLimit: z.number().int().min(1).optional(), // Max completions per rolling 24h
     // Offer rules confirmation
@@ -1329,6 +1332,10 @@ export const createCampaignInput = z
       if (data.verification === "proof") {
         // Proof description is required for manual proof
         if (!data.proofDescription) return false;
+        // reviewWindow is required for proof
+        if (!data.reviewWindow) return false;
+        // At least one device must be selected (or empty array for all devices)
+        if (data.devices === undefined || data.devices === null) return false;
         // At least images or fields required
         const hasImages = (data.proofMinImages ?? 0) >= 1;
         const hasFields = (data.proofFields?.length ?? 0) > 0;
@@ -1552,11 +1559,59 @@ export async function createCampaignImpl(
   // Step 2: Store campaign options if advanced settings specified (BEFORE money moves)
   if (
     input.verification === "proof" &&
-    (input.reviewWindow || input.proofExampleUrl || input.dailyLimit)
+    (input.proofMode || input.reviewWindow || input.proofExampleUrl || input.dailyLimit)
   ) {
     const optionsData: Record<string, any> = {
       campaign_id: campaign.id,
     };
+
+    // Validate and save proof_mode
+    if (input.proofMode) {
+      const mode = input.proofMode;
+      const minImages = input.proofMinImages ?? 0;
+      const maxImages = input.proofMaxImages ?? 1;
+      const hasFields = (input.proofFields?.length ?? 0) > 0;
+
+      // Validate proof_mode consistency
+      if (mode === "screenshot" && minImages < 1) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Screenshot mode requires at least 1 image",
+        );
+      }
+      if (mode === "text" && !hasFields) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Text mode requires at least one custom field",
+        );
+      }
+      if (mode === "text" && minImages > 0) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Text mode cannot require images (set min images to 0)",
+        );
+      }
+      if (mode === "both" && (minImages < 1 || !hasFields)) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Both mode requires images AND custom fields",
+        );
+      }
+      if (mode === "either" && minImages > 0) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Either mode must allow 0 images (users can choose screenshot OR text)",
+        );
+      }
+      if (mode === "either" && !hasFields) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Either mode requires at least one custom field",
+        );
+      }
+
+      optionsData.proof_mode = mode;
+    }
 
     if (input.reviewWindow) {
       optionsData.review_window_hours = input.reviewWindow;
@@ -1777,6 +1832,7 @@ export const editCampaignInput = z.object({
     .optional(),
   estimatedMinutes: z.number().int().min(1).max(1440).optional().nullable(),
   proofDescription: z.string().trim().min(10).max(500).optional(),
+  proofMode: z.enum(["screenshot", "text", "both", "either"]).optional().nullable(),
   proofMinImages: z.number().int().min(0).max(5).optional(),
   proofMaxImages: z.number().int().min(1).max(5).optional(),
   proofFields: z
@@ -1820,6 +1876,140 @@ export const editCampaignInput = z.object({
   resubmit: z.boolean().default(false), // If true, resubmit for review after edit
 });
 export type EditCampaignInput = z.infer<typeof editCampaignInput>;
+
+/**
+ * Handle campaign slot decrease with validation, refund, and audit logging.
+ * Must be called within a transaction context.
+ * 
+ * Rules:
+ * 1. New slots cannot go below consumed/reserved (approved submissions + pending reviews + active clicks)
+ * 2. Refund is processed through mkt__post with idempotency
+ * 3. Refund follows the funding source distribution from campaign_budget_tranches
+ * 4. Audit log entry is created
+ */
+async function handleSlotDecrease(
+  adminId: string,
+  campaign: any,
+  newSlots: number,
+): Promise<void> {
+  const campaignId = campaign.id;
+  const oldSlots = campaign.max_completions;
+  const advertiserId = campaign.advertiser_id;
+  
+  // 1. Calculate minimum allowed slots (approved + pending + active clicks)
+  const { data: usageData, error: usageErr } = await mktDb.rpc("mkt_campaign_slot_usage", {
+    p_campaign_id: campaignId,
+  });
+  
+  if (usageErr) {
+    throw new DepositError(
+      "MKT_USAGE_CHECK_FAILED",
+      `Failed to check slot usage: ${usageErr.message}`,
+    );
+  }
+  
+  const minAllowedSlots = usageData || 0;
+  
+  if (newSlots < minAllowedSlots) {
+    throw new DepositError(
+      "MKT_SLOTS_BELOW_MINIMUM",
+      `Cannot decrease slots below ${minAllowedSlots}. Campaign has ${minAllowedSlots} slots already consumed or reserved (approved submissions, pending reviews, or active clicks).`,
+    );
+  }
+  
+  // 2. Calculate amount to refund
+  const slotsToRefund = oldSlots - newSlots;
+  const costPerSlot = campaign.publisher_reward * (1 + (campaign.fee_percent || 0) / 100);
+  const totalRefund = slotsToRefund * costPerSlot;
+  
+  if (totalRefund <= 0) {
+    // No refund needed (shouldn't happen but guard against it)
+    return;
+  }
+  
+  // 3. Get funding distribution from campaign_budget_tranches
+  const { data: tranches, error: tranchesErr } = await mktDb
+    .from("campaign_budget_tranches")
+    .select("id, funding, remaining, reserved")
+    .eq("campaign_id", campaignId)
+    .order("allocated_at");
+  
+  if (tranchesErr) {
+    throw new DepositError(
+      "MKT_TRANCHES_FETCH_FAILED",
+      `Failed to fetch budget tranches: ${tranchesErr.message}`,
+    );
+  }
+  
+  // Calculate how much to refund from each funding type
+  let depositRefund = 0;
+  let bonusRefund = 0;
+  let remainingToRefund = totalRefund;
+  
+  // Process tranches in reverse order (newest first) for refund
+  for (const tranche of [...(tranches || [])].reverse()) {
+    if (remainingToRefund <= 0) break;
+    
+    const trancheAvailable = tranche.remaining + tranche.reserved;
+    const refundFromThisTranche = Math.min(remainingToRefund, trancheAvailable);
+    
+    if (tranche.funding === "deposit") {
+      depositRefund += refundFromThisTranche;
+    } else if (tranche.funding === "bonus") {
+      bonusRefund += refundFromThisTranche;
+    }
+    
+    remainingToRefund -= refundFromThisTranche;
+    
+    // Release this amount from the tranche
+    await mktDb.rpc("mkt__budget_move", {
+      p_tranche: tranche.id,
+      p_from: tranche.remaining >= refundFromThisTranche ? "remaining" : "reserved",
+      p_to: "released",
+      p_amount: refundFromThisTranche,
+    });
+  }
+  
+  // 4. Post refund to ledger with idempotency
+  const editId = crypto.randomUUID();
+  const idempotencyKey = `slot-decrease:${campaignId}:${editId}`;
+  
+  if (depositRefund > 0) {
+    await mktDb.rpc("mkt__post", {
+      p_advertiser: advertiserId,
+      p_kind: "slot_decrease_refund",
+      p_bucket: "deposit",
+      p_amount: depositRefund,
+      p_delta: depositRefund,
+      p_key: `${idempotencyKey}:deposit`,
+      p_campaign: campaignId,
+      p_description: `Refund from decreasing slots from ${oldSlots} to ${newSlots}`,
+    });
+  }
+  
+  if (bonusRefund > 0) {
+    await mktDb.rpc("mkt__post", {
+      p_advertiser: advertiserId,
+      p_kind: "slot_decrease_refund",
+      p_bucket: "bonus_available",
+      p_amount: bonusRefund,
+      p_delta: bonusRefund,
+      p_key: `${idempotencyKey}:bonus`,
+      p_campaign: campaignId,
+      p_description: `Refund from decreasing slots from ${oldSlots} to ${newSlots}`,
+    });
+  }
+  
+  // 5. Create audit log entry
+  await mktDb.from("campaign_slot_audit").insert({
+    campaign_id: campaignId,
+    editor_id: adminId,
+    old_slots: oldSlots,
+    new_slots: newSlots,
+    amount_refunded: depositRefund + bonusRefund,
+    min_allowed_slots: minAllowedSlots,
+  });
+}
 
 /**
  * Edit an existing campaign. Allows editing content fields for draft/rejected/paused campaigns.
@@ -1884,7 +2074,34 @@ export async function editCampaignImpl(
   // Budget fields - only allowed in draft status
   if (campaign.status === "draft") {
     if (input.reward !== undefined) updates.publisher_reward = input.reward;
-    if (input.slots !== undefined) updates.max_completions = input.slots;
+    
+    // Handle slots change with special logic for decreases
+    if (input.slots !== undefined && input.slots !== campaign.max_completions) {
+      const isDecrease = input.slots < campaign.max_completions;
+      
+      if (isDecrease) {
+        // SLOT DECREASE: Only admins can decrease slots on their own campaigns
+        const { data: hasAdminRole } = await mktDb
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "admin")
+          .maybeSingle();
+        
+        if (!hasAdminRole) {
+          throw new DepositError(
+            "MKT_ADMIN_REQUIRED",
+            "Only administrators can decrease campaign slots.",
+          );
+        }
+        
+        // Admin must own the campaign (already checked advertiser_id === userId above)
+        // Now handle the decrease: validate minimum, refund budget, audit log
+        await handleSlotDecrease(userId, campaign, input.slots);
+      }
+      
+      updates.max_completions = input.slots;
+    }
   } else if (input.reward !== undefined || input.slots !== undefined) {
     throw new DepositError(
       "MKT_WRONG_STATUS",
@@ -1914,6 +2131,10 @@ export async function editCampaignImpl(
   const optionsUpdates: Record<string, any> = {};
   let hasOptionsChanges = false;
 
+  if (input.proofMode !== undefined) {
+    optionsUpdates.proof_mode = input.proofMode;
+    hasOptionsChanges = true;
+  }
   if (input.proofExampleUrl !== undefined) {
     optionsUpdates.proof_example_url = input.proofExampleUrl;
     hasOptionsChanges = true;

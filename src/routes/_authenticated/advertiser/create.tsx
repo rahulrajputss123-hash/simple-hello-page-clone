@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { PlusCircle, Star, X, Upload } from "lucide-react";
+import { PlusCircle, Star, X, Upload, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -36,46 +36,56 @@ const COUNTRIES = [
 ];
 
 type Verification = "auto" | "proof";
-type ProofType = "screenshot" | "text" | "both";
+type ProofMode = "screenshot" | "text" | "both" | "either";
 type ProofField = { key: string; label: string; required: boolean; maxLen: number };
 
-const PROOF_PRESETS: Record<
+const PROOF_TEMPLATES: Record<
   string,
   {
-    name: string;
-    type: ProofType;
+    title: string;
+    description: string;
+    instructions: string;
+    type: ProofMode;
     minImages: number;
     maxImages: number;
     fields: Omit<ProofField, "key">[];
   }
 > = {
   "app-install": {
-    name: "App install",
+    title: "Install an app",
+    description: "Users will submit a screenshot and their username",
+    instructions: "Install the app, create an account, and upload a screenshot showing you're logged in with your username visible",
     type: "both",
     minImages: 1,
     maxImages: 2,
-    fields: [{ label: "Username you used", required: true, maxLen: 80 }],
+    fields: [{ label: "Username", required: true, maxLen: 80 }],
   },
   "social-follow": {
-    name: "Social follow",
+    title: "Follow or like on social media",
+    description: "Users will submit a screenshot and their profile link",
+    instructions: "Follow/like the page and upload a screenshot showing you completed the action. Also provide your profile link",
     type: "both",
     minImages: 1,
     maxImages: 2,
-    fields: [{ label: "Profile link", required: true, maxLen: 200 }],
+    fields: [{ label: "Your profile link", required: true, maxLen: 200 }],
   },
   survey: {
-    name: "Survey/feedback",
+    title: "Fill a survey or form",
+    description: "Users will submit a completion code",
+    instructions: "Complete the survey or form and enter the completion code shown at the end",
     type: "text",
     minImages: 0,
     maxImages: 1,
     fields: [{ label: "Completion code", required: true, maxLen: 80 }],
   },
   purchase: {
-    name: "Purchase",
+    title: "Buy or sign up",
+    description: "Users will submit a screenshot and order/account ID",
+    instructions: "Complete the purchase or sign up, then upload a screenshot of your confirmation and provide your order or account ID",
     type: "both",
     minImages: 1,
     maxImages: 3,
-    fields: [{ label: "Order ID", required: true, maxLen: 100 }],
+    fields: [{ label: "Order or account ID", required: true, maxLen: 100 }],
   },
 };
 
@@ -94,7 +104,7 @@ function CreateCampaignPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [verification, setVerification] = useState<Verification>("proof");
-  const [proofType, setProofType] = useState<ProofType>("screenshot");
+  const [proofMode, setProofMode] = useState<ProofMode>("screenshot");
   const [proofDescription, setProofDescription] = useState("");
   const [proofMinImages, setProofMinImages] = useState(1);
   const [proofMaxImages, setProofMaxImages] = useState(3);
@@ -118,12 +128,14 @@ function CreateCampaignPage() {
   const [eligibilityNote, setEligibilityNote] = useState("");
   const [dailyLimit, setDailyLimit] = useState("");
   const [featured, setFeatured] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [featuredDays, setFeaturedDays] = useState("7");
   const [trackingUrl, setTrackingUrl] = useState("");
   const [ipAllowlist, setIpAllowlist] = useState("");
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [showPostback, setShowPostback] = useState(false);
   const [postbackInfo, setPostbackInfo] = useState<{ url: string; secret: string } | null>(null);
+  const [allDevices, setAllDevices] = useState(true); // "All devices" toggle
 
   const selectedCategory = useMemo(
     () => categories.data?.find((c) => c.id === categoryId),
@@ -179,14 +191,25 @@ function CreateCampaignPage() {
       .substring(0, 50);
   };
 
-  const applyProofPreset = (presetKey: string) => {
-    const preset = PROOF_PRESETS[presetKey];
-    if (!preset) return;
+  const applyTemplate = (templateKey: string) => {
+    const template = PROOF_TEMPLATES[templateKey];
+    if (!template) return;
 
-    setProofType(preset.type);
-    setProofMinImages(preset.minImages);
-    setProofMaxImages(preset.maxImages);
-    setProofFields(preset.fields.map((f) => ({ ...f, key: generateFieldKey(f.label) })));
+    // Check if user has already entered proof settings
+    const hasExistingSettings =
+      proofDescription.trim().length > 0 || proofFields.length > 0;
+
+    if (hasExistingSettings) {
+      if (!confirm("This will replace your proof settings. Continue?")) {
+        return;
+      }
+    }
+
+    setProofDescription(template.instructions);
+    setProofMode(template.type);
+    setProofMinImages(template.minImages);
+    setProofMaxImages(template.maxImages);
+    setProofFields(template.fields.map((f) => ({ ...f, key: generateFieldKey(f.label) })));
   };
 
   const addProofField = () => {
@@ -278,15 +301,22 @@ function CreateCampaignPage() {
           // Proof fields
           proofDescription:
             verification === "proof" && proofDescription ? proofDescription.trim() : undefined,
+          proofMode: verification === "proof" ? proofMode : undefined,
           proofMinImages: verification === "proof" ? proofMinImages : undefined,
           proofMaxImages: verification === "proof" ? proofMaxImages : undefined,
           proofFields: verification === "proof" && proofFields.length > 0 ? proofFields : undefined,
+          // Required fields for proof verification
+          reviewWindow: verification === "proof" ? reviewWindow : undefined,
+          devices:
+            verification === "proof"
+              ? devices.length === 3
+                ? [] // All devices selected = empty array
+                : devices
+              : undefined,
           // Advanced settings
-          reviewWindow: verification === "proof" && reviewWindow ? reviewWindow : undefined,
           proofExampleUrl: uploadedExampleUrl || proofExampleUrl || undefined,
           startsAt,
           endsAt,
-          devices: devices.length > 0 ? devices : undefined,
           eligibilityNote: eligibilityNote.trim() || undefined,
           dailyLimit: dailyLimit ? Number(dailyLimit) : undefined,
           rulesAccepted,
@@ -396,16 +426,24 @@ function CreateCampaignPage() {
               toast.error("Proof instructions required (at least 10 characters)");
               return;
             }
-            if (proofType === "text" && proofFields.length === 0) {
+            if (devices.length === 0) {
+              toast.error("Select at least one device");
+              return;
+            }
+            if (proofMode === "text" && proofFields.length === 0) {
               toast.error("Text proof requires at least one custom field");
               return;
             }
-            if (proofType === "screenshot" && proofMinImages < 1) {
+            if (proofMode === "screenshot" && proofMinImages < 1) {
               toast.error("Screenshot proof requires at least 1 image");
               return;
             }
-            if (proofType === "text" && proofMinImages === 0 && proofFields.length === 0) {
+            if (proofMode === "text" && proofMinImages === 0 && proofFields.length === 0) {
               toast.error("Text-only proof requires at least one field");
+              return;
+            }
+            if ((proofMode === "either" || proofMode === "both") && proofMinImages === 0 && proofFields.length === 0) {
+              toast.error("You must configure either images or custom fields");
               return;
             }
             // Check for duplicate field keys
@@ -567,18 +605,25 @@ function CreateCampaignPage() {
 
             <div className="space-y-1.5">
               <Label>Proof type</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {(["screenshot", "text", "both"] as const).map((type) => (
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { value: "screenshot", label: "Screenshot only", desc: "Users must upload screenshots" },
+                    { value: "text", label: "Text only", desc: "Users must fill the details you ask for" },
+                    { value: "both", label: "Both required", desc: "Screenshot AND details" },
+                    { value: "either", label: "Either one", desc: "Screenshot OR details, one is enough" },
+                  ] as const
+                ).map(({ value, label, desc }) => (
                   <button
-                    key={type}
+                    key={value}
                     type="button"
                     onClick={() => {
-                      setProofType(type);
-                      if (type === "screenshot") {
+                      setProofMode(value);
+                      if (value === "screenshot") {
                         setProofMinImages(1);
                         setProofMaxImages(3);
                         setProofFields([]);
-                      } else if (type === "text") {
+                      } else if (value === "text") {
                         setProofMinImages(0);
                         setProofMaxImages(1);
                         if (proofFields.length === 0) {
@@ -591,62 +636,95 @@ function CreateCampaignPage() {
                             },
                           ]);
                         }
-                      } else {
+                      } else if (value === "both") {
                         setProofMinImages(1);
                         setProofMaxImages(3);
                         if (proofFields.length === 0) {
                           setProofFields([
-                            { key: "username", label: "Username", required: false, maxLen: 80 },
+                            { key: "username", label: "Username", required: true, maxLen: 80 },
                           ]);
                         }
+                        // Set all fields to required for "both" mode
+                        setProofFields((fields) => fields.map((f) => ({ ...f, required: true })));
+                      } else if (value === "either") {
+                        setProofMinImages(0);
+                        setProofMaxImages(3);
+                        if (proofFields.length === 0) {
+                          setProofFields([
+                            { key: "details", label: "Additional details", required: false, maxLen: 200 },
+                          ]);
+                        }
+                        // Set all fields to optional for "either" mode
+                        setProofFields((fields) => fields.map((f) => ({ ...f, required: false })));
                       }
                     }}
-                    className={`rounded-xl border p-2 text-xs font-medium ${
-                      proofType === type
-                        ? "border-gold-dark bg-gold/20 text-gold-dark"
-                        : "border-border bg-card text-muted-foreground"
+                    className={`rounded-xl border p-3 text-left ${
+                      proofMode === value
+                        ? "border-gold-dark bg-gold/20"
+                        : "border-border bg-card"
                     }`}
                   >
-                    {type === "screenshot"
-                      ? "Screenshot only"
-                      : type === "text"
-                        ? "Text only"
-                        : "Screenshot + text"}
+                    <div className={`text-sm font-medium ${proofMode === value ? "text-gold-dark" : ""}`}>
+                      {label}
+                    </div>
+                    <div className={`mt-0.5 text-[11px] ${proofMode === value ? "text-gold-dark/80" : "text-muted-foreground"}`}>
+                      {desc}
+                    </div>
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs">Quick presets</Label>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(PROOF_PRESETS).map(([key, preset]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => applyProofPreset(key)}
-                    className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-gold-dark hover:bg-gold/10 hover:text-gold-dark"
-                  >
-                    {preset.name}
-                  </button>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 text-left text-sm font-medium hover:bg-background-alt"
+              >
+                <span>Need help? Use a ready-made template</span>
+                <ChevronRight
+                  className={`size-4 transition-transform ${showTemplates ? "rotate-90" : ""}`}
+                />
+              </button>
+
+              {showTemplates && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {Object.entries(PROOF_TEMPLATES).map(([key, template]) => (
+                    <div
+                      key={key}
+                      className="space-y-2 rounded-xl border border-border bg-card p-4"
+                    >
+                      <h3 className="font-semibold">{template.title}</h3>
+                      <p className="text-xs text-muted-foreground">{template.description}</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => applyTemplate(key)}
+                      >
+                        Use this template
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {proofType !== "text" && (
+            {proofMode !== "text" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="c-proof-min-images">Min images</Label>
                   <Input
                     id="c-proof-min-images"
                     type="number"
-                    min={proofType === "text" ? 0 : 1}
+                    min={proofMode === "text" ? 0 : proofMode === "either" ? 0 : 1}
                     max={5}
                     value={proofMinImages}
                     onChange={(e) =>
                       setProofMinImages(
                         Math.max(
-                          proofType === "text" ? 0 : 1,
+                          proofMode === "text" ? 0 : proofMode === "either" ? 0 : 1,
                           Math.min(5, Number(e.target.value) || 1),
                         ),
                       )
@@ -671,7 +749,7 @@ function CreateCampaignPage() {
               </div>
             )}
 
-            {proofType !== "screenshot" && (
+            {proofMode !== "screenshot" && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Custom fields</Label>
@@ -741,6 +819,86 @@ function CreateCampaignPage() {
         )}
 
         {verification === "proof" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="c-review-window">Review within *</Label>
+              <select
+                id="c-review-window"
+                className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
+                value={reviewWindow}
+                onChange={(e) => setReviewWindow(Number(e.target.value))}
+                required
+              >
+                <option value={6}>6 hours</option>
+                <option value={12}>12 hours</option>
+                <option value={24}>24 hours (recommended)</option>
+                <option value={48}>48 hours</option>
+                <option value={72}>72 hours</option>
+                <option value={168}>7 days</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                If you do not review a submission in this time, it is approved automatically and
+                the earner is paid.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Devices *</Label>
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-card p-3">
+                  <span className="text-sm font-medium">All devices</span>
+                  <input
+                    type="checkbox"
+                    checked={allDevices}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setAllDevices(checked);
+                      if (checked) {
+                        setDevices(["android", "ios", "desktop"]);
+                      }
+                    }}
+                    className="size-4"
+                  />
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["android", "ios", "desktop"] as const).map((device) => (
+                    <label
+                      key={device}
+                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-colors ${
+                        devices.includes(device)
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={devices.includes(device)}
+                        onChange={(e) => {
+                          let newDevices: string[];
+                          if (e.target.checked) {
+                            newDevices = [...devices, device];
+                          } else {
+                            newDevices = devices.filter((d) => d !== device);
+                          }
+                          setDevices(newDevices);
+                          // Update "All devices" toggle
+                          setAllDevices(newDevices.length === 3);
+                        }}
+                        className="hidden"
+                      />
+                      {device === "android" ? "Android" : device === "ios" ? "iOS" : "Desktop"}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Select at least one device. If all three are selected, the offer will be available on all devices.
+              </p>
+            </div>
+          </>
+        )}
+
+        {verification === "proof" && (
           <div className="space-y-3">
             <button
               type="button"
@@ -752,27 +910,6 @@ function CreateCampaignPage() {
             </button>
             {showAdvanced && (
               <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="c-review-window">Review within</Label>
-                  <select
-                    id="c-review-window"
-                    className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
-                    value={reviewWindow}
-                    onChange={(e) => setReviewWindow(Number(e.target.value))}
-                  >
-                    <option value={6}>6 hours</option>
-                    <option value={12}>12 hours</option>
-                    <option value={24}>24 hours (recommended)</option>
-                    <option value={48}>48 hours</option>
-                    <option value={72}>72 hours</option>
-                    <option value={168}>7 days</option>
-                  </select>
-                  <p className="text-[11px] text-muted-foreground">
-                    If you do not review a submission in this time, it is approved automatically and
-                    the earner is paid.
-                  </p>
-                </div>
-
                 <div className="space-y-1.5">
                   <Label htmlFor="c-proof-example">Proof example (optional)</Label>
                   <div className="space-y-2">
@@ -858,39 +995,6 @@ function CreateCampaignPage() {
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     Campaign will automatically complete at end date
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Device targeting (optional)</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["android", "ios", "desktop"] as const).map((device) => (
-                      <label
-                        key={device}
-                        className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-2 text-xs font-medium transition-colors ${
-                          devices.includes(device)
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-card text-muted-foreground hover:border-primary/50"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={devices.includes(device)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setDevices([...devices, device]);
-                            } else {
-                              setDevices(devices.filter((d) => d !== device));
-                            }
-                          }}
-                          className="hidden"
-                        />
-                        {device === "android" ? "Android" : device === "ios" ? "iOS" : "Desktop"}
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Leave empty to allow all devices
                   </p>
                 </div>
 

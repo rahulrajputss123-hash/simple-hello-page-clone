@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BackLink } from "@/components/marketplace/Preview";
 import { editCampaign, getCampaignForEdit, listCategories } from "@/lib/marketplace.functions";
 import { useRole } from "@/lib/marketplace/role";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/advertiser/edit/$id")({
   head: () => ({ meta: [{ title: "Edit Campaign — CashGPT" }] }),
@@ -45,6 +46,7 @@ function EditCampaignPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [proofDescription, setProofDescription] = useState("");
+  const [proofMode, setProofMode] = useState<"screenshot" | "text" | "both" | "either" | null>(null);
   const [proofMinImages, setProofMinImages] = useState(1);
   const [proofMaxImages, setProofMaxImages] = useState(3);
   const [proofFields, setProofFields] = useState<ProofField[]>([]);
@@ -59,7 +61,11 @@ function EditCampaignPage() {
   const [eligibilityNote, setEligibilityNote] = useState("");
   const [dailyLimit, setDailyLimit] = useState("");
   const [reviewWindow, setReviewWindow] = useState(24);
+  const [devices, setDevices] = useState<string[]>([]);
+  const [allDevices, setAllDevices] = useState(false);
   const [resubmit, setResubmit] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [minSlots, setMinSlots] = useState(15);
 
   const isDraft = campaign.data?.status === "draft";
   const isRejected = campaign.data?.status === "rejected";
@@ -76,6 +82,27 @@ function EditCampaignPage() {
       setProofMinImages(c.proofMinImages || 1);
       setProofMaxImages(c.proofMaxImages || 3);
       setProofFields(c.proofFields || []);
+      
+      // Set proofMode from campaign_options, or derive it from existing fields
+      if (c.proofMode) {
+        setProofMode(c.proofMode as "screenshot" | "text" | "both" | "either");
+      } else {
+        // Derive for old campaigns without proof_mode
+        const minImg = c.proofMinImages || 1;
+        const hasFields = (c.proofFields || []).length > 0;
+        const hasRequiredFields = (c.proofFields || []).some((f: any) => f.required);
+        
+        if (minImg >= 1 && !hasRequiredFields) {
+          setProofMode("screenshot");
+        } else if (minImg === 0 && hasFields) {
+          setProofMode("text");
+        } else if (minImg >= 1 && hasRequiredFields) {
+          setProofMode("both");
+        } else {
+          setProofMode("screenshot"); // fallback
+        }
+      }
+      
       setReward(c.publisherReward?.toString() || "0.50");
       setSlots(c.maxCompletions?.toString() || "50");
       setCategoryId(c.categoryId || "");
@@ -87,8 +114,45 @@ function EditCampaignPage() {
       setEligibilityNote(c.eligibilityNotes || "");
       setDailyLimit(c.dailyLimit?.toString() || "");
       setReviewWindow(c.reviewWindowHours || 24);
+      
+      // Set devices - if empty array, show all three as selected
+      const campaignDevices = c.devices || [];
+      if (campaignDevices.length === 0) {
+        setDevices(["android", "ios", "desktop"]);
+        setAllDevices(true);
+      } else {
+        setDevices(campaignDevices);
+        setAllDevices(campaignDevices.length === 3);
+      }
     }
   }, [campaign.data]);
+
+  // Check if user is admin and calculate minimum slots
+  useEffect(() => {
+    async function checkAdminAndMinSlots() {
+      if (!overview?.account?.userId || !campaign.data) return;
+      
+      // Check if user has admin role
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", overview.account.userId)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      setIsAdmin(!!roleData);
+      
+      // Calculate minimum slots (used + reserved)
+      const { data: minSlotsData } = await supabase.rpc("mkt_campaign_slot_usage", {
+        p_campaign_id: campaign.data.id,
+      });
+      
+      const calculatedMin = minSlotsData || 15;
+      setMinSlots(Math.max(15, calculatedMin));
+    }
+    
+    void checkAdminAndMinSlots();
+  }, [campaign.data, overview?.account?.userId]);
 
   const selectedCategory = useMemo(
     () => categories.data?.find((c) => c.id === categoryId),
@@ -145,6 +209,9 @@ function EditCampaignPage() {
       if (changed(proofDescription, campaign.data?.proofDescription)) {
         updates.proofDescription = proofDescription.trim();
       }
+      if (proofMode !== campaign.data?.proofMode) {
+        updates.proofMode = proofMode;
+      }
       if (proofMinImages !== campaign.data?.proofMinImages) {
         updates.proofMinImages = proofMinImages;
       }
@@ -171,6 +238,16 @@ function EditCampaignPage() {
 
       if (reviewWindow !== campaign.data?.reviewWindowHours) {
         updates.reviewWindow = reviewWindow;
+      }
+
+      // Devices - send empty array if all three selected, otherwise send selected devices
+      const campaignDevices = campaign.data?.devices || [];
+      const normalizedCampaignDevices = campaignDevices.length === 0 ? ["android", "ios", "desktop"] : campaignDevices;
+      const normalizedCurrentDevices = devices.length === 3 ? [] : devices;
+      const normalizedOriginalDevices = normalizedCampaignDevices.length === 3 ? [] : normalizedCampaignDevices;
+      
+      if (JSON.stringify(normalizedCurrentDevices.sort()) !== JSON.stringify(normalizedOriginalDevices.sort())) {
+        updates.devices = normalizedCurrentDevices;
       }
 
       // Category and subcategory are read-only in edit mode (never sent)
@@ -294,6 +371,10 @@ function EditCampaignPage() {
               toast.error("Proof instructions required (at least 10 characters)");
               return;
             }
+            if (devices.length === 0) {
+              toast.error("Select at least one device");
+              return;
+            }
           }
           mutation.mutate();
         }}
@@ -390,12 +471,22 @@ function EditCampaignPage() {
                 <Input
                   id="c-slots"
                   type="number"
-                  min={15}
+                  min={isAdmin ? minSlots : campaign.data.maxCompletions}
                   max={100000}
                   value={slots}
                   onChange={(e) => setSlots(e.target.value)}
                   required
                 />
+                {isAdmin && minSlots > 15 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Minimum {minSlots} slots (campaign has {minSlots} already consumed or reserved)
+                  </p>
+                )}
+                {!isAdmin && (
+                  <p className="text-[11px] text-muted-foreground">
+                    You can only increase slots. Admins can decrease their own campaigns.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -510,12 +601,13 @@ function EditCampaignPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="c-review-window">Review within</Label>
+              <Label htmlFor="c-review-window">Review within *</Label>
               <select
                 id="c-review-window"
                 className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
                 value={reviewWindow}
                 onChange={(e) => setReviewWindow(Number(e.target.value))}
+                required
               >
                 <option value={6}>6 hours</option>
                 <option value={12}>12 hours</option>
@@ -524,6 +616,64 @@ function EditCampaignPage() {
                 <option value={72}>72 hours</option>
                 <option value={168}>7 days</option>
               </select>
+              <p className="text-[11px] text-muted-foreground">
+                If you do not review a submission in this time, it is approved automatically and
+                the earner is paid.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Devices *</Label>
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-card p-3">
+                  <span className="text-sm font-medium">All devices</span>
+                  <input
+                    type="checkbox"
+                    checked={allDevices}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setAllDevices(checked);
+                      if (checked) {
+                        setDevices(["android", "ios", "desktop"]);
+                      }
+                    }}
+                    className="size-4"
+                  />
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["android", "ios", "desktop"] as const).map((device) => (
+                    <label
+                      key={device}
+                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-colors ${
+                        devices.includes(device)
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={devices.includes(device)}
+                        onChange={(e) => {
+                          let newDevices: string[];
+                          if (e.target.checked) {
+                            newDevices = [...devices, device];
+                          } else {
+                            newDevices = devices.filter((d) => d !== device);
+                          }
+                          setDevices(newDevices);
+                          // Update "All devices" toggle
+                          setAllDevices(newDevices.length === 3);
+                        }}
+                        className="hidden"
+                      />
+                      {device === "android" ? "Android" : device === "ios" ? "iOS" : "Desktop"}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Select at least one device. If all three are selected, the offer will be available on all devices.
+              </p>
             </div>
           </div>
         )}

@@ -131,6 +131,7 @@ export const savePayoutMethod = createServerFn({ method: "POST" })
         country: z.string().trim().max(80).nullable().optional(),
         giftCardRecipientEmail: z.string().trim().max(200).nullable().optional(),
         walletAddress: z.string().trim().max(120).nullable().optional(),
+        binancePayId: z.string().trim().max(200).nullable().optional(),
       })
       .parse(input),
   )

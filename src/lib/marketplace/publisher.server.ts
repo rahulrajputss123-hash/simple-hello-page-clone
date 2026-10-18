@@ -306,6 +306,13 @@ export async function submitProofImpl(
     return { submissionId: result.submission_id };
   } catch (err) {
     if (err instanceof MktRpcError) {
+      // For MKT_INVALID_PROOF, extract the DETAIL message from the error
+      if (err.code === "MKT_INVALID_PROOF") {
+        // Error message format: "mkt_submit_proof: MKT_INVALID_PROOF\nDETAIL: <friendly message>"
+        const detailMatch = err.message.match(/DETAIL:\s*(.+)/i);
+        const friendlyMessage = detailMatch?.[1] || humanSubmissionError(err.code);
+        throw new SubmissionError(err.code, friendlyMessage);
+      }
       throw new SubmissionError(err.code, humanSubmissionError(err.code));
     }
     throw err;
@@ -364,6 +371,8 @@ function humanSubmissionError(code: string): string {
     case "MKT_NOT_APPEALLABLE":
     case "MKT_APPEAL_DEADLINE_PASSED":
       return "This submission can no longer be appealed.";
+    case "MKT_INVALID_PROOF":
+      return "Please provide the required proof (screenshot or details).";
     default:
       return "Something went wrong. Please try again.";
   }

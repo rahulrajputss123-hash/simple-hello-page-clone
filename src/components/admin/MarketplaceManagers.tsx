@@ -299,6 +299,21 @@ export function ProofReviews() {
                       )}
                     </p>
                   )}
+                  {p.fieldValues && Object.keys(p.fieldValues).length > 0 && (
+                    <div className="mt-2 rounded-xl border border-border bg-background-alt p-2">
+                      <p className="text-[11px] font-semibold text-muted-foreground mb-1">
+                        Submitted details:
+                      </p>
+                      <div className="space-y-0.5">
+                        {Object.entries(p.fieldValues).map(([key, value]) => (
+                          <div key={key} className="flex gap-2 text-xs">
+                            <span className="text-muted-foreground">{key}:</span>
+                            <span className="font-medium">{String(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               <ApproveReject

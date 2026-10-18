@@ -132,6 +132,7 @@ function WalletPage() {
           country: values.fields["country"]?.trim() || null,
           giftCardRecipientEmail: values.fields["gift_card_recipient_email"]?.trim() || null,
           walletAddress: values.fields["wallet_address"]?.trim() || null,
+          binancePayId: values.fields["binance_pay_id"]?.trim() || null,
         },
       });
     },
@@ -329,6 +330,12 @@ function WalletPage() {
                       }
                       data-testid={`payout-field-${field.name}`}
                     />
+                    {/* Binance Pay helper text */}
+                    {draftType === "binance_pay" && field.name === "binance_pay_id" && (
+                      <p className="text-xs text-muted-foreground">
+                        Sent in USDT to your Binance Pay ID. No network fee. Make sure the ID is correct, payouts cannot be reversed.
+                      </p>
+                    )}
                   </div>
                 ))}
 

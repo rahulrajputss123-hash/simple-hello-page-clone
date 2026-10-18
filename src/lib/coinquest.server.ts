@@ -868,6 +868,7 @@ export async function savePayoutMethodImpl(
     country?: string | null;
     giftCardRecipientEmail?: string | null;
     walletAddress?: string | null;
+    binancePayId?: string | null;
   },
 ) {
   const methodSpec = payoutMethodSpec(input.methodType);
@@ -881,6 +882,15 @@ export async function savePayoutMethodImpl(
     const validation = validateCryptoAddress(input.methodType, input.walletAddress);
     if (!validation.valid) {
       throw new Error(validation.error || "Invalid wallet address");
+    }
+  }
+
+  // Validate Binance Pay ID server-side
+  if (input.binancePayId) {
+    const { validateBinancePayId } = await import("./payout-methods");
+    const validation = validateBinancePayId(input.binancePayId);
+    if (!validation.valid) {
+      throw new Error(validation.error || "Invalid Binance Pay ID or email");
     }
   }
 
@@ -899,6 +909,7 @@ export async function savePayoutMethodImpl(
       country: input.country?.trim() || null,
       gift_card_recipient_email: input.giftCardRecipientEmail?.trim() || null,
       wallet_address: input.walletAddress?.trim() || null,
+      binance_pay_id: input.binancePayId?.trim() || null,
     })
     .select("*")
     .single();
@@ -1032,6 +1043,11 @@ export async function adminUpdateWithdrawalImpl(
   const { isCryptoMethod } = await import("./payout-methods");
   if (status === "approved" && isCryptoMethod(withdrawal.data.method_type) && !transactionHash?.trim()) {
     throw new Error("Transaction hash is required for crypto withdrawals.");
+  }
+
+  // Binance Pay requires order ID (stored as transaction_hash) when approving
+  if (status === "approved" && withdrawal.data.method_type === "binance_pay" && !transactionHash?.trim()) {
+    throw new Error("Binance Pay order ID is required.");
   }
 
   // Money moves only on the transition out of 'pending', under a row lock
@@ -1214,7 +1230,7 @@ export async function adminAdjustWalletImpl(userId: string, amount: number, reas
 }
 
 export async function adminOverviewImpl() {
-  const [withdrawals, claims, tickets, users, transactions] = await Promise.all([
+  const [withdrawals, claims, tickets, users, transactions, payoutMethods] = await Promise.all([
     supabaseAdmin
       .from("withdrawal_requests")
       .select("*")
@@ -1242,10 +1258,34 @@ export async function adminOverviewImpl() {
       .order("created_at", { ascending: false })
       .limit(200),
     supabaseAdmin.from("wallet_transactions").select("amount, kind").limit(2000),
+    // Fetch all Binance Pay payout methods to detect duplicates
+    supabaseAdmin
+      .from("payout_methods")
+      .select("id, user_id, binance_pay_id")
+      .eq("method_type", "binance_pay")
+      .not("binance_pay_id", "is", null),
   ]);
 
   const profiles = users.data ?? [];
   const byId = new Map(profiles.map((p) => [p.id, p]));
+
+  // Build a map of Binance Pay IDs to count how many users use each one
+  const binancePayIdCounts = new Map<string, number>();
+  for (const method of payoutMethods.data ?? []) {
+    const normalized = method.binance_pay_id?.trim().toLowerCase();
+    if (normalized) {
+      binancePayIdCounts.set(normalized, (binancePayIdCounts.get(normalized) ?? 0) + 1);
+    }
+  }
+
+  // Build a set of payout_method IDs that have duplicate Binance Pay IDs
+  const duplicateBinancePayMethodIds = new Set<string>();
+  for (const method of payoutMethods.data ?? []) {
+    const normalized = method.binance_pay_id?.trim().toLowerCase();
+    if (normalized && (binancePayIdCounts.get(normalized) ?? 0) > 1) {
+      duplicateBinancePayMethodIds.add(method.id);
+    }
+  }
 
   const totals = {
     users: profiles.length,
@@ -1260,6 +1300,10 @@ export async function adminOverviewImpl() {
     withdrawals: (withdrawals.data ?? []).map((w) => ({
       ...w,
       user: byId.get(w.user_id) ?? null,
+      hasDuplicateBinancePay:
+        w.method_type === "binance_pay" &&
+        w.payout_method_id &&
+        duplicateBinancePayMethodIds.has(w.payout_method_id),
     })),
     claims: (claims.data ?? []).map((c) => ({ ...c, user: byId.get(c.user_id) ?? null })),
     tickets: (tickets.data ?? []).map((t) => ({ ...t, user: byId.get(t.user_id) ?? null })),

@@ -69,5 +69,5 @@ CREATE TRIGGER mktenforce_proof_mode_trigger
   FOR EACH ROW
   EXECUTE FUNCTION public.mktenforce_proof_mode();
 
-COMMENT ON FUNCTION public.mktenforce_proof_mode IS 
+COMMENT ON FUNCTION public.mktenforce_proof_mode() IS 
   'Enforces proof_mode validation for campaign submissions. For "either" mode, requires at least one of: proof images OR field values.';
