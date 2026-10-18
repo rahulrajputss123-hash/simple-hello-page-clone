@@ -135,6 +135,7 @@ function CreateCampaignPage() {
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [showPostback, setShowPostback] = useState(false);
   const [postbackInfo, setPostbackInfo] = useState<{ url: string; secret: string } | null>(null);
+  const [allDevices, setAllDevices] = useState(true); // "All devices" toggle
 
   const selectedCategory = useMemo(
     () => categories.data?.find((c) => c.id === categoryId),
@@ -304,12 +305,18 @@ function CreateCampaignPage() {
           proofMinImages: verification === "proof" ? proofMinImages : undefined,
           proofMaxImages: verification === "proof" ? proofMaxImages : undefined,
           proofFields: verification === "proof" && proofFields.length > 0 ? proofFields : undefined,
+          // Required fields for proof verification
+          reviewWindow: verification === "proof" ? reviewWindow : undefined,
+          devices:
+            verification === "proof"
+              ? devices.length === 3
+                ? [] // All devices selected = empty array
+                : devices
+              : undefined,
           // Advanced settings
-          reviewWindow: verification === "proof" && reviewWindow ? reviewWindow : undefined,
           proofExampleUrl: uploadedExampleUrl || proofExampleUrl || undefined,
           startsAt,
           endsAt,
-          devices: devices.length > 0 ? devices : undefined,
           eligibilityNote: eligibilityNote.trim() || undefined,
           dailyLimit: dailyLimit ? Number(dailyLimit) : undefined,
           rulesAccepted,
@@ -417,6 +424,10 @@ function CreateCampaignPage() {
           if (verification === "proof") {
             if (!proofDescription.trim() || proofDescription.length < 10) {
               toast.error("Proof instructions required (at least 10 characters)");
+              return;
+            }
+            if (devices.length === 0) {
+              toast.error("Select at least one device");
               return;
             }
             if (proofMode === "text" && proofFields.length === 0) {
@@ -808,6 +819,86 @@ function CreateCampaignPage() {
         )}
 
         {verification === "proof" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="c-review-window">Review within *</Label>
+              <select
+                id="c-review-window"
+                className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
+                value={reviewWindow}
+                onChange={(e) => setReviewWindow(Number(e.target.value))}
+                required
+              >
+                <option value={6}>6 hours</option>
+                <option value={12}>12 hours</option>
+                <option value={24}>24 hours (recommended)</option>
+                <option value={48}>48 hours</option>
+                <option value={72}>72 hours</option>
+                <option value={168}>7 days</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                If you do not review a submission in this time, it is approved automatically and
+                the earner is paid.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Devices *</Label>
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-card p-3">
+                  <span className="text-sm font-medium">All devices</span>
+                  <input
+                    type="checkbox"
+                    checked={allDevices}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setAllDevices(checked);
+                      if (checked) {
+                        setDevices(["android", "ios", "desktop"]);
+                      }
+                    }}
+                    className="size-4"
+                  />
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["android", "ios", "desktop"] as const).map((device) => (
+                    <label
+                      key={device}
+                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-colors ${
+                        devices.includes(device)
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={devices.includes(device)}
+                        onChange={(e) => {
+                          let newDevices: string[];
+                          if (e.target.checked) {
+                            newDevices = [...devices, device];
+                          } else {
+                            newDevices = devices.filter((d) => d !== device);
+                          }
+                          setDevices(newDevices);
+                          // Update "All devices" toggle
+                          setAllDevices(newDevices.length === 3);
+                        }}
+                        className="hidden"
+                      />
+                      {device === "android" ? "Android" : device === "ios" ? "iOS" : "Desktop"}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Select at least one device. If all three are selected, the offer will be available on all devices.
+              </p>
+            </div>
+          </>
+        )}
+
+        {verification === "proof" && (
           <div className="space-y-3">
             <button
               type="button"
@@ -819,27 +910,6 @@ function CreateCampaignPage() {
             </button>
             {showAdvanced && (
               <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="c-review-window">Review within</Label>
-                  <select
-                    id="c-review-window"
-                    className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
-                    value={reviewWindow}
-                    onChange={(e) => setReviewWindow(Number(e.target.value))}
-                  >
-                    <option value={6}>6 hours</option>
-                    <option value={12}>12 hours</option>
-                    <option value={24}>24 hours (recommended)</option>
-                    <option value={48}>48 hours</option>
-                    <option value={72}>72 hours</option>
-                    <option value={168}>7 days</option>
-                  </select>
-                  <p className="text-[11px] text-muted-foreground">
-                    If you do not review a submission in this time, it is approved automatically and
-                    the earner is paid.
-                  </p>
-                </div>
-
                 <div className="space-y-1.5">
                   <Label htmlFor="c-proof-example">Proof example (optional)</Label>
                   <div className="space-y-2">
@@ -925,39 +995,6 @@ function CreateCampaignPage() {
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     Campaign will automatically complete at end date
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Device targeting (optional)</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["android", "ios", "desktop"] as const).map((device) => (
-                      <label
-                        key={device}
-                        className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-2 text-xs font-medium transition-colors ${
-                          devices.includes(device)
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-card text-muted-foreground hover:border-primary/50"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={devices.includes(device)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setDevices([...devices, device]);
-                            } else {
-                              setDevices(devices.filter((d) => d !== device));
-                            }
-                          }}
-                          className="hidden"
-                        />
-                        {device === "android" ? "Android" : device === "ios" ? "iOS" : "Desktop"}
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Leave empty to allow all devices
                   </p>
                 </div>
 

@@ -1312,15 +1312,16 @@ export const createCampaignInput = z
       )
       .max(5)
       .optional(),
+    // Required fields for proof verification
+    reviewWindow: z.number().int().min(1).max(720), // Review window in hours - REQUIRED for proof
+    devices: z
+      .array(z.enum(["android", "ios", "desktop"]))
+      .min(0) // Allow empty array (means "all devices")
+      .max(3), // REQUIRED for proof - at least one device or empty array for all
     // Advanced settings
-    reviewWindow: z.number().int().min(1).max(720).optional(), // Review window in hours
     proofExampleUrl: z.string().url().optional(), // Public URL to example proof image
     startsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
     endsAt: z.string().datetime().optional(), // ISO 8601 datetime in UTC
-    devices: z
-      .array(z.enum(["android", "ios", "desktop"]))
-      .max(3)
-      .optional(),
     eligibilityNote: z.string().trim().max(300).optional(),
     dailyLimit: z.number().int().min(1).optional(), // Max completions per rolling 24h
     // Offer rules confirmation
@@ -1331,6 +1332,10 @@ export const createCampaignInput = z
       if (data.verification === "proof") {
         // Proof description is required for manual proof
         if (!data.proofDescription) return false;
+        // reviewWindow is required for proof
+        if (!data.reviewWindow) return false;
+        // At least one device must be selected (or empty array for all devices)
+        if (data.devices === undefined || data.devices === null) return false;
         // At least images or fields required
         const hasImages = (data.proofMinImages ?? 0) >= 1;
         const hasFields = (data.proofFields?.length ?? 0) > 0;
