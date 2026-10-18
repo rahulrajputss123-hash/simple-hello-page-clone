@@ -18,6 +18,9 @@ export default defineConfig({
       "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(
         projectEnv.VITE_SUPABASE_PUBLISHABLE_KEY || projectEnv.SUPABASE_PUBLISHABLE_KEY,
       ),
+      "import.meta.env.VITE_SITE_URL": JSON.stringify(
+        projectEnv.VITE_SITE_URL || projectEnv.SITE_URL || "https://cashgpt.in",
+      ),
     },
     server: { allowedHosts: true, host: "0.0.0.0", port: 3000 },
   },

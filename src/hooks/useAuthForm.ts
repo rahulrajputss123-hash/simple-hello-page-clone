@@ -87,7 +87,9 @@ export function useAuthForm({
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: window.location.origin },
+        options: {
+          redirectTo: import.meta.env.VITE_SITE_URL || "https://cashgpt.in",
+        },
       });
       if (error) throw error;
       // On success the browser navigates away; leave the button busy.
@@ -135,7 +137,9 @@ export function useAuthForm({
           // placeholder while it verifies in the background, which left users on an
           // empty screen whenever that was slow or failed. /auth/confirmed shows
           // the result immediately and always offers a way forward.
-          options: { emailRedirectTo: `${window.location.origin}/auth/confirmed` },
+          options: {
+            emailRedirectTo: `${import.meta.env.VITE_SITE_URL || "https://cashgpt.in"}/auth/confirmed`,
+          },
         });
         if (error) throw error;
         // Persist the signup-only fields so the authenticated home page can
