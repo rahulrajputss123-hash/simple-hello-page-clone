@@ -39,22 +39,65 @@ function ProofSubmissionPage() {
       if (!session?.user.id || !c?.clickId)
         throw new Error("Start this task before submitting proof.");
 
-      // Validate required images
+      // @ts-ignore: campaign_options is loaded as left join
+      const proofMode = c.campaign_options?.[0]?.proof_mode || null;
+      const proofFields = (c.proof_fields as any[]) ?? [];
       const minImages = c.proof_min_images ?? 1;
       const maxImages = c.proof_max_images ?? 3;
-      if (maxImages > 0 && files.length < minImages) {
-        throw new Error(`Please upload at least ${minImages} image${minImages === 1 ? "" : "s"}.`);
+      
+      // Derive proof_mode for old campaigns
+      let derivedMode = proofMode;
+      if (!derivedMode) {
+        const hasRequiredFields = proofFields.some((f: any) => f.required);
+        if (minImages >= 1 && !hasRequiredFields) {
+          derivedMode = "screenshot";
+        } else if (minImages === 0 && proofFields.length > 0) {
+          derivedMode = "text";
+        } else {
+          derivedMode = "both";
+        }
       }
+
+      // Validate based on proof_mode
+      const hasImages = files.length > 0;
+      const hasFieldValues = proofFields.some((field: any) => fieldValues[field.key]?.trim());
+
+      if (derivedMode === "either") {
+        // Either mode: at least one of images OR fields
+        if (!hasImages && !hasFieldValues) {
+          throw new Error("Please provide either a screenshot or fill in the details below.");
+        }
+      } else if (derivedMode === "both") {
+        // Both mode: images AND fields required
+        if (files.length < minImages) {
+          throw new Error(`Please upload at least ${minImages} image${minImages === 1 ? "" : "s"}.`);
+        }
+        for (const field of proofFields) {
+          if (field.required && !fieldValues[field.key]?.trim()) {
+            throw new Error(`${field.label} is required.`);
+          }
+        }
+      } else if (derivedMode === "screenshot") {
+        // Screenshot only
+        if (files.length < minImages) {
+          throw new Error(`Please upload at least ${minImages} image${minImages === 1 ? "" : "s"}.`);
+        }
+      } else if (derivedMode === "text") {
+        // Text only
+        for (const field of proofFields) {
+          if (field.required && !fieldValues[field.key]?.trim()) {
+            throw new Error(`${field.label} is required.`);
+          }
+        }
+      }
+
+      // Validate max images
       if (files.length > maxImages) {
         throw new Error(`Maximum ${maxImages} images allowed.`);
       }
 
-      // Validate required fields
-      const proofFields = (c.proof_fields as any[]) ?? [];
+      // Validate field lengths
       for (const field of proofFields) {
-        if (field.required && !fieldValues[field.key]?.trim()) {
-          throw new Error(`${field.label} is required.`);
-        }
         const value = fieldValues[field.key] || "";
         if (value.length > field.maxLen) {
           throw new Error(`${field.label} must be ${field.maxLen} characters or less.`);
@@ -136,6 +179,27 @@ function ProofSubmissionPage() {
     );
   }
 
+  // Derive proof_mode for display
+  // @ts-ignore: campaign_options is loaded as left join
+  const proofMode = c.campaign_options?.[0]?.proof_mode || null;
+  const proofFields = (c.proof_fields as any[]) ?? [];
+  const minImages = c.proof_min_images ?? 1;
+  
+  let derivedMode = proofMode;
+  if (!derivedMode) {
+    const hasRequiredFields = proofFields.some((f: any) => f.required);
+    if (minImages >= 1 && !hasRequiredFields) {
+      derivedMode = "screenshot";
+    } else if (minImages === 0 && proofFields.length > 0) {
+      derivedMode = "text";
+    } else {
+      derivedMode = "both";
+    }
+  }
+
+  const showImages = derivedMode !== "text";
+  const showFields = derivedMode !== "screenshot";
+
   return (
     <AppShell subtitle="Tasks" mainClass="page-fade-in">
       <BackLink to={`/microtask/${c.id}`} label="Back to task" />
@@ -168,6 +232,12 @@ function ProofSubmissionPage() {
           </div>
         )}
 
+        {derivedMode === "either" && (
+          <div className="rounded-xl border border-gold/30 bg-gold/10 p-3 text-sm text-gold-dark">
+            Upload a screenshot <strong>OR</strong> fill the details below. One of them is enough.
+          </div>
+        )}
+
         {/* @ts-ignore: campaign_options is loaded as left join */}
         {c.campaign_options?.[0]?.proof_example_url && (
           <div className="space-y-2">
@@ -183,7 +253,7 @@ function ProofSubmissionPage() {
           </div>
         )}
 
-        {(c.proof_max_images ?? 3) > 0 && (
+        {showImages && (c.proof_max_images ?? 3) > 0 && (
           <div className="space-y-1.5">
             <Label htmlFor="proof-file">
               Screenshot{(c.proof_min_images ?? 1) > 1 ? "s" : ""}{" "}
@@ -257,7 +327,7 @@ function ProofSubmissionPage() {
           </div>
         )}
 
-        {((c.proof_fields as any[]) ?? []).length > 0 && (
+        {showFields && ((c.proof_fields as any[]) ?? []).length > 0 && (
           <div className="space-y-3">
             {((c.proof_fields as any[]) ?? []).map((field: any) => (
               <div key={field.key} className="space-y-1.5">
