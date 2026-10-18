@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { PlusCircle, Star, X, Upload } from "lucide-react";
+import { PlusCircle, Star, X, Upload, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -39,10 +39,12 @@ type Verification = "auto" | "proof";
 type ProofMode = "screenshot" | "text" | "both" | "either";
 type ProofField = { key: string; label: string; required: boolean; maxLen: number };
 
-const PROOF_PRESETS: Record<
+const PROOF_TEMPLATES: Record<
   string,
   {
-    name: string;
+    title: string;
+    description: string;
+    instructions: string;
     type: ProofMode;
     minImages: number;
     maxImages: number;
@@ -50,32 +52,40 @@ const PROOF_PRESETS: Record<
   }
 > = {
   "app-install": {
-    name: "App install",
+    title: "Install an app",
+    description: "Users will submit a screenshot and their username",
+    instructions: "Install the app, create an account, and upload a screenshot showing you're logged in with your username visible",
     type: "both",
     minImages: 1,
     maxImages: 2,
-    fields: [{ label: "Username you used", required: true, maxLen: 80 }],
+    fields: [{ label: "Username", required: true, maxLen: 80 }],
   },
   "social-follow": {
-    name: "Social follow",
+    title: "Follow or like on social media",
+    description: "Users will submit a screenshot and their profile link",
+    instructions: "Follow/like the page and upload a screenshot showing you completed the action. Also provide your profile link",
     type: "both",
     minImages: 1,
     maxImages: 2,
-    fields: [{ label: "Profile link", required: true, maxLen: 200 }],
+    fields: [{ label: "Your profile link", required: true, maxLen: 200 }],
   },
   survey: {
-    name: "Survey/feedback",
+    title: "Fill a survey or form",
+    description: "Users will submit a completion code",
+    instructions: "Complete the survey or form and enter the completion code shown at the end",
     type: "text",
     minImages: 0,
     maxImages: 1,
     fields: [{ label: "Completion code", required: true, maxLen: 80 }],
   },
   purchase: {
-    name: "Purchase",
+    title: "Buy or sign up",
+    description: "Users will submit a screenshot and order/account ID",
+    instructions: "Complete the purchase or sign up, then upload a screenshot of your confirmation and provide your order or account ID",
     type: "both",
     minImages: 1,
     maxImages: 3,
-    fields: [{ label: "Order ID", required: true, maxLen: 100 }],
+    fields: [{ label: "Order or account ID", required: true, maxLen: 100 }],
   },
 };
 
@@ -118,6 +128,7 @@ function CreateCampaignPage() {
   const [eligibilityNote, setEligibilityNote] = useState("");
   const [dailyLimit, setDailyLimit] = useState("");
   const [featured, setFeatured] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [featuredDays, setFeaturedDays] = useState("7");
   const [trackingUrl, setTrackingUrl] = useState("");
   const [ipAllowlist, setIpAllowlist] = useState("");
@@ -179,14 +190,25 @@ function CreateCampaignPage() {
       .substring(0, 50);
   };
 
-  const applyProofPreset = (presetKey: string) => {
-    const preset = PROOF_PRESETS[presetKey];
-    if (!preset) return;
+  const applyTemplate = (templateKey: string) => {
+    const template = PROOF_TEMPLATES[templateKey];
+    if (!template) return;
 
-    setProofMode(preset.type);
-    setProofMinImages(preset.minImages);
-    setProofMaxImages(preset.maxImages);
-    setProofFields(preset.fields.map((f) => ({ ...f, key: generateFieldKey(f.label) })));
+    // Check if user has already entered proof settings
+    const hasExistingSettings =
+      proofDescription.trim().length > 0 || proofFields.length > 0;
+
+    if (hasExistingSettings) {
+      if (!confirm("This will replace your proof settings. Continue?")) {
+        return;
+      }
+    }
+
+    setProofDescription(template.instructions);
+    setProofMode(template.type);
+    setProofMinImages(template.minImages);
+    setProofMaxImages(template.maxImages);
+    setProofFields(template.fields.map((f) => ({ ...f, key: generateFieldKey(f.label) })));
   };
 
   const addProofField = () => {
@@ -643,19 +665,39 @@ function CreateCampaignPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs">Quick presets</Label>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(PROOF_PRESETS).map(([key, preset]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => applyProofPreset(key)}
-                    className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-gold-dark hover:bg-gold/10 hover:text-gold-dark"
-                  >
-                    {preset.name}
-                  </button>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 text-left text-sm font-medium hover:bg-background-alt"
+              >
+                <span>Need help? Use a ready-made template</span>
+                <ChevronRight
+                  className={`size-4 transition-transform ${showTemplates ? "rotate-90" : ""}`}
+                />
+              </button>
+
+              {showTemplates && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {Object.entries(PROOF_TEMPLATES).map(([key, template]) => (
+                    <div
+                      key={key}
+                      className="space-y-2 rounded-xl border border-border bg-card p-4"
+                    >
+                      <h3 className="font-semibold">{template.title}</h3>
+                      <p className="text-xs text-muted-foreground">{template.description}</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => applyTemplate(key)}
+                      >
+                        Use this template
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {proofMode !== "text" && (
