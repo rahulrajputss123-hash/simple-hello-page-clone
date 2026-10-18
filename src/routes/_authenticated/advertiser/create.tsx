@@ -36,14 +36,14 @@ const COUNTRIES = [
 ];
 
 type Verification = "auto" | "proof";
-type ProofType = "screenshot" | "text" | "both";
+type ProofMode = "screenshot" | "text" | "both" | "either";
 type ProofField = { key: string; label: string; required: boolean; maxLen: number };
 
 const PROOF_PRESETS: Record<
   string,
   {
     name: string;
-    type: ProofType;
+    type: ProofMode;
     minImages: number;
     maxImages: number;
     fields: Omit<ProofField, "key">[];
@@ -94,7 +94,7 @@ function CreateCampaignPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [verification, setVerification] = useState<Verification>("proof");
-  const [proofType, setProofType] = useState<ProofType>("screenshot");
+  const [proofMode, setProofMode] = useState<ProofMode>("screenshot");
   const [proofDescription, setProofDescription] = useState("");
   const [proofMinImages, setProofMinImages] = useState(1);
   const [proofMaxImages, setProofMaxImages] = useState(3);
@@ -278,6 +278,7 @@ function CreateCampaignPage() {
           // Proof fields
           proofDescription:
             verification === "proof" && proofDescription ? proofDescription.trim() : undefined,
+          proofMode: verification === "proof" ? proofMode : undefined,
           proofMinImages: verification === "proof" ? proofMinImages : undefined,
           proofMaxImages: verification === "proof" ? proofMaxImages : undefined,
           proofFields: verification === "proof" && proofFields.length > 0 ? proofFields : undefined,
@@ -396,16 +397,20 @@ function CreateCampaignPage() {
               toast.error("Proof instructions required (at least 10 characters)");
               return;
             }
-            if (proofType === "text" && proofFields.length === 0) {
+            if (proofMode === "text" && proofFields.length === 0) {
               toast.error("Text proof requires at least one custom field");
               return;
             }
-            if (proofType === "screenshot" && proofMinImages < 1) {
+            if (proofMode === "screenshot" && proofMinImages < 1) {
               toast.error("Screenshot proof requires at least 1 image");
               return;
             }
-            if (proofType === "text" && proofMinImages === 0 && proofFields.length === 0) {
+            if (proofMode === "text" && proofMinImages === 0 && proofFields.length === 0) {
               toast.error("Text-only proof requires at least one field");
+              return;
+            }
+            if ((proofMode === "either" || proofMode === "both") && proofMinImages === 0 && proofFields.length === 0) {
+              toast.error("You must configure either images or custom fields");
               return;
             }
             // Check for duplicate field keys
@@ -567,18 +572,25 @@ function CreateCampaignPage() {
 
             <div className="space-y-1.5">
               <Label>Proof type</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {(["screenshot", "text", "both"] as const).map((type) => (
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { value: "screenshot", label: "Screenshot only", desc: "Users must upload screenshots" },
+                    { value: "text", label: "Text only", desc: "Users must fill the details you ask for" },
+                    { value: "both", label: "Both required", desc: "Screenshot AND details" },
+                    { value: "either", label: "Either one", desc: "Screenshot OR details, one is enough" },
+                  ] as const
+                ).map(({ value, label, desc }) => (
                   <button
-                    key={type}
+                    key={value}
                     type="button"
                     onClick={() => {
-                      setProofType(type);
-                      if (type === "screenshot") {
+                      setProofMode(value);
+                      if (value === "screenshot") {
                         setProofMinImages(1);
                         setProofMaxImages(3);
                         setProofFields([]);
-                      } else if (type === "text") {
+                      } else if (value === "text") {
                         setProofMinImages(0);
                         setProofMaxImages(1);
                         if (proofFields.length === 0) {
@@ -591,27 +603,40 @@ function CreateCampaignPage() {
                             },
                           ]);
                         }
-                      } else {
+                      } else if (value === "both") {
                         setProofMinImages(1);
                         setProofMaxImages(3);
                         if (proofFields.length === 0) {
                           setProofFields([
-                            { key: "username", label: "Username", required: false, maxLen: 80 },
+                            { key: "username", label: "Username", required: true, maxLen: 80 },
                           ]);
                         }
+                        // Set all fields to required for "both" mode
+                        setProofFields((fields) => fields.map((f) => ({ ...f, required: true })));
+                      } else if (value === "either") {
+                        setProofMinImages(0);
+                        setProofMaxImages(3);
+                        if (proofFields.length === 0) {
+                          setProofFields([
+                            { key: "details", label: "Additional details", required: false, maxLen: 200 },
+                          ]);
+                        }
+                        // Set all fields to optional for "either" mode
+                        setProofFields((fields) => fields.map((f) => ({ ...f, required: false })));
                       }
                     }}
-                    className={`rounded-xl border p-2 text-xs font-medium ${
-                      proofType === type
-                        ? "border-gold-dark bg-gold/20 text-gold-dark"
-                        : "border-border bg-card text-muted-foreground"
+                    className={`rounded-xl border p-3 text-left ${
+                      proofMode === value
+                        ? "border-gold-dark bg-gold/20"
+                        : "border-border bg-card"
                     }`}
                   >
-                    {type === "screenshot"
-                      ? "Screenshot only"
-                      : type === "text"
-                        ? "Text only"
-                        : "Screenshot + text"}
+                    <div className={`text-sm font-medium ${proofMode === value ? "text-gold-dark" : ""}`}>
+                      {label}
+                    </div>
+                    <div className={`mt-0.5 text-[11px] ${proofMode === value ? "text-gold-dark/80" : "text-muted-foreground"}`}>
+                      {desc}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -633,20 +658,20 @@ function CreateCampaignPage() {
               </div>
             </div>
 
-            {proofType !== "text" && (
+            {proofMode !== "text" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="c-proof-min-images">Min images</Label>
                   <Input
                     id="c-proof-min-images"
                     type="number"
-                    min={proofType === "text" ? 0 : 1}
+                    min={proofMode === "text" ? 0 : proofMode === "either" ? 0 : 1}
                     max={5}
                     value={proofMinImages}
                     onChange={(e) =>
                       setProofMinImages(
                         Math.max(
-                          proofType === "text" ? 0 : 1,
+                          proofMode === "text" ? 0 : proofMode === "either" ? 0 : 1,
                           Math.min(5, Number(e.target.value) || 1),
                         ),
                       )
@@ -671,7 +696,7 @@ function CreateCampaignPage() {
               </div>
             )}
 
-            {proofType !== "screenshot" && (
+            {proofMode !== "screenshot" && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Custom fields</Label>
