@@ -1294,6 +1294,7 @@ export const createCampaignInput = z
     ipAllowlist: z.array(z.string()).max(50).optional(),
     // Proof verification fields
     proofDescription: z.string().trim().min(10).max(500).optional(),
+    proofMode: z.enum(["screenshot", "text", "both", "either"]).optional(),
     proofMinImages: z.number().int().min(0).max(5).optional(),
     proofMaxImages: z.number().int().min(1).max(5).optional(),
     proofFields: z
@@ -1552,11 +1553,59 @@ export async function createCampaignImpl(
   // Step 2: Store campaign options if advanced settings specified (BEFORE money moves)
   if (
     input.verification === "proof" &&
-    (input.reviewWindow || input.proofExampleUrl || input.dailyLimit)
+    (input.proofMode || input.reviewWindow || input.proofExampleUrl || input.dailyLimit)
   ) {
     const optionsData: Record<string, any> = {
       campaign_id: campaign.id,
     };
+
+    // Validate and save proof_mode
+    if (input.proofMode) {
+      const mode = input.proofMode;
+      const minImages = input.proofMinImages ?? 0;
+      const maxImages = input.proofMaxImages ?? 1;
+      const hasFields = (input.proofFields?.length ?? 0) > 0;
+
+      // Validate proof_mode consistency
+      if (mode === "screenshot" && minImages < 1) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Screenshot mode requires at least 1 image",
+        );
+      }
+      if (mode === "text" && !hasFields) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Text mode requires at least one custom field",
+        );
+      }
+      if (mode === "text" && minImages > 0) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Text mode cannot require images (set min images to 0)",
+        );
+      }
+      if (mode === "both" && (minImages < 1 || !hasFields)) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Both mode requires images AND custom fields",
+        );
+      }
+      if (mode === "either" && minImages > 0) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Either mode must allow 0 images (users can choose screenshot OR text)",
+        );
+      }
+      if (mode === "either" && !hasFields) {
+        throw new DepositError(
+          "INVALID_PROOF_MODE",
+          "Either mode requires at least one custom field",
+        );
+      }
+
+      optionsData.proof_mode = mode;
+    }
 
     if (input.reviewWindow) {
       optionsData.review_window_hours = input.reviewWindow;
