@@ -43,12 +43,19 @@ export type PublisherCampaignView = {
   maxCompletions: number;
   completionsCount: number;
   slotsRemaining: number | null;
+  slotsLeft: number | null;
   countries: string[];
   category: string | null;
   subcategory: string | null;
   estimatedMinutes: number | null;
   featured: boolean;
   createdAt: string;
+  proofMode: string | null;
+  proofMinImages: number;
+  proofMaxImages: number;
+  proofFields: Array<{ key: string; label: string; required: boolean; maxLen: number }>;
+  proofDescription: string | null;
+  proofExampleUrl: string | null;
 };
 
 export type SubmissionStatus =
@@ -97,20 +104,19 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
     .from("campaigns")
     .select(
       `
-      id, name, summary, publisher_reward, verification_mode, max_completions, completions_count, 
+      id, name, summary, description, publisher_reward, verification_mode, max_completions, completions_count, 
       countries, category_id, subcategory_id, estimated_minutes, is_featured, featured_expires_at, created_at,
+      proof_mode, proof_min_images, proof_max_images, proof_fields, proof_description,
       marketplace_categories:category_id (name),
-      marketplace_subcategories:subcategory_id (name)
+      marketplace_subcategories:subcategory_id (name),
+      campaign_options!left(proof_example_url)
     `,
     )
     .eq("status", "active")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`campaigns: ${error.message}`);
-  const campaigns = (data ?? []) as (CampaignRow & {
-    marketplace_categories: { name: string } | null;
-    marketplace_subcategories: { name: string } | null;
-  })[];
+  const campaigns = (data ?? []) as any[];
 
   // Filter out campaigns user already submitted to
   const { data: existingSubmissions } = await mktDbPublisher
@@ -124,26 +130,38 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
 
   const now = new Date();
   return campaigns
-    .filter((c) => !submittedIds.has(c.id))
-    .map((c) => ({
-      id: c.id,
-      title: c.name,
-      description: c.summary,
-      reward: num(c.publisher_reward),
-      verification: c.verification_mode === "auto" ? "auto" : "proof",
-      maxCompletions: c.max_completions,
-      completionsCount: c.completions_count,
-      slotsRemaining:
-        c.max_completions > c.completions_count ? c.max_completions - c.completions_count : null,
-      countries: normalizeCampaignCountries(c.countries),
-      category: c.marketplace_categories?.name || null,
-      subcategory: c.marketplace_subcategories?.name || null,
-      estimatedMinutes: c.estimated_minutes,
-      // Check featured status: must be featured AND not expired
-      featured:
-        c.is_featured && c.featured_expires_at ? new Date(c.featured_expires_at) > now : false,
-      createdAt: c.created_at,
-    }));
+    .filter((c: any) => !submittedIds.has(c.id))
+    .map((c: any) => {
+      const slotsLeft = c.max_completions > c.completions_count 
+        ? c.max_completions - c.completions_count 
+        : 0;
+      
+      return {
+        id: c.id,
+        title: c.name,
+        description: c.description || c.summary, // Use full description, not summary
+        reward: num(c.publisher_reward),
+        verification: c.verification_mode === "auto" ? "auto" : "proof",
+        maxCompletions: c.max_completions,
+        completionsCount: c.completions_count,
+        slotsRemaining: slotsLeft > 0 ? slotsLeft : null,
+        slotsLeft: slotsLeft > 0 ? slotsLeft : null,
+        countries: normalizeCampaignCountries(c.countries),
+        category: c.marketplace_categories?.name || null,
+        subcategory: c.marketplace_subcategories?.name || null,
+        estimatedMinutes: c.estimated_minutes,
+        // Check featured status: must be featured AND not expired
+        featured:
+          c.is_featured && c.featured_expires_at ? new Date(c.featured_expires_at) > now : false,
+        createdAt: c.created_at,
+        proofMode: c.proof_mode || null,
+        proofMinImages: c.proof_min_images ?? 1,
+        proofMaxImages: c.proof_max_images ?? 3,
+        proofFields: c.proof_fields ?? [],
+        proofDescription: c.proof_description || null,
+        proofExampleUrl: c.campaign_options?.[0]?.proof_example_url || null,
+      };
+    });
 }
 
 /**
@@ -286,6 +304,17 @@ export const submitProofInput = z.object({
 export type SubmitProofInput = z.infer<typeof submitProofInput>;
 
 /**
+ * Combined submission input: submits proof and starts click if needed.
+ */
+export const submitProofForCampaignInput = z.object({
+  campaignId: z.string().uuid(),
+  files: z.array(z.any()).max(5), // Will be uploaded to storage
+  fieldValues: z.record(z.string()).optional(),
+  userNote: z.string().max(500).optional(),
+});
+export type SubmitProofForCampaignInput = z.infer<typeof submitProofForCampaignInput>;
+
+/**
  * Creates a proof submission. Status starts as "pending". The mkt_submit_proof function
  * validates the click exists, hasn't expired, and no duplicate submission.
  */
@@ -317,6 +346,68 @@ export async function submitProofImpl(
     }
     throw err;
   }
+}
+
+/**
+ * Unified proof submission: starts click if needed, uploads files, then submits proof.
+ * This is the earner-facing function that handles the complete flow.
+ */
+export async function submitProofForCampaignImpl(
+  userId: string,
+  input: SubmitProofForCampaignInput,
+): Promise<{ submissionId: string }> {
+  // 1. Find existing active click or create one
+  const { data: existingClick } = await mktDbPublisher
+    .from("campaign_clicks")
+    .select("click_id")
+    .eq("campaign_id", input.campaignId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let clickId: string;
+  if (existingClick) {
+    clickId = existingClick.click_id;
+  } else {
+    // Start campaign to create click
+    const request = getRequest();
+    const userAgent =
+      typeof navigator !== "undefined" ? navigator.userAgent : request?.headers.get("user-agent");
+    const startResult = await startCampaignImpl(userId, input.campaignId, userAgent || null);
+    clickId = startResult.clickId;
+  }
+
+  // 2. Upload files to offer-proofs bucket under {user_id}/{click_id}/{uuid}.ext
+  const proofPaths: string[] = [];
+  for (const file of input.files) {
+    if (!file) continue;
+    const ext = file.name.split(".").pop() || "jpg";
+    const uuid = crypto.randomUUID();
+    const path = `${userId}/${clickId}/${uuid}.${ext}`;
+
+    // Read file as buffer
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("offer-proofs")
+      .upload(path, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+    proofPaths.push(path);
+  }
+
+  // 3. Submit proof with paths
+  return submitProofImpl(userId, {
+    clickId,
+    proofPaths,
+    fieldValues: input.fieldValues,
+    userNote: input.userNote,
+  });
 }
 
 /* ----------------------------------------------------------------- appeal */
@@ -357,6 +448,7 @@ function humanSubmissionError(code: string): string {
     case "MKT_ALREADY_STARTED":
       return "You already started this campaign.";
     case "MKT_CAMPAIGN_FULL":
+    case "MKT_NO_SLOTS":
       return "This campaign reached its completion limit.";
     case "MKT_DAILY_LIMIT":
       return "Today's slots for this task are full. Try again later.";
@@ -367,12 +459,15 @@ function humanSubmissionError(code: string): string {
     case "MKT_CLICK_EXPIRED":
       return "Your click window expired. Please start again.";
     case "MKT_DUPLICATE_SUBMISSION":
+    case "MKT_ALREADY_DONE":
       return "You already submitted proof for this click.";
     case "MKT_NOT_APPEALLABLE":
     case "MKT_APPEAL_DEADLINE_PASSED":
       return "This submission can no longer be appealed.";
     case "MKT_INVALID_PROOF":
       return "Please provide the required proof (screenshot or details).";
+    case "MKT_NOT_ELIGIBLE":
+      return "You are not eligible for this campaign.";
     default:
       return "Something went wrong. Please try again.";
   }

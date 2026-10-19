@@ -319,6 +319,23 @@ export const submitProof = createServerFn({ method: "POST" })
     }
   });
 
+export const submitProofForCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(async (input: unknown) => {
+    const { submitProofForCampaignInput } = await import("./marketplace/publisher.server");
+    return submitProofForCampaignInput.parse(input);
+  })
+  .handler(async ({ data, context }) => {
+    const { submitProofForCampaignImpl, SubmissionError } =
+      await import("./marketplace/publisher.server");
+    try {
+      return await submitProofForCampaignImpl(context.userId, data);
+    } catch (err) {
+      if (err instanceof SubmissionError) throw new Error(`${err.code}: ${err.message}`);
+      throw err;
+    }
+  });
+
 export const appealSubmission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(async (input: unknown) => {
