@@ -704,11 +704,23 @@ export async function createDepositImpl(
   if (!razorpayConfigured())
     throw new DepositError("GATEWAY_NOT_CONFIGURED", "Payments are not configured yet.");
 
+  // Check if user is admin
+  const { data: userRole } = await mktDb
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  const isAdmin = Boolean(userRole);
+  
+  // Admin minimum is $0.10, others use marketplace setting
+  const minDeposit = isAdmin ? 0.10 : num(s.min_deposit_usd);
+
   const amount = Math.round(amountUsd * 100) / 100;
-  if (!(amount >= num(s.min_deposit_usd) && amount <= num(s.max_deposit_usd))) {
+  if (!(amount >= minDeposit && amount <= num(s.max_deposit_usd))) {
     throw new DepositError(
       "AMOUNT_OUT_OF_RANGE",
-      `Deposit between $${num(s.min_deposit_usd).toFixed(2)} and $${num(s.max_deposit_usd).toFixed(2)}.`,
+      `Deposit between $${minDeposit.toFixed(2)} and $${num(s.max_deposit_usd).toFixed(2)}.`,
     );
   }
 
@@ -751,7 +763,8 @@ export async function createDepositImpl(
           `order_create_failed: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500),
       })
       .eq("id", depositId);
-    throw new DepositError("ORDER_FAILED", "Couldn't start the payment. Please try again.");
+    const gatewayMessage = err instanceof Error ? err.message : String(err);
+    throw new DepositError("ORDER_FAILED", `Couldn't start the payment: ${gatewayMessage}`);
   }
 
   const { error: updErr } = await mktDb
@@ -861,11 +874,23 @@ export async function createNowpaymentsDepositImpl(
   if (!nowpaymentsConfigured())
     throw new DepositError("GATEWAY_NOT_CONFIGURED", "Crypto payments are not configured yet.");
 
+  // Check if user is admin
+  const { data: userRole } = await mktDb
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  const isAdmin = Boolean(userRole);
+  
+  // Admin minimum is $0.10, others use marketplace setting
+  const minDeposit = isAdmin ? 0.10 : num(s.min_deposit_usd);
+
   const amount = Math.round(amountUsd * 100) / 100;
-  if (!(amount >= num(s.min_deposit_usd) && amount <= num(s.max_deposit_usd))) {
+  if (!(amount >= minDeposit && amount <= num(s.max_deposit_usd))) {
     throw new DepositError(
       "AMOUNT_OUT_OF_RANGE",
-      `Deposit between $${num(s.min_deposit_usd).toFixed(2)} and $${num(s.max_deposit_usd).toFixed(2)}.`,
+      `Deposit between $${minDeposit.toFixed(2)} and $${num(s.max_deposit_usd).toFixed(2)}.`,
     );
   }
 
@@ -913,7 +938,8 @@ export async function createNowpaymentsDepositImpl(
           ),
       })
       .eq("id", depositId);
-    throw new DepositError("INVOICE_FAILED", "Couldn't create the invoice. Please try again.");
+    const gatewayMessage = err instanceof Error ? err.message : String(err);
+    throw new DepositError("INVOICE_FAILED", `Couldn't create the invoice: ${gatewayMessage}`);
   }
 
   const { error: updErr } = await mktDb
@@ -958,11 +984,23 @@ export async function createQropayDepositImpl(
   if (!s.inr_per_usd || s.inr_per_usd <= 0)
     throw new DepositError("FX_RATE_MISSING", "INR exchange rate not configured.");
 
+  // Check if user is admin
+  const { data: userRole } = await mktDb
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  const isAdmin = Boolean(userRole);
+  
+  // Admin minimum is $0.10, others use marketplace setting
+  const minDeposit = isAdmin ? 0.10 : num(s.min_deposit_usd);
+
   const amount = Math.round(amountUsd * 100) / 100;
-  if (!(amount >= num(s.min_deposit_usd) && amount <= num(s.max_deposit_usd))) {
+  if (!(amount >= minDeposit && amount <= num(s.max_deposit_usd))) {
     throw new DepositError(
       "AMOUNT_OUT_OF_RANGE",
-      `Deposit between $${num(s.min_deposit_usd).toFixed(2)} and $${num(s.max_deposit_usd).toFixed(2)}.`,
+      `Deposit between $${minDeposit.toFixed(2)} and $${num(s.max_deposit_usd).toFixed(2)}.`,
     );
   }
 
@@ -1037,7 +1075,8 @@ export async function createQropayDepositImpl(
           ),
       })
       .eq("id", depositId);
-    throw new DepositError("ORDER_FAILED", "Couldn't create the payment order. Please try again.");
+    const gatewayMessage = err instanceof Error ? err.message : String(err);
+    throw new DepositError("ORDER_FAILED", `Couldn't create the payment order: ${gatewayMessage}`);
   }
 
   const { error: updErr } = await mktDb
