@@ -26,24 +26,18 @@ import {
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 /**
- * Gets the site URL for postback URLs, preferring SITE_URL env var,
- * falling back to request origin.
+ * Gets the canonical site URL for all absolute URLs (payment callbacks, email links, etc.).
+ * ALWAYS uses SITE_URL env var, never falls back to request headers.
+ * This ensures preview deployments can't inject their domain into payment providers.
  */
 function getSiteUrl(): string {
   const envUrl = process.env["SITE_URL"];
-  if (envUrl) return envUrl.replace(/\/$/, ""); // remove trailing slash
-
-  const request = getRequest();
-  if (request?.headers) {
-    const origin =
-      request.headers.get("origin") ||
-      request.headers.get("referer")?.split("/").slice(0, 3).join("/") ||
-      "";
-    if (origin) return origin.replace(/\/$/, "");
+  if (!envUrl) {
+    throw new Error(
+      "SITE_URL environment variable is required. Set it to https://cashgpt.in in production.",
+    );
   }
-
-  // Fallback to empty string (will produce relative URL)
-  return "";
+  return envUrl.replace(/\/$/, ""); // remove trailing slash
 }
 
 /**

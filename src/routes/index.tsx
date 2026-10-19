@@ -25,7 +25,9 @@ export const Route = createFileRoute("/")({
       { name: "twitter:description", content: LANDING_DESCRIPTION },
       { name: "twitter:image", content: "https://cashgpt.in/logo-horizontal-light.webp" },
     ],
-    links: [{ rel: "canonical", href: "https://cashgpt.in/" }],
+    links: [
+      { rel: "canonical", href: "https://cashgpt.in/" },
+    ],
   }),
   component: IndexRoute,
 });
