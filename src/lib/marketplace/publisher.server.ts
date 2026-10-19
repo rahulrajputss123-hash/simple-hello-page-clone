@@ -106,16 +106,24 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
       `
       id, name, summary, description, publisher_reward, verification_mode, max_completions, completions_count, 
       countries, category_id, subcategory_id, estimated_minutes, is_featured, featured_expires_at, created_at,
-      proof_mode, proof_min_images, proof_max_images, proof_fields, proof_description,
+      proof_min_images, proof_max_images, proof_fields, proof_description,
       marketplace_categories:category_id (name),
       marketplace_subcategories:subcategory_id (name),
-      campaign_options!left(proof_example_url)
+      campaign_options!left(proof_mode, proof_example_url)
     `,
     )
     .eq("status", "active")
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(`campaigns: ${error.message}`);
+  if (error) {
+    console.error("listActiveCampaignsImpl error:", {
+      message: error.message,
+      code: (error as any).code,
+      details: (error as any).details,
+      hint: (error as any).hint,
+    });
+    throw new Error(`campaigns: ${error.message}`);
+  }
   const campaigns = (data ?? []) as any[];
 
   // Filter out campaigns user already submitted to
@@ -136,6 +144,24 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
         ? c.max_completions - c.completions_count 
         : 0;
       
+      // Get proof_mode from campaign_options (may be null if no row exists)
+      const proofModeFromOptions = c.campaign_options?.[0]?.proof_mode || null;
+      const proofFields = c.proof_fields ?? [];
+      const minImages = c.proof_min_images ?? 1;
+      
+      // Derive proof_mode when missing
+      let derivedMode = proofModeFromOptions;
+      if (!derivedMode && c.verification_mode !== "auto") {
+        const hasRequiredFields = proofFields.some((f: any) => f.required);
+        if (minImages >= 1 && !hasRequiredFields) {
+          derivedMode = "screenshot";
+        } else if (minImages === 0 && proofFields.length > 0) {
+          derivedMode = "text";
+        } else {
+          derivedMode = "both";
+        }
+      }
+      
       return {
         id: c.id,
         title: c.name,
@@ -154,10 +180,10 @@ export async function listActiveCampaignsImpl(userId: string): Promise<Publisher
         featured:
           c.is_featured && c.featured_expires_at ? new Date(c.featured_expires_at) > now : false,
         createdAt: c.created_at,
-        proofMode: c.proof_mode || null,
+        proofMode: derivedMode,
         proofMinImages: c.proof_min_images ?? 1,
         proofMaxImages: c.proof_max_images ?? 3,
-        proofFields: c.proof_fields ?? [],
+        proofFields: proofFields,
         proofDescription: c.proof_description || null,
         proofExampleUrl: c.campaign_options?.[0]?.proof_example_url || null,
       };
@@ -197,13 +223,24 @@ export async function getCampaignForEarnerImpl(userId: string, campaignId: strin
   const { data: campaign, error } = await mktDbPublisher
     .from("campaigns")
     .select(
-      "id,name,summary,publisher_reward,verification_mode,proof_description,proof_min_images,proof_max_images,proof_fields,proof_requirements,max_completions,completions_count,countries,campaign_options!left(proof_example_url)",
+      "id,name,summary,description,publisher_reward,verification_mode,proof_description,proof_min_images,proof_max_images,proof_fields,max_completions,completions_count,countries,campaign_options!left(proof_mode,proof_example_url)",
     )
     .eq("id", campaignId)
     .eq("status", "active")
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  
+  if (error) {
+    console.error("getCampaignForEarnerImpl error:", {
+      message: error.message,
+      code: (error as any).code,
+      details: (error as any).details,
+      hint: (error as any).hint,
+      campaignId,
+    });
+    throw new Error(error.message);
+  }
   if (!campaign) return null;
+  
   const { data: click, error: clickError } = await mktDbPublisher
     .from("campaign_clicks")
     .select("click_id,status")
@@ -213,7 +250,18 @@ export async function getCampaignForEarnerImpl(userId: string, campaignId: strin
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (clickError) throw new Error(clickError.message);
+  
+  if (clickError) {
+    console.error("getCampaignForEarnerImpl click error:", {
+      message: clickError.message,
+      code: (clickError as any).code,
+      details: (clickError as any).details,
+      campaignId,
+      userId,
+    });
+    throw new Error(clickError.message);
+  }
+  
   return {
     ...campaign,
     countries: normalizeCampaignCountries(campaign.countries),
