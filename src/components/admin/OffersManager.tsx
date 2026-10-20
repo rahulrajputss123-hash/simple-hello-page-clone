@@ -72,6 +72,8 @@ const emptyForm = {
   // Display-only card badges. Never affect reward_amount or crediting.
   displayPrice: "",
   displayPercent: "",
+  // Offer kind (determines UI and payoutMode mapping)
+  offerKind: "url_instant" as "auto" | "url_proof" | "task_proof" | "url_instant",
   // Payout mode
   payoutMode: "manual" as "manual" | "manual_proof" | "auto_postback",
   postbackSecretRef: "",
@@ -249,7 +251,24 @@ export function OffersManager() {
     onError,
   });
 
-  const openEdit = (offer: AdminOffer) =>
+  const openEdit = (offer: AdminOffer) => {
+    // Derive offerKind from payout_mode and click_url (only once when loading)
+    const payoutMode =
+      ((offer as { payout_mode?: string }).payout_mode as
+        "manual" | "manual_proof" | "auto_postback" | undefined) ?? "manual";
+    
+    let offerKind: "auto" | "url_proof" | "task_proof" | "url_instant";
+    if (payoutMode === "auto_postback") {
+      offerKind = "auto";
+    } else if (payoutMode === "manual") {
+      offerKind = "url_instant";
+    } else if (payoutMode === "manual_proof") {
+      // Distinguish url_proof from task_proof based on whether click_url exists
+      offerKind = offer.click_url?.trim() ? "url_proof" : "task_proof";
+    } else {
+      offerKind = "url_instant";
+    }
+
     setForm({
       id: offer.id,
       title: offer.title,
@@ -283,9 +302,8 @@ export function OffersManager() {
         (offer as { max_payout_cap?: number | null }).max_payout_cap != null
           ? String((offer as { max_payout_cap?: number }).max_payout_cap)
           : "",
-      payoutMode:
-        ((offer as { payout_mode?: string }).payout_mode as
-          "manual" | "manual_proof" | "auto_postback" | undefined) ?? "manual",
+      offerKind,
+      payoutMode,
       postbackSecretRef:
         (offer as { postback_secret_ref?: string | null }).postback_secret_ref ?? "",
       postbackIpAllowlist: (
@@ -306,6 +324,7 @@ export function OffersManager() {
         ["Hot", "Trending", "Easy", "Popular"].includes(t),
       ) as ("Hot" | "Trending" | "Easy" | "Popular")[],
     });
+  };
 
   return (
     <div className="space-y-3">
@@ -700,41 +719,32 @@ export function OffersManager() {
                   {(
                     [
                       [
-                        "auto_postback",
-                        "manual",
+                        "auto",
                         "Auto-tracked (partner postback)",
                         "Click URL required. Conversions tracked automatically via postback.",
                       ],
                       [
-                        "manual_proof",
-                        "url",
+                        "url_proof",
                         "URL + proof (user uploads screenshot)",
                         "Click URL required. User clicks, completes offer, then uploads proof for review.",
                       ],
                       [
-                        "manual_proof",
-                        "no-url",
+                        "task_proof",
                         "Task without URL (screenshot only)",
                         "No Click URL. User completes task and uploads proof directly for review.",
                       ],
                       [
-                        "manual",
-                        "plain",
+                        "url_instant",
                         "URL, no proof (instant review)",
                         "Click URL required. No proof upload. Use for instant-credit offers.",
                       ],
                     ] as const
-                  ).map(([payoutMode, urlRequirement, label, description]) => {
-                    const isSelected =
-                      form.payoutMode === payoutMode &&
-                      ((urlRequirement === "url" && form.clickUrl.trim()) ||
-                        (urlRequirement === "no-url" && !form.clickUrl.trim()) ||
-                        (urlRequirement === "manual" && payoutMode === "auto_postback") ||
-                        (urlRequirement === "plain" && payoutMode === "manual"));
+                  ).map(([kind, label, description]) => {
+                    const isSelected = form.offerKind === kind;
 
                     return (
                       <button
-                        key={`${payoutMode}-${urlRequirement}`}
+                        key={kind}
                         type="button"
                         className={`w-full rounded-lg border p-3 text-left transition-colors ${
                           isSelected
@@ -742,11 +752,24 @@ export function OffersManager() {
                             : "border-border bg-background hover:border-jade/50"
                         }`}
                         onClick={() => {
-                          const updates: Partial<FormState> = { payoutMode };
-                          // Clear or preserve Click URL based on type
-                          if (urlRequirement === "no-url") {
+                          // Map offerKind to payoutMode
+                          const payoutMode =
+                            kind === "auto"
+                              ? "auto_postback"
+                              : kind === "url_proof" || kind === "task_proof"
+                                ? "manual_proof"
+                                : "manual";
+
+                          const updates: Partial<FormState> = {
+                            offerKind: kind,
+                            payoutMode,
+                          };
+
+                          // Only clear clickUrl when selecting task_proof
+                          if (kind === "task_proof") {
                             updates.clickUrl = "";
                           }
+
                           setForm({ ...form, ...updates });
                         }}
                       >
@@ -852,8 +875,8 @@ export function OffersManager() {
                 />
               </Field>
               <DisplayBadgeFields form={form} setForm={setForm} />
-              {/* Only show Click URL for offer types that need it */}
-              {form.payoutMode !== "manual_proof" || form.clickUrl.trim() ? (
+              {/* Show Click URL for all types except task_proof */}
+              {form.offerKind !== "task_proof" && (
                 <Field label="Click URL">
                   <Input
                     placeholder="https://…"
@@ -861,16 +884,14 @@ export function OffersManager() {
                     onChange={(event) => setForm({ ...form, clickUrl: event.target.value })}
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {form.payoutMode === "manual_proof" && !form.clickUrl.trim()
-                      ? "Optional for 'Task without URL' type. Leave empty if no URL is needed."
-                      : form.payoutMode === "manual_proof"
-                        ? "Required for 'URL + proof' type. User clicks this link before uploading proof."
-                        : form.payoutMode === "auto_postback"
-                          ? "Required for auto-tracked offers. Conversions reported via postback."
-                          : "Required. Link user clicks to complete the offer."}
+                    {form.offerKind === "url_proof"
+                      ? "Required for 'URL + proof' type. User clicks this link before uploading proof."
+                      : form.offerKind === "auto"
+                        ? "Required for auto-tracked offers. Conversions reported via postback."
+                        : "Required. Link user clicks to complete the offer."}
                   </p>
                 </Field>
-              ) : null}
+              )}
               <Field label="Countries">
                 <CountryMultiSelect
                   value={form.countries}
@@ -933,7 +954,20 @@ export function OffersManager() {
             <Button
               variant="jade"
               disabled={!form || form.title.trim().length < 2 || saveAction.isPending}
-              onClick={() => form && saveAction.mutate(form)}
+              onClick={() => {
+                if (!form) return;
+                
+                // Validate Click URL requirement based on offerKind
+                if (
+                  form.offerKind !== "task_proof" &&
+                  !form.clickUrl.trim()
+                ) {
+                  toast.error("Click URL is required for this offer type.");
+                  return;
+                }
+                
+                saveAction.mutate(form);
+              }}
             >
               {saveAction.isPending ? "Saving…" : "Save offer"}
             </Button>
