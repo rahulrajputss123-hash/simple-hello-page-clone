@@ -117,6 +117,7 @@ const updateMarketplaceSettingsInput = z.object({
   // Deposit settings
   deposits_enabled: z.boolean().optional(),
   manual_deposits_enabled: z.boolean().optional(),
+  inr_per_usd: z.number().min(0).nullable().optional(),
 });
 
 export const updateMarketplaceSettingsImpl = async (

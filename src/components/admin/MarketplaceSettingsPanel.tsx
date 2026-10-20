@@ -49,6 +49,7 @@ export function MarketplaceSettingsPanel() {
   const [localManualDepositsEnabled, setLocalManualDepositsEnabled] = useState<boolean | null>(
     null,
   );
+  const [localInrPerUsd, setLocalInrPerUsd] = useState<number | null>(null);
 
   const mutation = useMutation({
     mutationFn: (updates: {
@@ -130,6 +131,7 @@ export function MarketplaceSettingsPanel() {
   const depositsEnabled = localDepositsEnabled ?? settings.data.deposits_enabled ?? false;
   const manualDepositsEnabled =
     localManualDepositsEnabled ?? settings.data.manual_deposits_enabled ?? false;
+  const inrPerUsd = localInrPerUsd ?? settings.data.inr_per_usd ?? null;
 
   const hasChanges =
     localAutoApproveEnabled !== null ||
@@ -140,7 +142,8 @@ export function MarketplaceSettingsPanel() {
     localCampaignFeeType !== null ||
     localFeaturedPricePerDay !== null ||
     localDepositsEnabled !== null ||
-    localManualDepositsEnabled !== null;
+    localManualDepositsEnabled !== null ||
+    localInrPerUsd !== null;
 
   return (
     <div className="space-y-6">
@@ -333,6 +336,28 @@ export function MarketplaceSettingsPanel() {
             />
           </div>
 
+          <div className="space-y-2 border-t border-border pt-4">
+            <Label htmlFor="inr-per-usd" className="text-sm font-semibold">
+              INR per USD exchange rate
+            </Label>
+            <Input
+              id="inr-per-usd"
+              type="number"
+              min={0}
+              step={0.01}
+              placeholder="Leave empty to disable INR"
+              value={inrPerUsd ?? ""}
+              onChange={(e) => {
+                const value = e.target.value;
+                setLocalInrPerUsd(value === "" ? null : parseFloat(value));
+              }}
+              className="w-32"
+            />
+            <p className="text-xs text-muted-foreground">
+              When set, enables UPI (QroPay) and INR-based Razorpay. Leave empty to disable.
+            </p>
+          </div>
+
           <p className="text-xs text-muted-foreground">
             Gateway availability: Razorpay (configured via RAZORPAY_KEY_ID/SECRET), NOWPayments
             (configured via NOWPAYMENTS_API_KEY/IPN_SECRET). Buttons appear only when the gateway
@@ -357,6 +382,7 @@ export function MarketplaceSettingsPanel() {
               setLocalFeaturedPricePerDay(null);
               setLocalDepositsEnabled(null);
               setLocalManualDepositsEnabled(null);
+              setLocalInrPerUsd(null);
             }}
             disabled={mutation.isPending}
           >
@@ -376,6 +402,7 @@ export function MarketplaceSettingsPanel() {
                 featured_price_per_day?: number;
                 deposits_enabled?: boolean;
                 manual_deposits_enabled?: boolean;
+                inr_per_usd?: number | null;
               } = {};
               if (localAutoApproveEnabled !== null)
                 updates.auto_approve_enabled = localAutoApproveEnabled;
@@ -391,6 +418,7 @@ export function MarketplaceSettingsPanel() {
               if (localDepositsEnabled !== null) updates.deposits_enabled = localDepositsEnabled;
               if (localManualDepositsEnabled !== null)
                 updates.manual_deposits_enabled = localManualDepositsEnabled;
+              if (localInrPerUsd !== null) updates.inr_per_usd = localInrPerUsd;
               mutation.mutate(updates);
             }}
             disabled={mutation.isPending}

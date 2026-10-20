@@ -39,7 +39,7 @@ export const Route = createFileRoute("/_authenticated/advertiser/funds")({
   component: FundsPage,
 });
 
-const PRESETS = [25, 50, 100, 250];
+const PRESETS = [10, 25, 50, 100];
 
 /**
  * Deposit flow (Phase 2):
@@ -73,7 +73,7 @@ function friendlyError(err: unknown): string {
 }
 
 function FundsPage() {
-  const { session, profile } = useAuth();
+  const { session, profile, isAdmin } = useAuth();
   const { overview, refreshOverview, advertiserActivated, overviewLoading } = useRole();
   const settings = overview?.settings;
   const account = overview?.account;
@@ -232,14 +232,16 @@ function FundsPage() {
   });
 
   const n = Number(amount) || 0;
-  const min = settings?.minDepositUsd ?? 10;
+  // Admin minimum is $0.10, others use marketplace setting
+  const min = isAdmin ? 0.10 : (settings?.minDepositUsd ?? 10);
   const max = settings?.maxDepositUsd ?? 1000;
   const inRange = n >= min && n <= max;
 
   // Check which gateways are usable
-  const razorpayUsable = settings?.depositsEnabled && settings?.razorpayConfigured;
+  const hasInrRate = settings?.inrPerUsd != null && settings.inrPerUsd > 0;
+  const razorpayUsable = settings?.depositsEnabled && settings?.razorpayConfigured && hasInrRate;
   const nowpaymentsUsable = settings?.depositsEnabled && settings?.nowpaymentsConfigured;
-  const qropayUsable = settings?.depositsEnabled && settings?.qropayConfigured;
+  const qropayUsable = settings?.depositsEnabled && settings?.qropayConfigured && hasInrRate;
   const anyGatewayUsable = razorpayUsable || nowpaymentsUsable || qropayUsable;
 
   // Generic disabled reason (applies when no gateway is available)
