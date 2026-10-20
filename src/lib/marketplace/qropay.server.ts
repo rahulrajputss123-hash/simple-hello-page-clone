@@ -121,7 +121,7 @@ export async function createQropayOrder(params: {
   let data: {
     status: boolean;
     msg: string;
-    order_id?: string;
+    order_id?: string | number; // QroPay returns numeric ID
     payment_url?: string;
   };
   
@@ -160,7 +160,7 @@ export async function createQropayOrder(params: {
   });
 
   return {
-    qropayOrderId: data.order_id,
+    qropayOrderId: String(data.order_id), // Convert numeric ID to string
     paymentUrl: data.payment_url,
   };
 }
@@ -170,7 +170,7 @@ export async function createQropayOrder(params: {
  * Can be form-encoded or JSON.
  */
 export type QropayWebhookEvent = {
-  order_id: string;
+  order_id: string | number; // QroPay sends numeric ID
   amount: string | number;
   status: string;
   secretKey: string;
