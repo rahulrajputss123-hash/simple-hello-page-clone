@@ -54,7 +54,7 @@ export async function POST({ request }: APIEvent) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const orderId = event.order_id;
+    const qropayOrderId = String(event.order_id); // Convert to string (QroPay sends numeric ID)
     const status = event.status;
     const amount = typeof event.amount === "string" ? parseFloat(event.amount) : event.amount;
     const paymentAmount = event.paymentAmount
@@ -63,13 +63,13 @@ export async function POST({ request }: APIEvent) {
         : event.paymentAmount
       : null;
 
-    console.log(`[qropay-webhook] ${status} for order ${orderId}, amount ${amount}`);
+    console.log(`[qropay-webhook] ${status} for QroPay order ${qropayOrderId}, amount ${amount}`);
 
-    // 2. Find deposit by our order_id (gateway = 'qropay')
+    // 2. Find deposit by QroPay's order_id (stored in gateway_order_id)
     const { data: deposit, error: fetchErr } = await mktDb
       .from("advertiser_deposits")
       .select("*")
-      .eq("id", orderId)
+      .eq("gateway_order_id", qropayOrderId)
       .eq("gateway", "qropay")
       .maybeSingle();
 
@@ -80,9 +80,11 @@ export async function POST({ request }: APIEvent) {
 
     if (!deposit) {
       // Unknown order - acknowledge but don't process
-      console.warn(`[qropay-webhook] Unknown order ${orderId}`);
+      console.warn(`[qropay-webhook] Unknown QroPay order ${qropayOrderId}`);
       return new Response("Unknown order", { status: 200 });
     }
+
+    const depositId = deposit.id;
 
     // Check expiry (30 minutes)
     const expiryThreshold = new Date(Date.now() - EXPIRY_MINUTES * 60 * 1000);
@@ -104,7 +106,7 @@ export async function POST({ request }: APIEvent) {
 
         // Check if deposit is expired
         if (isExpired) {
-          console.warn(`[qropay-webhook] Order ${orderId} expired (older than ${EXPIRY_MINUTES} min)`);
+          console.warn(`[qropay-webhook] Deposit ${depositId} (QroPay ${qropayOrderId}) expired (older than ${EXPIRY_MINUTES} min)`);
           if (deposit.status === "pending") {
             await mktDb
               .from("advertiser_deposits")
@@ -113,7 +115,7 @@ export async function POST({ request }: APIEvent) {
                 failure_reason: "expired",
                 last_event: lastEvent,
               })
-              .eq("id", orderId)
+              .eq("id", depositId)
               .eq("status", "pending");
           }
           return new Response("Order expired", { status: 200 });
@@ -121,7 +123,7 @@ export async function POST({ request }: APIEvent) {
 
         // Check if deposit is already in terminal state
         if (deposit.status !== "pending") {
-          console.log(`[qropay-webhook] Order ${orderId} already ${deposit.status}, ignoring`);
+          console.log(`[qropay-webhook] Deposit ${depositId} already ${deposit.status}, ignoring`);
           return new Response("Already processed", { status: 200 });
         }
 
@@ -132,7 +134,7 @@ export async function POST({ request }: APIEvent) {
         if (Math.abs(receivedAmount - expectedAmount) > 0.01) {
           // Amount mismatch - hold for admin review
           console.error(
-            `[qropay-webhook] Amount mismatch for ${orderId}: expected ${expectedAmount} ${deposit.charge_currency}, got ${receivedAmount}`,
+            `[qropay-webhook] Amount mismatch for deposit ${depositId}: expected ${expectedAmount} ${deposit.charge_currency}, got ${receivedAmount}`,
           );
           await mktDb
             .from("advertiser_deposits")
@@ -143,14 +145,14 @@ export async function POST({ request }: APIEvent) {
                 note: "amount_mismatch_requires_admin_review",
               },
             })
-            .eq("id", orderId);
+            .eq("id", depositId);
           return new Response("Amount mismatch - held for review", { status: 200 });
         }
 
         // Check auto-credit ceiling
         if (deposit.amount_usd > AUTO_CREDIT_CEILING_USD) {
           console.warn(
-            `[qropay-webhook] Order ${orderId} above auto-credit ceiling ($${deposit.amount_usd} > $${AUTO_CREDIT_CEILING_USD}) - held for admin review`,
+            `[qropay-webhook] Deposit ${depositId} above auto-credit ceiling ($${deposit.amount_usd} > $${AUTO_CREDIT_CEILING_USD}) - held for admin review`,
           );
           await mktDb
             .from("advertiser_deposits")
@@ -160,26 +162,26 @@ export async function POST({ request }: APIEvent) {
                 note: `above_auto_credit_ceiling_${AUTO_CREDIT_CEILING_USD}_usd`,
               },
             })
-            .eq("id", orderId);
+            .eq("id", depositId);
           return new Response("Above ceiling - held for review", { status: 200 });
         }
 
         // Credit the deposit (idempotent)
         try {
           const result = await mktRpc("mkt_credit_deposit", {
-            p_deposit_id: orderId,
-            p_gateway_payment_id: `qropay:${deposit.gateway_order_id || orderId}`,
+            p_deposit_id: depositId,
+            p_gateway_payment_id: `qropay:${qropayOrderId}`,
             p_event: lastEvent,
             p_confirmed_by: null,
           });
 
           console.log(
-            `[qropay-webhook] Credit result for ${orderId}:`,
+            `[qropay-webhook] Credit result for deposit ${depositId}:`,
             result["credited"] ? "credited" : `noop_${String(result["reason"] ?? "")}`,
           );
           return new Response("Credited", { status: 200 });
         } catch (err) {
-          console.error(`[qropay-webhook] Credit error for ${orderId}:`, err);
+          console.error(`[qropay-webhook] Credit error for deposit ${depositId}:`, err);
           return new Response("Credit failed", { status: 500 });
         }
       }
@@ -195,9 +197,9 @@ export async function POST({ request }: APIEvent) {
               failure_reason: `payment_${status}`,
               last_event: lastEvent,
             })
-            .eq("id", orderId)
+            .eq("id", depositId)
             .eq("status", "pending");
-          console.log(`[qropay-webhook] Marked ${orderId} as failed (${status})`);
+          console.log(`[qropay-webhook] Marked deposit ${depositId} as failed (${status})`);
         }
         return new Response("Payment failed", { status: 200 });
       }
@@ -208,18 +210,18 @@ export async function POST({ request }: APIEvent) {
           await mktDb
             .from("advertiser_deposits")
             .update({ last_event: lastEvent })
-            .eq("id", orderId);
+            .eq("id", depositId);
         }
         return new Response("Status updated", { status: 200 });
       }
 
       default: {
         // Unknown status - store and acknowledge
-        console.warn(`[qropay-webhook] Unknown status ${status} for ${orderId}`);
+        console.warn(`[qropay-webhook] Unknown status ${status} for deposit ${depositId} (QroPay ${qropayOrderId})`);
         await mktDb
           .from("advertiser_deposits")
           .update({ last_event: lastEvent })
-          .eq("id", orderId);
+          .eq("id", depositId);
         return new Response("Status recorded", { status: 200 });
       }
     }
