@@ -35,14 +35,39 @@ export async function createQropayOrder(params: {
     throw new Error("QROPAY_API_KEY not configured");
   }
 
+  // Use a shorter, dashless order_id (QroPay may have length/format restrictions)
+  // Keep original depositId in purpose for reference
+  const shortOrderId = params.depositId.replace(/-/g, "").substring(0, 32);
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const validEmail = emailRegex.test(params.customerEmail) 
+    ? params.customerEmail 
+    : "support@cashgpt.in";
+
+  // Ensure redirect URL is absolute https
+  const validRedirectUrl = params.redirectUrl.startsWith("https://") 
+    ? params.redirectUrl 
+    : `https://cashgpt.in${params.redirectUrl}`;
+
   const body = {
     key: apiKey,
-    order_id: params.depositId,
+    order_id: shortOrderId,
     amount: String(params.amountInr), // Must be string, INR
-    purpose: `CashGPT Campaign Balance Deposit - ₹${params.amountInr}`,
-    customer_email: params.customerEmail,
-    redirect_url: params.redirectUrl,
+    purpose: `CashGPT Campaign Balance Deposit - ₹${params.amountInr} (${params.depositId})`,
+    customer_email: validEmail,
+    redirect_url: validRedirectUrl,
   };
+
+  // Log request (mask API key)
+  console.log("[qropay] Creating order:", {
+    order_id: body.order_id,
+    amount: body.amount,
+    purpose: body.purpose,
+    customer_email: body.customer_email,
+    redirect_url: body.redirect_url,
+    key: `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`,
+  });
 
   const response = await fetch(QROPAY_API_URL, {
     method: "POST",
@@ -53,8 +78,24 @@ export async function createQropayOrder(params: {
   });
 
   if (!response.ok) {
+    const contentType = response.headers.get("content-type") || "unknown";
     const text = await response.text();
-    throw new Error(`QroPay order creation failed: ${response.status} ${text}`);
+    const truncatedBody = text.substring(0, 500);
+    const errorMessage = `QroPay ${response.status} (${contentType}): ${truncatedBody}`;
+    
+    console.error("[qropay] Order creation failed:", {
+      status: response.status,
+      contentType,
+      body: truncatedBody,
+      requestFields: {
+        order_id: body.order_id,
+        amount: body.amount,
+        customer_email: body.customer_email,
+        redirect_url: body.redirect_url,
+      },
+    });
+    
+    throw new Error(errorMessage);
   }
 
   const data = (await response.json()) as {
@@ -65,8 +106,29 @@ export async function createQropayOrder(params: {
   };
 
   if (!data.status || !data.order_id || !data.payment_url) {
-    throw new Error(`QroPay order creation failed: ${data.msg || "Unknown error"}`);
+    const errorMessage = `QroPay order failed: ${data.msg || "Unknown error"}`;
+    
+    console.error("[qropay] Order creation response invalid:", {
+      status: data.status,
+      msg: data.msg,
+      order_id: data.order_id,
+      payment_url: data.payment_url,
+      requestFields: {
+        order_id: body.order_id,
+        amount: body.amount,
+        customer_email: body.customer_email,
+        redirect_url: body.redirect_url,
+      },
+    });
+    
+    throw new Error(errorMessage);
   }
+
+  console.log("[qropay] Order created successfully:", {
+    qropayOrderId: data.order_id,
+    depositId: params.depositId,
+    shortOrderId,
+  });
 
   return {
     qropayOrderId: data.order_id,

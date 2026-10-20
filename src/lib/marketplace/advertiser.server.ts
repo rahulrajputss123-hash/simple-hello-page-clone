@@ -755,15 +755,26 @@ export async function createDepositImpl(
       notes: { deposit_id: depositId, advertiser_id: userId, amount_usd: amount.toFixed(2) },
     });
   } catch (err) {
+    const gatewayMessage = err instanceof Error ? err.message : String(err);
+    const failureReason = `order_create_failed: ${gatewayMessage}`.slice(0, 500);
+    
+    console.error("[razorpay] createDepositImpl failed:", {
+      depositId,
+      userId,
+      amountUsd: amount,
+      chargeAmount,
+      currency,
+      error: gatewayMessage,
+    });
+    
     await mktDb
       .from("advertiser_deposits")
       .update({
         status: "failed",
-        failure_reason:
-          `order_create_failed: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500),
+        failure_reason: failureReason,
       })
       .eq("id", depositId);
-    const gatewayMessage = err instanceof Error ? err.message : String(err);
+    
     throw new DepositError("ORDER_FAILED", `Couldn't start the payment: ${gatewayMessage}`);
   }
 
@@ -927,18 +938,24 @@ export async function createNowpaymentsDepositImpl(
       ipnCallbackUrl: `${siteUrl}/api/public/nowpayments-ipn`,
     });
   } catch (err) {
+    const gatewayMessage = err instanceof Error ? err.message : String(err);
+    const failureReason = `invoice_create_failed: ${gatewayMessage}`.slice(0, 500);
+    
+    console.error("[nowpayments] createNowpaymentsDepositImpl failed:", {
+      depositId,
+      userId,
+      amountUsd: amount,
+      error: gatewayMessage,
+    });
+    
     await mktDb
       .from("advertiser_deposits")
       .update({
         status: "failed",
-        failure_reason:
-          `invoice_create_failed: ${err instanceof Error ? err.message : String(err)}`.slice(
-            0,
-            500,
-          ),
+        failure_reason: failureReason,
       })
       .eq("id", depositId);
-    const gatewayMessage = err instanceof Error ? err.message : String(err);
+    
     throw new DepositError("INVOICE_FAILED", `Couldn't create the invoice: ${gatewayMessage}`);
   }
 
@@ -1064,18 +1081,25 @@ export async function createQropayDepositImpl(
       redirectUrl: `${siteUrl}/advertiser/funds?deposit=${depositId}`,
     });
   } catch (err) {
+    const gatewayMessage = err instanceof Error ? err.message : String(err);
+    const failureReason = `order_create_failed: ${gatewayMessage}`.slice(0, 500);
+    
+    console.error("[qropay] createQropayDepositImpl failed:", {
+      depositId,
+      userId,
+      amountUsd: amount,
+      amountInr: chargeAmount,
+      error: gatewayMessage,
+    });
+    
     await mktDb
       .from("advertiser_deposits")
       .update({
         status: "failed",
-        failure_reason:
-          `order_create_failed: ${err instanceof Error ? err.message : String(err)}`.slice(
-            0,
-            500,
-          ),
+        failure_reason: failureReason,
       })
       .eq("id", depositId);
-    const gatewayMessage = err instanceof Error ? err.message : String(err);
+    
     throw new DepositError("ORDER_FAILED", `Couldn't create the payment order: ${gatewayMessage}`);
   }
 
