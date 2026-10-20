@@ -793,8 +793,6 @@ export function OffersManager() {
                       </button>
                     );
                   })}
-                    );
-                  })}
                 </div>
                 {form.payoutMode === "auto_postback" && (
                   <div className="mt-2 space-y-2">
