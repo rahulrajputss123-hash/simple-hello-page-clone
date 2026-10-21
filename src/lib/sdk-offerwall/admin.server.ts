@@ -238,7 +238,7 @@ export async function getOfferwallMeSignedUrlImpl(userId: string): Promise<strin
   // Read the secret from environment (server-only)
   const secret = process.env["OFFERWALLME_SECRET_KEY"]?.trim();
   if (!secret) {
-    throw new Error("OFFERWALLME_SECRET_KEY not configured");
+    throw new Error("Environment variable OFFERWALLME_SECRET_KEY is not configured");
   }
 
   // Generate expiry (1 hour from now)
