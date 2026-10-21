@@ -1,8 +1,6 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -36,6 +34,7 @@ jobs:
 
       - name: Sync Capacitor
         run: npx cap sync android
+
       - name: Fix Kotlin stdlib version conflict
         run: |
           cat >> android/build.gradle << 'EOF'
@@ -49,18 +48,53 @@ jobs:
               }
           }
           EOF
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: "21"
 
-      - name: Build debug APK
-        working-directory: android
-        run: chmod +x ./gradlew && ./gradlew assembleDebug
+      - name: Set version code and name
+        run: |
+          sed -i "s/versionCode.*/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          sed -i "s/versionName.*/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          echo "Applied version settings:"
+          grep -E "(versionCode|versionName)" android/app/build.gradle
 
-      - name: Upload APK
+      - name: Build release APK
+        working-directory: android
+        run: chmod +x ./gradlew && ./gradlew assembleRelease
+
+      - name: Decode keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Sign APK
+        env:
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          echo "Using build-tools: $BT"
+          $BT/zipalign -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          $BT/apksigner sign --ks "$RUNNER_TEMP/release.jks" --ks-key-alias "$KEY_ALIAS" --ks-pass env:KS_PASS --key-pass env:KEY_PASS --out cashgpt-release.apk "$RUNNER_TEMP/aligned.apk"
+          echo "APK signed successfully"
+
+      - name: Verify signature
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $BT/apksigner verify --verbose --print-certs cashgpt-release.apk | tee cert.txt
+          if grep -q "Android Debug" cert.txt; then
+            echo "ERROR: APK is signed with debug certificate"
+            exit 1
+          fi
+          echo "APK signature verified - not a debug build"
+
+      - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: coinquest-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: cashgpt-release-apk
+          path: cashgpt-release.apk
