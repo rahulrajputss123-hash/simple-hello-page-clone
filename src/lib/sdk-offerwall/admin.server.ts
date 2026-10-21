@@ -238,8 +238,11 @@ export async function getOfferwallMeSignedUrlImpl(userId: string): Promise<strin
   // Read the secret from environment (server-only)
   const secret = process.env["OFFERWALLME_SECRET_KEY"]?.trim();
   if (!secret) {
+    console.error("[offerwallme] OFFERWALLME_SECRET_KEY environment variable is missing");
     throw new Error("Environment variable OFFERWALLME_SECRET_KEY is not configured");
   }
+
+  console.log("[offerwallme] Generating signed URL for user:", userId.substring(0, 8) + "...");
 
   // Generate expiry (1 hour from now)
   const expires = Math.floor(Date.now() / 1000) + 3600;
