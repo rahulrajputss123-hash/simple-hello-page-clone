@@ -26,6 +26,9 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
   if (slug === "cpxresearch") {
     return `https://offers.cpx-research.com/index.php?app_id=${appId}&ext_user_id=${encodeURIComponent(userId)}`;
   }
+  if (slug === "adswedmedia") {
+    return `https://adswedmedia.com/offer/${appId}/${encodeURIComponent(userId)}`;
+  }
   return null;
 }
 
