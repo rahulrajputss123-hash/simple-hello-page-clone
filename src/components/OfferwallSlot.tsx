@@ -2,10 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ExternalLink, Layers } from "lucide-react";
 import { memo, useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import { listSdkOfferwallProviders } from "@/lib/sdk-offerwall.functions";
+import { getOfferwallMeSignedUrl, listSdkOfferwallProviders } from "@/lib/sdk-offerwall.functions";
 
 function buildOfferwallUrl(slug: string, appId: string, userId: string): string | null {
   if (slug === "mooffers") {
@@ -35,18 +36,42 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
 const OfferwallCard = memo(function OfferwallCard({
   provider,
   url,
+  slug,
   onImageError,
 }: {
   provider: { id: string; name: string; tagline: string; logoUrl: string | null };
   url: string | null;
+  slug: string;
   onImageError: (id: string) => void;
 }) {
   const [broken, setBroken] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const fetchSignedUrl = useServerFn(getOfferwallMeSignedUrl);
 
   const handleError = useCallback(() => {
     setBroken(true);
     onImageError(provider.id);
   }, [provider.id, onImageError]);
+
+  const handleOfferwallMeClick = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+
+    // Open blank tab synchronously to avoid popup blockers
+    const tab = window.open("", "_blank");
+    
+    try {
+      const signedUrl = await fetchSignedUrl({});
+      if (tab) {
+        tab.location.href = signedUrl;
+      }
+    } catch (err) {
+      if (tab) tab.close();
+      toast.error(err instanceof Error ? err.message : "Failed to open offerwall.me");
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchSignedUrl, loading]);
 
   return (
     <article
@@ -76,11 +101,23 @@ const OfferwallCard = memo(function OfferwallCard({
           <p className="text-xs text-muted-foreground">{provider.tagline}</p>
         </div>
         {url ? (
-          <Button size="sm" variant="jade" className="mt-auto gap-1" asChild>
-            <a href={url} target="_blank" rel="noopener noreferrer">
-              Open <ExternalLink className="size-3.5" />
-            </a>
-          </Button>
+          slug === "offerwallme" ? (
+            <Button 
+              size="sm" 
+              variant="jade" 
+              className="mt-auto gap-1"
+              onClick={handleOfferwallMeClick}
+              disabled={loading}
+            >
+              {loading ? "Opening…" : "Open"} <ExternalLink className="size-3.5" />
+            </Button>
+          ) : (
+            <Button size="sm" variant="jade" className="mt-auto gap-1" asChild>
+              <a href={url} target="_blank" rel="noopener noreferrer">
+                Open <ExternalLink className="size-3.5" />
+              </a>
+            </Button>
+          )
         ) : (
           <Button size="sm" variant="outline" className="mt-auto gap-1" disabled>
             Mobile app only <ExternalLink className="size-3.5" />
@@ -131,6 +168,7 @@ export function OfferwallSlot({ limit }: { limit?: number }) {
             key={provider.id}
             provider={provider}
             url={url}
+            slug={provider.slug}
             onImageError={handleImageError}
           />
         );

@@ -154,3 +154,14 @@ export const listSdkConversions = createServerFn({ method: "POST" })
     const { listSdkConversionsImpl } = await import("./sdk-offerwall/admin.server");
     return listSdkConversionsImpl(data);
   });
+
+/**
+ * Get a signed URL for offerwall.me (requires signed user identity).
+ * Uses the authenticated user ID from context (never accepts userId from client).
+ */
+export const getOfferwallMeSignedUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { getOfferwallMeSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
+    return getOfferwallMeSignedUrlImpl(context.userId);
+  });
