@@ -221,6 +221,9 @@ export async function listSdkConversionsImpl(input: {
  * Signature format: HMAC-SHA256(secret, "offerwall-user-v1\n{apiKey}\n{userId}\n{expires}")
  */
 export async function getOfferwallMeSignedUrlImpl(userId: string): Promise<string> {
+  console.log("[offerwallme] Starting signed URL generation");
+  console.log("[offerwallme] Environment check - has OFFERWALLME_SECRET_KEY:", Boolean(process.env["OFFERWALLME_SECRET_KEY"]));
+  
   // Read the app_id (API key) from the offerwallme provider row
   const { data: provider, error: providerError } = await supabaseAdmin
     .from("sdk_offerwall_providers")
@@ -228,20 +231,26 @@ export async function getOfferwallMeSignedUrlImpl(userId: string): Promise<strin
     .eq("slug", "offerwallme")
     .maybeSingle();
 
-  if (providerError) throw providerError;
+  if (providerError) {
+    console.error("[offerwallme] Database error:", providerError);
+    throw providerError;
+  }
   if (!provider?.app_id) {
+    console.error("[offerwallme] Provider not found or missing app_id");
     throw new Error("offerwall.me provider not configured (missing app_id)");
   }
 
   const apiKey = provider.app_id.trim();
+  console.log("[offerwallme] Found API key:", apiKey.substring(0, 8) + "...");
 
   // Read the secret from environment (server-only)
   const secret = process.env["OFFERWALLME_SECRET_KEY"]?.trim();
   if (!secret) {
-    console.error("[offerwallme] OFFERWALLME_SECRET_KEY environment variable is missing");
+    console.error("[offerwallme] Environment variables available:", Object.keys(process.env).filter(k => k.includes("OFFERWALL") || k.includes("SECRET")).join(", "));
     throw new Error("Environment variable OFFERWALLME_SECRET_KEY is not configured");
   }
 
+  console.log("[offerwallme] Secret found, length:", secret.length);
   console.log("[offerwallme] Generating signed URL for user:", userId.substring(0, 8) + "...");
 
   // Generate expiry (1 hour from now)
