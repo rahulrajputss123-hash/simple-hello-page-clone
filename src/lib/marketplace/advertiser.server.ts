@@ -286,6 +286,7 @@ const LEDGER_LABEL: Record<LedgerRow["kind"], string> = {
   campaign_release: "Budget Returned",
   conversion_charge: "Conversion Charge",
   adjustment: "Adjustment",
+  earnings_transfer: "Transferred from earnings",
 };
 
 /* ---------------------------------------------------------------- reads */

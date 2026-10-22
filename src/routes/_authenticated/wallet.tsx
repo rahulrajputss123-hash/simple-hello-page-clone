@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowDownToLine, Check, Plus, Receipt, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowDownToLine, ArrowRightLeft, Check, Plus, Receipt, ShieldCheck, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { MIN_WITHDRAWAL, formatDateTime, formatMoney } from "@/lib/coinquest";
@@ -34,7 +35,7 @@ import {
   type PayoutFieldName,
   type PayoutMethodType,
 } from "@/lib/payout-methods";
-import { cancelWithdrawal, createWithdrawal, savePayoutMethod } from "@/lib/coinquest.functions";
+import { cancelWithdrawal, createWithdrawal, savePayoutMethod, transferEarningsToAdvertiser } from "@/lib/coinquest.functions";
 
 export const Route = createFileRoute("/_authenticated/wallet")({
   head: () => ({
@@ -54,6 +55,173 @@ function isEmail(value: string): boolean {
 }
 
 type DraftFields = Partial<Record<PayoutFieldName, string>>;
+
+function MoveToCampBalanceSection({
+  balance,
+  pending,
+  onSuccess,
+}: {
+  balance: number;
+  pending: number;
+  onSuccess: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const transfer = useServerFn(transferEarningsToAdvertiser);
+
+  const available = balance - pending;
+  const requestedAmount = Number(amount) || 0;
+  const canTransfer = requestedAmount >= 5 && requestedAmount <= available && confirmed;
+
+  const transferMutation = useMutation({
+    mutationFn: () =>
+      transfer({
+        data: {
+          amount: requestedAmount,
+          idempotencyKey,
+        },
+      }),
+    onSuccess: () => {
+      toast.success(
+        `${formatMoney(requestedAmount)} moved to Campaign Balance. You can now use it to fund campaigns.`,
+      );
+      setOpen(false);
+      setAmount("");
+      setConfirmed(false);
+      onSuccess();
+    },
+    onError: (error: Error) => {
+      // Handle "no advertiser account" error - redirect to onboarding
+      if (
+        error.message.includes("advertiser account") ||
+        error.message.includes("advertiser onboarding")
+      ) {
+        toast.error(error.message, {
+          action: {
+            label: "Start Onboarding",
+            onClick: () => {
+              window.location.href = "/advertiser/onboarding";
+            },
+          },
+          duration: 10000,
+        });
+      } else {
+        toast.error(error.message || "Transfer failed");
+      }
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          className="mt-4 w-full gap-2"
+          disabled={available < 5}
+        >
+          <ArrowRightLeft className="size-4" />
+          Move to Campaign Balance
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Move to Campaign Balance</DialogTitle>
+          <DialogDescription>
+            Transfer earnings to fund your advertiser campaigns. This is one-way and cannot be
+            reversed.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="rounded-xl bg-muted/50 p-3 space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Available:</span>
+              <span className="font-semibold">{formatMoney(available)}</span>
+            </div>
+            {pending > 0 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Pending (cannot move):</span>
+                <span>{formatMoney(pending)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="transfer-amount">Amount to move ($5 minimum)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="transfer-amount"
+                type="number"
+                inputMode="decimal"
+                placeholder="5.00"
+                min="5"
+                max={available}
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                disabled={transferMutation.isPending}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAmount(available.toFixed(2))}
+                disabled={available < 5 || transferMutation.isPending}
+              >
+                Max
+              </Button>
+            </div>
+            {requestedAmount > 0 && requestedAmount < 5 && (
+              <p className="text-xs text-destructive">Minimum transfer is $5.00</p>
+            )}
+            {requestedAmount > available && (
+              <p className="text-xs text-destructive">
+                Insufficient balance (available: {formatMoney(available)})
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 space-y-3">
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+              ⚠️ One-Way Transfer
+            </p>
+            <p className="text-xs text-amber-800 dark:text-amber-200">
+              Money moved to Campaign Balance can only be used to fund campaigns. It cannot be moved
+              back to your earnings wallet or withdrawn.
+            </p>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="confirm-one-way"
+                checked={confirmed}
+                onCheckedChange={(checked) => setConfirmed(checked === true)}
+                disabled={transferMutation.isPending}
+              />
+              <label
+                htmlFor="confirm-one-way"
+                className="text-xs leading-relaxed text-amber-900 dark:text-amber-100 cursor-pointer"
+              >
+                I understand this is one-way. Moved money cannot return to my earnings or be
+                withdrawn.
+              </label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={transferMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => transferMutation.mutate()}
+            disabled={!canTransfer || transferMutation.isPending}
+          >
+            {transferMutation.isPending ? "Moving..." : `Move ${formatMoney(requestedAmount)}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function WalletPage() {
   const { session, profile } = useAuth();
@@ -197,6 +365,16 @@ function WalletPage() {
           </div>
         </div>
       </section>
+
+      {/* Move to Campaign Balance section */}
+      <MoveToCampBalanceSection
+        balance={balance}
+        pending={pending}
+        onSuccess={() => {
+          void queryClient.invalidateQueries({ queryKey: ["profile"] });
+          void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        }}
+      />
 
       <div className="surface-card mt-4 flex items-start gap-3 p-4">
         <ShieldCheck className="mt-0.5 size-5 text-primary" />
