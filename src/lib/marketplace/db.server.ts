@@ -84,7 +84,8 @@ export type LedgerRow = {
     | "campaign_allocation"
     | "campaign_release"
     | "conversion_charge"
-    | "adjustment";
+    | "adjustment"
+    | "earnings_transfer";
   bucket: "deposit" | "bonus_locked" | "bonus_available";
   amount: string | number;
   delta: string | number;

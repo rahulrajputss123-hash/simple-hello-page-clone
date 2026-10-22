@@ -1311,3 +1311,72 @@ export async function adminOverviewImpl() {
     totals,
   };
 }
+
+/**
+ * Transfer earnings from wallet to Campaign Balance (one-way).
+ * Uses the authenticated user ID from context (never from request body).
+ * Generates idempotency key per form submit to prevent double debits.
+ */
+export async function transferEarningsToAdvertiserImpl(
+  userId: string,
+  amount: number,
+  idempotencyKey: string,
+): Promise<{ walletBalance: number; depositBalance: number; transferred: boolean }> {
+  try {
+    const { data, error } = await supabaseAdmin.rpc("earner_to_advertiser_transfer", {
+      p_user_id: userId,
+      p_amount: amount,
+      p_idempotency_key: idempotencyKey,
+    });
+
+    if (error) {
+      // Map database errors to friendly messages
+      const code = error.code || error.message;
+
+      if (code.includes("TRANSFER_BELOW_MINIMUM")) {
+        throw new Error("Minimum transfer amount is $5.00");
+      }
+
+      if (code.includes("TRANSFER_INVALID_AMOUNT")) {
+        throw new Error("Amount must have at most two decimal places");
+      }
+
+      if (code.includes("TRANSFER_INSUFFICIENT_BALANCE")) {
+        const detail = error.details || "";
+        const match = detail.match(/Available: ([\d.]+)/);
+        const available = match ? match[1] : "0";
+        throw new Error(`Insufficient balance. Available: $${available}`);
+      }
+
+      if (
+        code.includes("TRANSFER_NO_ADVERTISER_ACCOUNT") ||
+        code.includes("TRANSFER_ADVERTISER_NOT_ACTIVE")
+      ) {
+        throw new Error(
+          "You need an active advertiser account. Please complete advertiser onboarding first.",
+        );
+      }
+
+      if (code.includes("TRANSFER_LEDGER_CONFLICT")) {
+        throw new Error("Transfer conflict. Please try again.");
+      }
+
+      // Generic error for anything else
+      console.error("[transfer] Unexpected error:", error);
+      throw new Error("Transfer failed. Please try again later.");
+    }
+
+    if (!data) {
+      throw new Error("Transfer failed: no response from database");
+    }
+
+    return {
+      walletBalance: Number(data.wallet_balance ?? 0),
+      depositBalance: Number(data.deposit_balance ?? 0),
+      transferred: Boolean(data.transferred),
+    };
+  } catch (err) {
+    if (err instanceof Error) throw err;
+    throw new Error("Transfer failed");
+  }
+}

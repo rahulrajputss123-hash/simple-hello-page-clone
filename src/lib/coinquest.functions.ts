@@ -258,3 +258,18 @@ export const requestAccountDeletion = createServerFn({ method: "POST" })
       throw err;
     }
   });
+
+export const transferEarningsToAdvertiser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        amount: z.number().min(5, "Minimum transfer is $5.00").max(1000000),
+        idempotencyKey: z.string().min(1).max(100),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { transferEarningsToAdvertiserImpl } = await import("./coinquest.server");
+    return transferEarningsToAdvertiserImpl(context.userId, data.amount, data.idempotencyKey);
+  });
