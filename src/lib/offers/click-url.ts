@@ -15,6 +15,10 @@ import { REVTOO_USER_ID_PLACEHOLDER } from "./adapters/revtoo.server";
  * string in every cached offer URL. We replace it with the real user id here
  * via simple substring substitution.
  *
+ * AdBlueMedia (`adbluemedia`) uses a global postback URL with s1 as the user
+ * identifier. We replace or append s1=userId in the click URL so postbacks
+ * can credit the correct user.
+ *
  * Other providers' URLs are returned unchanged.
  */
 export function appendAffSub4(
@@ -29,6 +33,21 @@ export function appendAffSub4(
     const oid = encodeURIComponent(externalOfferId);
     const cid = encodeURIComponent(userId);
     return `https://affike.com/track/click?offer_id=${oid}&click_id=${cid}`;
+  }
+
+  // AdBlueMedia: attach user UUID as s1 parameter for global postback tracking
+  if (providerSlug === "adbluemedia") {
+    if (!url) return null;
+    if (!userId) return url;
+    try {
+      const parsed = new URL(url);
+      parsed.searchParams.set("s1", userId);
+      return parsed.toString();
+    } catch {
+      // Fallback: append s1 if URL parsing fails
+      const sep = url.includes("?") ? "&" : "?";
+      return `${url}${sep}s1=${encodeURIComponent(userId)}`;
+    }
   }
 
   // AdswedMedia: the click URL carries a literal "USER_ID_HERE" placeholder that
