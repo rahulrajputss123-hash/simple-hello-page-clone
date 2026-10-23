@@ -56,6 +56,7 @@ import { Route as AuthenticatedAdvertiserEditIdRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdvertiserResultsIdRouteImport } from './routes/_authenticated/advertiser/results.$id'
 import { Route as AuthenticatedGoQuestKeyStepRouteImport } from './routes/_authenticated/go.$questKey.$step'
 import { Route as AuthenticatedGoLockerReturnRouteImport } from './routes/_authenticated/go.locker.return'
+import { Route as ApiPublicFeedPostbackAdbluemediaRouteImport } from './routes/api/public/feed-postback.adbluemedia'
 import { Route as ApiPublicOfferPostbackOfferIdRouteImport } from './routes/api/public/offer-postback.$offerId'
 import { Route as ApiPublicOfferwallSlugRouteImport } from './routes/api/public/offerwall/$slug'
 
@@ -312,6 +313,12 @@ const AuthenticatedGoLockerReturnRoute =
     path: '/go/locker/return',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicFeedPostbackAdbluemediaRoute =
+  ApiPublicFeedPostbackAdbluemediaRouteImport.update({
+    id: '/api/public/feed-postback/adbluemedia',
+    path: '/api/public/feed-postback/adbluemedia',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicOfferPostbackOfferIdRoute =
   ApiPublicOfferPostbackOfferIdRouteImport.update({
     id: '/api/public/offer-postback/$offerId',
@@ -371,6 +378,7 @@ export interface FileRoutesByFullPath {
   '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
+  '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
@@ -421,6 +429,7 @@ export interface FileRoutesByTo {
   '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
+  '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
@@ -473,6 +482,7 @@ export interface FileRoutesById {
   '/_authenticated/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/_authenticated/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/_authenticated/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
+  '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
@@ -525,6 +535,7 @@ export interface FileRouteTypes {
     | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
+    | '/api/public/feed-postback/adbluemedia'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -575,6 +586,7 @@ export interface FileRouteTypes {
     | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
+    | '/api/public/feed-postback/adbluemedia'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   id:
@@ -626,6 +638,7 @@ export interface FileRouteTypes {
     | '/_authenticated/advertiser/results/$id'
     | '/_authenticated/go/$questKey/$step'
     | '/_authenticated/go/locker/return'
+    | '/api/public/feed-postback/adbluemedia'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   fileRoutesById: FileRoutesById
@@ -649,6 +662,7 @@ export interface RootRouteChildren {
   ApiCronRefreshOfferFeedRoute: typeof ApiCronRefreshOfferFeedRoute
   ApiPublicMarketplacePostbackRoute: typeof ApiPublicMarketplacePostbackRoute
   ApiPublicRazorpayWebhookRoute: typeof ApiPublicRazorpayWebhookRoute
+  ApiPublicFeedPostbackAdbluemediaRoute: typeof ApiPublicFeedPostbackAdbluemediaRoute
   ApiPublicOfferPostbackOfferIdRoute: typeof ApiPublicOfferPostbackOfferIdRoute
   ApiPublicOfferwallSlugRoute: typeof ApiPublicOfferwallSlugRoute
 }
@@ -984,6 +998,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGoLockerReturnRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/feed-postback/adbluemedia': {
+      id: '/api/public/feed-postback/adbluemedia'
+      path: '/api/public/feed-postback/adbluemedia'
+      fullPath: '/api/public/feed-postback/adbluemedia'
+      preLoaderRoute: typeof ApiPublicFeedPostbackAdbluemediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/offer-postback/$offerId': {
       id: '/api/public/offer-postback/$offerId'
       path: '/api/public/offer-postback/$offerId'
@@ -1088,6 +1109,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronRefreshOfferFeedRoute: ApiCronRefreshOfferFeedRoute,
   ApiPublicMarketplacePostbackRoute: ApiPublicMarketplacePostbackRoute,
   ApiPublicRazorpayWebhookRoute: ApiPublicRazorpayWebhookRoute,
+  ApiPublicFeedPostbackAdbluemediaRoute: ApiPublicFeedPostbackAdbluemediaRoute,
   ApiPublicOfferPostbackOfferIdRoute: ApiPublicOfferPostbackOfferIdRoute,
   ApiPublicOfferwallSlugRoute: ApiPublicOfferwallSlugRoute,
 }
