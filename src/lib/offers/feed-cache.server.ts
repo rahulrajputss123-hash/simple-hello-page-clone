@@ -79,6 +79,62 @@ function imageUrlFromIcon(icon: string | null | undefined): string | null {
   return typeof icon === "string" && /^https?:\/\//i.test(icon.trim()) ? icon.trim() : null;
 }
 
+/**
+ * Simple hash function for seeded shuffling.
+ * Takes a string seed and returns a number between 0 and 1.
+ */
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash) / 2147483647;
+}
+
+/**
+ * Seeded shuffle using Fisher-Yates algorithm.
+ * Seed format: userId (or IP) + ISO date string (YYYY-MM-DD).
+ */
+function seededShuffle<T>(array: T[], seed: string): T[] {
+  const arr = [...array]; // Don't mutate original
+  const random = (max: number) => {
+    seed = String(simpleHash(seed) * 9999999); // Update seed for next call
+    return Math.floor(simpleHash(seed) * max);
+  };
+  
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = random(i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Casino/betting keyword detection.
+ * Returns true if offer matches casino/betting keywords (unless excluded like Hulu).
+ */
+function isCasinoOffer(title: string, description: string): boolean {
+  const text = `${title} ${description}`.toLowerCase();
+  
+  // Exclusion list (case-insensitive)
+  const exclusions = ["hulu"];
+  for (const excluded of exclusions) {
+    if (text.includes(excluded)) return false;
+  }
+  
+  // Casino/betting keywords (word boundary matching)
+  const keywords = [
+    "casino", "bet", "betting", "sportsbook", "poker", "slots", "gambl", "wager",
+    "roulette", "blackjack", "jackpot", "bingo", "lottery", "spin", "stake", "sweeps",
+    "bitsler", "cases\\.gg", "whale\\.io", "originals\\.io", "tooniebet"
+  ];
+  
+  const pattern = new RegExp(`\\b(${keywords.join("|")})`, "i");
+  return pattern.test(text);
+}
+
 // The dedicated `offers.image_url` column is added by a migration; until that
 // migration is applied on a given environment the column may not exist, so we
 // detect it once and gracefully fall back to the legacy behaviour (image URL
@@ -346,7 +402,7 @@ export async function assembleFeaturedImpl(
       ? supabaseAdmin
           .from("offers")
           .select(
-            "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
+            "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual, push_to_bottom" +
               imageCol(hasImageUrl),
           )
           .in("id", [...collected.keys()])
@@ -399,14 +455,33 @@ export async function assembleFeaturedImpl(
       category: (o as { category?: string | null }).category ?? null,
       tags: normalizeStoredTags((o as { tags?: string[] }).tags),
       _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),
-    }))
-    .sort((a, b) => {
-      const wa = collected.get(a.id) ?? 1;
-      const wb = collected.get(b.id) ?? 1;
-      const score = wb * b.reward_amount - wa * a.reward_amount;
-      if (score !== 0) return score;
-      return a.id.localeCompare(b.id);
-    });
+      _pushToBottom: (o as { push_to_bottom?: boolean | null }).push_to_bottom ?? null,
+    }));
+
+  // Apply seeded shuffle to network offers, then separate casino/bottom offers
+  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const shuffleSeed = (userId || ip || "anonymous") + ":" + today;
+  const shuffled = seededShuffle(networkOffers, shuffleSeed);
+  
+  const regularOffers: FeaturedOffer[] = [];
+  const bottomOffers: FeaturedOffer[] = [];
+  
+  for (const offer of shuffled) {
+    const pushToBottom = (offer as any)._pushToBottom;
+    const shouldPushToBottom = 
+      pushToBottom === true || 
+      (pushToBottom === null && isCasinoOffer(offer.title, offer.description));
+    
+    if (shouldPushToBottom) {
+      bottomOffers.push(offer);
+    } else {
+      regularOffers.push(offer);
+    }
+    // Keep _pushToBottom for auto-tags logic, will be cleaned up later
+  }
+  
+  // Combine: regular offers first, then bottom offers
+  const sortedNetworkOffers = [...regularOffers, ...bottomOffers];
 
   // Process manual featured offers
   const manualOffers: FeaturedOffer[] = ((manualRowsData.data ?? []) as any[])
@@ -446,7 +521,7 @@ export async function assembleFeaturedImpl(
       _tagsManual: Boolean((o as { tags_manual?: boolean }).tags_manual),
     }));
 
-  const combined = [...manualOffers, ...networkOffers];
+  const combined = [...manualOffers, ...sortedNetworkOffers];
   // Overlay auto-tags for offers that don't have admin-locked tags.
   await applyAutoTags(combined);
 
@@ -521,19 +596,25 @@ function normalizeStoredTags(raw: string[] | undefined | null): FeaturedOffer["t
   return out;
 }
 
-async function applyAutoTags(offers: (FeaturedOffer & { _tagsManual?: boolean })[]) {
+async function applyAutoTags(offers: (FeaturedOffer & { _tagsManual?: boolean; _pushToBottom?: boolean | null })[]) {
   const eligible = offers.filter((o) => !o._tagsManual);
   if (!eligible.length) {
-    for (const o of offers) delete o._tagsManual;
+    for (const o of offers) {
+      delete o._tagsManual;
+      delete (o as any)._pushToBottom;
+    }
     return;
   }
-  const { computeAutoTags } = await import("./tags.server");
+  const { computeAutoTags, isCasinoOffer: isCasino } = await import("./tags.server");
   const map = await computeAutoTags(
     eligible.map((o) => ({
       id: o.id,
       reward_amount: Number(o.reward_amount),
       requirements: o.requirements ?? null,
       category: o.category ?? null,
+      title: o.title,
+      description: o.description,
+      push_to_bottom: (o as any)._pushToBottom ?? null,
     })),
   );
   for (const o of offers) {
@@ -542,6 +623,7 @@ async function applyAutoTags(offers: (FeaturedOffer & { _tagsManual?: boolean })
       if (auto?.length) o.tags = auto;
     }
     delete o._tagsManual;
+    delete (o as any)._pushToBottom;
   }
 }
 

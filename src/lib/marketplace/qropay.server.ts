@@ -36,10 +36,8 @@ export async function createQropayOrder(params: {
   }
 
   // Create short alphanumeric order_id (max 20 chars)
-  // Use last 16 chars of UUID (remove dashes) + 4 random chars for uniqueness
-  const uuidPart = params.depositId.replace(/-/g, "").substring(16, 32); // Last 16 chars
-  const randomPart = Math.random().toString(36).substring(2, 6); // 4 random chars
-  const shortOrderId = (uuidPart + randomPart).substring(0, 20);
+  // Use LAST 20 hex chars of UUID (remove dashes) - deterministic and reversible
+  const shortOrderId = params.depositId.replace(/-/g, "").substring(12, 32); // Last 20 chars
 
   // Whole rupees as plain string
   const amountStr = String(Math.ceil(params.amountInr));
