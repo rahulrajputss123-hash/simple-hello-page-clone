@@ -18,6 +18,30 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
  * When an admin sets `tags_manual=true`, the stored `tags` array is used
  * as-is and this function is not consulted.
  */
+/**
+ * Casino/betting keyword detection.
+ * Returns true if offer matches casino/betting keywords (unless excluded like Hulu).
+ */
+export function isCasinoOffer(title: string, description: string): boolean {
+  const text = `${title} ${description}`.toLowerCase();
+  
+  // Exclusion list (case-insensitive)
+  const exclusions = ["hulu"];
+  for (const excluded of exclusions) {
+    if (text.includes(excluded)) return false;
+  }
+  
+  // Casino/betting keywords (word boundary matching)
+  const keywords = [
+    "casino", "bet", "betting", "sportsbook", "poker", "slots", "gambl", "wager",
+    "roulette", "blackjack", "jackpot", "bingo", "lottery", "spin", "stake", "sweeps",
+    "bitsler", "cases\\.gg", "whale\\.io", "originals\\.io", "tooniebet"
+  ];
+  
+  const pattern = new RegExp(`\\b(${keywords.join("|")})`, "i");
+  return pattern.test(text);
+}
+
 export type AutoTag = "Hot" | "Trending" | "Easy" | "Popular";
 
 export type AutoTagRow = {
@@ -25,6 +49,9 @@ export type AutoTagRow = {
   reward_amount: number;
   requirements: string | null;
   category: string | null;
+  title: string;
+  description: string;
+  push_to_bottom: boolean | null;
 };
 
 export type AutoTagsMap = Record<string, AutoTag[]>;
@@ -85,7 +112,15 @@ export async function computeAutoTags(offers: AutoTagRow[]): Promise<AutoTagsMap
   if (!offers.length) return map;
   const ids = offers.map((o) => o.id);
 
-  const rewardThreshold = topTierThreshold(offers.map((o) => Number(o.reward_amount ?? 0)));
+  // For Hot tag threshold, exclude casino/push_to_bottom offers
+  const nonCasinoOffers = offers.filter((o) => {
+    const shouldPushToBottom = 
+      o.push_to_bottom === true || 
+      (o.push_to_bottom === null && isCasinoOffer(o.title, o.description));
+    return !shouldPushToBottom;
+  });
+  
+  const rewardThreshold = topTierThreshold(nonCasinoOffers.map((o) => Number(o.reward_amount ?? 0)));
   const { recent, prior } = await fetch7dActivity(ids);
   const activityValues = Array.from(recent.values());
   const popularThreshold = topTierThreshold(activityValues);
@@ -93,7 +128,16 @@ export async function computeAutoTags(offers: AutoTagRow[]): Promise<AutoTagsMap
   for (const offer of offers) {
     const tags: AutoTag[] = [];
     const reward = Number(offer.reward_amount ?? 0);
-    if (reward > 0 && reward >= rewardThreshold) tags.push("Hot");
+    
+    // Check if this offer should be pushed to bottom
+    const shouldPushToBottom = 
+      offer.push_to_bottom === true || 
+      (offer.push_to_bottom === null && isCasinoOffer(offer.title, offer.description));
+    
+    // Hot tag: exclude casino/push_to_bottom offers
+    if (!shouldPushToBottom && reward > 0 && reward >= rewardThreshold) {
+      tags.push("Hot");
+    }
 
     const recentCount = recent.get(offer.id) ?? 0;
     const priorCount = prior.get(offer.id) ?? 0;

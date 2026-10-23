@@ -308,6 +308,7 @@ export async function updateOfferControlsImpl(input: {
   revenueShare?: number | undefined;
   payoutMode?: "manual" | "manual_proof" | "auto_postback" | undefined;
   postbackSecretRef?: string | null | undefined;
+  pushToBottom?: boolean | null | undefined;
   category?:
     | "App Install"
     | "Trial"
@@ -329,6 +330,7 @@ export async function updateOfferControlsImpl(input: {
     revenue_share?: number;
     payout_mode?: string;
     postback_secret_ref?: string | null;
+    push_to_bottom?: boolean | null;
     category?: string | null;
     category_manual?: boolean;
     tags?: string[];
@@ -343,6 +345,7 @@ export async function updateOfferControlsImpl(input: {
   if (input.payoutMode !== undefined) patch.payout_mode = input.payoutMode;
   if (input.postbackSecretRef !== undefined)
     patch.postback_secret_ref = input.postbackSecretRef?.trim() || null;
+  if (input.pushToBottom !== undefined) patch.push_to_bottom = input.pushToBottom;
   // Category + tags: an admin write flips the *_manual flag, which the sync
   // engine (`syncProviderImpl`) then honours by stripping those columns from
   // its upsert payload. Admin can still change them again later — only the

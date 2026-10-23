@@ -183,6 +183,7 @@ export function OffersManager() {
       revenueShare?: number;
       payoutMode?: "manual" | "manual_proof" | "auto_postback";
       postbackSecretRef?: string | null;
+      pushToBottom?: boolean | null;
     }) => setControls({ data: input }),
     onSuccess: () => {
       toast.success("Offer updated.");
@@ -474,6 +475,19 @@ export function OffersManager() {
                       }
                     />
                     Featured
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <Switch
+                      checked={
+                        ((offer as { push_to_bottom?: boolean | null }).push_to_bottom as
+                          | boolean
+                          | null) === true
+                      }
+                      onCheckedChange={(value) =>
+                        controlsAction.mutate({ id: offer.id, pushToBottom: value ? true : null })
+                      }
+                    />
+                    Push to Bottom
                   </label>
                   <Input
                     className="h-8 w-20"
