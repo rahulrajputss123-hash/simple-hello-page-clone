@@ -10,6 +10,9 @@ import {
   Wallet,
   XCircle,
   Coins,
+  QrCode,
+  ChevronRight,
+  Lock,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -63,6 +66,7 @@ type Stage =
   | { kind: "creating" }
   | { kind: "checkout"; depositId: string }
   | { kind: "crypto_redirect"; depositId: string }
+  | { kind: "upi_redirect"; depositId: string }
   | { kind: "confirming"; depositId: string; amountUsd: number }
   | { kind: "succeeded"; amountUsd: number }
   | { kind: "failed"; reason: string };
@@ -218,7 +222,7 @@ function FundsPage() {
     mutationFn: async (amountUsd: number) => {
       setStage({ kind: "creating" });
       const result = await createQropay({ data: { amountUsd } });
-      setStage({ kind: "crypto_redirect", depositId: result.depositId });
+      setStage({ kind: "upi_redirect", depositId: result.depositId });
       return result;
     },
     onSuccess: (result) => {
@@ -275,7 +279,24 @@ function FundsPage() {
     stage.kind === "creating" ||
     stage.kind === "checkout" ||
     stage.kind === "crypto_redirect" ||
+    stage.kind === "upi_redirect" ||
     stage.kind === "confirming";
+
+  // Detect if user is likely in India (client-side heuristic)
+  const isLikelyIndia = (() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const lang = navigator.language;
+      return (
+        tz === "Asia/Kolkata" ||
+        tz === "Asia/Calcutta" ||
+        lang.startsWith("en-IN") ||
+        lang.startsWith("hi")
+      );
+    } catch {
+      return false;
+    }
+  })();
 
   return (
     <AppShell subtitle="Advertiser" mainClass="page-fade-in">
@@ -404,114 +425,203 @@ function FundsPage() {
           Campaign Funds are spent only when a publisher completes your task. Unused funds stay in
           your Campaign Balance.
         </p>
+
         {genericDisabledReason && !anyGatewayUsable ? (
           <p className="text-xs font-semibold text-destructive">{genericDisabledReason}</p>
-        ) : null}
-
-        {razorpayUsable && (
+        ) : (
           <>
-            <Button
-              type="submit"
-              variant="jade"
-              size="lg"
-              className="w-full"
-              disabled={Boolean(razorpayDisabledReason) || !inRange || busy}
-              data-testid="add-funds-submit"
-            >
-              {stage.kind === "creating" ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Preparing payment…
-                </>
-              ) : stage.kind === "checkout" ? (
-                "Complete payment in the Razorpay window"
-              ) : (
-                `Pay ${formatMoney(n)} with Razorpay`
-              )}
-            </Button>
-            <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
-              <ShieldCheck className="size-3" /> Secured by Razorpay · UPI, cards, net banking,
-              wallets
-            </p>
-          </>
-        )}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-foreground">Choose payment method</p>
+              {(() => {
+                // Build payment methods array
+                type PaymentMethod = {
+                  id: string;
+                  title: string;
+                  subtitle: string;
+                  badge?: string;
+                  icon: React.ReactNode;
+                  usable: boolean;
+                  disabledReason: string | null;
+                  loading: boolean;
+                  loadingText: string;
+                  onClick: () => void;
+                  primary?: boolean;
+                  recommended?: boolean;
+                  testId?: string;
+                  formSubmit?: boolean;
+                };
 
-        {razorpayUsable && nowpaymentsUsable && (
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
+                const inrAmount = settings?.inrPerUsd ? (n * settings.inrPerUsd).toFixed(0) : "0";
+
+                let methods: PaymentMethod[] = [
+                  {
+                    id: "crypto",
+                    title: `Pay ${formatMoney(n)} with Crypto`,
+                    subtitle: "USDT · BTC · ETH · 200+ coins",
+                    badge: "Worldwide",
+                    icon: (
+                      <div className="relative flex h-10 w-10 items-center justify-center">
+                        {/* Overlapping coin icons */}
+                        <div className="absolute left-0 z-30 flex h-6 w-6 items-center justify-center rounded-full bg-[#26A17B]">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="white">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.72-2.84 0-2.27-1.72-2.96-3.65-3.35z"/>
+                          </svg>
+                        </div>
+                        <div className="absolute left-2 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-[#F7931A]">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="white">
+                            <path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.548v-.002zm-6.35-4.613c.24-1.59-.974-2.45-2.64-3.03l.54-2.153-1.315-.33-.525 2.107c-.345-.087-.705-.167-1.064-.25l.526-2.127-1.32-.33-.54 2.165c-.285-.065-.565-.13-.84-.2l-1.815-.45-.35 1.407s.975.225.955.236c.535.136.63.486.615.766l-1.477 5.92c-.075.166-.24.406-.614.314.015.02-.96-.24-.96-.24l-.66 1.51 1.71.426.93.242-.54 2.19 1.32.327.54-2.17c.36.1.705.19 1.05.273l-.51 2.154 1.32.33.545-2.19c2.24.427 3.93.257 4.64-1.774.57-1.637-.03-2.58-1.217-3.196.854-.193 1.5-.76 1.68-1.93h.01zm-3.01 4.22c-.404 1.64-3.157.75-4.05.53l.72-2.9c.896.23 3.757.67 3.33 2.37zm.41-4.24c-.37 1.49-2.662.735-3.405.55l.654-2.64c.744.18 3.137.524 2.75 2.084v.006z"/>
+                          </svg>
+                        </div>
+                        <div className="absolute left-4 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[#627EEA]">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="white">
+                            <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    ),
+                    usable: nowpaymentsUsable,
+                    disabledReason: cryptoDisabledReason,
+                    loading: stage.kind === "crypto_redirect",
+                    loadingText: "Redirecting to invoice…",
+                    onClick: () => depositCrypto.mutate(Math.round(n * 100) / 100),
+                    primary: true,
+                  },
+                  {
+                    id: "upi",
+                    title: `Pay ≈ ₹${inrAmount} with UPI`,
+                    subtitle: "India only · GPay, PhonePe, Paytm",
+                    badge: "🇮🇳 India",
+                    icon: (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                        <QrCode className="h-5 w-5 text-primary" />
+                      </div>
+                    ),
+                    usable: qropayUsable,
+                    disabledReason: qropayDisabledReason,
+                    loading: stage.kind === "upi_redirect",
+                    loadingText: "Redirecting…",
+                    onClick: () => depositQropay.mutate(Math.round(n * 100) / 100),
+                    recommended: isLikelyIndia,
+                  },
+                  {
+                    id: "razorpay",
+                    title: `Pay ${formatMoney(n)} with Card / Netbanking`,
+                    subtitle: "Cards · Netbanking · Wallets",
+                    badge: undefined,
+                    icon: (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                        <CreditCard className="h-5 w-5 text-primary" />
+                      </div>
+                    ),
+                    usable: razorpayUsable,
+                    disabledReason: razorpayDisabledReason,
+                    loading: stage.kind === "creating" || stage.kind === "checkout",
+                    loadingText:
+                      stage.kind === "creating"
+                        ? "Preparing payment…"
+                        : "Complete payment in the Razorpay window",
+                    onClick: () => {},
+                    testId: "add-funds-submit",
+                    formSubmit: true,
+                  },
+                ];
+
+                // Smart ordering: move UPI first if user is in India
+                if (isLikelyIndia && methods.length >= 2) {
+                  const [crypto, upi, ...rest] = methods;
+                  methods = [upi, crypto, ...rest];
+                }
+
+                return methods.map((method) => {
+                  const isDisabled =
+                    Boolean(method.disabledReason) || !inRange || (busy && !method.loading);
+                  const isPrimary = method.primary && !isLikelyIndia;
+
+                  return (
+                    <button
+                      key={method.id}
+                      type={method.formSubmit ? "submit" : "button"}
+                      disabled={isDisabled}
+                      onClick={method.formSubmit ? undefined : method.onClick}
+                      data-testid={method.testId}
+                      className={`group relative w-full min-h-[64px] rounded-2xl p-4 text-left transition-all active:scale-[0.98] ${
+                        isPrimary
+                          ? "bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg shadow-primary/20"
+                          : "border-2 border-border bg-card shadow-sm hover:shadow-md"
+                      } ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Icon */}
+                        <div className="shrink-0">{method.icon}</div>
+
+                        {/* Content */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p
+                              className={`font-semibold leading-tight ${isPrimary ? "text-white" : "text-foreground"}`}
+                            >
+                              {method.loading ? method.loadingText : method.title}
+                            </p>
+                            {method.recommended && (
+                              <span className="rounded-full bg-gold/20 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gold-dark">
+                                Recommended
+                              </span>
+                            )}
+                            {method.badge && !method.recommended && (
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                                  isPrimary
+                                    ? "bg-white/20 text-white"
+                                    : "bg-primary/10 text-primary"
+                                }`}
+                              >
+                                {method.badge}
+                              </span>
+                            )}
+                          </div>
+                          {!method.loading && (
+                            <p
+                              className={`mt-0.5 text-xs leading-tight ${isPrimary ? "text-white/80" : "text-muted-foreground"}`}
+                            >
+                              {method.subtitle}
+                            </p>
+                          )}
+                          {method.disabledReason && (
+                            <p className="mt-1 text-xs text-destructive">
+                              {method.disabledReason}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Right indicator */}
+                        <div className="shrink-0">
+                          {method.loading ? (
+                            <Loader2
+                              className={`h-5 w-5 animate-spin ${isPrimary ? "text-white" : "text-primary"}`}
+                            />
+                          ) : (
+                            <ChevronRight
+                              className={`h-5 w-5 ${isPrimary ? "text-white/60" : "text-muted-foreground"}`}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                });
+              })()}
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or</span>
+
+            {/* Trust line */}
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
+              <Lock className="h-3 w-3" />
+              <span>
+                Secure payments · Powered by{" "}
+                {[nowpaymentsUsable && "NOWPayments", qropayUsable && "QroPay"]
+                  .filter(Boolean)
+                  .join(" & ")}
+              </span>
             </div>
-          </div>
-        )}
-
-        {nowpaymentsUsable && (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="w-full"
-              disabled={Boolean(cryptoDisabledReason) || !inRange || busy}
-              onClick={() => {
-                if (cryptoDisabledReason || !inRange || busy) return;
-                depositCrypto.mutate(Math.round(n * 100) / 100);
-              }}
-            >
-              {stage.kind === "crypto_redirect" ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Redirecting to invoice…
-                </>
-              ) : (
-                <>
-                  <Coins className="size-4" /> Pay {formatMoney(n)} with crypto
-                </>
-              )}
-            </Button>
-            <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
-              <ShieldCheck className="size-3" /> Secured by NOWPayments · BTC, ETH, USDT, and 200+
-              coins
-            </p>
-          </>
-        )}
-
-        {qropayUsable && (
-          <>
-            {(razorpayUsable || nowpaymentsUsable) && (
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or</span>
-                </div>
-              </div>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="w-full"
-              disabled={Boolean(qropayDisabledReason) || !inRange || busy}
-              onClick={() => {
-                if (qropayDisabledReason || !inRange || busy) return;
-                depositQropay.mutate(Math.round(n * 100) / 100);
-              }}
-            >
-              {stage.kind === "crypto_redirect" ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Redirecting…
-                </>
-              ) : (
-                <>
-                  <Wallet className="size-4" /> Pay {formatMoney(n)} with UPI (QroPay)
-                </>
-              )}
-            </Button>
-            <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
-              <ShieldCheck className="size-3" /> Secured by QroPay · UPI payments in INR
-            </p>
           </>
         )}
       </form>
