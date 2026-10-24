@@ -280,6 +280,56 @@ async function recordQuestCompletedEvent(userId: string, sessionId: string): Pro
 }
 
 /**
+ * Records a task event for shortlink step completion.
+ * One event per step, keyed as `${sessionId}:${step}` so each step counts exactly once.
+ * Failure is non-fatal and never rolls back the credited step.
+ */
+async function recordShortlinkStepEvent(
+  userId: string,
+  sessionId: string,
+  step: number,
+): Promise<void> {
+  try {
+    const { recordTaskEvent } = await import("./tasks/engine.server");
+    await recordTaskEvent({
+      userId,
+      eventType: "shortlink",
+      eventKey: `${sessionId}:${step}`,
+    });
+  } catch (error) {
+    console.error(
+      `[quests] shortlink task event failed for session ${sessionId} step ${step}:`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
+/**
+ * Records a task event for content locker step completion.
+ * One event per step, keyed as `${sessionId}:${step}` so each step counts exactly once.
+ * Failure is non-fatal and never rolls back the credited step.
+ */
+async function recordLockerStepEvent(
+  userId: string,
+  sessionId: string,
+  step: number,
+): Promise<void> {
+  try {
+    const { recordTaskEvent } = await import("./tasks/engine.server");
+    await recordTaskEvent({
+      userId,
+      eventType: "content_locker",
+      eventKey: `${sessionId}:${step}`,
+    });
+  } catch (error) {
+    console.error(
+      `[quests] content_locker task event failed for session ${sessionId} step ${step}:`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
+/**
  * Pays a 'verified' locker/shortlink session and marks it credited.
  *
  * Safe to call more than once and from overlapping requests: the credit is
@@ -488,6 +538,9 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
 
   const completedCount = currentStep + 1;
 
+  // Record task event for this completed locker step
+  await recordLockerStepEvent(userId, session.data.id as string, completedCount);
+
   // --- More lockers left: advance and hand back the next URL -----------------
   if (completedCount < total) {
     await db
@@ -651,6 +704,9 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
   // Step count is whatever the admin configured (1-10) — no fixed assumption.
   const total = Math.max(1, quest.shortlink_steps.length);
   const isFinal = step >= total;
+
+  // Record task event for this completed shortlink step
+  await recordShortlinkStepEvent(userId, session.data.id as string, step);
 
   if (isFinal) {
     // Only from 'started'; an overlapping request may already have verified it —
