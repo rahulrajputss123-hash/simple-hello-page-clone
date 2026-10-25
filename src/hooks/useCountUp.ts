@@ -71,24 +71,34 @@ export function useCountUp(
 /**
  * Counts up from 0 to `target` once the attached element first scrolls into view.
  *
- * Display-only, one-shot per mount: the observer disconnects after the first
- * intersection so scrolling back up never replays it. Attach the returned `ref`
- * to the element that should trigger the animation.
+ * Display-only, one-shot per page load: if the element already animated once
+ * and then remounts (e.g., tab switching), shows the final value immediately
+ * without replaying. The observer disconnects after first intersection so
+ * scrolling back up never replays. Attach the returned `ref` to the element
+ * that should trigger the animation.
  *
  * Unlike {@link useCountUp}, this starts at 0 and is driven by visibility rather
  * than by an async value arriving — use it for static marketing/stat figures.
+ *
+ * Uses a callback ref to ensure the observer attaches whenever the element mounts,
+ * even after unmounting and remounting (e.g., tab switches).
  *
  * @param target The value to land on.
  * @param duration Animation length in ms. Default 1400ms.
  */
 export function useCountUpOnVisible(target: number, duration = 1400) {
-  const ref = useRef<HTMLElement | null>(null);
+  const [node, setNode] = useState<HTMLElement | null>(null);
   const [value, setValue] = useState(0);
   const startedRef = useRef(false);
 
   useEffect(() => {
-    const node = ref.current;
-    if (!node || startedRef.current) return;
+    if (!node) return;
+
+    // If already animated during this page load, show final value immediately
+    if (startedRef.current) {
+      setValue(target);
+      return;
+    }
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       startedRef.current = true;
@@ -116,7 +126,7 @@ export function useCountUpOnVisible(target: number, duration = 1400) {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [target, duration]);
+  }, [node, target, duration]);
 
-  return { ref, value };
+  return { ref: setNode, value };
 }

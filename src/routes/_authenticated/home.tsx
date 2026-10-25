@@ -298,7 +298,7 @@ function HomePage() {
               Live Community
             </span>
 
-            {/* Stacked on phones so the "4.9/5 from 18,400+ reviews" line is never
+            {/* Stacked on phones so the "4.9/5 from 1,200+ reviews" line is never
             clipped behind the avatar stack; side-by-side from sm upwards. */}
             <div className="relative mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
               <div className="min-w-0">
@@ -316,7 +316,7 @@ function HomePage() {
                     ))}
                   </span>
                   <span className="text-sm font-semibold text-foreground">4.9/5</span>
-                  <span className="text-xs text-muted-foreground">from 18,400+ reviews</span>
+                  <span className="text-xs text-muted-foreground">from 1,200+ reviews</span>
                 </div>
               </div>
 
