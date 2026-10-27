@@ -3,7 +3,7 @@
 
 -- Security-hardened function to compute exact admin totals
 -- Only callable by service role (never by regular users)
-CREATE OR REPLACE FUNCTION admin_compute_totals()
+CREATE OR REPLACE FUNCTION public.admin_compute_totals()
 RETURNS TABLE(
   total_users BIGINT,
   flagged_users BIGINT,
@@ -16,11 +16,6 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  -- Verify caller is service role (this function cannot be called by regular users)
-  IF current_user != 'service_role' THEN
-    RAISE EXCEPTION 'admin_compute_totals: Forbidden';
-  END IF;
-
   RETURN QUERY
   SELECT
     COUNT(*)::BIGINT AS total_users,
@@ -28,14 +23,14 @@ BEGIN
     COALESCE(SUM(lifetime_earned), 0) AS total_lifetime_earned,
     COALESCE(SUM(lifetime_withdrawn), 0) AS total_lifetime_withdrawn,
     COALESCE(SUM(wallet_balance), 0) AS total_wallet_liability
-  FROM profiles;
+  FROM public.profiles;
 END;
 $$;
 
 -- Grant execute only to service_role
-REVOKE ALL ON FUNCTION admin_compute_totals() FROM PUBLIC;
-REVOKE ALL ON FUNCTION admin_compute_totals() FROM anon;
-REVOKE ALL ON FUNCTION admin_compute_totals() FROM authenticated;
-GRANT EXECUTE ON FUNCTION admin_compute_totals() TO service_role;
+REVOKE ALL ON FUNCTION public.admin_compute_totals() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_compute_totals() FROM anon;
+REVOKE ALL ON FUNCTION public.admin_compute_totals() FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_compute_totals() TO service_role;
 
-COMMENT ON FUNCTION admin_compute_totals IS 'Computes accurate admin panel totals over all profiles. Service role only.';
+COMMENT ON FUNCTION public.admin_compute_totals IS 'Computes accurate admin panel totals over all profiles. Service role only.';
