@@ -273,3 +273,68 @@ export const transferEarningsToAdvertiser = createServerFn({ method: "POST" })
     const { transferEarningsToAdvertiserImpl } = await import("./coinquest.server");
     return transferEarningsToAdvertiserImpl(context.userId, data.amount, data.idempotencyKey);
   });
+
+export const adminListUsers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        search: z.string().trim().max(200).optional(),
+        flaggedOnly: z.boolean().optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin, adminListUsersImpl } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    return adminListUsersImpl(data);
+  });
+
+export const adminListWithdrawals = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        status: z.enum(["pending", "approved", "rejected", "all"]).optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin, adminListWithdrawalsImpl } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    return adminListWithdrawalsImpl(data);
+  });
+
+export const adminListClaims = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        status: z.enum(["pending", "approved", "rejected", "all"]).optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin, adminListClaimsImpl } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    return adminListClaimsImpl(data);
+  });
+
+export const adminListTickets = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        status: z.enum(["open", "resolved", "all"]).optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertAdmin, adminListTicketsImpl } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    return adminListTicketsImpl(data);
+  });

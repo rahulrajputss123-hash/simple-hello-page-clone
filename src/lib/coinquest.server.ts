@@ -1230,44 +1230,24 @@ export async function adminAdjustWalletImpl(userId: string, amount: number, reas
 }
 
 export async function adminOverviewImpl() {
-  const [withdrawals, claims, tickets, users, transactions, payoutMethods] = await Promise.all([
-    supabaseAdmin
-      .from("withdrawal_requests")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    // Only show claims that are pending AND have proof (actual review requests)
-    // "started" claims are not ready for review yet
-    supabaseAdmin
-      .from("offer_claims")
-      .select("*, offers:offer_id(title, is_limited_deal, deal_group_id, payout_mode)")
-      .eq("status", "pending")
-      .not("proof_url", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabaseAdmin
-      .from("support_tickets")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabaseAdmin
-      .from("profiles")
-      .select(
-        "id, name, email, phone, device_id, is_flagged, wallet_balance, held_balance, lifetime_earned, lifetime_withdrawn, referral_code, created_at",
-      )
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabaseAdmin.from("wallet_transactions").select("amount, kind").limit(2000),
-    // Fetch all Binance Pay payout methods to detect duplicates
-    supabaseAdmin
-      .from("payout_methods")
-      .select("id, user_id, binance_pay_id")
-      .eq("method_type", "binance_pay")
-      .not("binance_pay_id", "is", null),
-  ]);
+  // Call the SQL function for accurate totals over ALL profiles (not just latest 200)
+  const totalsResult = await supabaseAdmin.rpc("admin_compute_totals");
+  const totalsRow = totalsResult.data?.[0];
 
-  const profiles = users.data ?? [];
-  const byId = new Map(profiles.map((p) => [p.id, p]));
+  const totals = {
+    users: Number(totalsRow?.total_users ?? 0),
+    flagged: Number(totalsRow?.flagged_users ?? 0),
+    earned: Number(totalsRow?.total_lifetime_earned ?? 0),
+    withdrawn: Number(totalsRow?.total_lifetime_withdrawn ?? 0),
+    liability: Number(totalsRow?.total_wallet_liability ?? 0),
+  };
+
+  // Fetch Binance Pay methods for duplicate detection
+  const payoutMethods = await supabaseAdmin
+    .from("payout_methods")
+    .select("id, user_id, binance_pay_id")
+    .eq("method_type", "binance_pay")
+    .not("binance_pay_id", "is", null);
 
   // Build a map of Binance Pay IDs to count how many users use each one
   const binancePayIdCounts = new Map<string, number>();
@@ -1287,17 +1267,128 @@ export async function adminOverviewImpl() {
     }
   }
 
-  const totals = {
-    users: profiles.length,
-    flagged: profiles.filter((p) => p.is_flagged).length,
-    earned: profiles.reduce((sum, p) => sum + Number(p.lifetime_earned), 0),
-    withdrawn: profiles.reduce((sum, p) => sum + Number(p.lifetime_withdrawn), 0),
-    liability: profiles.reduce((sum, p) => sum + Number(p.wallet_balance), 0),
-    transactions: (transactions.data ?? []).length,
-  };
+  return { totals, duplicateBinancePayMethodIds };
+}
+
+type AdminListUsersInput = {
+  search?: string;
+  flaggedOnly?: boolean;
+  page?: number;
+};
+
+export async function adminListUsersImpl(input: AdminListUsersInput) {
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = 25;
+  const offset = (page - 1) * pageSize;
+
+  let query = supabaseAdmin
+    .from("profiles")
+    .select(
+      "id, name, email, phone, device_id, is_flagged, wallet_balance, held_balance, lifetime_earned, lifetime_withdrawn, referral_code, created_at",
+      { count: "exact" },
+    );
+
+  // Apply filters
+  if (input.flaggedOnly) {
+    query = query.eq("is_flagged", true);
+  }
+
+  if (input.search && input.search.trim()) {
+    const term = `%${input.search.trim()}%`;
+    query = query.or(
+      `email.ilike.${term},name.ilike.${term},referral_code.ilike.${term},device_id.ilike.${term}`,
+    );
+  }
+
+  // Paginate
+  query = query.order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
+
+  const result = await query;
 
   return {
-    withdrawals: (withdrawals.data ?? []).map((w) => ({
+    users: result.data ?? [],
+    total: result.count ?? 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((result.count ?? 0) / pageSize),
+  };
+}
+
+type AdminListWithdrawalsInput = {
+  status?: "pending" | "approved" | "rejected" | "all";
+  page?: number;
+};
+
+export async function adminListWithdrawalsImpl(input: AdminListWithdrawalsInput) {
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = 25;
+  const offset = (page - 1) * pageSize;
+
+  let query = supabaseAdmin.from("withdrawal_requests").select("*", { count: "exact" });
+
+  // Filter by status
+  if (input.status && input.status !== "all") {
+    query = query.eq("status", input.status);
+  }
+
+  // Sort: pending first, then by created_at desc
+  query = query
+    .order("status", { ascending: true }) // "pending" comes before "approved"/"rejected"
+    .order("created_at", { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  const result = await query;
+
+  // Fetch user profiles for the withdrawals on this page
+  const userIds = [...new Set((result.data ?? []).map((w) => w.user_id))];
+  const profiles = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, email")
+    .in("id", userIds);
+
+  const byId = new Map((profiles.data ?? []).map((p) => [p.id, p]));
+
+  // Fetch Binance Pay duplicate info
+  const payoutMethodIds = (result.data ?? [])
+    .filter((w) => w.payout_method_id)
+    .map((w) => w.payout_method_id!);
+
+  const payoutMethods = await supabaseAdmin
+    .from("payout_methods")
+    .select("id, binance_pay_id")
+    .eq("method_type", "binance_pay")
+    .in("id", payoutMethodIds);
+
+  const binancePayIdCounts = new Map<string, number>();
+  const allBinanceMethods = await supabaseAdmin
+    .from("payout_methods")
+    .select("id, binance_pay_id")
+    .eq("method_type", "binance_pay")
+    .not("binance_pay_id", "is", null);
+
+  for (const method of allBinanceMethods.data ?? []) {
+    const normalized = method.binance_pay_id?.trim().toLowerCase();
+    if (normalized) {
+      binancePayIdCounts.set(normalized, (binancePayIdCounts.get(normalized) ?? 0) + 1);
+    }
+  }
+
+  const duplicateBinancePayMethodIds = new Set<string>();
+  for (const method of payoutMethods.data ?? []) {
+    const normalized = method.binance_pay_id?.trim().toLowerCase();
+    if (normalized && (binancePayIdCounts.get(normalized) ?? 0) > 1) {
+      duplicateBinancePayMethodIds.add(method.id);
+    }
+  }
+
+  // Get counts for badge display
+  const pendingCount = await supabaseAdmin
+    .from("withdrawal_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+
+  return {
+    withdrawals: (result.data ?? []).map((w) => ({
       ...w,
       user: byId.get(w.user_id) ?? null,
       hasDuplicateBinancePay:
@@ -1305,10 +1396,121 @@ export async function adminOverviewImpl() {
         w.payout_method_id &&
         duplicateBinancePayMethodIds.has(w.payout_method_id),
     })),
-    claims: (claims.data ?? []).map((c) => ({ ...c, user: byId.get(c.user_id) ?? null })),
-    tickets: (tickets.data ?? []).map((t) => ({ ...t, user: byId.get(t.user_id) ?? null })),
-    users: profiles,
-    totals,
+    total: result.count ?? 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((result.count ?? 0) / pageSize),
+    pendingCount: pendingCount.count ?? 0,
+  };
+}
+
+type AdminListClaimsInput = {
+  status?: "pending" | "approved" | "rejected" | "all";
+  page?: number;
+};
+
+export async function adminListClaimsImpl(input: AdminListClaimsInput) {
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = 25;
+  const offset = (page - 1) * pageSize;
+
+  let query = supabaseAdmin
+    .from("offer_claims")
+    .select("*, offers:offer_id(title, is_limited_deal, deal_group_id, payout_mode)", {
+      count: "exact",
+    });
+
+  // Only show claims with proof (actual review requests), exclude "started" claims
+  query = query.not("proof_url", "is", null);
+
+  // Filter by status
+  if (input.status && input.status !== "all") {
+    query = query.eq("status", input.status);
+  }
+
+  // Sort: pending first, then by created_at desc
+  query = query
+    .order("status", { ascending: true })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  const result = await query;
+
+  // Fetch user profiles
+  const userIds = [...new Set((result.data ?? []).map((c) => c.user_id))];
+  const profiles = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, email")
+    .in("id", userIds);
+
+  const byId = new Map((profiles.data ?? []).map((p) => [p.id, p]));
+
+  // Get pending count for badge
+  const pendingCount = await supabaseAdmin
+    .from("offer_claims")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending")
+    .not("proof_url", "is", null);
+
+  return {
+    claims: (result.data ?? []).map((c) => ({ ...c, user: byId.get(c.user_id) ?? null })),
+    total: result.count ?? 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((result.count ?? 0) / pageSize),
+    pendingCount: pendingCount.count ?? 0,
+  };
+}
+
+type AdminListTicketsInput = {
+  status?: "open" | "resolved" | "all";
+  page?: number;
+};
+
+export async function adminListTicketsImpl(input: AdminListTicketsInput) {
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = 25;
+  const offset = (page - 1) * pageSize;
+
+  let query = supabaseAdmin.from("support_tickets").select("*", { count: "exact" });
+
+  // Filter by status
+  if (input.status === "open") {
+    query = query.neq("status", "resolved");
+  } else if (input.status === "resolved") {
+    query = query.eq("status", "resolved");
+  }
+
+  // Sort: open first, then by created_at desc
+  query = query
+    .order("status", { ascending: true })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  const result = await query;
+
+  // Fetch user profiles
+  const userIds = [...new Set((result.data ?? []).map((t) => t.user_id))];
+  const profiles = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, email")
+    .in("id", userIds);
+
+  const byId = new Map((profiles.data ?? []).map((p) => [p.id, p]));
+
+  // Get open count for badge
+  const openCount = await supabaseAdmin
+    .from("support_tickets")
+    .select("id", { count: "exact", head: true })
+    .neq("status", "resolved");
+
+  return {
+    tickets: (result.data ?? []).map((t) => ({ ...t, user: byId.get(t.user_id) ?? null })),
+    total: result.count ?? 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((result.count ?? 0) / pageSize),
+    openCount: openCount.count ?? 0,
   };
 }
 

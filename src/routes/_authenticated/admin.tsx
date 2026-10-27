@@ -18,6 +18,10 @@ import {
   adminSetFlag,
   adminUpdateOfferClaim,
   adminUpdateWithdrawal,
+  adminListUsers,
+  adminListWithdrawals,
+  adminListClaims,
+  adminListTickets,
 } from "@/lib/coinquest.functions";
 import { payoutMethodLabel, isCryptoMethod, getExplorerUrl } from "@/lib/payout-methods";
 import { OffersManager } from "@/components/admin/OffersManager";
@@ -35,7 +39,7 @@ import {
   syncOfferProvider,
   upsertOfferProvider,
 } from "@/lib/offers.functions";
-import { LifeBuoy, Network } from "lucide-react";
+import { LifeBuoy, Network, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   AdvertisersList,
   CampaignApprovals,
@@ -112,6 +116,10 @@ function AdminPage() {
   const fetchDashboard = useServerFn(adminDashboard);
   const saveProvider = useServerFn(upsertOfferProvider);
   const runSync = useServerFn(syncOfferProvider);
+  const fetchUsers = useServerFn(adminListUsers);
+  const fetchWithdrawals = useServerFn(adminListWithdrawals);
+  const fetchClaims = useServerFn(adminListClaims);
+  const fetchTickets = useServerFn(adminListTickets);
 
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -120,10 +128,51 @@ function AdminPage() {
   /** Transaction hash for crypto withdrawals, keyed by withdrawal id. */
   const [transactionHashes, setTransactionHashes] = useState<Record<string, string>>({});
 
-  const data = useQuery({
-    queryKey: ["admin-overview"],
+  // Users tab state
+  const [userSearch, setUserSearch] = useState("");
+  const [userFlaggedOnly, setUserFlaggedOnly] = useState(false);
+  const [userPage, setUserPage] = useState(1);
+
+  // Withdrawals tab state
+  const [withdrawalStatus, setWithdrawalStatus] = useState<"pending" | "approved" | "rejected" | "all">("all");
+  const [withdrawalPage, setWithdrawalPage] = useState(1);
+
+  // Claims tab state
+  const [claimStatus, setClaimStatus] = useState<"pending" | "approved" | "rejected" | "all">("all");
+  const [claimPage, setClaimPage] = useState(1);
+
+  // Tickets tab state
+  const [ticketStatus, setTicketStatus] = useState<"open" | "resolved" | "all">("all");
+  const [ticketPage, setTicketPage] = useState(1);
+
+  const totals = useQuery({
+    queryKey: ["admin-totals"],
     enabled: isAdmin,
     queryFn: () => overview({}),
+  });
+
+  const users = useQuery({
+    queryKey: ["admin-users", userSearch, userFlaggedOnly, userPage],
+    enabled: isAdmin && tab === "users",
+    queryFn: () => fetchUsers({ data: { search: userSearch, flaggedOnly: userFlaggedOnly, page: userPage } }),
+  });
+
+  const withdrawals = useQuery({
+    queryKey: ["admin-withdrawals", withdrawalStatus, withdrawalPage],
+    enabled: isAdmin && tab === "withdrawals",
+    queryFn: () => fetchWithdrawals({ data: { status: withdrawalStatus, page: withdrawalPage } }),
+  });
+
+  const claims = useQuery({
+    queryKey: ["admin-claims", claimStatus, claimPage],
+    enabled: isAdmin && tab === "claims",
+    queryFn: () => fetchClaims({ data: { status: claimStatus, page: claimPage } }),
+  });
+
+  const tickets = useQuery({
+    queryKey: ["admin-tickets", ticketStatus, ticketPage],
+    enabled: isAdmin && tab === "tickets",
+    queryFn: () => fetchTickets({ data: { status: ticketStatus, page: ticketPage } }),
   });
 
   const refresh = () => void queryClient.invalidateQueries();
@@ -244,10 +293,7 @@ function AdminPage() {
     );
   }
 
-  const totals = data.data?.totals;
-  const pendingWithdrawals = (data.data?.withdrawals ?? []).filter((w) => w.status === "pending");
-  const pendingClaims = (data.data?.claims ?? []).filter((c) => c.status === "pending");
-  const openTickets = (data.data?.tickets ?? []).filter((t) => t.status !== "resolved");
+  const totalData = totals.data?.totals;
 
   const note = (id: string) => notes[id] ?? "";
   const setNote = (id: string, value: string) => setNotes((prev) => ({ ...prev, [id]: value }));
@@ -263,10 +309,10 @@ function AdminPage() {
       <h1 className="mt-2 text-2xl">Admin panel</h1>
 
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <Stat label="Users" value={String(totals?.users ?? 0)} />
-        <Stat label="Flagged" value={String(totals?.flagged ?? 0)} />
-        <Stat label="Wallet liability" value={formatMoney(totals?.liability)} />
-        <Stat label="Lifetime paid out" value={formatMoney(totals?.withdrawn)} />
+        <Stat label="Users" value={String(totalData?.users ?? 0)} />
+        <Stat label="Flagged" value={String(totalData?.flagged ?? 0)} />
+        <Stat label="Wallet liability" value={formatMoney(totalData?.liability)} />
+        <Stat label="Lifetime paid out" value={formatMoney(totalData?.withdrawn)} />
       </div>
 
       <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
@@ -278,9 +324,9 @@ function AdminPage() {
             ["tasks", "Tasks"],
             ["banners", "Banners"],
             ["onboarding", "Onboarding"],
-            ["withdrawals", `Payouts (${pendingWithdrawals.length})`],
-            ["claims", `Claims (${pendingClaims.length})`],
-            ["tickets", `Tickets (${openTickets.length})`],
+            ["withdrawals", `Payouts (${withdrawals.data?.pendingCount ?? 0})`],
+            ["claims", `Claims (${claims.data?.pendingCount ?? 0})`],
+            ["tickets", `Tickets (${tickets.data?.openCount ?? 0})`],
             ["users", "Users"],
             ["providers", "Networks"],
             ["sdk-offerwalls", "SDK Offerwalls"],
@@ -400,175 +446,226 @@ function AdminPage() {
         </>
       )}
 
-      {data.isLoading &&
-        tab !== "dashboard" &&
-        tab !== "offers" &&
-        tab !== "tasks" &&
-        tab !== "quests" &&
-        tab !== "banners" &&
-        tab !== "onboarding" && <p className="mt-6 text-sm text-muted-foreground">Loading…</p>}
-
       {tab === "withdrawals" && (
         <>
           <SectionTitle>Withdrawal requests</SectionTitle>
-          {!data.data?.withdrawals.length ? (
+          
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant={withdrawalStatus === "all" ? "jade" : "outline"}
+              onClick={() => { setWithdrawalStatus("all"); setWithdrawalPage(1); }}
+            >
+              All
+            </Button>
+            <Button
+              size="sm"
+              variant={withdrawalStatus === "pending" ? "jade" : "outline"}
+              onClick={() => { setWithdrawalStatus("pending"); setWithdrawalPage(1); }}
+            >
+              Pending
+            </Button>
+            <Button
+              size="sm"
+              variant={withdrawalStatus === "approved" ? "jade" : "outline"}
+              onClick={() => { setWithdrawalStatus("approved"); setWithdrawalPage(1); }}
+            >
+              Approved
+            </Button>
+            <Button
+              size="sm"
+              variant={withdrawalStatus === "rejected" ? "jade" : "outline"}
+              onClick={() => { setWithdrawalStatus("rejected"); setWithdrawalPage(1); }}
+            >
+              Rejected
+            </Button>
+          </div>
+
+          {withdrawals.isLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
+          ) : !withdrawals.data?.withdrawals.length ? (
             <EmptyState
               icon={LifeBuoy}
-              title="No withdrawals yet"
+              title="No withdrawals"
               description="Requests appear here for manual review."
             />
           ) : (
-            <ul className="space-y-2">
-              {data.data.withdrawals.map((request) => (
-                <li key={request.id} className="surface-card p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-amount">{formatMoney(request.amount)}</p>
-                    <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
-                      {request.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {request.user?.name || request.user?.email || "Unknown user"} ·{" "}
-                    {formatDateTime(request.created_at)}
-                  </p>
-
-                  {/* Method + masked payout snapshot captured at request time. */}
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
-                      {payoutMethodLabel(request.method_type)}
-                    </span>
-                    {payoutSnapshotLines(request.payout_details_snapshot).map((line) => (
-                      <span
-                        key={line}
-                        className="rounded-full bg-background-alt px-2 py-0.5 text-muted-foreground"
-                      >
-                        {line}
+            <>
+              <ul className="mt-3 space-y-2">
+                {withdrawals.data.withdrawals.map((request) => (
+                  <li key={request.id} className="surface-card p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-amount">{formatMoney(request.amount)}</p>
+                      <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
+                        {request.status}
                       </span>
-                    ))}
-                    {request.hasDuplicateBinancePay && (
-                      <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 font-semibold text-amber-900 dark:text-amber-100">
-                        ⚠️ Duplicate Pay ID
-                      </span>
-                    )}
-                  </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {request.user?.name || request.user?.email || "Unknown user"} ·{" "}
+                      {formatDateTime(request.created_at)}
+                    </p>
 
-                  {request.status === "pending" && (
-                    <div className="mt-2 space-y-2">
-                      <Input
-                        placeholder="Optional note for the user"
-                        value={note(request.id)}
-                        onChange={(event) => setNote(request.id, event.target.value)}
-                        maxLength={300}
-                      />
-                      {isCryptoMethod(request.method_type) ? (
-                        <>
-                          <Input
-                            placeholder="Transaction hash (required for crypto) *"
-                            value={transactionHash(request.id)}
-                            onChange={(event) => setTransactionHash(request.id, event.target.value)}
-                            maxLength={200}
-                            required
-                            data-testid={`admin-withdrawal-txhash-${request.id}`}
-                            className="font-mono text-xs"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            ⚠️ Transaction hash is required for crypto withdrawals
-                          </p>
-                        </>
-                      ) : request.method_type === "binance_pay" ? (
-                        <>
-                          <Input
-                            placeholder="Binance Pay order ID (required) *"
-                            value={transactionHash(request.id)}
-                            onChange={(event) => setTransactionHash(request.id, event.target.value)}
-                            maxLength={200}
-                            required
-                            data-testid={`admin-withdrawal-txhash-${request.id}`}
-                            className="font-mono text-xs"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            ⚠️ Binance Pay order/transaction ID is required
-                          </p>
-                        </>
-                      ) : (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                        {payoutMethodLabel(request.method_type)}
+                      </span>
+                      {payoutSnapshotLines(request.payout_details_snapshot).map((line) => (
+                        <span
+                          key={line}
+                          className="rounded-full bg-background-alt px-2 py-0.5 text-muted-foreground"
+                        >
+                          {line}
+                        </span>
+                      ))}
+                      {request.hasDuplicateBinancePay && (
+                        <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 font-semibold text-amber-900 dark:text-amber-100">
+                          ⚠️ Duplicate Pay ID
+                        </span>
+                      )}
+                    </div>
+
+                    {request.status === "pending" && (
+                      <div className="mt-2 space-y-2">
                         <Input
-                          placeholder="Fulfilment reference (payout id / gift-card order)"
-                          value={reference(request.id)}
-                          onChange={(event) => setReference(request.id, event.target.value)}
-                          maxLength={200}
-                          data-testid={`admin-withdrawal-reference-${request.id}`}
+                          placeholder="Optional note for the user"
+                          value={note(request.id)}
+                          onChange={(event) => setNote(request.id, event.target.value)}
+                          maxLength={300}
                         />
-                      )}
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="jade"
-                          disabled={withdrawalAction.isPending}
-                          onClick={() =>
-                            withdrawalAction.mutate({
-                              id: request.id,
-                              status: "approved",
-                              note: note(request.id),
-                              referenceId: reference(request.id),
-                              transactionHash: transactionHash(request.id),
-                            })
-                          }
-                        >
-                          Approve & pay
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={withdrawalAction.isPending}
-                          onClick={() =>
-                            withdrawalAction.mutate({
-                              id: request.id,
-                              status: "rejected",
-                              note: note(request.id),
-                            })
-                          }
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  {request.admin_note && (
-                    <p className="mt-2 text-xs text-muted-foreground">Note: {request.admin_note}</p>
-                  )}
-                  {request.reference_id && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Ref: <span className="font-mono">{request.reference_id}</span>
-                    </p>
-                  )}
-                  {request.transaction_hash && (
-                    <div className="mt-1 text-xs">
-                      <span className="text-muted-foreground">Txid: </span>
-                      <span className="font-mono">{request.transaction_hash}</span>
-                      {getExplorerUrl(request.method_type, request.transaction_hash) && (
-                        <>
-                          {" · "}
-                          <a
-                            href={getExplorerUrl(request.method_type, request.transaction_hash)!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
+                        {isCryptoMethod(request.method_type) ? (
+                          <>
+                            <Input
+                              placeholder="Transaction hash (required for crypto) *"
+                              value={transactionHash(request.id)}
+                              onChange={(event) => setTransactionHash(request.id, event.target.value)}
+                              maxLength={200}
+                              required
+                              data-testid={`admin-withdrawal-txhash-${request.id}`}
+                              className="font-mono text-xs"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              ⚠️ Transaction hash is required for crypto withdrawals
+                            </p>
+                          </>
+                        ) : request.method_type === "binance_pay" ? (
+                          <>
+                            <Input
+                              placeholder="Binance Pay order ID (required) *"
+                              value={transactionHash(request.id)}
+                              onChange={(event) => setTransactionHash(request.id, event.target.value)}
+                              maxLength={200}
+                              required
+                              data-testid={`admin-withdrawal-txhash-${request.id}`}
+                              className="font-mono text-xs"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              ⚠️ Binance Pay order/transaction ID is required
+                            </p>
+                          </>
+                        ) : (
+                          <Input
+                            placeholder="Fulfilment reference (payout id / gift-card order)"
+                            value={reference(request.id)}
+                            onChange={(event) => setReference(request.id, event.target.value)}
+                            maxLength={200}
+                            data-testid={`admin-withdrawal-reference-${request.id}`}
+                          />
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="jade"
+                            disabled={withdrawalAction.isPending}
+                            onClick={() =>
+                              withdrawalAction.mutate({
+                                id: request.id,
+                                status: "approved",
+                                note: note(request.id),
+                                referenceId: reference(request.id),
+                                transactionHash: transactionHash(request.id),
+                              })
+                            }
                           >
-                            View on explorer ↗
-                          </a>
-                        </>
-                      )}
-                    </div>
-                  )}
-                  {request.network_fee && Number(request.network_fee) > 0 && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Network fee: {formatMoney(request.network_fee)} (User receives:{" "}
-                      {formatMoney(request.amount - Number(request.network_fee))})
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
+                            Approve & pay
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={withdrawalAction.isPending}
+                            onClick={() =>
+                              withdrawalAction.mutate({
+                                id: request.id,
+                                status: "rejected",
+                                note: note(request.id),
+                              })
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {request.admin_note && (
+                      <p className="mt-2 text-xs text-muted-foreground">Note: {request.admin_note}</p>
+                    )}
+                    {request.reference_id && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Ref: <span className="font-mono">{request.reference_id}</span>
+                      </p>
+                    )}
+                    {request.transaction_hash && (
+                      <div className="mt-1 text-xs">
+                        <span className="text-muted-foreground">Txid: </span>
+                        <span className="font-mono">{request.transaction_hash}</span>
+                        {getExplorerUrl(request.method_type, request.transaction_hash) && (
+                          <>
+                            {" · "}
+                            <a
+                              href={getExplorerUrl(request.method_type, request.transaction_hash)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline"
+                            >
+                              View on explorer ↗
+                            </a>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {request.network_fee && Number(request.network_fee) > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Network fee: {formatMoney(request.network_fee)} (User receives:{" "}
+                        {formatMoney(request.amount - Number(request.network_fee))})
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Page {withdrawals.data.page} of {withdrawals.data.totalPages} ({withdrawals.data.total} total)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={withdrawalPage === 1}
+                    onClick={() => setWithdrawalPage(p => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="size-4" /> Prev
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={withdrawalPage >= withdrawals.data.totalPages}
+                    onClick={() => setWithdrawalPage(p => p + 1)}
+                  >
+                    Next <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </>
       )}
@@ -576,52 +673,112 @@ function AdminPage() {
       {tab === "claims" && (
         <>
           <SectionTitle>Offer claims</SectionTitle>
-          {!data.data?.claims.length ? (
+          
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant={claimStatus === "all" ? "jade" : "outline"}
+              onClick={() => { setClaimStatus("all"); setClaimPage(1); }}
+            >
+              All
+            </Button>
+            <Button
+              size="sm"
+              variant={claimStatus === "pending" ? "jade" : "outline"}
+              onClick={() => { setClaimStatus("pending"); setClaimPage(1); }}
+            >
+              Pending
+            </Button>
+            <Button
+              size="sm"
+              variant={claimStatus === "approved" ? "jade" : "outline"}
+              onClick={() => { setClaimStatus("approved"); setClaimPage(1); }}
+            >
+              Approved
+            </Button>
+            <Button
+              size="sm"
+              variant={claimStatus === "rejected" ? "jade" : "outline"}
+              onClick={() => { setClaimStatus("rejected"); setClaimPage(1); }}
+            >
+              Rejected
+            </Button>
+          </div>
+
+          {claims.isLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
+          ) : !claims.data?.claims.length ? (
             <EmptyState
               icon={LifeBuoy}
               title="No offer claims"
               description="User offer submissions land here."
             />
           ) : (
-            <ul className="space-y-2">
-              {data.data.claims.map((claim) => (
-                <li key={claim.id} className="surface-card p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold">{claim.offers?.title ?? "Offer"}</p>
-                    <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
-                      {claim.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {claim.user?.name || claim.user?.email || "Unknown"} ·{" "}
-                    {formatMoney(claim.reward_amount)} · {formatDateTime(claim.created_at)}
-                  </p>
-                  {(claim as { proof_url?: string | null }).proof_url && (
-                    <ClaimProofPreview path={(claim as { proof_url: string }).proof_url} />
-                  )}
-                  {claim.status === "pending" && (
-                    <div className="mt-2 flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="jade"
-                        disabled={claimAction.isPending}
-                        onClick={() => claimAction.mutate({ id: claim.id, status: "approved" })}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={claimAction.isPending}
-                        onClick={() => claimAction.mutate({ id: claim.id, status: "rejected" })}
-                      >
-                        Reject
-                      </Button>
+            <>
+              <ul className="mt-3 space-y-2">
+                {claims.data.claims.map((claim) => (
+                  <li key={claim.id} className="surface-card p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold">{claim.offers?.title ?? "Offer"}</p>
+                      <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
+                        {claim.status}
+                      </span>
                     </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+                    <p className="text-xs text-muted-foreground">
+                      {claim.user?.name || claim.user?.email || "Unknown"} ·{" "}
+                      {formatMoney(claim.reward_amount)} · {formatDateTime(claim.created_at)}
+                    </p>
+                    {(claim as { proof_url?: string | null }).proof_url && (
+                      <ClaimProofPreview path={(claim as { proof_url: string }).proof_url} />
+                    )}
+                    {claim.status === "pending" && (
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="jade"
+                          disabled={claimAction.isPending}
+                          onClick={() => claimAction.mutate({ id: claim.id, status: "approved" })}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={claimAction.isPending}
+                          onClick={() => claimAction.mutate({ id: claim.id, status: "rejected" })}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Page {claims.data.page} of {claims.data.totalPages} ({claims.data.total} total)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={claimPage === 1}
+                    onClick={() => setClaimPage(p => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="size-4" /> Prev
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={claimPage >= claims.data.totalPages}
+                    onClick={() => setClaimPage(p => p + 1)}
+                  >
+                    Next <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </>
       )}
@@ -629,54 +786,107 @@ function AdminPage() {
       {tab === "tickets" && (
         <>
           <SectionTitle>Support tickets</SectionTitle>
-          {!data.data?.tickets.length ? (
+          
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant={ticketStatus === "all" ? "jade" : "outline"}
+              onClick={() => { setTicketStatus("all"); setTicketPage(1); }}
+            >
+              All
+            </Button>
+            <Button
+              size="sm"
+              variant={ticketStatus === "open" ? "jade" : "outline"}
+              onClick={() => { setTicketStatus("open"); setTicketPage(1); }}
+            >
+              Open
+            </Button>
+            <Button
+              size="sm"
+              variant={ticketStatus === "resolved" ? "jade" : "outline"}
+              onClick={() => { setTicketStatus("resolved"); setTicketPage(1); }}
+            >
+              Resolved
+            </Button>
+          </div>
+
+          {tickets.isLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
+          ) : !tickets.data?.tickets.length ? (
             <EmptyState
               icon={LifeBuoy}
               title="No tickets"
               description="User messages appear here."
             />
           ) : (
-            <ul className="space-y-2">
-              {data.data.tickets.map((ticket) => (
-                <li key={ticket.id} className="surface-card p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate font-semibold">{ticket.subject}</p>
-                    <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
-                      {ticket.status}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {ticket.user?.email ?? "Unknown"} · {formatDateTime(ticket.created_at)}
-                  </p>
-                  <p className="mt-2 text-sm">{ticket.description}</p>
-                  {ticket.admin_response ? (
-                    <p className="mt-2 rounded-xl bg-background-alt p-2 text-sm">
-                      {ticket.admin_response}
-                    </p>
-                  ) : (
-                    <div className="mt-2 space-y-2">
-                      <Textarea
-                        rows={3}
-                        maxLength={1000}
-                        placeholder="Write a reply"
-                        value={note(ticket.id)}
-                        onChange={(event) => setNote(ticket.id, event.target.value)}
-                      />
-                      <Button
-                        size="sm"
-                        variant="jade"
-                        disabled={note(ticket.id).trim().length < 2 || ticketAction.isPending}
-                        onClick={() =>
-                          ticketAction.mutate({ id: ticket.id, response: note(ticket.id).trim() })
-                        }
-                      >
-                        Send reply
-                      </Button>
+            <>
+              <ul className="mt-3 space-y-2">
+                {tickets.data.tickets.map((ticket) => (
+                  <li key={ticket.id} className="surface-card p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate font-semibold">{ticket.subject}</p>
+                      <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
+                        {ticket.status}
+                      </span>
                     </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {ticket.user?.email ?? "Unknown"} · {formatDateTime(ticket.created_at)}
+                    </p>
+                    <p className="mt-2 text-sm">{ticket.description}</p>
+                    {ticket.admin_response ? (
+                      <p className="mt-2 rounded-xl bg-background-alt p-2 text-sm">
+                        {ticket.admin_response}
+                      </p>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        <Textarea
+                          rows={3}
+                          maxLength={1000}
+                          placeholder="Write a reply"
+                          value={note(ticket.id)}
+                          onChange={(event) => setNote(ticket.id, event.target.value)}
+                        />
+                        <Button
+                          size="sm"
+                          variant="jade"
+                          disabled={note(ticket.id).trim().length < 2 || ticketAction.isPending}
+                          onClick={() =>
+                            ticketAction.mutate({ id: ticket.id, response: note(ticket.id).trim() })
+                          }
+                        >
+                          Send reply
+                        </Button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Page {tickets.data.page} of {tickets.data.totalPages} ({tickets.data.total} total)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={ticketPage === 1}
+                    onClick={() => setTicketPage(p => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="size-4" /> Prev
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={ticketPage >= tickets.data.totalPages}
+                    onClick={() => setTicketPage(p => p + 1)}
+                  >
+                    Next <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </>
       )}
@@ -684,59 +894,117 @@ function AdminPage() {
       {tab === "users" && (
         <>
           <SectionTitle>Users</SectionTitle>
-          <ul className="space-y-2">
-            {(data.data?.users ?? []).map((user) => (
-              <li key={user.id} className="surface-card p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate font-semibold">{user.name || user.email || user.id}</p>
-                  {user.is_flagged && (
-                    <span className="rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold text-destructive-foreground">
-                      Flagged
-                    </span>
-                  )}
-                </div>
+          
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search email, name, referral code, device ID..."
+                  value={userSearch}
+                  onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
+                  className="pl-9"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant={userFlaggedOnly ? "destructive" : "outline"}
+                onClick={() => { setUserFlaggedOnly(!userFlaggedOnly); setUserPage(1); }}
+              >
+                {userFlaggedOnly ? "Show all" : "Flagged only"}
+              </Button>
+            </div>
+          </div>
+
+          {users.isLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
+          ) : !users.data?.users.length ? (
+            <EmptyState
+              icon={LifeBuoy}
+              title="No users found"
+              description="Try adjusting your search or filters."
+            />
+          ) : (
+            <>
+              <ul className="mt-3 space-y-2">
+                {users.data.users.map((user) => (
+                  <li key={user.id} className="surface-card p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate font-semibold">{user.name || user.email || user.id}</p>
+                      {user.is_flagged && (
+                        <span className="rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold text-destructive-foreground">
+                          Flagged
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {user.email} · {user.referral_code}
+                    </p>
+                    <p className="mt-1 text-xs">
+                      Balance {formatMoney(user.wallet_balance)} · Held {formatMoney(user.held_balance)}{" "}
+                      · Earned {formatMoney(user.lifetime_earned)}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          flagAction.mutate({ userId: user.id, flagged: !user.is_flagged })
+                        }
+                      >
+                        {user.is_flagged ? "Unflag" : "Flag"}
+                      </Button>
+                      <Input
+                        className="h-9 w-28"
+                        placeholder="±$"
+                        inputMode="decimal"
+                        value={note(user.id)}
+                        onChange={(event) => setNote(user.id, event.target.value)}
+                      />
+                      <Button
+                        size="sm"
+                        variant="gold"
+                        disabled={!Number.isFinite(Number(note(user.id))) || !note(user.id)}
+                        onClick={() =>
+                          adjustAction.mutate({
+                            userId: user.id,
+                            amount: Number(note(user.id)),
+                            reason: "Manual admin adjustment",
+                          })
+                        }
+                      >
+                        Adjust
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-4 flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
-                  {user.email} · {user.referral_code}
+                  Page {users.data.page} of {users.data.totalPages} ({users.data.total} total)
                 </p>
-                <p className="mt-1 text-xs">
-                  Balance {formatMoney(user.wallet_balance)} · Held {formatMoney(user.held_balance)}{" "}
-                  · Earned {formatMoney(user.lifetime_earned)}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() =>
-                      flagAction.mutate({ userId: user.id, flagged: !user.is_flagged })
-                    }
+                    disabled={userPage === 1}
+                    onClick={() => setUserPage(p => Math.max(1, p - 1))}
                   >
-                    {user.is_flagged ? "Unflag" : "Flag"}
+                    <ChevronLeft className="size-4" /> Prev
                   </Button>
-                  <Input
-                    className="h-9 w-28"
-                    placeholder="±$"
-                    inputMode="decimal"
-                    value={note(user.id)}
-                    onChange={(event) => setNote(user.id, event.target.value)}
-                  />
                   <Button
                     size="sm"
-                    variant="gold"
-                    disabled={!Number.isFinite(Number(note(user.id))) || !note(user.id)}
-                    onClick={() =>
-                      adjustAction.mutate({
-                        userId: user.id,
-                        amount: Number(note(user.id)),
-                        reason: "Manual admin adjustment",
-                      })
-                    }
+                    variant="outline"
+                    disabled={userPage >= users.data.totalPages}
+                    onClick={() => setUserPage(p => p + 1)}
                   >
-                    Adjust
+                    Next <ChevronRight className="size-4" />
                   </Button>
                 </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+            </>
+          )}
         </>
       )}
 
