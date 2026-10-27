@@ -1022,6 +1022,7 @@ export async function assertAdmin(supabase: RoleRpcClient, userId: string) {
 }
 
 export async function adminUpdateWithdrawalImpl(
+  adminId: string,
   id: string,
   status: string,
   note: string | null,
@@ -1033,7 +1034,7 @@ export async function adminUpdateWithdrawalImpl(
   // Fetch the withdrawal request to check if it's a crypto method
   const withdrawal = await supabaseAdmin
     .from("withdrawal_requests")
-    .select("method_type")
+    .select("method_type, status, amount, user_id")
     .eq("id", id)
     .maybeSingle();
   
@@ -1049,6 +1050,8 @@ export async function adminUpdateWithdrawalImpl(
   if (status === "approved" && withdrawal.data.method_type === "binance_pay" && !transactionHash?.trim()) {
     throw new Error("Binance Pay order ID is required.");
   }
+
+  const statusBefore = withdrawal.data.status;
 
   // Money moves only on the transition out of 'pending', under a row lock
   // (withdrawal_settle). Re-approving an approved request only updates the
@@ -1097,10 +1100,28 @@ export async function adminUpdateWithdrawalImpl(
       "wallet",
     );
   }
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: status === "approved" ? "withdrawal_approve" : "withdrawal_reject",
+    targetType: "withdrawal",
+    targetId: id,
+    before: { status: statusBefore, amount: withdrawal.data.amount },
+    after: { status, amount: withdrawal.data.amount },
+    note: note || undefined,
+  });
+
   return { ok: true };
 }
 
-export async function adminUpdateOfferClaimImpl(id: string, status: string, note: string | null) {
+export async function adminUpdateOfferClaimImpl(
+  adminId: string,
+  id: string,
+  status: string,
+  note: string | null,
+) {
   if (status !== "approved" && status !== "rejected") throw new Error("Unsupported status.");
   const claim = await supabaseAdmin.from("offer_claims").select("*").eq("id", id).single();
   if (claim.error) throw new Error("Claim not found.");
@@ -1108,6 +1129,9 @@ export async function adminUpdateOfferClaimImpl(id: string, status: string, note
   // Fast path only — offer_claim_settle re-checks under a row lock, which is
   // what stops two concurrent approvals from both paying.
   if (claim.data.status !== "pending") return { ok: true, alreadyReviewed: true };
+
+  const statusBefore = claim.data.status;
+  const rewardBefore = claim.data.reward_amount;
 
   // For limited-deal offers, always recompute the reward at approval time from
   // the offer's CURRENT config — never trust the snapshot captured at claim
@@ -1179,26 +1203,91 @@ export async function adminUpdateOfferClaimImpl(id: string, status: string, note
       "offer",
     );
   }
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: status === "approved" ? "claim_approve" : "claim_reject",
+    targetType: "offer_claim",
+    targetId: id,
+    before: { status: statusBefore, reward_amount: rewardBefore },
+    after: { status, reward_amount: result.reward },
+    note: note || undefined,
+  });
+
   return { ok: true };
 }
 
-export async function adminRespondTicketImpl(id: string, response: string, status: string) {
+export async function adminRespondTicketImpl(
+  adminId: string,
+  id: string,
+  response: string,
+  status: string,
+) {
   const ticket = await supabaseAdmin.from("support_tickets").select("*").eq("id", id).single();
   if (ticket.error) throw new Error("Ticket not found.");
+
+  const statusBefore = ticket.data.status;
+
   await supabaseAdmin
     .from("support_tickets")
     .update({ admin_response: response, status })
     .eq("id", id);
   await notify(ticket.data.user_id, "Support replied", response, "support");
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "ticket_respond",
+    targetType: "support_ticket",
+    targetId: id,
+    before: { status: statusBefore },
+    after: { status },
+    note: response.substring(0, 200),
+  });
+
   return { ok: true };
 }
 
-export async function adminSetFlagImpl(userId: string, flagged: boolean) {
+export async function adminSetFlagImpl(adminId: string, userId: string, flagged: boolean) {
+  const before = await supabaseAdmin
+    .from("profiles")
+    .select("is_flagged, email, name")
+    .eq("id", userId)
+    .single();
+
   await supabaseAdmin.from("profiles").update({ is_flagged: flagged }).eq("id", userId);
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: flagged ? "user_flag" : "user_unflag",
+    targetType: "user",
+    targetId: userId,
+    before: { is_flagged: before.data?.is_flagged },
+    after: { is_flagged: flagged },
+    note: `${before.data?.email || before.data?.name || userId}`,
+  });
+
   return { ok: true };
 }
 
-export async function adminAdjustWalletImpl(userId: string, amount: number, reason: string) {
+export async function adminAdjustWalletImpl(
+  adminId: string,
+  userId: string,
+  amount: number,
+  reason: string,
+) {
+  // Get user's wallet balance before adjustment for audit
+  const userBefore = await supabaseAdmin
+    .from("profiles")
+    .select("wallet_balance, lifetime_earned")
+    .eq("id", userId)
+    .single();
+
   // Atomic delta; refuses to take the balance below zero (checked under the lock).
   // Positive adjustments count toward lifetime_earned, negative ones don't.
   try {
@@ -1220,12 +1309,39 @@ export async function adminAdjustWalletImpl(userId: string, amount: number, reas
     console.error("[wallet] admin adjustment failed", { userId, error });
     throw new Error("Could not adjust that wallet.");
   }
+
+  // Get user's wallet balance after adjustment for audit
+  const userAfter = await supabaseAdmin
+    .from("profiles")
+    .select("wallet_balance, lifetime_earned")
+    .eq("id", userId)
+    .single();
+
   await notify(
     userId,
     "Wallet adjusted",
     `${reason} (${amount >= 0 ? "+" : "−"}$${Math.abs(amount).toFixed(2)})`,
     "wallet",
   );
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "wallet_adjust",
+    targetType: "user",
+    targetId: userId,
+    before: {
+      wallet_balance: userBefore.data?.wallet_balance,
+      lifetime_earned: userBefore.data?.lifetime_earned,
+    },
+    after: {
+      wallet_balance: userAfter.data?.wallet_balance,
+      lifetime_earned: userAfter.data?.lifetime_earned,
+    },
+    note: `${amount >= 0 ? "+" : ""}${amount}: ${reason}`,
+  });
+
   return { ok: true };
 }
 

@@ -173,6 +173,7 @@ export const adminUpdateWithdrawal = createServerFn({ method: "POST" })
     const { assertAdmin, adminUpdateWithdrawalImpl } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     return adminUpdateWithdrawalImpl(
+      context.userId,
       data.id,
       data.status,
       data.note ?? null,
@@ -195,7 +196,7 @@ export const adminUpdateOfferClaim = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { assertAdmin, adminUpdateOfferClaimImpl } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
-    return adminUpdateOfferClaimImpl(data.id, data.status, data.note ?? null);
+    return adminUpdateOfferClaimImpl(context.userId, data.id, data.status, data.note ?? null);
   });
 
 export const adminRespondTicket = createServerFn({ method: "POST" })
@@ -212,7 +213,7 @@ export const adminRespondTicket = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { assertAdmin, adminRespondTicketImpl } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
-    return adminRespondTicketImpl(data.id, data.response, data.status);
+    return adminRespondTicketImpl(context.userId, data.id, data.response, data.status);
   });
 
 export const adminSetFlag = createServerFn({ method: "POST" })
@@ -223,7 +224,7 @@ export const adminSetFlag = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { assertAdmin, adminSetFlagImpl } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
-    return adminSetFlagImpl(data.userId, data.flagged);
+    return adminSetFlagImpl(context.userId, data.userId, data.flagged);
   });
 
 export const adminAdjustWallet = createServerFn({ method: "POST" })
@@ -233,14 +234,14 @@ export const adminAdjustWallet = createServerFn({ method: "POST" })
       .object({
         userId: z.string().uuid(),
         amount: z.number().min(-10000).max(10000),
-        reason: z.string().trim().min(2).max(200),
+        reason: z.string().trim().min(5, "Reason must be at least 5 characters").max(200),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { assertAdmin, adminAdjustWalletImpl } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
-    return adminAdjustWalletImpl(data.userId, data.amount, data.reason);
+    return adminAdjustWalletImpl(context.userId, data.userId, data.amount, data.reason);
   });
 
 /** Account deletion (Amazon/Google app store compliance). */
