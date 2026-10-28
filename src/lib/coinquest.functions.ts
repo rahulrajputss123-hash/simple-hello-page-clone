@@ -349,3 +349,183 @@ export const adminListTickets = createServerFn({ method: "POST" })
     await requireRole(context.userId, ["admin", "finance", "support"]);
     return adminListTicketsImpl(data);
   });
+
+
+// ============================================================================
+// WALLET ADJUSTMENT REQUESTS
+// ============================================================================
+
+export const createAdjustmentRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        amount: z.number().refine((val) => Math.abs(val) > 100, "Amount must be > $100"),
+        reason: z.string().trim().min(5).max(200),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { createAdjustmentRequestImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return createAdjustmentRequestImpl(context.userId, data.userId, data.amount, data.reason);
+  });
+
+export const listAdjustmentRequests = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        status: z.enum(["pending", "approved", "rejected"]).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { listAdjustmentRequestsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return listAdjustmentRequestsImpl(data.status);
+  });
+
+export const approveAdjustmentRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        requestId: z.string().uuid(),
+        note: z.string().trim().max(200).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { approveAdjustmentRequestImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return approveAdjustmentRequestImpl(context.userId, data.requestId, data.note);
+  });
+
+export const rejectAdjustmentRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        requestId: z.string().uuid(),
+        note: z.string().trim().min(5).max(200),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { rejectAdjustmentRequestImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return rejectAdjustmentRequestImpl(context.userId, data.requestId, data.note);
+  });
+
+// ============================================================================
+// AUDIT LOG
+// ============================================================================
+
+export const adminListAuditLogs = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        adminId: z.string().uuid().optional(),
+        action: z.string().trim().max(100).optional(),
+        dateFrom: z.string().datetime().optional(),
+        dateTo: z.string().datetime().optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListAuditLogsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return adminListAuditLogsImpl(data);
+  });
+
+// ============================================================================
+// FRAUD SIGNALS
+// ============================================================================
+
+export const getWithdrawalFraudSignals = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        withdrawalId: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getWithdrawalFraudSignalsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
+    return getWithdrawalFraudSignalsImpl(data.withdrawalId);
+  });
+
+export const getUsersWithSameDevice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        deviceId: z.string().trim().min(1),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getUsersWithSameDeviceImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return getUsersWithSameDeviceImpl(data.deviceId);
+  });
+
+// ============================================================================
+// STAFF MANAGEMENT
+// ============================================================================
+
+export const assignRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        userEmail: z.string().trim().email(),
+        role: z.enum(["admin", "finance", "support"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { assignRoleImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return assignRoleImpl(context.userId, data.userEmail, data.role);
+  });
+
+export const removeRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        userEmail: z.string().trim().email(),
+        role: z.enum(["admin", "finance", "support"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { removeRoleImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return removeRoleImpl(context.userId, data.userEmail, data.role);
+  });
+
+export const listStaff = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { listStaffImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return listStaffImpl();
+  });

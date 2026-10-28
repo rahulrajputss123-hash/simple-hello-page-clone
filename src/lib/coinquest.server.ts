@@ -1698,3 +1698,441 @@ export async function transferEarningsToAdvertiserImpl(
     throw new Error("Transfer failed");
   }
 }
+
+
+// ============================================================================
+// WALLET ADJUSTMENT REQUESTS (>$100 requires 2-admin approval)
+// ============================================================================
+
+export async function createAdjustmentRequestImpl(
+  adminId: string,
+  userId: string,
+  amount: number,
+  reason: string,
+) {
+  if (Math.abs(amount) <= 100) {
+    throw new Error("Amounts up to $100 are applied immediately. Use adminAdjustWallet instead.");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("adjustment_requests")
+    .insert({
+      user_id: userId,
+      amount,
+      reason,
+      requested_by: adminId,
+      status: "pending",
+    })
+    .select("*")
+    .single();
+
+  if (error) throw new Error("Could not create adjustment request.");
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "adjustment_request_create",
+    targetType: "adjustment_request",
+    targetId: data.id,
+    after: { user_id: userId, amount, reason, status: "pending" },
+    note: reason,
+  });
+
+  return data;
+}
+
+export async function listAdjustmentRequestsImpl(status?: "pending" | "approved" | "rejected") {
+  let query = supabaseAdmin
+    .from("adjustment_requests")
+    .select(
+      `
+      *,
+      user:user_id(id, name, email, wallet_balance),
+      requester:requested_by(id, name, email),
+      approver:approved_by(id, name, email)
+    `,
+    )
+    .order("created_at", { ascending: false });
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error("Could not fetch adjustment requests.");
+
+  return data ?? [];
+}
+
+export async function approveAdjustmentRequestImpl(
+  approverId: string,
+  requestId: string,
+  note?: string,
+) {
+  // Fetch the request
+  const request = await supabaseAdmin
+    .from("adjustment_requests")
+    .select("*")
+    .eq("id", requestId)
+    .single();
+
+  if (request.error || !request.data) throw new Error("Request not found.");
+  if (request.data.status !== "pending") throw new Error("Request already processed.");
+
+  // Verify requester != approver
+  if (request.data.requested_by === approverId) {
+    throw new Error("You cannot approve your own adjustment request.");
+  }
+
+  // Apply the wallet adjustment
+  await adminAdjustWalletImpl(
+    approverId,
+    request.data.user_id,
+    Number(request.data.amount),
+    request.data.reason,
+  );
+
+  // Update request status
+  await supabaseAdmin
+    .from("adjustment_requests")
+    .update({
+      status: "approved",
+      approved_by: approverId,
+      approval_note: note ?? null,
+      decided_at: new Date().toISOString(),
+    })
+    .eq("id", requestId);
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId: approverId,
+    action: "adjustment_request_approve",
+    targetType: "adjustment_request",
+    targetId: requestId,
+    before: { status: "pending" },
+    after: { status: "approved", amount: request.data.amount },
+    note: note || undefined,
+  });
+
+  return { ok: true };
+}
+
+export async function rejectAdjustmentRequestImpl(
+  approverId: string,
+  requestId: string,
+  note: string,
+) {
+  // Fetch the request
+  const request = await supabaseAdmin
+    .from("adjustment_requests")
+    .select("*")
+    .eq("id", requestId)
+    .single();
+
+  if (request.error || !request.data) throw new Error("Request not found.");
+  if (request.data.status !== "pending") throw new Error("Request already processed.");
+
+  // Verify requester != approver (even for rejection, to prevent gaming)
+  if (request.data.requested_by === approverId) {
+    throw new Error("You cannot reject your own adjustment request.");
+  }
+
+  // Update request status
+  await supabaseAdmin
+    .from("adjustment_requests")
+    .update({
+      status: "rejected",
+      approved_by: approverId,
+      approval_note: note,
+      decided_at: new Date().toISOString(),
+    })
+    .eq("id", requestId);
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId: approverId,
+    action: "adjustment_request_reject",
+    targetType: "adjustment_request",
+    targetId: requestId,
+    before: { status: "pending" },
+    after: { status: "rejected" },
+    note,
+  });
+
+  return { ok: true };
+}
+
+// ============================================================================
+// AUDIT LOG
+// ============================================================================
+
+export async function adminListAuditLogsImpl(params: {
+  adminId?: string;
+  action?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+}) {
+  const { data, error } = await supabaseAdmin.rpc("admin_list_audit_logs", {
+    p_admin_id: params.adminId ?? null,
+    p_action: params.action ?? null,
+    p_date_from: params.dateFrom ?? null,
+    p_date_to: params.dateTo ?? null,
+    p_page: params.page ?? 1,
+    p_page_size: 25,
+  });
+
+  if (error) {
+    console.error("[audit] Failed to list audit logs", error);
+    throw new Error("Could not fetch audit logs.");
+  }
+
+  const logs = data ?? [];
+  const totalCount = logs[0]?.total_count ?? 0;
+  const page = params.page ?? 1;
+  const pageSize = 25;
+
+  return {
+    logs: logs.map((log) => ({
+      id: log.id,
+      adminId: log.admin_id,
+      adminEmail: log.admin_email,
+      action: log.action,
+      targetType: log.target_type,
+      targetId: log.target_id,
+      before: log.before,
+      after: log.after,
+      note: log.note,
+      createdAt: log.created_at,
+    })),
+    total: totalCount,
+    page,
+    pageSize,
+    totalPages: Math.ceil(totalCount / pageSize),
+  };
+}
+
+// ============================================================================
+// FRAUD SIGNALS (for payout cards)
+// ============================================================================
+
+export async function getWithdrawalFraudSignalsImpl(withdrawalId: string) {
+  // Fetch withdrawal with user info
+  const withdrawal = await supabaseAdmin
+    .from("withdrawal_requests")
+    .select("*, profiles!inner(id, created_at, lifetime_earned, is_flagged, device_id)")
+    .eq("id", withdrawalId)
+    .single();
+
+  if (withdrawal.error || !withdrawal.data) {
+    return null;
+  }
+
+  const user = withdrawal.data.profiles as unknown as {
+    id: string;
+    created_at: string;
+    lifetime_earned: number;
+    is_flagged: boolean;
+    device_id: string | null;
+  };
+
+  // Call fraud detection helper functions via supabaseAdmin
+  const accountAgeDays = await supabaseAdmin.rpc("account_age_days", {
+    p_user_id: user.id,
+  });
+
+  const approvedWithdrawals = await supabaseAdmin.rpc("count_approved_withdrawals", {
+    p_user_id: user.id,
+  });
+
+  let deviceDuplicates = 0;
+  if (user.device_id && user.device_id !== "" && user.device_id !== "server") {
+    const deviceDuplicatesResult = await supabaseAdmin.rpc("count_device_duplicates", {
+      p_device_id: user.device_id,
+    });
+    deviceDuplicates = deviceDuplicatesResult.data ?? 0;
+  }
+
+  // Determine risk level
+  let riskLevel: "low" | "medium" | "high" = "low";
+
+  // High risk: new account (<3 days) with first withdrawal OR device duplicates >= 2 OR flagged
+  if (
+    (accountAgeDays.data !== null && accountAgeDays.data < 3 && approvedWithdrawals.data === 0) ||
+    deviceDuplicates >= 2 ||
+    user.is_flagged
+  ) {
+    riskLevel = "high";
+  }
+  // Medium risk: account age < 7 days OR has duplicate Binance Pay
+  else if (accountAgeDays.data !== null && accountAgeDays.data < 7) {
+    riskLevel = "medium";
+  }
+
+  return {
+    accountAgeDays: accountAgeDays.data ?? 0,
+    lifetimeEarned: Number(user.lifetime_earned),
+    approvedWithdrawalsCount: approvedWithdrawals.data ?? 0,
+    isFlagged: user.is_flagged,
+    deviceDuplicatesCount: deviceDuplicates,
+    riskLevel,
+  };
+}
+
+// ============================================================================
+// USERS WITH SAME DEVICE
+// ============================================================================
+
+export async function getUsersWithSameDeviceImpl(deviceId: string) {
+  if (!deviceId || deviceId === "" || deviceId === "server") {
+    return [];
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, email, wallet_balance, is_flagged, created_at")
+    .eq("device_id", deviceId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[users] Failed to fetch users with same device", error);
+    throw new Error("Could not fetch users with same device.");
+  }
+
+  return data ?? [];
+}
+
+// ============================================================================
+// STAFF ROLE MANAGEMENT (admin only)
+// ============================================================================
+
+export async function assignRoleImpl(adminId: string, userEmail: string, role: string) {
+  // Find user by email
+  const user = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("email", userEmail)
+    .maybeSingle();
+
+  if (!user.data) throw new Error(`User not found: ${userEmail}`);
+
+  // Check if role already exists
+  const existing = await supabaseAdmin
+    .from("user_roles")
+    .select("*")
+    .eq("user_id", user.data.id)
+    .eq("role", role)
+    .maybeSingle();
+
+  if (existing.data) throw new Error("User already has this role.");
+
+  // Insert role
+  await supabaseAdmin.from("user_roles").insert({
+    user_id: user.data.id,
+    role,
+  });
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "role_assign",
+    targetType: "user",
+    targetId: user.data.id,
+    after: { email: userEmail, role },
+    note: `Assigned ${role} to ${userEmail}`,
+  });
+
+  return { ok: true };
+}
+
+export async function removeRoleImpl(
+  adminId: string,
+  userEmail: string,
+  role: string,
+) {
+  // Find user by email
+  const user = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("email", userEmail)
+    .maybeSingle();
+
+  if (!user.data) throw new Error(`User not found: ${userEmail}`);
+
+  // Prevent admin from removing their own admin role
+  if (user.data.id === adminId && role === "admin") {
+    throw new Error("You cannot remove your own admin role.");
+  }
+
+  // Delete role
+  const { error } = await supabaseAdmin
+    .from("user_roles")
+    .delete()
+    .eq("user_id", user.data.id)
+    .eq("role", role);
+
+  if (error) throw new Error("Could not remove role.");
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "role_remove",
+    targetType: "user",
+    targetId: user.data.id,
+    before: { email: userEmail, role },
+    note: `Removed ${role} from ${userEmail}`,
+  });
+
+  return { ok: true };
+}
+
+export async function listStaffImpl() {
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select(
+      `
+      *,
+      profiles!inner(id, email, name)
+    `,
+    )
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[staff] Failed to list staff", error);
+    throw new Error("Could not fetch staff list.");
+  }
+
+  // Group by user
+  const staffMap = new Map<
+    string,
+    {
+      userId: string;
+      email: string;
+      name: string | null;
+      roles: Array<{ role: string; assignedAt: string }>;
+    }
+  >();
+
+  for (const row of data ?? []) {
+    const profile = row.profiles as unknown as { id: string; email: string; name: string | null };
+    if (!staffMap.has(profile.id)) {
+      staffMap.set(profile.id, {
+        userId: profile.id,
+        email: profile.email,
+        name: profile.name,
+        roles: [],
+      });
+    }
+    staffMap.get(profile.id)!.roles.push({
+      role: row.role,
+      assignedAt: row.created_at,
+    });
+  }
+
+  return Array.from(staffMap.values());
+}
