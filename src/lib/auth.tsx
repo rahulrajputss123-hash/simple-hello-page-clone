@@ -16,6 +16,7 @@ type AuthValue = {
   profile: Profile | null;
   profileLoading: boolean;
   isAdmin: boolean;
+  roles: Array<"admin" | "finance" | "support" | "user">;
 };
 
 /** Exported so preview routes can mount real screens with a mock session. */
@@ -25,6 +26,7 @@ export const AuthContext = createContext<AuthValue>({
   profile: null,
   profileLoading: false,
   isAdmin: false,
+  roles: [],
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -78,6 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const rolesList = (rolesQuery.data ?? []).map((r) => r.role as "admin" | "finance" | "support" | "user");
+
   return (
     <AuthContext.Provider
       value={{
@@ -85,7 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         profile: profileQuery.data ?? null,
         profileLoading: profileQuery.isLoading,
-        isAdmin: (rolesQuery.data ?? []).some((r) => r.role === "admin"),
+        isAdmin: rolesList.includes("admin"),
+        roles: rolesList,
       }}
     >
       {children}

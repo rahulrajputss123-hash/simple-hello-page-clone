@@ -288,6 +288,7 @@ export const adminListUsers = createServerFn({ method: "POST" })
       .object({
         search: z.string().trim().max(200).optional(),
         flaggedOnly: z.boolean().optional(),
+        suspiciousOnly: z.boolean().optional(),
         page: z.number().int().min(1).optional(),
       })
       .parse(input ?? {}),
@@ -432,10 +433,10 @@ export const adminListAuditLogs = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
       .object({
-        adminId: z.string().uuid().optional(),
-        action: z.string().trim().max(100).optional(),
-        dateFrom: z.string().datetime().optional(),
-        dateTo: z.string().datetime().optional(),
+        adminFilter: z.string().trim().max(100).optional(),
+        actionFilter: z.string().trim().max(100).optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
         page: z.number().int().min(1).optional(),
       })
       .parse(input ?? {}),
@@ -444,7 +445,13 @@ export const adminListAuditLogs = createServerFn({ method: "POST" })
     const { requireRole } = await import("./admin-audit.server");
     const { adminListAuditLogsImpl } = await import("./coinquest.server");
     await requireRole(context.userId, ["admin"]);
-    return adminListAuditLogsImpl(data);
+    return adminListAuditLogsImpl({
+      adminId: data.adminFilter,
+      action: data.actionFilter,
+      dateFrom: data.startDate,
+      dateTo: data.endDate,
+      page: data.page,
+    });
   });
 
 // ============================================================================
@@ -509,7 +516,7 @@ export const removeRole = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
       .object({
-        userEmail: z.string().trim().email(),
+        userId: z.string().uuid(),
         role: z.enum(["admin", "finance", "support"]),
       })
       .parse(input),
@@ -518,7 +525,7 @@ export const removeRole = createServerFn({ method: "POST" })
     const { requireRole } = await import("./admin-audit.server");
     const { removeRoleImpl } = await import("./coinquest.server");
     await requireRole(context.userId, ["admin"]);
-    return removeRoleImpl(context.userId, data.userEmail, data.role);
+    return removeRoleImpl(context.userId, data.userId, data.role);
   });
 
 export const listStaff = createServerFn({ method: "POST" })

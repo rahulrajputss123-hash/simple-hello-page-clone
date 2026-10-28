@@ -142,8 +142,8 @@ export const saveManualOffer = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
     const { upsertManualOfferImpl } = await import("./offers/admin.server");
     return upsertManualOfferImpl(data);
   });
@@ -152,8 +152,8 @@ export const deleteManualOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { assertAdmin } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
     const { deleteManualOfferImpl } = await import("./offers/admin.server");
     return deleteManualOfferImpl(data.id);
   });
@@ -185,8 +185,8 @@ export const getOfferById = createServerFn({ method: "POST" })
 export const getFeedAutomation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { assertAdmin } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
     const { getFeedAutomationImpl } = await import("./offers/feed-cache.server");
     return getFeedAutomationImpl();
   });
@@ -209,8 +209,8 @@ export const updateFeedSettings = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
     const { updateFeedSettingsImpl } = await import("./offers/feed-settings.server");
     return updateFeedSettingsImpl(data);
   });
@@ -229,8 +229,8 @@ export const updateNetworkFeedSettings = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
     const { updateNetworkFeedSettingsImpl } = await import("./offers/feed-settings.server");
     return updateNetworkFeedSettingsImpl(data);
   });
@@ -252,8 +252,8 @@ export const adminRefreshFeed = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
     const { adminRefreshProviderImpl } = await import("./offers/feed-cache.server");
     return adminRefreshProviderImpl(data.providerId, data.country);
   });
@@ -285,8 +285,8 @@ export const updateOfferControls = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
     const { updateOfferControlsImpl } = await import("./offers/admin.server");
     return updateOfferControlsImpl(data);
   });
@@ -298,8 +298,8 @@ export const adminSignProofUrl = createServerFn({ method: "POST" })
     z.object({ path: z.string().trim().min(1).max(500) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
     const { signProofUrl } = await import("./offers/proof.server");
     const url = await signProofUrl(data.path, 300);
     return { url };

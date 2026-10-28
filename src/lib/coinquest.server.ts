@@ -1389,6 +1389,7 @@ export async function adminOverviewImpl() {
 type AdminListUsersInput = {
   search?: string;
   flaggedOnly?: boolean;
+  suspiciousOnly?: boolean;
   page?: number;
 };
 
@@ -1396,6 +1397,70 @@ export async function adminListUsersImpl(input: AdminListUsersInput) {
   const page = Math.max(1, input.page ?? 1);
   const pageSize = 25;
   const offset = (page - 1) * pageSize;
+
+  // For suspicious filter, we need custom logic
+  if (input.suspiciousOnly) {
+    // Suspicious users are: flagged OR sharing device_id OR account <3 days with earnings
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    // Get all users and filter in memory (not ideal for scale, but works for now)
+    let query = supabaseAdmin
+      .from("profiles")
+      .select(
+        "id, name, email, phone, device_id, is_flagged, wallet_balance, held_balance, lifetime_earned, lifetime_withdrawn, referral_code, created_at",
+      )
+      .order("created_at", { ascending: false });
+
+    if (input.search && input.search.trim()) {
+      const term = `%${input.search.trim()}%`;
+      query = query.or(
+        `email.ilike.${term},name.ilike.${term},referral_code.ilike.${term},device_id.ilike.${term}`,
+      );
+    }
+
+    const result = await query;
+    const allUsers = result.data ?? [];
+
+    // Count device duplicates
+    const deviceIdCounts = new Map<string, number>();
+    for (const user of allUsers) {
+      if (user.device_id && user.device_id !== "" && user.device_id !== "server") {
+        deviceIdCounts.set(user.device_id, (deviceIdCounts.get(user.device_id) || 0) + 1);
+      }
+    }
+
+    // Filter suspicious users
+    const suspicious = allUsers.filter(user => {
+      // Flagged users
+      if (user.is_flagged) return true;
+
+      // Sharing device with others
+      if (user.device_id && user.device_id !== "" && user.device_id !== "server") {
+        if ((deviceIdCounts.get(user.device_id) || 0) > 1) return true;
+      }
+
+      // Account <3 days old with earnings
+      const accountAge = new Date(user.created_at);
+      if (accountAge >= threeDaysAgo && user.lifetime_earned > 0) {
+        return true;
+      }
+
+      return false;
+    });
+
+    // Paginate the filtered results
+    const total = suspicious.length;
+    const paginatedUsers = suspicious.slice(offset, offset + pageSize);
+
+    return {
+      users: paginatedUsers,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
 
   let query = supabaseAdmin
     .from("profiles")
@@ -2051,28 +2116,26 @@ export async function assignRoleImpl(adminId: string, userEmail: string, role: s
 
 export async function removeRoleImpl(
   adminId: string,
-  userEmail: string,
+  targetUserId: string,
   role: string,
 ) {
-  // Find user by email
-  const user = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("email", userEmail)
-    .maybeSingle();
-
-  if (!user.data) throw new Error(`User not found: ${userEmail}`);
-
   // Prevent admin from removing their own admin role
-  if (user.data.id === adminId && role === "admin") {
+  if (targetUserId === adminId && role === "admin") {
     throw new Error("You cannot remove your own admin role.");
   }
+
+  // Get user email for logging
+  const user = await supabaseAdmin
+    .from("profiles")
+    .select("email")
+    .eq("id", targetUserId)
+    .maybeSingle();
 
   // Delete role
   const { error } = await supabaseAdmin
     .from("user_roles")
     .delete()
-    .eq("user_id", user.data.id)
+    .eq("user_id", targetUserId)
     .eq("role", role);
 
   if (error) throw new Error("Could not remove role.");
@@ -2083,9 +2146,9 @@ export async function removeRoleImpl(
     adminId,
     action: "role_remove",
     targetType: "user",
-    targetId: user.data.id,
-    before: { email: userEmail, role },
-    note: `Removed ${role} from ${userEmail}`,
+    targetId: targetUserId,
+    before: { email: user.data?.email, role },
+    note: `Removed ${role} from ${user.data?.email || targetUserId}`,
   });
 
   return { ok: true };

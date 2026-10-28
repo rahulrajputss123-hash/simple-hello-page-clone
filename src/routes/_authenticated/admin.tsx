@@ -124,7 +124,7 @@ type TabKey =
   | "staff";
 
 function AdminPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, roles } = useAuth();
   const queryClient = useQueryClient();
   const overview = useServerFn(adminOverview);
   const updateWithdrawal = useServerFn(adminUpdateWithdrawal);
@@ -161,6 +161,7 @@ function AdminPage() {
   // Users tab state
   const [userSearch, setUserSearch] = useState("");
   const [userFlaggedOnly, setUserFlaggedOnly] = useState(false);
+  const [userSuspiciousOnly, setUserSuspiciousOnly] = useState(false);
   const [userPage, setUserPage] = useState(1);
 
   // Withdrawals tab state
@@ -187,11 +188,14 @@ function AdminPage() {
   // Audit log state
   const [auditLogAdmin, setAuditLogAdmin] = useState("");
   const [auditLogAction, setAuditLogAction] = useState("");
+  const [auditLogStartDate, setAuditLogStartDate] = useState("");
+  const [auditLogEndDate, setAuditLogEndDate] = useState("");
   const [auditLogPage, setAuditLogPage] = useState(1);
+  const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set());
 
   // Staff management state
   const [staffEmail, setStaffEmail] = useState("");
-  const [staffRole, setStaffRole] = useState<"finance" | "support">("finance");
+  const [staffRole, setStaffRole] = useState<"admin" | "finance" | "support">("finance");
 
   const totals = useQuery({
     queryKey: ["admin-totals"],
@@ -200,9 +204,9 @@ function AdminPage() {
   });
 
   const users = useQuery({
-    queryKey: ["admin-users", userSearch, userFlaggedOnly, userPage],
+    queryKey: ["admin-users", userSearch, userFlaggedOnly, userSuspiciousOnly, userPage],
     enabled: isAdmin && tab === "users",
-    queryFn: () => fetchUsers({ data: { search: userSearch, flaggedOnly: userFlaggedOnly, page: userPage } }),
+    queryFn: () => fetchUsers({ data: { search: userSearch, flaggedOnly: userFlaggedOnly, suspiciousOnly: userSuspiciousOnly, page: userPage } }),
   });
 
   const withdrawals = useQuery({
@@ -230,9 +234,15 @@ function AdminPage() {
   });
 
   const auditLogs = useQuery({
-    queryKey: ["audit-logs", auditLogAdmin, auditLogAction, auditLogPage],
+    queryKey: ["audit-logs", auditLogAdmin, auditLogAction, auditLogStartDate, auditLogEndDate, auditLogPage],
     enabled: isAdmin && tab === "audit",
-    queryFn: () => fetchAuditLogs({ data: { adminFilter: auditLogAdmin || undefined, actionFilter: auditLogAction || undefined, page: auditLogPage } }),
+    queryFn: () => fetchAuditLogs({ data: { 
+      adminFilter: auditLogAdmin || undefined, 
+      actionFilter: auditLogAction || undefined, 
+      startDate: auditLogStartDate || undefined,
+      endDate: auditLogEndDate || undefined,
+      page: auditLogPage 
+    } }),
   });
 
   const sameDeviceUsers = useQuery({
@@ -404,7 +414,10 @@ function AdminPage() {
     onError,
   });
 
-  if (!isAdmin) {
+  // Check if user has any admin-like role
+  const hasAdminAccess = roles.length > 0 && roles.some(r => r === "admin" || r === "finance" || r === "support");
+
+  if (!hasAdminAccess) {
     return (
       <AppShell subtitle="Admin">
         <p className="mt-8 text-center text-sm text-muted-foreground">
@@ -412,6 +425,54 @@ function AdminPage() {
         </p>
       </AppShell>
     );
+  }
+
+  // Determine which tabs the user can see based on their roles
+  const canSeeTab = (tabKey: TabKey): boolean => {
+    if (roles.includes("admin")) return true; // Admins see everything
+    
+    if (roles.includes("finance")) {
+      // Finance sees: withdrawals, claims, tickets
+      return ["withdrawals", "claims", "tickets"].includes(tabKey);
+    }
+    
+    if (roles.includes("support")) {
+      // Support sees: tickets only
+      return tabKey === "tickets";
+    }
+    
+    return false;
+  };
+
+  // All possible tabs
+  const allTabs: Array<[TabKey, string]> = [
+    ["dashboard", "Dashboard"],
+    ["offers", "Offers"],
+    ["quests", "Quests"],
+    ["tasks", "Tasks"],
+    ["banners", "Banners"],
+    ["onboarding", "Onboarding"],
+    ["withdrawals", `Payouts (${withdrawals.data?.pendingCount ?? 0})`],
+    ["claims", `Claims (${claims.data?.pendingCount ?? 0})`],
+    ["tickets", `Tickets (${tickets.data?.openCount ?? 0})`],
+    ["users", "Users"],
+    ["providers", "Networks"],
+    ["sdk-offerwalls", "SDK Offerwalls"],
+    ["automation", "Automation"],
+    ["offer-feed", "Offer Feed"],
+    ["campaigns", "Campaigns ★"],
+    ["proof-reviews", "Proof Reviews ★"],
+    ["advertisers", "Advertisers ★"],
+    ["audit", "Audit Log"],
+    ["staff", "Staff"],
+  ];
+
+  // Filter tabs based on role
+  const visibleTabs = allTabs.filter(([key]) => canSeeTab(key));
+
+  // Set initial tab to first visible tab if current tab is not visible
+  if (visibleTabs.length > 0 && !canSeeTab(tab)) {
+    setTab(visibleTabs[0][0]);
   }
 
   const totalData = totals.data?.totals;
@@ -437,29 +498,7 @@ function AdminPage() {
       </div>
 
       <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-        {(
-          [
-            ["dashboard", "Dashboard"],
-            ["offers", "Offers"],
-            ["quests", "Quests"],
-            ["tasks", "Tasks"],
-            ["banners", "Banners"],
-            ["onboarding", "Onboarding"],
-            ["withdrawals", `Payouts (${withdrawals.data?.pendingCount ?? 0})`],
-            ["claims", `Claims (${claims.data?.pendingCount ?? 0})`],
-            ["tickets", `Tickets (${tickets.data?.openCount ?? 0})`],
-            ["users", "Users"],
-            ["providers", "Networks"],
-            ["sdk-offerwalls", "SDK Offerwalls"],
-            ["automation", "Automation"],
-            ["offer-feed", "Offer Feed"],
-            ["campaigns", "Campaigns ★"],
-            ["proof-reviews", "Proof Reviews ★"],
-            ["advertisers", "Advertisers ★"],
-            ["audit", "Audit Log"],
-            ["staff", "Staff"],
-          ] as [TabKey, string][]
-        ).map(([key, label]) => (
+        {visibleTabs.map(([key, label]) => (
           <Button
             key={key}
             size="sm"
@@ -1123,9 +1162,25 @@ function AdminPage() {
               <Button
                 size="sm"
                 variant={userFlaggedOnly ? "destructive" : "outline"}
-                onClick={() => { setUserFlaggedOnly(!userFlaggedOnly); setUserPage(1); }}
+                onClick={() => { 
+                  setUserFlaggedOnly(!userFlaggedOnly); 
+                  if (!userFlaggedOnly) setUserSuspiciousOnly(false); // Disable suspicious when enabling flagged
+                  setUserPage(1); 
+                }}
               >
                 {userFlaggedOnly ? "Show all" : "Flagged only"}
+              </Button>
+              <Button
+                size="sm"
+                variant={userSuspiciousOnly ? "amber" : "outline"}
+                onClick={() => { 
+                  setUserSuspiciousOnly(!userSuspiciousOnly); 
+                  if (!userSuspiciousOnly) setUserFlaggedOnly(false); // Disable flagged when enabling suspicious
+                  setUserPage(1); 
+                }}
+              >
+                <AlertTriangle className="mr-1 size-3" />
+                {userSuspiciousOnly ? "Show all" : "Suspicious"}
               </Button>
             </div>
           </div>
@@ -1322,6 +1377,24 @@ function AdminPage() {
               value={auditLogAction}
               onChange={(e) => { setAuditLogAction(e.target.value); setAuditLogPage(1); }}
             />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground">Start Date</label>
+                <Input
+                  type="date"
+                  value={auditLogStartDate}
+                  onChange={(e) => { setAuditLogStartDate(e.target.value); setAuditLogPage(1); }}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">End Date</label>
+                <Input
+                  type="date"
+                  value={auditLogEndDate}
+                  onChange={(e) => { setAuditLogEndDate(e.target.value); setAuditLogPage(1); }}
+                />
+              </div>
+            </div>
           </div>
 
           {auditLogs.isLoading ? (
@@ -1335,23 +1408,66 @@ function AdminPage() {
           ) : (
             <>
               <ul className="mt-3 space-y-2">
-                {auditLogs.data.logs.map((log) => (
-                  <li key={log.id} className="surface-card p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold">{log.action}</p>
-                      <span className="text-xs text-muted-foreground">{formatDateTime(log.createdAt)}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      By: {log.admin?.email || "Unknown admin"}
-                      {log.targetUser && ` · Target: ${log.targetUser.email || log.targetUser.name || "Unknown"}`}
-                    </p>
-                    {log.details && (
-                      <pre className="mt-1 overflow-x-auto rounded bg-background-alt p-2 text-xs text-muted-foreground">
-                        {JSON.stringify(log.details, null, 2)}
-                      </pre>
-                    )}
-                  </li>
-                ))}
+                {auditLogs.data.logs.map((log) => {
+                  const isExpanded = expandedLogIds.has(log.id);
+                  return (
+                    <li key={log.id} className="surface-card p-3">
+                      <div 
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={() => {
+                          setExpandedLogIds(prev => {
+                            const next = new Set(prev);
+                            if (isExpanded) {
+                              next.delete(log.id);
+                            } else {
+                              next.add(log.id);
+                            }
+                            return next;
+                          });
+                        }}
+                      >
+                        <p className="text-sm font-semibold">{log.action}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">{formatDateTime(log.createdAt)}</span>
+                          <ChevronRight className={`size-4 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        By: {log.admin?.email || "Unknown admin"}
+                        {log.targetUser && ` · Target: ${log.targetUser.email || log.targetUser.name || "Unknown"}`}
+                      </p>
+                      
+                      {isExpanded && log.details && (
+                        <div className="mt-2 space-y-2">
+                          {log.details.before && (
+                            <div>
+                              <p className="text-xs font-semibold text-muted-foreground">Before:</p>
+                              <pre className="mt-1 overflow-x-auto rounded bg-background-alt p-2 text-xs text-muted-foreground">
+                                {JSON.stringify(log.details.before, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {log.details.after && (
+                            <div>
+                              <p className="text-xs font-semibold text-muted-foreground">After:</p>
+                              <pre className="mt-1 overflow-x-auto rounded bg-background-alt p-2 text-xs text-muted-foreground">
+                                {JSON.stringify(log.details.after, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {!log.details.before && !log.details.after && (
+                            <div>
+                              <p className="text-xs font-semibold text-muted-foreground">Details:</p>
+                              <pre className="mt-1 overflow-x-auto rounded bg-background-alt p-2 text-xs text-muted-foreground">
+                                {JSON.stringify(log.details, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
 
               <div className="mt-4 flex items-center justify-between gap-2">
@@ -1395,6 +1511,13 @@ function AdminPage() {
               onChange={(e) => setStaffEmail(e.target.value)}
             />
             <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={staffRole === "admin" ? "jade" : "outline"}
+                onClick={() => setStaffRole("admin")}
+              >
+                Admin
+              </Button>
               <Button
                 size="sm"
                 variant={staffRole === "finance" ? "jade" : "outline"}
