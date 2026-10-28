@@ -22,6 +22,16 @@ import {
   adminListWithdrawals,
   adminListClaims,
   adminListTickets,
+  createAdjustmentRequest,
+  listAdjustmentRequests,
+  approveAdjustmentRequest,
+  rejectAdjustmentRequest,
+  adminListAuditLogs,
+  getWithdrawalFraudSignals,
+  getUsersWithSameDevice,
+  assignRole,
+  removeRole,
+  listStaff,
 } from "@/lib/coinquest.functions";
 import { payoutMethodLabel, isCryptoMethod, getExplorerUrl } from "@/lib/payout-methods";
 import { OffersManager } from "@/components/admin/OffersManager";
@@ -39,7 +49,7 @@ import {
   syncOfferProvider,
   upsertOfferProvider,
 } from "@/lib/offers.functions";
-import { LifeBuoy, Network, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { LifeBuoy, Network, Search, ChevronLeft, ChevronRight, AlertTriangle, Shield, Users, FileText, CheckCircle, XCircle, Clock } from "lucide-react";
 import {
   AdvertisersList,
   CampaignApprovals,
@@ -47,6 +57,14 @@ import {
   ProofReviews,
 } from "@/components/admin/MarketplaceManagers";
 import { MarketplaceSettingsPanel } from "@/components/admin/MarketplaceSettingsPanel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -101,7 +119,9 @@ type TabKey =
   | "offer-feed"
   | "campaigns"
   | "proof-reviews"
-  | "advertisers";
+  | "advertisers"
+  | "audit"
+  | "staff";
 
 function AdminPage() {
   const { isAdmin } = useAuth();
@@ -120,6 +140,16 @@ function AdminPage() {
   const fetchWithdrawals = useServerFn(adminListWithdrawals);
   const fetchClaims = useServerFn(adminListClaims);
   const fetchTickets = useServerFn(adminListTickets);
+  const createAdjRequest = useServerFn(createAdjustmentRequest);
+  const listAdjRequests = useServerFn(listAdjustmentRequests);
+  const approveAdjRequest = useServerFn(approveAdjustmentRequest);
+  const rejectAdjRequest = useServerFn(rejectAdjustmentRequest);
+  const fetchAuditLogs = useServerFn(adminListAuditLogs);
+  const fetchFraudSignals = useServerFn(getWithdrawalFraudSignals);
+  const fetchSameDevice = useServerFn(getUsersWithSameDevice);
+  const assignRoleFn = useServerFn(assignRole);
+  const removeRoleFn = useServerFn(removeRole);
+  const listStaffFn = useServerFn(listStaff);
 
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -144,6 +174,24 @@ function AdminPage() {
   // Tickets tab state
   const [ticketStatus, setTicketStatus] = useState<"open" | "resolved" | "all">("all");
   const [ticketPage, setTicketPage] = useState(1);
+
+  // Wallet adjustment state
+  const [adjustingUser, setAdjustingUser] = useState<{ id: string; name: string; email: string } | null>(null);
+
+  // Same device modal state
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+
+  // Adjustment requests state
+  const [adjustmentRequestsPage, setAdjustmentRequestsPage] = useState(1);
+
+  // Audit log state
+  const [auditLogAdmin, setAuditLogAdmin] = useState("");
+  const [auditLogAction, setAuditLogAction] = useState("");
+  const [auditLogPage, setAuditLogPage] = useState(1);
+
+  // Staff management state
+  const [staffEmail, setStaffEmail] = useState("");
+  const [staffRole, setStaffRole] = useState<"finance" | "support">("finance");
 
   const totals = useQuery({
     queryKey: ["admin-totals"],
@@ -173,6 +221,30 @@ function AdminPage() {
     queryKey: ["admin-tickets", ticketStatus, ticketPage],
     enabled: isAdmin && tab === "tickets",
     queryFn: () => fetchTickets({ data: { status: ticketStatus, page: ticketPage } }),
+  });
+
+  const adjustmentRequests = useQuery({
+    queryKey: ["adjustment-requests", adjustmentRequestsPage],
+    enabled: isAdmin && tab === "withdrawals",
+    queryFn: () => listAdjRequests({ data: { page: adjustmentRequestsPage } }),
+  });
+
+  const auditLogs = useQuery({
+    queryKey: ["audit-logs", auditLogAdmin, auditLogAction, auditLogPage],
+    enabled: isAdmin && tab === "audit",
+    queryFn: () => fetchAuditLogs({ data: { adminFilter: auditLogAdmin || undefined, actionFilter: auditLogAction || undefined, page: auditLogPage } }),
+  });
+
+  const sameDeviceUsers = useQuery({
+    queryKey: ["same-device", selectedDeviceId],
+    enabled: isAdmin && selectedDeviceId !== null,
+    queryFn: () => fetchSameDevice({ data: { deviceId: selectedDeviceId! } }),
+  });
+
+  const staffList = useQuery({
+    queryKey: ["staff-list"],
+    enabled: isAdmin && tab === "staff",
+    queryFn: () => listStaffFn({}),
   });
 
   const refresh = () => void queryClient.invalidateQueries();
@@ -236,6 +308,55 @@ function AdminPage() {
       adjustWallet({ data: input }),
     onSuccess: () => {
       toast.success("Wallet adjusted.");
+      refresh();
+    },
+    onError,
+  });
+
+  const adjustRequestAction = useMutation({
+    mutationFn: (input: { userId: string; amount: number; reason: string }) =>
+      createAdjRequest({ data: input }),
+    onSuccess: () => {
+      toast.success("Adjustment request created and pending approval.");
+      refresh();
+    },
+    onError,
+  });
+
+  const approveAdjustmentAction = useMutation({
+    mutationFn: (requestId: string) => approveAdjRequest({ data: { requestId } }),
+    onSuccess: () => {
+      toast.success("Adjustment request approved and applied.");
+      refresh();
+    },
+    onError,
+  });
+
+  const rejectAdjustmentAction = useMutation({
+    mutationFn: (requestId: string) => rejectAdjRequest({ data: { requestId } }),
+    onSuccess: () => {
+      toast.success("Adjustment request rejected.");
+      refresh();
+    },
+    onError,
+  });
+
+  const assignRoleAction = useMutation({
+    mutationFn: (input: { email: string; role: "admin" | "finance" | "support" }) =>
+      assignRoleFn({ data: input }),
+    onSuccess: () => {
+      toast.success("Role assigned successfully.");
+      setStaffEmail("");
+      refresh();
+    },
+    onError,
+  });
+
+  const removeRoleAction = useMutation({
+    mutationFn: (input: { userId: string; role: "admin" | "finance" | "support" }) =>
+      removeRoleFn({ data: input }),
+    onSuccess: () => {
+      toast.success("Role removed successfully.");
       refresh();
     },
     onError,
@@ -335,6 +456,8 @@ function AdminPage() {
             ["campaigns", "Campaigns ★"],
             ["proof-reviews", "Proof Reviews ★"],
             ["advertisers", "Advertisers ★"],
+            ["audit", "Audit Log"],
+            ["staff", "Staff"],
           ] as [TabKey, string][]
         ).map(([key, label]) => (
           <Button
@@ -524,6 +647,9 @@ function AdminPage() {
                       )}
                     </div>
 
+                    {/* Fraud signals */}
+                    <FraudSignals withdrawalId={request.id} />
+
                     {request.status === "pending" && (
                       <div className="mt-2 space-y-2">
                         <Input
@@ -660,6 +786,94 @@ function AdminPage() {
                     variant="outline"
                     disabled={withdrawalPage >= withdrawals.data.totalPages}
                     onClick={() => setWithdrawalPage(p => p + 1)}
+                  >
+                    Next <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Adjustment Requests Section */}
+          <SectionTitle className="mt-8">Wallet Adjustment Requests</SectionTitle>
+          {adjustmentRequests.isLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+          ) : !adjustmentRequests.data?.requests.length ? (
+            <p className="mt-4 text-sm text-muted-foreground">No pending adjustment requests.</p>
+          ) : (
+            <>
+              <ul className="mt-3 space-y-2">
+                {adjustmentRequests.data.requests.map((req) => (
+                  <li key={req.id} className="surface-card p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-amount">{formatMoney(req.amount)}</p>
+                      <span className="rounded-full bg-background-alt px-2.5 py-1 text-[11px] font-semibold capitalize">
+                        {req.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      User: {req.user?.name || req.user?.email || "Unknown"} · Requested by: {req.requestedBy?.email || "Unknown admin"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Reason: {req.reason}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Created: {formatDateTime(req.createdAt)}
+                    </p>
+                    {req.status === "pending" && (
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="jade"
+                          disabled={approveAdjustmentAction.isPending || rejectAdjustmentAction.isPending}
+                          onClick={() => approveAdjustmentAction.mutate(req.id)}
+                        >
+                          <CheckCircle className="mr-1 size-3" />
+                          Approve & Apply
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={approveAdjustmentAction.isPending || rejectAdjustmentAction.isPending}
+                          onClick={() => rejectAdjustmentAction.mutate(req.id)}
+                        >
+                          <XCircle className="mr-1 size-3" />
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+                    {req.status === "approved" && req.approvedBy && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        ✓ Approved by: {req.approvedBy.email} at {formatDateTime(req.approvedAt!)}
+                      </p>
+                    )}
+                    {req.status === "rejected" && req.approvedBy && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        ✗ Rejected by: {req.approvedBy.email} at {formatDateTime(req.approvedAt!)}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Page {adjustmentRequests.data.page} of {adjustmentRequests.data.totalPages} ({adjustmentRequests.data.total} total)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={adjustmentRequestsPage === 1}
+                    onClick={() => setAdjustmentRequestsPage(p => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="size-4" /> Prev
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={adjustmentRequestsPage >= adjustmentRequests.data.totalPages}
+                    onClick={() => setAdjustmentRequestsPage(p => p + 1)}
                   >
                     Next <ChevronRight className="size-4" />
                   </Button>
@@ -939,6 +1153,9 @@ function AdminPage() {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {user.email} · {user.referral_code}
+                      {user.device_id && user.device_id !== "" && user.device_id !== "server" && (
+                        <span className="ml-2 text-[10px]">Device: {user.device_id.substring(0, 8)}...</span>
+                      )}
                     </p>
                     <p className="mt-1 text-xs">
                       Balance {formatMoney(user.wallet_balance)} · Held {formatMoney(user.held_balance)}{" "}
@@ -954,26 +1171,22 @@ function AdminPage() {
                       >
                         {user.is_flagged ? "Unflag" : "Flag"}
                       </Button>
-                      <Input
-                        className="h-9 w-28"
-                        placeholder="±$"
-                        inputMode="decimal"
-                        value={note(user.id)}
-                        onChange={(event) => setNote(user.id, event.target.value)}
-                      />
+                      {user.device_id && user.device_id !== "" && user.device_id !== "server" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedDeviceId(user.device_id)}
+                        >
+                          <Users className="mr-1 size-3" />
+                          Same device
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="gold"
-                        disabled={!Number.isFinite(Number(note(user.id))) || !note(user.id)}
-                        onClick={() =>
-                          adjustAction.mutate({
-                            userId: user.id,
-                            amount: Number(note(user.id)),
-                            reason: "Manual admin adjustment",
-                          })
-                        }
+                        onClick={() => setAdjustingUser({ id: user.id, name: user.name || "", email: user.email })}
                       >
-                        Adjust
+                        Adjust wallet
                       </Button>
                     </div>
                   </li>
@@ -1092,6 +1305,220 @@ function AdminPage() {
           )}
         </>
       )}
+
+      {/* Audit Log Tab */}
+      {tab === "audit" && (
+        <>
+          <SectionTitle>Audit Log</SectionTitle>
+          
+          <div className="mt-3 space-y-2">
+            <Input
+              placeholder="Filter by admin email..."
+              value={auditLogAdmin}
+              onChange={(e) => { setAuditLogAdmin(e.target.value); setAuditLogPage(1); }}
+            />
+            <Input
+              placeholder="Filter by action (e.g. WALLET_ADJUST, WITHDRAWAL_APPROVE)..."
+              value={auditLogAction}
+              onChange={(e) => { setAuditLogAction(e.target.value); setAuditLogPage(1); }}
+            />
+          </div>
+
+          {auditLogs.isLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+          ) : !auditLogs.data?.logs.length ? (
+            <EmptyState
+              icon={FileText}
+              title="No audit logs"
+              description="Admin actions will appear here."
+            />
+          ) : (
+            <>
+              <ul className="mt-3 space-y-2">
+                {auditLogs.data.logs.map((log) => (
+                  <li key={log.id} className="surface-card p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold">{log.action}</p>
+                      <span className="text-xs text-muted-foreground">{formatDateTime(log.createdAt)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      By: {log.admin?.email || "Unknown admin"}
+                      {log.targetUser && ` · Target: ${log.targetUser.email || log.targetUser.name || "Unknown"}`}
+                    </p>
+                    {log.details && (
+                      <pre className="mt-1 overflow-x-auto rounded bg-background-alt p-2 text-xs text-muted-foreground">
+                        {JSON.stringify(log.details, null, 2)}
+                      </pre>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Page {auditLogs.data.page} of {auditLogs.data.totalPages} ({auditLogs.data.total} total)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={auditLogPage === 1}
+                    onClick={() => setAuditLogPage(p => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="size-4" /> Prev
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={auditLogPage >= auditLogs.data.totalPages}
+                    onClick={() => setAuditLogPage(p => p + 1)}
+                  >
+                    Next <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Staff Management Tab */}
+      {tab === "staff" && (
+        <>
+          <SectionTitle>Staff Management</SectionTitle>
+          
+          <div className="mt-3 surface-card p-3 space-y-3">
+            <p className="text-sm font-semibold">Assign Role</p>
+            <Input
+              placeholder="User email..."
+              value={staffEmail}
+              onChange={(e) => setStaffEmail(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={staffRole === "finance" ? "jade" : "outline"}
+                onClick={() => setStaffRole("finance")}
+              >
+                Finance
+              </Button>
+              <Button
+                size="sm"
+                variant={staffRole === "support" ? "jade" : "outline"}
+                onClick={() => setStaffRole("support")}
+              >
+                Support
+              </Button>
+            </div>
+            <Button
+              variant="jade"
+              disabled={!staffEmail.trim() || assignRoleAction.isPending}
+              onClick={() => assignRoleAction.mutate({ email: staffEmail.trim(), role: staffRole })}
+            >
+              Assign {staffRole} role
+            </Button>
+          </div>
+
+          {staffList.isLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+          ) : !staffList.data?.staff.length ? (
+            <p className="mt-4 text-sm text-muted-foreground">No staff members found.</p>
+          ) : (
+            <>
+              <ul className="mt-3 space-y-2">
+                {staffList.data.staff.map((member) => (
+                  <li key={member.userId + member.role} className="surface-card p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold">{member.email}</p>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {member.roles.map((role) => (
+                            <span
+                              key={role}
+                              className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary capitalize"
+                            >
+                              {role}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {member.roles.map((role) => 
+                          role !== "admin" && (
+                            <Button
+                              key={role}
+                              size="sm"
+                              variant="outline"
+                              disabled={removeRoleAction.isPending}
+                              onClick={() => removeRoleAction.mutate({ userId: member.userId, role: role as "admin" | "finance" | "support" })}
+                            >
+                              Remove {role}
+                            </Button>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Wallet Adjustment Dialog */}
+      {adjustingUser && (
+        <WalletAdjustDialog
+          user={adjustingUser}
+          onConfirm={(amount, reason) => {
+            if (Math.abs(amount) > 100) {
+              adjustRequestAction.mutate({ userId: adjustingUser.id, amount, reason });
+            } else {
+              adjustAction.mutate({ userId: adjustingUser.id, amount, reason });
+            }
+            setAdjustingUser(null);
+          }}
+          onCancel={() => setAdjustingUser(null)}
+        />
+      )}
+
+      {/* Same Device Modal */}
+      {selectedDeviceId && (
+        <Dialog open={true} onOpenChange={() => setSelectedDeviceId(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Users with Same Device</DialogTitle>
+              <DialogDescription>
+                Device ID: {selectedDeviceId.substring(0, 16)}...
+              </DialogDescription>
+            </DialogHeader>
+
+            {sameDeviceUsers.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : !sameDeviceUsers.data?.users.length ? (
+              <p className="text-sm text-muted-foreground">No other users found with this device.</p>
+            ) : (
+              <ul className="space-y-2 max-h-96 overflow-y-auto">
+                {sameDeviceUsers.data.users.map((u) => (
+                  <li key={u.id} className="surface-card p-2">
+                    <p className="text-sm font-semibold">{u.name || u.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {u.email} · Balance: {formatMoney(u.walletBalance)} · Earned: {formatMoney(u.lifetimeEarned)}
+                      {u.isFlagged && <span className="ml-2 text-destructive font-bold">FLAGGED</span>}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSelectedDeviceId(null)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </AppShell>
   );
 }
@@ -1102,5 +1529,141 @@ function Stat({ label, value }: { label: string; value: string }) {
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-amount text-lg">{value}</p>
     </div>
+  );
+}
+
+// Fraud Signals Component
+function FraudSignals({ withdrawalId }: { withdrawalId: string }) {
+  const fetchSignals = useServerFn(getWithdrawalFraudSignals);
+  const signals = useQuery({
+    queryKey: ["fraud-signals", withdrawalId],
+    queryFn: () => fetchSignals({ data: { withdrawalId } }),
+  });
+
+  if (signals.isLoading) {
+    return <p className="mt-2 text-xs text-muted-foreground">Loading fraud check...</p>;
+  }
+
+  if (!signals.data) return null;
+
+  const { riskLevel, accountAgeDays, lifetimeEarned, approvedWithdrawalsCount, isFlagged, deviceDuplicatesCount } = signals.data;
+
+  const riskBadge = {
+    high: { bg: "bg-red-500/20", text: "text-red-900 dark:text-red-100", label: "🔴 HIGH RISK" },
+    medium: { bg: "bg-amber-500/20", text: "text-amber-900 dark:text-amber-100", label: "🟡 MEDIUM" },
+    low: { bg: "bg-green-500/20", text: "text-green-900 dark:text-green-100", label: "🟢 LOW RISK" },
+  }[riskLevel];
+
+  return (
+    <div className={`mt-2 rounded-lg ${riskBadge.bg} p-2`}>
+      <p className={`text-xs font-bold ${riskBadge.text} mb-1`}>{riskBadge.label}</p>
+      <div className="text-xs text-muted-foreground space-y-0.5">
+        <p>• Account age: {accountAgeDays} days</p>
+        <p>• Lifetime earned: {formatMoney(lifetimeEarned)}</p>
+        <p>• Previous approved: {approvedWithdrawalsCount}</p>
+        <p>• Flagged: {isFlagged ? "Yes" : "No"}</p>
+        {deviceDuplicatesCount > 1 && <p>• Shared device: {deviceDuplicatesCount} accounts</p>}
+      </div>
+    </div>
+  );
+}
+
+// Wallet Adjustment Dialog
+function WalletAdjustDialog({
+  user,
+  onConfirm,
+  onCancel,
+}: {
+  user: { id: string; name: string; email: string };
+  onConfirm: (amount: number, reason: string) => void;
+  onCancel: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [open, setOpen] = useState(true);
+
+  const handleConfirm = () => {
+    const numAmount = Number(amount);
+    if (!Number.isFinite(numAmount) || numAmount === 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    if (reason.trim().length < 5) {
+      toast.error("Reason must be at least 5 characters");
+      return;
+    }
+    onConfirm(numAmount, reason.trim());
+    setOpen(false);
+  };
+
+  const handleCancel = () => {
+    setOpen(false);
+    onCancel();
+  };
+
+  const numAmount = Number(amount);
+  const isLargeAdjustment = Math.abs(numAmount) > 100;
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adjust Wallet Balance</DialogTitle>
+          <DialogDescription>
+            Adjusting wallet for: {user.name || user.email}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-semibold">Amount (+ or -)</label>
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="e.g. 50 or -25"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold">Reason (min 5 characters)</label>
+            <Textarea
+              placeholder="Explain why this adjustment is needed..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              maxLength={200}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{reason.length}/200 characters</p>
+          </div>
+
+          {isLargeAdjustment && (
+            <div className="rounded-lg bg-amber-500/20 p-3 text-sm">
+              <p className="font-semibold text-amber-900 dark:text-amber-100">
+                ⚠️ Large Adjustment (${Math.abs(numAmount).toFixed(2)})
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                This will create an adjustment request requiring approval from a different admin.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button
+            variant="jade"
+            onClick={handleConfirm}
+            disabled={!numAmount || reason.trim().length < 5}
+          >
+            {isLargeAdjustment ? "Create Request" : "Apply Now"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
