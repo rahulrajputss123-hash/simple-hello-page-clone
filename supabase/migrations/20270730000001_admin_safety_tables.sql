@@ -1,4 +1,5 @@
--- Admin safety features: audit log, adjustment approvals, extended roles
+-- Admin safety features: audit log, adjustment approvals
+-- Note: app_role enum already extended in previous migration
 
 -- ============================================================================
 -- 1. ADMIN AUDIT LOG
@@ -6,7 +7,7 @@
 
 CREATE TABLE public.admin_audit_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  admin_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE SET NULL,
+  admin_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   action TEXT NOT NULL,
   target_type TEXT,
   target_id TEXT,
@@ -26,13 +27,7 @@ ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY admin_audit_log_read_policy ON public.admin_audit_log
   FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.user_roles
-      WHERE user_id = auth.uid()
-        AND role IN ('admin', 'finance', 'support')
-    )
-  );
+  USING (public.has_role(auth.uid(), 'admin'));
 
 -- No INSERT/UPDATE/DELETE policies - service role only
 
@@ -47,7 +42,7 @@ CREATE TABLE public.adjustment_requests (
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   amount NUMERIC NOT NULL CHECK (ABS(amount) > 100),
   reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) >= 5),
-  requested_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE SET NULL,
+  requested_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   approved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   approval_note TEXT,
@@ -61,34 +56,20 @@ CREATE INDEX idx_adjustment_requests_user_id ON public.adjustment_requests(user_
 CREATE INDEX idx_adjustment_requests_requested_by ON public.adjustment_requests(requested_by);
 CREATE INDEX idx_adjustment_requests_created_at ON public.adjustment_requests(created_at DESC);
 
--- RLS: Admins can read all, nobody can write from client
+-- RLS: Admins and finance can read all, nobody can write from client
 ALTER TABLE public.adjustment_requests ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY adjustment_requests_read_policy ON public.adjustment_requests
   FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM public.user_roles
-      WHERE user_id = auth.uid()
-        AND role IN ('admin', 'finance')
-    )
+    public.has_role(auth.uid(), 'admin') OR
+    public.has_role(auth.uid(), 'finance')
   );
 
 COMMENT ON TABLE public.adjustment_requests IS 'Wallet adjustment requests requiring two-admin approval for amounts > $100.';
 
 -- ============================================================================
--- 3. EXTENDED ROLES (admin, finance, support)
--- ============================================================================
-
--- user_roles table already exists, just add check constraint for new roles
-ALTER TABLE public.user_roles DROP CONSTRAINT IF EXISTS user_roles_role_check;
-ALTER TABLE public.user_roles ADD CONSTRAINT user_roles_role_check 
-  CHECK (role IN ('admin', 'finance', 'support'));
-
-COMMENT ON TABLE public.user_roles IS 'Staff roles: admin (full access), finance (payouts/claims), support (tickets only).';
-
--- ============================================================================
--- 4. FRAUD DETECTION HELPERS
+-- 3. FRAUD DETECTION HELPERS (service_role only)
 -- ============================================================================
 
 -- Function to count profiles sharing the same device_id
@@ -96,6 +77,8 @@ CREATE OR REPLACE FUNCTION public.count_device_duplicates(p_device_id TEXT)
 RETURNS INTEGER
 LANGUAGE SQL
 STABLE
+SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT COUNT(*)::INTEGER
   FROM public.profiles
@@ -110,6 +93,8 @@ CREATE OR REPLACE FUNCTION public.account_age_days(p_user_id UUID)
 RETURNS INTEGER
 LANGUAGE SQL
 STABLE
+SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT EXTRACT(DAY FROM NOW() - created_at)::INTEGER
   FROM public.profiles
@@ -121,6 +106,8 @@ CREATE OR REPLACE FUNCTION public.count_approved_withdrawals(p_user_id UUID)
 RETURNS INTEGER
 LANGUAGE SQL
 STABLE
+SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT COUNT(*)::INTEGER
   FROM public.withdrawal_requests
@@ -128,16 +115,16 @@ AS $$
     AND status = 'approved';
 $$;
 
--- Grant execute to authenticated users (used in admin panel)
-GRANT EXECUTE ON FUNCTION public.count_device_duplicates(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.account_age_days(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.count_approved_withdrawals(UUID) TO authenticated;
+-- Grant execute only to service_role (called from server functions)
+GRANT EXECUTE ON FUNCTION public.count_device_duplicates(TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.account_age_days(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.count_approved_withdrawals(UUID) TO service_role;
 
 -- ============================================================================
--- 5. ADMIN ACTIONS RPC (for list pagination)
+-- 4. ADMIN ACTIONS RPC (service_role only)
 -- ============================================================================
 
--- Paginated audit log listing
+-- Paginated audit log listing (no auth.uid() check - verified in server function)
 CREATE OR REPLACE FUNCTION public.admin_list_audit_logs(
   p_admin_id UUID DEFAULT NULL,
   p_action TEXT DEFAULT NULL,
@@ -167,15 +154,6 @@ DECLARE
   v_offset INTEGER;
   v_total BIGINT;
 BEGIN
-  -- Verify caller has admin role
-  IF NOT EXISTS (
-    SELECT 1 FROM public.user_roles
-    WHERE user_id = auth.uid()
-      AND role IN ('admin', 'finance', 'support')
-  ) THEN
-    RAISE EXCEPTION 'Forbidden';
-  END IF;
-
   v_offset := (GREATEST(p_page, 1) - 1) * p_page_size;
 
   -- Get total count
@@ -211,6 +189,6 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.admin_list_audit_logs TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_list_audit_logs TO service_role;
 
-COMMENT ON FUNCTION public.admin_list_audit_logs IS 'Paginated audit log listing for admin panel. Requires admin/finance/support role.';
+COMMENT ON FUNCTION public.admin_list_audit_logs IS 'Paginated audit log listing. Service role only, role check in server function.';

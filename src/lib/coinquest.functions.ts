@@ -151,8 +151,9 @@ export const cancelWithdrawal = createServerFn({ method: "POST" })
 export const adminOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { assertAdmin, adminOverviewImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminOverviewImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
     return adminOverviewImpl();
   });
 
@@ -170,8 +171,9 @@ export const adminUpdateWithdrawal = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminUpdateWithdrawalImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminUpdateWithdrawalImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
     return adminUpdateWithdrawalImpl(
       context.userId,
       data.id,
@@ -194,8 +196,9 @@ export const adminUpdateOfferClaim = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminUpdateOfferClaimImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminUpdateOfferClaimImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
     return adminUpdateOfferClaimImpl(context.userId, data.id, data.status, data.note ?? null);
   });
 
@@ -211,8 +214,9 @@ export const adminRespondTicket = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminRespondTicketImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminRespondTicketImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance", "support"]);
     return adminRespondTicketImpl(context.userId, data.id, data.response, data.status);
   });
 
@@ -222,8 +226,9 @@ export const adminSetFlag = createServerFn({ method: "POST" })
     z.object({ userId: z.string().uuid(), flagged: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminSetFlagImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminSetFlagImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
     return adminSetFlagImpl(context.userId, data.userId, data.flagged);
   });
 
@@ -239,8 +244,9 @@ export const adminAdjustWallet = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminAdjustWalletImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminAdjustWalletImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
     return adminAdjustWalletImpl(context.userId, data.userId, data.amount, data.reason);
   });
 
@@ -287,8 +293,9 @@ export const adminListUsers = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminListUsersImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListUsersImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
     return adminListUsersImpl(data);
   });
 
@@ -303,8 +310,9 @@ export const adminListWithdrawals = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminListWithdrawalsImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListWithdrawalsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
     return adminListWithdrawalsImpl(data);
   });
 
@@ -319,8 +327,9 @@ export const adminListClaims = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminListClaimsImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListClaimsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
     return adminListClaimsImpl(data);
   });
 
@@ -335,7 +344,8 @@ export const adminListTickets = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminListTicketsImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListTicketsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance", "support"]);
     return adminListTicketsImpl(data);
   });

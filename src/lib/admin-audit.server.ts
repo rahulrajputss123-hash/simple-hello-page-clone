@@ -30,42 +30,49 @@ export async function logAdminAction(params: {
   }
 }
 
+type AppRole = "admin" | "finance" | "support";
+
 /**
- * Shared admin role verification.
- * Throws "Forbidden" if the user does not have an admin role.
- * Reuses the existing assertAdmin logic for consistency.
+ * Check if user has the specified role using has_role RPC.
+ * Returns true if user has the role, false otherwise.
  */
-export async function requireAdmin(
-  supabase: { rpc: (fn: string, args: unknown) => Promise<{ data: unknown }> },
-  userId: string,
-) {
-  const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
-  if (data !== true) throw new Error("Forbidden");
+async function hasRole(userId: string, role: AppRole): Promise<boolean> {
+  try {
+    const { data } = await supabaseAdmin.rpc("has_role", {
+      _user_id: userId,
+      _role: role,
+    });
+    return data === true;
+  } catch (error) {
+    console.error("[role] Failed to check role", { userId, role, error });
+    return false;
+  }
 }
 
 /**
- * Check if user has any of the specified roles.
+ * Require that the user has at least one of the allowed roles.
+ * Throws "Forbidden" if the user does not have any of the required roles.
+ * 
+ * Usage:
+ *   await requireRole(userId, ['admin']) // admin only
+ *   await requireRole(userId, ['admin', 'finance']) // admin or finance
  */
-export async function hasAnyRole(
-  userId: string,
-  roles: Array<"admin" | "finance" | "support">,
-): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .in("role", roles)
-    .limit(1);
-  return Boolean(data?.length);
+export async function requireRole(userId: string, allowedRoles: AppRole[]) {
+  for (const role of allowedRoles) {
+    if (await hasRole(userId, role)) {
+      return; // User has at least one allowed role
+    }
+  }
+  throw new Error("Forbidden");
 }
 
 /**
- * Get user's roles.
+ * Get user's roles (for UI display/logic).
  */
-export async function getUserRoles(userId: string): Promise<string[]> {
+export async function getUserRoles(userId: string): Promise<AppRole[]> {
   const { data } = await supabaseAdmin
     .from("user_roles")
     .select("role")
     .eq("user_id", userId);
-  return (data ?? []).map((r) => r.role);
+  return (data ?? []).map((r) => r.role as AppRole);
 }
