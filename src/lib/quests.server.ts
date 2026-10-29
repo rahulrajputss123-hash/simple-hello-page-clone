@@ -83,6 +83,7 @@ async function fetchLockInputs(
  * When userId is provided, each quest is annotated with is_locked + unlock_reason
  * computed server-side in UTC. Locked quests are INCLUDED so the client can render
  * a locked state instead of hiding them.
+ * Ads quests are filtered out when ADS_ENABLED is false.
  */
 export async function listActiveQuestsImpl(userId?: string): Promise<(QuestRow & LockState)[]> {
   const { data, error } = await db
@@ -92,7 +93,15 @@ export async function listActiveQuestsImpl(userId?: string): Promise<(QuestRow &
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message ?? "Could not load quests.");
 
-  const rows: QuestRow[] = (data ?? []).map((r: QuestRow) => normalize(r));
+  let rows: QuestRow[] = (data ?? []).map((r: QuestRow) => normalize(r));
+
+  // Filter out ads quests if ADS_ENABLED is false
+  const { areAdsEnabledImpl } = await import("./coinquest.server");
+  const adsEnabled = await areAdsEnabledImpl();
+  if (!adsEnabled) {
+    rows = rows.filter((quest) => quest.quest_type !== "ads");
+  }
+
   const { lifetimeEarned, lifetimeWithdrawn } = userId
     ? await fetchLockInputs(userId)
     : { lifetimeEarned: 0, lifetimeWithdrawn: 0 };

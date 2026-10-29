@@ -445,6 +445,14 @@ export async function startQuestImpl(userId: string, questKey: string) {
   const { getQuestByKey, assertQuestNotLocked } = await import("./quests.server");
   const quest = await getQuestByKey(questKey);
 
+  // SECURITY: Block starting ads quests when ads are disabled
+  if (quest.quest_type === "ads") {
+    const adsEnabled = await areAdsEnabledImpl();
+    if (!adsEnabled) {
+      throw new Error("Ad not available right now.");
+    }
+  }
+
   // Enforce lock server-side before allowing any quest progress.
   await assertQuestNotLocked(userId, quest);
 
@@ -473,7 +481,18 @@ export async function startQuestImpl(userId: string, questKey: string) {
   return created.data;
 }
 
-export async function reportAdImpl(userId: string, sessionId: string) {
+export async function reportAdImpl(userId: string, sessionId: string, provider?: string) {
+  // SECURITY: Check if ads are enabled globally
+  const adsEnabled = await areAdsEnabledImpl();
+  if (!adsEnabled) {
+    throw new Error("Ad not available right now.");
+  }
+
+  // SECURITY: Reject placeholder, none, or missing provider
+  if (!provider || provider === "placeholder" || provider === "none") {
+    throw new Error("Ad not available right now.");
+  }
+
   const session = await supabaseAdmin
     .from("quest_sessions")
     .select("*")
@@ -2656,6 +2675,22 @@ export async function checkMaintenanceStatusImpl(ctx: RequestContext) {
     // FAIL OPEN: if status call errors, return enabled=false
     console.error("Maintenance status check failed:", error);
     return { enabled: false, message: "" };
+  }
+}
+
+// Check if ads are enabled globally
+export async function areAdsEnabledImpl(): Promise<boolean> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "ads_enabled")
+      .maybeSingle();
+    return (data?.value as { enabled?: boolean })?.enabled ?? false;
+  } catch (error) {
+    // FAIL SAFE: if check errors, return false (ads disabled)
+    console.error("Ads enabled check failed:", error);
+    return false;
   }
 }
 

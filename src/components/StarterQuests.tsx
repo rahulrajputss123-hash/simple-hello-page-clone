@@ -52,8 +52,18 @@ export function StarterQuests() {
     mutationFn: async (questKey: string) => {
       const questSession = await start({ data: { questKey } });
       const result = await playRewardedAd();
-      if (!result.completed) throw new Error("Ad was closed early.");
-      return report({ data: { sessionId: (questSession as { id: string }).id } });
+      
+      // If no ad SDK is available, don't proceed
+      if (!result.completed) {
+        throw new Error("ADS_NOT_AVAILABLE");
+      }
+      
+      return report({ 
+        data: { 
+          sessionId: (questSession as { id: string }).id,
+          provider: result.provider
+        } 
+      });
     },
     onSuccess: (result: unknown) => {
       const r = result as { credited?: boolean };
@@ -66,7 +76,13 @@ export function StarterQuests() {
       void queryClient.invalidateQueries({ queryKey: ["transactions"] });
       void queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
     },
-    onError: (error: Error) => toast.error(error.message || "That ad couldn't be verified."),
+    onError: (error: Error) => {
+      if (error.message === "ADS_NOT_AVAILABLE") {
+        toast.error("Ads are not available yet, try again later.");
+      } else {
+        toast.error(error.message || "That ad couldn't be verified.");
+      }
+    },
     onSettled: () => setBusy(null),
   });
 

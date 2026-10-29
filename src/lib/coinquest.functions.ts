@@ -49,10 +49,15 @@ export const startQuest = createServerFn({ method: "POST" })
 
 export const reportAdWatched = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ sessionId: z.string().uuid() }).parse(input))
+  .inputValidator((input: unknown) => 
+    z.object({ 
+      sessionId: z.string().uuid(),
+      provider: z.string().optional()
+    }).parse(input)
+  )
   .handler(async ({ data, context }) => {
     const { reportAdImpl } = await import("./coinquest.server");
-    return reportAdImpl(context.userId, data.sessionId);
+    return reportAdImpl(context.userId, data.sessionId, data.provider);
   });
 
 export const completeTask = createServerFn({ method: "POST" })

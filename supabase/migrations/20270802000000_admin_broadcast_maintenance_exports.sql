@@ -148,6 +148,11 @@ VALUES ('maintenance_mode', jsonb_build_object(
 ))
 ON CONFLICT (key) DO NOTHING;
 
+-- Insert ads enabled feature flag if not exists
+INSERT INTO app_settings (key, value)
+VALUES ('ads_enabled', jsonb_build_object('enabled', false))
+ON CONFLICT (key) DO NOTHING;
+
 -- Function to toggle maintenance mode
 CREATE OR REPLACE FUNCTION admin_set_maintenance_mode(
   p_admin_id uuid,
