@@ -13,9 +13,10 @@ import { safeStorage } from "@/lib/safe-storage";
 export type AdResult = { completed: boolean; provider: string };
 
 export async function playRewardedAd(): Promise<AdResult> {
-  // Placeholder: simulates a short rewarded video.
-  await new Promise((resolve) => setTimeout(resolve, 5200));
-  return { completed: true, provider: "placeholder" };
+  // No real ad SDK is available yet. Return completed:false immediately.
+  // When a native AdMob/Unity bridge is implemented, this function becomes
+  // the single integration seam.
+  return { completed: false, provider: "none" };
 }
 
 /** Stable-ish device fingerprint used for the one-account-per-device rule. */

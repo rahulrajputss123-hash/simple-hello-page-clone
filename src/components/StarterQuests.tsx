@@ -12,6 +12,7 @@ import { playRewardedAd } from "@/lib/ads";
 import { reportAdWatched, startQuest } from "@/lib/coinquest.functions";
 import { listActiveQuests, startLockerQuest, startShortlinkStep } from "@/lib/quests.functions";
 import { formatLockReason } from "@/lib/lock-state";
+import { isNativePlatform } from "@/lib/platform";
 
 // Lazy-load dialog (only shown on click)
 const QuestDetailsDialog = lazy(() =>
@@ -33,7 +34,7 @@ export function StarterQuests() {
   const quests = useQuery({
     queryKey: ["quests-active"],
     enabled: Boolean(session),
-    queryFn: () => fetchQuests({}),
+    queryFn: () => fetchQuests({ data: { isNative: isNativePlatform() } }),
   });
 
   const sessions = useQuery({
@@ -52,8 +53,18 @@ export function StarterQuests() {
     mutationFn: async (questKey: string) => {
       const questSession = await start({ data: { questKey } });
       const result = await playRewardedAd();
-      if (!result.completed) throw new Error("Ad was closed early.");
-      return report({ data: { sessionId: (questSession as { id: string }).id } });
+      
+      // If no ad SDK is available, don't proceed
+      if (!result.completed) {
+        throw new Error("ADS_NOT_AVAILABLE");
+      }
+      
+      return report({ 
+        data: { 
+          sessionId: (questSession as { id: string }).id,
+          provider: result.provider
+        } 
+      });
     },
     onSuccess: (result: unknown) => {
       const r = result as { credited?: boolean };
@@ -66,14 +77,20 @@ export function StarterQuests() {
       void queryClient.invalidateQueries({ queryKey: ["transactions"] });
       void queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
     },
-    onError: (error: Error) => toast.error(error.message || "That ad couldn't be verified."),
+    onError: (error: Error) => {
+      if (error.message === "ADS_NOT_AVAILABLE") {
+        toast.error("Ads are not available yet, try again later.");
+      } else {
+        toast.error(error.message || "That ad couldn't be verified.");
+      }
+    },
     onSettled: () => setBusy(null),
   });
 
   const runShortlink = useMutation({
     mutationFn: async ({ questKey, step }: { questKey: string; step: number }) => {
       await start({ data: { questKey } });
-      return openStep({ data: { questKey, step } });
+      return openStep({ data: { questKey, step, isNative: isNativePlatform() } });
     },
     onSuccess: (result) => {
       // The admin may publish a quest before its links exist. That's an expected
@@ -93,7 +110,8 @@ export function StarterQuests() {
   });
 
   const runLocker = useMutation({
-    mutationFn: async (questKey: string) => openLocker({ data: { questKey } }),
+    mutationFn: async (questKey: string) =>
+      openLocker({ data: { questKey, isNative: isNativePlatform() } }),
     onSuccess: (result) => {
       // No lockers configured yet — see the note in runShortlink.
       if ("unavailable" in result) {

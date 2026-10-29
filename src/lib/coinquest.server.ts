@@ -445,6 +445,14 @@ export async function startQuestImpl(userId: string, questKey: string) {
   const { getQuestByKey, assertQuestNotLocked } = await import("./quests.server");
   const quest = await getQuestByKey(questKey);
 
+  // SECURITY: Block starting ads quests when ads are disabled
+  if (quest.quest_type === "ads") {
+    const adsEnabled = await areAdsEnabledImpl();
+    if (!adsEnabled) {
+      throw new Error("Ad not available right now.");
+    }
+  }
+
   // Enforce lock server-side before allowing any quest progress.
   await assertQuestNotLocked(userId, quest);
 
@@ -473,7 +481,18 @@ export async function startQuestImpl(userId: string, questKey: string) {
   return created.data;
 }
 
-export async function reportAdImpl(userId: string, sessionId: string) {
+export async function reportAdImpl(userId: string, sessionId: string, provider?: string) {
+  // SECURITY: Check if ads are enabled globally
+  const adsEnabled = await areAdsEnabledImpl();
+  if (!adsEnabled) {
+    throw new Error("Ad not available right now.");
+  }
+
+  // SECURITY: Reject placeholder, none, or missing provider
+  if (!provider || provider === "placeholder" || provider === "none") {
+    throw new Error("Ad not available right now.");
+  }
+
   const session = await supabaseAdmin
     .from("quest_sessions")
     .select("*")
@@ -661,6 +680,28 @@ async function payManualTask(userId: string, userTaskId: string, title: string, 
 }
 
 export async function claimOfferImpl(userId: string, offerId: string, proofUrl: string | null) {
+  // Check maintenance mode
+  try {
+    const maintenanceStatus = await supabaseAdmin.rpc("get_maintenance_status");
+    if (maintenanceStatus.data?.enabled) {
+      // Check if user is admin
+      const { data: roles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      if (!roles) {
+        throw new Error("The app is currently under maintenance. Please try again later.");
+      }
+    }
+  } catch (error: any) {
+    // If it's our maintenance error, throw it
+    if (error.message.includes("maintenance")) throw error;
+    // Otherwise fail open (don't block on status check errors)
+  }
+
   const offer = await supabaseAdmin.from("offers").select("*").eq("id", offerId).single();
   if (offer.error || !offer.data.is_active) throw new Error("Offer unavailable.");
 
@@ -923,6 +964,28 @@ export async function savePayoutMethodImpl(
 }
 
 export async function createWithdrawalImpl(userId: string, amount: number, payoutMethodId: string) {
+  // Check maintenance mode
+  try {
+    const maintenanceStatus = await supabaseAdmin.rpc("get_maintenance_status");
+    if (maintenanceStatus.data?.enabled) {
+      // Check if user is admin
+      const { data: roles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      if (!roles) {
+        throw new Error("The app is currently under maintenance. Please try again later.");
+      }
+    }
+  } catch (error: any) {
+    // If it's our maintenance error, throw it
+    if (error.message.includes("maintenance")) throw error;
+    // Otherwise fail open (don't block on status check errors)
+  }
+
   if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL) {
     throw new Error(`Minimum withdrawal is $${MIN_WITHDRAWAL.toFixed(2)}.`);
   }
@@ -1022,6 +1085,7 @@ export async function assertAdmin(supabase: RoleRpcClient, userId: string) {
 }
 
 export async function adminUpdateWithdrawalImpl(
+  adminId: string,
   id: string,
   status: string,
   note: string | null,
@@ -1033,7 +1097,7 @@ export async function adminUpdateWithdrawalImpl(
   // Fetch the withdrawal request to check if it's a crypto method
   const withdrawal = await supabaseAdmin
     .from("withdrawal_requests")
-    .select("method_type")
+    .select("method_type, status, amount, user_id")
     .eq("id", id)
     .maybeSingle();
   
@@ -1049,6 +1113,8 @@ export async function adminUpdateWithdrawalImpl(
   if (status === "approved" && withdrawal.data.method_type === "binance_pay" && !transactionHash?.trim()) {
     throw new Error("Binance Pay order ID is required.");
   }
+
+  const statusBefore = withdrawal.data.status;
 
   // Money moves only on the transition out of 'pending', under a row lock
   // (withdrawal_settle). Re-approving an approved request only updates the
@@ -1097,10 +1163,28 @@ export async function adminUpdateWithdrawalImpl(
       "wallet",
     );
   }
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: status === "approved" ? "withdrawal_approve" : "withdrawal_reject",
+    targetType: "withdrawal",
+    targetId: id,
+    before: { status: statusBefore, amount: withdrawal.data.amount },
+    after: { status, amount: withdrawal.data.amount },
+    note: note || undefined,
+  });
+
   return { ok: true };
 }
 
-export async function adminUpdateOfferClaimImpl(id: string, status: string, note: string | null) {
+export async function adminUpdateOfferClaimImpl(
+  adminId: string,
+  id: string,
+  status: string,
+  note: string | null,
+) {
   if (status !== "approved" && status !== "rejected") throw new Error("Unsupported status.");
   const claim = await supabaseAdmin.from("offer_claims").select("*").eq("id", id).single();
   if (claim.error) throw new Error("Claim not found.");
@@ -1108,6 +1192,9 @@ export async function adminUpdateOfferClaimImpl(id: string, status: string, note
   // Fast path only — offer_claim_settle re-checks under a row lock, which is
   // what stops two concurrent approvals from both paying.
   if (claim.data.status !== "pending") return { ok: true, alreadyReviewed: true };
+
+  const statusBefore = claim.data.status;
+  const rewardBefore = claim.data.reward_amount;
 
   // For limited-deal offers, always recompute the reward at approval time from
   // the offer's CURRENT config — never trust the snapshot captured at claim
@@ -1179,26 +1266,91 @@ export async function adminUpdateOfferClaimImpl(id: string, status: string, note
       "offer",
     );
   }
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: status === "approved" ? "claim_approve" : "claim_reject",
+    targetType: "offer_claim",
+    targetId: id,
+    before: { status: statusBefore, reward_amount: rewardBefore },
+    after: { status, reward_amount: result.reward },
+    note: note || undefined,
+  });
+
   return { ok: true };
 }
 
-export async function adminRespondTicketImpl(id: string, response: string, status: string) {
+export async function adminRespondTicketImpl(
+  adminId: string,
+  id: string,
+  response: string,
+  status: string,
+) {
   const ticket = await supabaseAdmin.from("support_tickets").select("*").eq("id", id).single();
   if (ticket.error) throw new Error("Ticket not found.");
+
+  const statusBefore = ticket.data.status;
+
   await supabaseAdmin
     .from("support_tickets")
     .update({ admin_response: response, status })
     .eq("id", id);
   await notify(ticket.data.user_id, "Support replied", response, "support");
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "ticket_respond",
+    targetType: "support_ticket",
+    targetId: id,
+    before: { status: statusBefore },
+    after: { status },
+    note: response.substring(0, 200),
+  });
+
   return { ok: true };
 }
 
-export async function adminSetFlagImpl(userId: string, flagged: boolean) {
+export async function adminSetFlagImpl(adminId: string, userId: string, flagged: boolean) {
+  const before = await supabaseAdmin
+    .from("profiles")
+    .select("is_flagged, email, name")
+    .eq("id", userId)
+    .single();
+
   await supabaseAdmin.from("profiles").update({ is_flagged: flagged }).eq("id", userId);
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: flagged ? "user_flag" : "user_unflag",
+    targetType: "user",
+    targetId: userId,
+    before: { is_flagged: before.data?.is_flagged },
+    after: { is_flagged: flagged },
+    note: `${before.data?.email || before.data?.name || userId}`,
+  });
+
   return { ok: true };
 }
 
-export async function adminAdjustWalletImpl(userId: string, amount: number, reason: string) {
+export async function adminAdjustWalletImpl(
+  adminId: string,
+  userId: string,
+  amount: number,
+  reason: string,
+) {
+  // Get user's wallet balance before adjustment for audit
+  const userBefore = await supabaseAdmin
+    .from("profiles")
+    .select("wallet_balance, lifetime_earned")
+    .eq("id", userId)
+    .single();
+
   // Atomic delta; refuses to take the balance below zero (checked under the lock).
   // Positive adjustments count toward lifetime_earned, negative ones don't.
   try {
@@ -1220,54 +1372,61 @@ export async function adminAdjustWalletImpl(userId: string, amount: number, reas
     console.error("[wallet] admin adjustment failed", { userId, error });
     throw new Error("Could not adjust that wallet.");
   }
+
+  // Get user's wallet balance after adjustment for audit
+  const userAfter = await supabaseAdmin
+    .from("profiles")
+    .select("wallet_balance, lifetime_earned")
+    .eq("id", userId)
+    .single();
+
   await notify(
     userId,
     "Wallet adjusted",
     `${reason} (${amount >= 0 ? "+" : "−"}$${Math.abs(amount).toFixed(2)})`,
     "wallet",
   );
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "wallet_adjust",
+    targetType: "user",
+    targetId: userId,
+    before: {
+      wallet_balance: userBefore.data?.wallet_balance,
+      lifetime_earned: userBefore.data?.lifetime_earned,
+    },
+    after: {
+      wallet_balance: userAfter.data?.wallet_balance,
+      lifetime_earned: userAfter.data?.lifetime_earned,
+    },
+    note: `${amount >= 0 ? "+" : ""}${amount}: ${reason}`,
+  });
+
   return { ok: true };
 }
 
 export async function adminOverviewImpl() {
-  const [withdrawals, claims, tickets, users, transactions, payoutMethods] = await Promise.all([
-    supabaseAdmin
-      .from("withdrawal_requests")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    // Only show claims that are pending AND have proof (actual review requests)
-    // "started" claims are not ready for review yet
-    supabaseAdmin
-      .from("offer_claims")
-      .select("*, offers:offer_id(title, is_limited_deal, deal_group_id, payout_mode)")
-      .eq("status", "pending")
-      .not("proof_url", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabaseAdmin
-      .from("support_tickets")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabaseAdmin
-      .from("profiles")
-      .select(
-        "id, name, email, phone, device_id, is_flagged, wallet_balance, held_balance, lifetime_earned, lifetime_withdrawn, referral_code, created_at",
-      )
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabaseAdmin.from("wallet_transactions").select("amount, kind").limit(2000),
-    // Fetch all Binance Pay payout methods to detect duplicates
-    supabaseAdmin
-      .from("payout_methods")
-      .select("id, user_id, binance_pay_id")
-      .eq("method_type", "binance_pay")
-      .not("binance_pay_id", "is", null),
-  ]);
+  // Call the SQL function for accurate totals over ALL profiles (not just latest 200)
+  const totalsResult = await supabaseAdmin.rpc("admin_compute_totals");
+  const totalsRow = totalsResult.data?.[0];
 
-  const profiles = users.data ?? [];
-  const byId = new Map(profiles.map((p) => [p.id, p]));
+  const totals = {
+    users: Number(totalsRow?.total_users ?? 0),
+    flagged: Number(totalsRow?.flagged_users ?? 0),
+    earned: Number(totalsRow?.total_lifetime_earned ?? 0),
+    withdrawn: Number(totalsRow?.total_lifetime_withdrawn ?? 0),
+    liability: Number(totalsRow?.total_wallet_liability ?? 0),
+  };
+
+  // Fetch Binance Pay methods for duplicate detection
+  const payoutMethods = await supabaseAdmin
+    .from("payout_methods")
+    .select("id, user_id, binance_pay_id")
+    .eq("method_type", "binance_pay")
+    .not("binance_pay_id", "is", null);
 
   // Build a map of Binance Pay IDs to count how many users use each one
   const binancePayIdCounts = new Map<string, number>();
@@ -1287,17 +1446,193 @@ export async function adminOverviewImpl() {
     }
   }
 
-  const totals = {
-    users: profiles.length,
-    flagged: profiles.filter((p) => p.is_flagged).length,
-    earned: profiles.reduce((sum, p) => sum + Number(p.lifetime_earned), 0),
-    withdrawn: profiles.reduce((sum, p) => sum + Number(p.lifetime_withdrawn), 0),
-    liability: profiles.reduce((sum, p) => sum + Number(p.wallet_balance), 0),
-    transactions: (transactions.data ?? []).length,
-  };
+  return { totals, duplicateBinancePayMethodIds };
+}
+
+type AdminListUsersInput = {
+  search?: string;
+  flaggedOnly?: boolean;
+  suspiciousOnly?: boolean;
+  page?: number;
+};
+
+export async function adminListUsersImpl(input: AdminListUsersInput) {
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = 25;
+  const offset = (page - 1) * pageSize;
+
+  // For suspicious filter, we need custom logic
+  if (input.suspiciousOnly) {
+    // Suspicious users are: flagged OR sharing device_id OR account <3 days with earnings
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    // Get all users and filter in memory (not ideal for scale, but works for now)
+    let query = supabaseAdmin
+      .from("profiles")
+      .select(
+        "id, name, email, phone, device_id, is_flagged, wallet_balance, held_balance, lifetime_earned, lifetime_withdrawn, referral_code, created_at",
+      )
+      .order("created_at", { ascending: false });
+
+    if (input.search && input.search.trim()) {
+      const term = `%${input.search.trim()}%`;
+      query = query.or(
+        `email.ilike.${term},name.ilike.${term},referral_code.ilike.${term},device_id.ilike.${term}`,
+      );
+    }
+
+    const result = await query;
+    const allUsers = result.data ?? [];
+
+    // Count device duplicates
+    const deviceIdCounts = new Map<string, number>();
+    for (const user of allUsers) {
+      if (user.device_id && user.device_id !== "" && user.device_id !== "server") {
+        deviceIdCounts.set(user.device_id, (deviceIdCounts.get(user.device_id) || 0) + 1);
+      }
+    }
+
+    // Filter suspicious users
+    const suspicious = allUsers.filter(user => {
+      // Flagged users
+      if (user.is_flagged) return true;
+
+      // Sharing device with others
+      if (user.device_id && user.device_id !== "" && user.device_id !== "server") {
+        if ((deviceIdCounts.get(user.device_id) || 0) > 1) return true;
+      }
+
+      // Account <3 days old with earnings
+      const accountAge = new Date(user.created_at);
+      if (accountAge >= threeDaysAgo && user.lifetime_earned > 0) {
+        return true;
+      }
+
+      return false;
+    });
+
+    // Paginate the filtered results
+    const total = suspicious.length;
+    const paginatedUsers = suspicious.slice(offset, offset + pageSize);
+
+    return {
+      users: paginatedUsers,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  let query = supabaseAdmin
+    .from("profiles")
+    .select(
+      "id, name, email, phone, device_id, is_flagged, wallet_balance, held_balance, lifetime_earned, lifetime_withdrawn, referral_code, created_at",
+      { count: "exact" },
+    );
+
+  // Apply filters
+  if (input.flaggedOnly) {
+    query = query.eq("is_flagged", true);
+  }
+
+  if (input.search && input.search.trim()) {
+    const term = `%${input.search.trim()}%`;
+    query = query.or(
+      `email.ilike.${term},name.ilike.${term},referral_code.ilike.${term},device_id.ilike.${term}`,
+    );
+  }
+
+  // Paginate
+  query = query.order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
+
+  const result = await query;
 
   return {
-    withdrawals: (withdrawals.data ?? []).map((w) => ({
+    users: result.data ?? [],
+    total: result.count ?? 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((result.count ?? 0) / pageSize),
+  };
+}
+
+type AdminListWithdrawalsInput = {
+  status?: "pending" | "approved" | "rejected" | "all";
+  page?: number;
+};
+
+export async function adminListWithdrawalsImpl(input: AdminListWithdrawalsInput) {
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = 25;
+  const offset = (page - 1) * pageSize;
+
+  let query = supabaseAdmin.from("withdrawal_requests").select("*", { count: "exact" });
+
+  // Filter by status
+  if (input.status && input.status !== "all") {
+    query = query.eq("status", input.status);
+  }
+
+  // Sort: pending first, then by created_at desc
+  query = query
+    .order("status", { ascending: true }) // "pending" comes before "approved"/"rejected"
+    .order("created_at", { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  const result = await query;
+
+  // Fetch user profiles for the withdrawals on this page
+  const userIds = [...new Set((result.data ?? []).map((w) => w.user_id))];
+  const profiles = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, email")
+    .in("id", userIds);
+
+  const byId = new Map((profiles.data ?? []).map((p) => [p.id, p]));
+
+  // Fetch Binance Pay duplicate info
+  const payoutMethodIds = (result.data ?? [])
+    .filter((w) => w.payout_method_id)
+    .map((w) => w.payout_method_id!);
+
+  const payoutMethods = await supabaseAdmin
+    .from("payout_methods")
+    .select("id, binance_pay_id")
+    .eq("method_type", "binance_pay")
+    .in("id", payoutMethodIds);
+
+  const binancePayIdCounts = new Map<string, number>();
+  const allBinanceMethods = await supabaseAdmin
+    .from("payout_methods")
+    .select("id, binance_pay_id")
+    .eq("method_type", "binance_pay")
+    .not("binance_pay_id", "is", null);
+
+  for (const method of allBinanceMethods.data ?? []) {
+    const normalized = method.binance_pay_id?.trim().toLowerCase();
+    if (normalized) {
+      binancePayIdCounts.set(normalized, (binancePayIdCounts.get(normalized) ?? 0) + 1);
+    }
+  }
+
+  const duplicateBinancePayMethodIds = new Set<string>();
+  for (const method of payoutMethods.data ?? []) {
+    const normalized = method.binance_pay_id?.trim().toLowerCase();
+    if (normalized && (binancePayIdCounts.get(normalized) ?? 0) > 1) {
+      duplicateBinancePayMethodIds.add(method.id);
+    }
+  }
+
+  // Get counts for badge display
+  const pendingCount = await supabaseAdmin
+    .from("withdrawal_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+
+  return {
+    withdrawals: (result.data ?? []).map((w) => ({
       ...w,
       user: byId.get(w.user_id) ?? null,
       hasDuplicateBinancePay:
@@ -1305,10 +1640,121 @@ export async function adminOverviewImpl() {
         w.payout_method_id &&
         duplicateBinancePayMethodIds.has(w.payout_method_id),
     })),
-    claims: (claims.data ?? []).map((c) => ({ ...c, user: byId.get(c.user_id) ?? null })),
-    tickets: (tickets.data ?? []).map((t) => ({ ...t, user: byId.get(t.user_id) ?? null })),
-    users: profiles,
-    totals,
+    total: result.count ?? 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((result.count ?? 0) / pageSize),
+    pendingCount: pendingCount.count ?? 0,
+  };
+}
+
+type AdminListClaimsInput = {
+  status?: "pending" | "approved" | "rejected" | "all";
+  page?: number;
+};
+
+export async function adminListClaimsImpl(input: AdminListClaimsInput) {
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = 25;
+  const offset = (page - 1) * pageSize;
+
+  let query = supabaseAdmin
+    .from("offer_claims")
+    .select("*, offers:offer_id(title, is_limited_deal, deal_group_id, payout_mode)", {
+      count: "exact",
+    });
+
+  // Only show claims with proof (actual review requests), exclude "started" claims
+  query = query.not("proof_url", "is", null);
+
+  // Filter by status
+  if (input.status && input.status !== "all") {
+    query = query.eq("status", input.status);
+  }
+
+  // Sort: pending first, then by created_at desc
+  query = query
+    .order("status", { ascending: true })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  const result = await query;
+
+  // Fetch user profiles
+  const userIds = [...new Set((result.data ?? []).map((c) => c.user_id))];
+  const profiles = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, email")
+    .in("id", userIds);
+
+  const byId = new Map((profiles.data ?? []).map((p) => [p.id, p]));
+
+  // Get pending count for badge
+  const pendingCount = await supabaseAdmin
+    .from("offer_claims")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending")
+    .not("proof_url", "is", null);
+
+  return {
+    claims: (result.data ?? []).map((c) => ({ ...c, user: byId.get(c.user_id) ?? null })),
+    total: result.count ?? 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((result.count ?? 0) / pageSize),
+    pendingCount: pendingCount.count ?? 0,
+  };
+}
+
+type AdminListTicketsInput = {
+  status?: "open" | "resolved" | "all";
+  page?: number;
+};
+
+export async function adminListTicketsImpl(input: AdminListTicketsInput) {
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = 25;
+  const offset = (page - 1) * pageSize;
+
+  let query = supabaseAdmin.from("support_tickets").select("*", { count: "exact" });
+
+  // Filter by status
+  if (input.status === "open") {
+    query = query.neq("status", "resolved");
+  } else if (input.status === "resolved") {
+    query = query.eq("status", "resolved");
+  }
+
+  // Sort: open first, then by created_at desc
+  query = query
+    .order("status", { ascending: true })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  const result = await query;
+
+  // Fetch user profiles
+  const userIds = [...new Set((result.data ?? []).map((t) => t.user_id))];
+  const profiles = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, email")
+    .in("id", userIds);
+
+  const byId = new Map((profiles.data ?? []).map((p) => [p.id, p]));
+
+  // Get open count for badge
+  const openCount = await supabaseAdmin
+    .from("support_tickets")
+    .select("id", { count: "exact", head: true })
+    .neq("status", "resolved");
+
+  return {
+    tickets: (result.data ?? []).map((t) => ({ ...t, user: byId.get(t.user_id) ?? null })),
+    total: result.count ?? 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((result.count ?? 0) / pageSize),
+    openCount: openCount.count ?? 0,
   };
 }
 
@@ -1379,4 +1825,966 @@ export async function transferEarningsToAdvertiserImpl(
     if (err instanceof Error) throw err;
     throw new Error("Transfer failed");
   }
+}
+
+
+// ============================================================================
+// WALLET ADJUSTMENT REQUESTS (>$100 requires 2-admin approval)
+// ============================================================================
+
+export async function createAdjustmentRequestImpl(
+  adminId: string,
+  userId: string,
+  amount: number,
+  reason: string,
+) {
+  if (Math.abs(amount) <= 100) {
+    throw new Error("Amounts up to $100 are applied immediately. Use adminAdjustWallet instead.");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("adjustment_requests")
+    .insert({
+      user_id: userId,
+      amount,
+      reason,
+      requested_by: adminId,
+      status: "pending",
+    })
+    .select("*")
+    .single();
+
+  if (error) throw new Error("Could not create adjustment request.");
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "adjustment_request_create",
+    targetType: "adjustment_request",
+    targetId: data.id,
+    after: { user_id: userId, amount, reason, status: "pending" },
+    note: reason,
+  });
+
+  return data;
+}
+
+export async function listAdjustmentRequestsImpl(status?: "pending" | "approved" | "rejected") {
+  let query = supabaseAdmin
+    .from("adjustment_requests")
+    .select(
+      `
+      *,
+      user:profiles!adjustment_requests_user_id_fkey(id, name, email, wallet_balance),
+      requester:profiles!adjustment_requests_requested_by_fkey(id, name, email),
+      approver:profiles!adjustment_requests_approved_by_fkey(id, name, email)
+    `,
+    )
+    .order("created_at", { ascending: false });
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("[adjustment-requests] Error fetching:", error);
+    throw new Error("Could not fetch adjustment requests.");
+  }
+
+  return {
+    requests: data ?? [],
+    page: 1,
+    totalPages: 1,
+    total: (data ?? []).length,
+  };
+}
+
+export async function approveAdjustmentRequestImpl(
+  approverId: string,
+  requestId: string,
+  note?: string,
+) {
+  // Fetch the request
+  const request = await supabaseAdmin
+    .from("adjustment_requests")
+    .select("*")
+    .eq("id", requestId)
+    .single();
+
+  if (request.error || !request.data) throw new Error("Request not found.");
+  if (request.data.status !== "pending") throw new Error("Request already processed.");
+
+  // Verify requester != approver
+  if (request.data.requested_by === approverId) {
+    throw new Error("You cannot approve your own adjustment request.");
+  }
+
+  // Apply the wallet adjustment
+  await adminAdjustWalletImpl(
+    approverId,
+    request.data.user_id,
+    Number(request.data.amount),
+    request.data.reason,
+  );
+
+  // Update request status
+  await supabaseAdmin
+    .from("adjustment_requests")
+    .update({
+      status: "approved",
+      approved_by: approverId,
+      approval_note: note ?? null,
+      decided_at: new Date().toISOString(),
+    })
+    .eq("id", requestId);
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId: approverId,
+    action: "adjustment_request_approve",
+    targetType: "adjustment_request",
+    targetId: requestId,
+    before: { status: "pending" },
+    after: { status: "approved", amount: request.data.amount },
+    note: note || undefined,
+  });
+
+  return { ok: true };
+}
+
+export async function rejectAdjustmentRequestImpl(
+  approverId: string,
+  requestId: string,
+  note: string,
+) {
+  // Fetch the request
+  const request = await supabaseAdmin
+    .from("adjustment_requests")
+    .select("*")
+    .eq("id", requestId)
+    .single();
+
+  if (request.error || !request.data) throw new Error("Request not found.");
+  if (request.data.status !== "pending") throw new Error("Request already processed.");
+
+  // Verify requester != approver (even for rejection, to prevent gaming)
+  if (request.data.requested_by === approverId) {
+    throw new Error("You cannot reject your own adjustment request.");
+  }
+
+  // Update request status
+  await supabaseAdmin
+    .from("adjustment_requests")
+    .update({
+      status: "rejected",
+      approved_by: approverId,
+      approval_note: note,
+      decided_at: new Date().toISOString(),
+    })
+    .eq("id", requestId);
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId: approverId,
+    action: "adjustment_request_reject",
+    targetType: "adjustment_request",
+    targetId: requestId,
+    before: { status: "pending" },
+    after: { status: "rejected" },
+    note,
+  });
+
+  return { ok: true };
+}
+
+// ============================================================================
+// AUDIT LOG
+// ============================================================================
+
+export async function adminListAuditLogsImpl(params: {
+  adminId?: string;
+  action?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+}) {
+  const { data, error } = await supabaseAdmin.rpc("admin_list_audit_logs", {
+    p_admin_id: params.adminId ?? null,
+    p_action: params.action ?? null,
+    p_date_from: params.dateFrom ?? null,
+    p_date_to: params.dateTo ?? null,
+    p_page: params.page ?? 1,
+    p_page_size: 25,
+  });
+
+  if (error) {
+    console.error("[audit] Failed to list audit logs", error);
+    throw new Error("Could not fetch audit logs.");
+  }
+
+  const logs = (data ?? []) as Array<{
+    id: string;
+    admin_id: string;
+    admin_email: string;
+    action: string;
+    target_type: string | null;
+    target_id: string | null;
+    before: any;
+    after: any;
+    note: string | null;
+    created_at: string;
+    total_count: number;
+  }>;
+  
+  const totalCount = logs[0]?.total_count ?? 0;
+  const page = params.page ?? 1;
+  const pageSize = 25;
+
+  return {
+    logs: logs.map((log: any) => ({
+      id: log.id,
+      adminId: log.admin_id,
+      adminEmail: log.admin_email,
+      action: log.action,
+      targetType: log.target_type,
+      targetId: log.target_id,
+      before: log.before,
+      after: log.after,
+      note: log.note,
+      createdAt: log.created_at,
+    })),
+    total: totalCount,
+    page,
+    pageSize,
+    totalPages: Math.ceil(totalCount / pageSize),
+  };
+}
+
+// ============================================================================
+// FRAUD SIGNALS (for payout cards)
+// ============================================================================
+
+export async function getWithdrawalFraudSignalsImpl(withdrawalId: string) {
+  // Fetch withdrawal with user info
+  const withdrawal = await supabaseAdmin
+    .from("withdrawal_requests")
+    .select("*, profiles!inner(id, created_at, lifetime_earned, is_flagged, device_id)")
+    .eq("id", withdrawalId)
+    .single();
+
+  if (withdrawal.error || !withdrawal.data) {
+    return null;
+  }
+
+  const user = withdrawal.data.profiles as unknown as {
+    id: string;
+    created_at: string;
+    lifetime_earned: number;
+    is_flagged: boolean;
+    device_id: string | null;
+  };
+
+  // Call fraud detection helper functions via supabaseAdmin
+  const accountAgeDays = await supabaseAdmin.rpc("account_age_days", {
+    p_user_id: user.id,
+  });
+
+  const approvedWithdrawals = await supabaseAdmin.rpc("count_approved_withdrawals", {
+    p_user_id: user.id,
+  });
+
+  let deviceDuplicates = 0;
+  if (user.device_id && user.device_id !== "" && user.device_id !== "server") {
+    const deviceDuplicatesResult = await supabaseAdmin.rpc("count_device_duplicates", {
+      p_device_id: user.device_id,
+    });
+    deviceDuplicates = Number(deviceDuplicatesResult.data) ?? 0;
+  }
+
+  const accountAge = Number(accountAgeDays.data) ?? 0;
+  const approvedCount = Number(approvedWithdrawals.data) ?? 0;
+
+  // Determine risk level
+  let riskLevel: "low" | "medium" | "high" = "low";
+
+  // High risk: new account (<3 days) with first withdrawal OR device duplicates >= 2 OR flagged
+  if (
+    (accountAge < 3 && approvedCount === 0) ||
+    deviceDuplicates >= 2 ||
+    user.is_flagged
+  ) {
+    riskLevel = "high";
+  }
+  // Medium risk: account age < 7 days OR has duplicate Binance Pay
+  else if (accountAge < 7) {
+    riskLevel = "medium";
+  }
+
+  return {
+    accountAgeDays: accountAge,
+    lifetimeEarned: Number(user.lifetime_earned),
+    approvedWithdrawalsCount: approvedCount,
+    isFlagged: user.is_flagged,
+    deviceDuplicatesCount: deviceDuplicates,
+    riskLevel,
+  };
+}
+
+// ============================================================================
+// USERS WITH SAME DEVICE
+// ============================================================================
+
+export async function getUsersWithSameDeviceImpl(deviceId: string) {
+  if (!deviceId || deviceId === "" || deviceId === "server") {
+    return [];
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, email, wallet_balance, is_flagged, created_at")
+    .eq("device_id", deviceId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[users] Failed to fetch users with same device", error);
+    throw new Error("Could not fetch users with same device.");
+  }
+
+  return data ?? [];
+}
+
+// ============================================================================
+// STAFF ROLE MANAGEMENT (admin only)
+// ============================================================================
+
+export async function assignRoleImpl(adminId: string, userEmail: string, role: string) {
+  // Find user by email
+  const user = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("email", userEmail)
+    .maybeSingle();
+
+  if (!user.data) throw new Error(`User not found: ${userEmail}`);
+
+  // Check if role already exists
+  const existing = await supabaseAdmin
+    .from("user_roles")
+    .select("*")
+    .eq("user_id", user.data.id)
+    .eq("role", role)
+    .maybeSingle();
+
+  if (existing.data) throw new Error("User already has this role.");
+
+  // Insert role
+  await supabaseAdmin.from("user_roles").insert({
+    user_id: user.data.id,
+    role,
+  });
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "role_assign",
+    targetType: "user",
+    targetId: user.data.id,
+    after: { email: userEmail, role },
+    note: `Assigned ${role} to ${userEmail}`,
+  });
+
+  return { ok: true };
+}
+
+export async function removeRoleImpl(
+  adminId: string,
+  targetUserId: string,
+  role: string,
+) {
+  // Prevent admin from removing their own admin role
+  if (targetUserId === adminId && role === "admin") {
+    throw new Error("You cannot remove your own admin role.");
+  }
+
+  // Get user email for logging
+  const user = await supabaseAdmin
+    .from("profiles")
+    .select("email")
+    .eq("id", targetUserId)
+    .maybeSingle();
+
+  // Delete role
+  const { error } = await supabaseAdmin
+    .from("user_roles")
+    .delete()
+    .eq("user_id", targetUserId)
+    .eq("role", role);
+
+  if (error) throw new Error("Could not remove role.");
+
+  // Log admin action
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "role_remove",
+    targetType: "user",
+    targetId: targetUserId,
+    before: { email: user.data?.email, role },
+    note: `Removed ${role} from ${user.data?.email || targetUserId}`,
+  });
+
+  return { ok: true };
+}
+
+export async function listStaffImpl() {
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select(
+      `
+      *,
+      profiles!inner(id, email, name)
+    `,
+    )
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[staff] Failed to list staff", error);
+    throw new Error("Could not fetch staff list.");
+  }
+
+  // Group by user
+  const staffMap = new Map<
+    string,
+    {
+      userId: string;
+      email: string;
+      name: string | null;
+      roles: Array<{ role: string; assignedAt: string }>;
+    }
+  >();
+
+  for (const row of data ?? []) {
+    const profile = row.profiles as unknown as { id: string; email: string; name: string | null };
+    if (!staffMap.has(profile.id)) {
+      staffMap.set(profile.id, {
+        userId: profile.id,
+        email: profile.email,
+        name: profile.name,
+        roles: [],
+      });
+    }
+    staffMap.get(profile.id)!.roles.push({
+      role: row.role,
+      assignedAt: row.created_at,
+    });
+  }
+
+  return {
+    staff: Array.from(staffMap.values()),
+  };
+}
+
+// ============================================================================
+// QUICK REPLIES for ticket responses
+// ============================================================================
+
+export async function listQuickRepliesImpl(adminId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("admin_quick_replies")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[quick-replies] Failed to list", error);
+    throw new Error("Could not fetch quick replies.");
+  }
+
+  return (data ?? []) as Array<{
+    id: string;
+    title: string;
+    content: string;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+}
+
+export async function createQuickReplyImpl(
+  adminId: string,
+  title: string,
+  content: string,
+) {
+  const { data, error } = await supabaseAdmin
+    .from("admin_quick_replies")
+    .insert({
+      title,
+      content,
+      created_by: adminId,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[quick-replies] Failed to create", error);
+    throw new Error("Could not create quick reply.");
+  }
+
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "quick_reply_create",
+    targetType: "quick_reply",
+    targetId: data.id,
+    after: { title, content },
+    note: `Created quick reply: ${title}`,
+  });
+
+  return data;
+}
+
+export async function updateQuickReplyImpl(
+  adminId: string,
+  replyId: string,
+  title: string,
+  content: string,
+) {
+  // Fetch the old data and check ownership
+  const oldReply = await supabaseAdmin
+    .from("admin_quick_replies")
+    .select("*")
+    .eq("id", replyId)
+    .single();
+
+  if (oldReply.error || !oldReply.data) {
+    console.error("[quick-replies] Reply not found", oldReply.error);
+    throw new Error("Quick reply not found.");
+  }
+
+  // Staff can only edit their own replies
+  if (oldReply.data.created_by !== adminId) {
+    throw new Error("You can only edit your own quick replies.");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("admin_quick_replies")
+    .update({
+      title,
+      content,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", replyId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[quick-replies] Failed to update", error);
+    throw new Error("Could not update quick reply.");
+  }
+
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "quick_reply_update",
+    targetType: "quick_reply",
+    targetId: replyId,
+    before: { title: oldReply.data.title, content: oldReply.data.content },
+    after: { title, content },
+    note: `Updated quick reply: ${title}`,
+  });
+
+  return data;
+}
+
+export async function deleteQuickReplyImpl(adminId: string, replyId: string) {
+  // Fetch the reply data and check ownership
+  const oldReply = await supabaseAdmin
+    .from("admin_quick_replies")
+    .select("*")
+    .eq("id", replyId)
+    .single();
+
+  if (oldReply.error || !oldReply.data) {
+    console.error("[quick-replies] Reply not found", oldReply.error);
+    throw new Error("Quick reply not found.");
+  }
+
+  // Check if user is admin (can delete any) or if they own this reply
+  const { getUserRoles } = await import("./admin-audit.server");
+  const roles = await getUserRoles(adminId);
+  const isAdmin = roles.includes("admin");
+
+  if (!isAdmin && oldReply.data.created_by !== adminId) {
+    throw new Error("You can only delete your own quick replies. Admins can delete any.");
+  }
+
+  const { error } = await supabaseAdmin
+    .from("admin_quick_replies")
+    .delete()
+    .eq("id", replyId);
+
+  if (error) {
+    console.error("[quick-replies] Failed to delete", error);
+    throw new Error("Could not delete quick reply.");
+  }
+
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "quick_reply_delete",
+    targetType: "quick_reply",
+    targetId: replyId,
+    before: { title: oldReply.data.title, content: oldReply.data.content },
+    note: `Deleted quick reply: ${oldReply.data.title}`,
+  });
+
+  return { ok: true };
+}
+
+// ============================================================================
+// DASHBOARD ANALYTICS
+// ============================================================================
+
+export async function getDashboardSignupsImpl(days: number) {
+  const { data, error } = await supabaseAdmin.rpc("admin_daily_signups", {
+    p_days: days,
+  });
+
+  if (error) {
+    console.error("[dashboard] Failed to fetch signups", error);
+    throw new Error("Could not fetch signup data.");
+  }
+
+  return (data ?? []) as Array<{
+    signup_date: string;
+    google_signups: number;
+    email_signups: number;
+    total_signups: number;
+  }>;
+}
+
+export async function getDashboardActiveUsersImpl(days: number) {
+  const { data, error } = await supabaseAdmin.rpc("admin_daily_active_users", {
+    p_days: days,
+  });
+
+  if (error) {
+    console.error("[dashboard] Failed to fetch active users", error);
+    throw new Error("Could not fetch active users data.");
+  }
+
+  return (data ?? []) as Array<{
+    activity_date: string;
+    active_users: number;
+  }>;
+}
+
+export async function getDashboardRevenuePayoutImpl(days: number) {
+  const { data, error } = await supabaseAdmin.rpc("admin_daily_revenue_payout", {
+    p_days: days,
+  });
+
+  if (error) {
+    console.error("[dashboard] Failed to fetch revenue/payout", error);
+    throw new Error("Could not fetch revenue/payout data.");
+  }
+
+  return (data ?? []) as Array<{
+    transaction_date: string;
+    revenue: number;
+    payout: number;
+    net_profit: number;
+  }>;
+}
+
+export async function getDashboardTopOffersImpl(days: number) {
+  const { data, error } = await supabaseAdmin.rpc("admin_top_offers_by_completions", {
+    p_days: days,
+    p_limit: 10,
+  });
+
+  if (error) {
+    console.error("[dashboard] Failed to fetch top offers", error);
+    throw new Error("Could not fetch top offers data.");
+  }
+
+  return (data ?? []) as Array<{
+    offer_id: string;
+    offer_title: string;
+    offer_image_url: string | null;
+    completion_count: number;
+    total_reward_paid: number;
+    approval_rate: number;
+  }>;
+}
+
+export async function getUserDetailImpl(userId: string) {
+  const { data, error } = await supabaseAdmin.rpc("admin_user_detail", {
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error("[user-detail] Failed to fetch user detail", error);
+    throw new Error("Could not fetch user detail.");
+  }
+
+  return data as {
+    profile: {
+      id: string;
+      email: string;
+      name: string | null;
+      created_at: string;
+      wallet_balance: number;
+      lifetime_earned: number;
+      is_flagged: boolean;
+      device_id: string | null;
+      referral_code: string;
+      referred_by: string | null;
+    };
+    wallet_transactions: Array<{
+      id: string;
+      amount: number;
+      transaction_type: string;
+      description: string;
+      created_at: string;
+      reference_id: string | null;
+    }>;
+    offer_claims: Array<{
+      id: string;
+      offer_id: string;
+      offer_title: string;
+      status: string;
+      reward_amount: number;
+      created_at: string;
+      admin_note: string | null;
+    }>;
+    referral_stats: {
+      total_referrals: number;
+      active_referrals: number;
+      total_earned_from_referrals: number;
+    };
+    payout_methods: Array<{
+      id: string;
+      method_type: string;
+      label: string;
+      last_4_digits: string | null;
+      created_at: string;
+    }>;
+    device_info: {
+      device_id: string | null;
+      duplicate_count: number;
+    };
+  };
+}
+
+export async function getUserAuditLogImpl(userId: string) {
+  const { data, error } = await supabaseAdmin.rpc("admin_user_audit_log", {
+    p_user_id: userId,
+    p_limit: 50,
+  });
+
+  if (error) {
+    console.error("[user-audit] Failed to fetch user audit log", error);
+    throw new Error("Could not fetch user audit log.");
+  }
+
+  return (data ?? []) as Array<{
+    id: string;
+    admin_id: string;
+    admin_email: string;
+    action: string;
+    target_type: string;
+    target_id: string;
+    before: any;
+    after: any;
+    note: string;
+    created_at: string;
+  }>;
+}
+
+
+// ============================================================================
+// Admin Broadcast Notifications
+// ============================================================================
+
+export async function sendBroadcastNotificationImpl(ctx: RequestContext, data: {
+  title: string;
+  message: string;
+  activeOnly: boolean;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin"]);
+
+  const { data: result, error } = await supabase.rpc("admin_send_broadcast", {
+    p_admin_id: user.id,
+    p_title: data.title,
+    p_message: data.message,
+    p_active_only: data.activeOnly,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as { success: boolean; sent_count: number; error?: string; audit_id?: string };
+}
+
+// ============================================================================
+// Maintenance Mode
+// ============================================================================
+
+export async function setMaintenanceModeImpl(ctx: RequestContext, data: {
+  enabled: boolean;
+  message?: string;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin"]);
+
+  const { data: result, error } = await supabase.rpc("admin_set_maintenance_mode", {
+    p_admin_id: user.id,
+    p_enabled: data.enabled,
+    p_message: data.message || null,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as { success: boolean; enabled: boolean; audit_id: string };
+}
+
+export async function getMaintenanceStatusImpl(ctx: RequestContext) {
+  const supabase = await authServiceClient(ctx);
+
+  const { data: result, error } = await supabase.rpc("get_maintenance_status");
+
+  if (error) throw new Error(error.message);
+  
+  return result as { enabled: boolean; message?: string };
+}
+
+// Public maintenance check (no auth required)
+export async function checkMaintenanceStatusImpl(ctx: RequestContext) {
+  try {
+    const supabase = await createAnonClient(ctx);
+    const { data: result } = await supabase.rpc("get_maintenance_status");
+    return (result as { enabled: boolean; message?: string }) || { enabled: false, message: "" };
+  } catch (error) {
+    // FAIL OPEN: if status call errors, return enabled=false
+    console.error("Maintenance status check failed:", error);
+    return { enabled: false, message: "" };
+  }
+}
+
+// Check if ads are enabled globally
+export async function areAdsEnabledImpl(): Promise<boolean> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "ads_enabled")
+      .maybeSingle();
+    return (data?.value as { enabled?: boolean })?.enabled ?? false;
+  } catch (error) {
+    // FAIL SAFE: if check errors, return false (ads disabled)
+    console.error("Ads enabled check failed:", error);
+    return false;
+  }
+}
+
+// ============================================================================
+// CSV Exports
+// ============================================================================
+
+export async function exportUsersCsvImpl(ctx: RequestContext, data: {
+  flaggedOnly?: boolean;
+  activeOnly?: boolean;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin"]);
+
+  const { data: result, error } = await supabase.rpc("admin_export_users_csv", {
+    p_admin_id: user.id,
+    p_flagged_only: data.flaggedOnly || false,
+    p_active_only: data.activeOnly || false,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as Array<{
+    id: string;
+    email: string;
+    name: string;
+    referral_code: string;
+    wallet_balance: number;
+    held_balance: number;
+    lifetime_earned: number;
+    lifetime_withdrawn: number;
+    is_flagged: boolean;
+    created_at: string;
+  }>;
+}
+
+export async function exportTransactionsCsvImpl(ctx: RequestContext, data: {
+  userId?: string;
+  days?: number;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin"]);
+
+  const { data: result, error } = await supabase.rpc("admin_export_transactions_csv", {
+    p_admin_id: user.id,
+    p_user_id: data.userId || null,
+    p_days: data.days || 30,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as Array<{
+    id: string;
+    user_id: string;
+    user_email: string;
+    amount: number;
+    kind: string;
+    source: string;
+    status: string;
+    description: string;
+    created_at: string;
+  }>;
+}
+
+export async function exportPayoutsCsvImpl(ctx: RequestContext, data: {
+  status?: string;
+  days?: number;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin", "finance"]);
+
+  const { data: result, error } = await supabase.rpc("admin_export_payouts_csv", {
+    p_admin_id: user.id,
+    p_status: data.status || null,
+    p_days: data.days || 30,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as Array<{
+    id: string;
+    user_id: string;
+    user_email: string;
+    user_name: string;
+    amount: number;
+    method_type: string;
+    status: string;
+    reference_id: string;
+    transaction_hash: string;
+    admin_note: string;
+    created_at: string;
+    updated_at: string;
+  }>;
 }

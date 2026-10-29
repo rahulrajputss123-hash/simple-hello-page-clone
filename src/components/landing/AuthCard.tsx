@@ -71,7 +71,7 @@ export function AuthCard({ auth, id = "auth" }: { auth: AuthFormApi; id?: string
             required
             autoComplete={signup ? "new-password" : "current-password"}
             maxLength={72}
-            placeholder="At least 8 characters"
+            placeholder="At least 6 characters"
             data-testid="landing-password-input"
           />
         </div>

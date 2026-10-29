@@ -136,7 +136,7 @@ function AuthPage() {
               type="password"
               autoComplete={mode === "signup" ? "new-password" : "current-password"}
               maxLength={72}
-              placeholder="At least 8 characters"
+              placeholder="At least 6 characters"
               data-testid="auth-password-input"
             />
           </div>

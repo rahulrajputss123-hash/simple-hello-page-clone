@@ -49,10 +49,15 @@ export const startQuest = createServerFn({ method: "POST" })
 
 export const reportAdWatched = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ sessionId: z.string().uuid() }).parse(input))
+  .inputValidator((input: unknown) => 
+    z.object({ 
+      sessionId: z.string().uuid(),
+      provider: z.string().optional()
+    }).parse(input)
+  )
   .handler(async ({ data, context }) => {
     const { reportAdImpl } = await import("./coinquest.server");
-    return reportAdImpl(context.userId, data.sessionId);
+    return reportAdImpl(context.userId, data.sessionId, data.provider);
   });
 
 export const completeTask = createServerFn({ method: "POST" })
@@ -151,8 +156,9 @@ export const cancelWithdrawal = createServerFn({ method: "POST" })
 export const adminOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { assertAdmin, adminOverviewImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminOverviewImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
     return adminOverviewImpl();
   });
 
@@ -170,9 +176,11 @@ export const adminUpdateWithdrawal = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminUpdateWithdrawalImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminUpdateWithdrawalImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
     return adminUpdateWithdrawalImpl(
+      context.userId,
       data.id,
       data.status,
       data.note ?? null,
@@ -193,9 +201,10 @@ export const adminUpdateOfferClaim = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminUpdateOfferClaimImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
-    return adminUpdateOfferClaimImpl(data.id, data.status, data.note ?? null);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminUpdateOfferClaimImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
+    return adminUpdateOfferClaimImpl(context.userId, data.id, data.status, data.note ?? null);
   });
 
 export const adminRespondTicket = createServerFn({ method: "POST" })
@@ -210,9 +219,10 @@ export const adminRespondTicket = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminRespondTicketImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
-    return adminRespondTicketImpl(data.id, data.response, data.status);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminRespondTicketImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance", "support"]);
+    return adminRespondTicketImpl(context.userId, data.id, data.response, data.status);
   });
 
 export const adminSetFlag = createServerFn({ method: "POST" })
@@ -221,9 +231,10 @@ export const adminSetFlag = createServerFn({ method: "POST" })
     z.object({ userId: z.string().uuid(), flagged: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminSetFlagImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
-    return adminSetFlagImpl(data.userId, data.flagged);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminSetFlagImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return adminSetFlagImpl(context.userId, data.userId, data.flagged);
   });
 
 export const adminAdjustWallet = createServerFn({ method: "POST" })
@@ -233,14 +244,15 @@ export const adminAdjustWallet = createServerFn({ method: "POST" })
       .object({
         userId: z.string().uuid(),
         amount: z.number().min(-10000).max(10000),
-        reason: z.string().trim().min(2).max(200),
+        reason: z.string().trim().min(5, "Reason must be at least 5 characters").max(200),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { assertAdmin, adminAdjustWalletImpl } = await import("./coinquest.server");
-    await assertAdmin(context.supabase, context.userId);
-    return adminAdjustWalletImpl(data.userId, data.amount, data.reason);
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminAdjustWalletImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return adminAdjustWalletImpl(context.userId, data.userId, data.amount, data.reason);
   });
 
 /** Account deletion (Amazon/Google app store compliance). */
@@ -272,4 +284,441 @@ export const transferEarningsToAdvertiser = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { transferEarningsToAdvertiserImpl } = await import("./coinquest.server");
     return transferEarningsToAdvertiserImpl(context.userId, data.amount, data.idempotencyKey);
+  });
+
+export const adminListUsers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        search: z.string().trim().max(200).optional(),
+        flaggedOnly: z.boolean().optional(),
+        suspiciousOnly: z.boolean().optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListUsersImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return adminListUsersImpl(data);
+  });
+
+export const adminListWithdrawals = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        status: z.enum(["pending", "approved", "rejected", "all"]).optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListWithdrawalsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
+    return adminListWithdrawalsImpl(data);
+  });
+
+export const adminListClaims = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        status: z.enum(["pending", "approved", "rejected", "all"]).optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListClaimsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
+    return adminListClaimsImpl(data);
+  });
+
+export const adminListTickets = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        status: z.enum(["open", "resolved", "all"]).optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListTicketsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance", "support"]);
+    return adminListTicketsImpl(data);
+  });
+
+
+// ============================================================================
+// WALLET ADJUSTMENT REQUESTS
+// ============================================================================
+
+export const createAdjustmentRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        amount: z.number().refine((val) => Math.abs(val) > 100, "Amount must be > $100"),
+        reason: z.string().trim().min(5).max(200),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { createAdjustmentRequestImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return createAdjustmentRequestImpl(context.userId, data.userId, data.amount, data.reason);
+  });
+
+export const listAdjustmentRequests = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        status: z.enum(["pending", "approved", "rejected"]).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { listAdjustmentRequestsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return listAdjustmentRequestsImpl(data.status);
+  });
+
+export const approveAdjustmentRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        requestId: z.string().uuid(),
+        note: z.string().trim().max(200).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { approveAdjustmentRequestImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return approveAdjustmentRequestImpl(context.userId, data.requestId, data.note);
+  });
+
+export const rejectAdjustmentRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        requestId: z.string().uuid(),
+        note: z.string().trim().min(5).max(200),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { rejectAdjustmentRequestImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return rejectAdjustmentRequestImpl(context.userId, data.requestId, data.note);
+  });
+
+// ============================================================================
+// AUDIT LOG
+// ============================================================================
+
+export const adminListAuditLogs = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        adminFilter: z.string().trim().max(100).optional(),
+        actionFilter: z.string().trim().max(100).optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        page: z.number().int().min(1).optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { adminListAuditLogsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return adminListAuditLogsImpl({
+      adminId: data.adminFilter,
+      action: data.actionFilter,
+      dateFrom: data.startDate,
+      dateTo: data.endDate,
+      page: data.page,
+    });
+  });
+
+// ============================================================================
+// FRAUD SIGNALS
+// ============================================================================
+
+export const getWithdrawalFraudSignals = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        withdrawalId: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getWithdrawalFraudSignalsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance"]);
+    return getWithdrawalFraudSignalsImpl(data.withdrawalId);
+  });
+
+export const getUsersWithSameDevice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        deviceId: z.string().trim().min(1),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getUsersWithSameDeviceImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return getUsersWithSameDeviceImpl(data.deviceId);
+  });
+
+// ============================================================================
+// STAFF MANAGEMENT
+// ============================================================================
+
+export const assignRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        userEmail: z.string().trim().email(),
+        role: z.enum(["admin", "finance", "support"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { assignRoleImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return assignRoleImpl(context.userId, data.userEmail, data.role);
+  });
+
+export const removeRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        role: z.enum(["admin", "finance", "support"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { removeRoleImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return removeRoleImpl(context.userId, data.userId, data.role);
+  });
+
+export const listStaff = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { listStaffImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return listStaffImpl();
+  });
+
+// ============================================================================
+// QUICK REPLIES
+// ============================================================================
+
+export const listQuickReplies = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { listQuickRepliesImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance", "support"]);
+    return listQuickRepliesImpl(context.userId);
+  });
+
+export const createQuickReply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        title: z.string().trim().min(1).max(100),
+        content: z.string().trim().min(1).max(2000),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { createQuickReplyImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance", "support"]);
+    return createQuickReplyImpl(context.userId, data.title, data.content);
+  });
+
+export const updateQuickReply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        title: z.string().trim().min(1).max(100),
+        content: z.string().trim().min(1).max(2000),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { updateQuickReplyImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance", "support"]);
+    return updateQuickReplyImpl(context.userId, data.id, data.title, data.content);
+  });
+
+export const deleteQuickReply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ id: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { deleteQuickReplyImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance", "support"]);
+    return deleteQuickReplyImpl(context.userId, data.id);
+  });
+
+// Dashboard Analytics
+export const getDashboardSignups = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({ days: z.number().int().min(1).max(365) }))
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getDashboardSignupsImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return getDashboardSignupsImpl(data.days);
+  });
+
+export const getDashboardActiveUsers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({ days: z.number().int().min(1).max(365) }))
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getDashboardActiveUsersImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return getDashboardActiveUsersImpl(data.days);
+  });
+
+export const getDashboardRevenuePayout = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({ days: z.number().int().min(1).max(365) }))
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getDashboardRevenuePayoutImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return getDashboardRevenuePayoutImpl(data.days);
+  });
+
+export const getDashboardTopOffers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({ days: z.number().int().min(1).max(365) }))
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getDashboardTopOffersImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return getDashboardTopOffersImpl(data.days);
+  });
+
+export const getUserDetail = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({ userId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getUserDetailImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin", "finance", "support"]);
+    return getUserDetailImpl(data.userId);
+  });
+
+export const getUserAuditLog = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({ userId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    const { getUserAuditLogImpl } = await import("./coinquest.server");
+    await requireRole(context.userId, ["admin"]);
+    return getUserAuditLogImpl(data.userId);
+  });
+
+
+// ============================================================================
+// Admin Broadcast Notifications
+// ============================================================================
+
+export const sendBroadcastNotification = createServerFn({ method: "POST" })
+  .validator((data: { title: string; message: string; activeOnly: boolean }) => data)
+  .handler(async (ctx) => {
+    const { sendBroadcastNotificationImpl } = await import("@/lib/coinquest.server");
+    return sendBroadcastNotificationImpl(ctx, ctx.data);
+  });
+
+// ============================================================================
+// Maintenance Mode
+// ============================================================================
+
+export const setMaintenanceMode = createServerFn({ method: "POST" })
+  .validator((data: { enabled: boolean; message?: string }) => data)
+  .handler(async (ctx) => {
+    const { setMaintenanceModeImpl } = await import("@/lib/coinquest.server");
+    return setMaintenanceModeImpl(ctx, ctx.data);
+  });
+
+export const getMaintenanceStatus = createServerFn({ method: "GET" })
+  .handler(async (ctx) => {
+    const { getMaintenanceStatusImpl } = await import("@/lib/coinquest.server");
+    return getMaintenanceStatusImpl(ctx);
+  });
+
+export const checkMaintenanceStatus = createServerFn({ method: "GET" })
+  .handler(async (ctx) => {
+    const { checkMaintenanceStatusImpl } = await import("@/lib/coinquest.server");
+    return checkMaintenanceStatusImpl(ctx);
+  });
+
+// ============================================================================
+// CSV Exports
+// ============================================================================
+
+export const exportUsersCsv = createServerFn({ method: "POST" })
+  .validator((data: { flaggedOnly?: boolean; activeOnly?: boolean }) => data)
+  .handler(async (ctx) => {
+    const { exportUsersCsvImpl } = await import("@/lib/coinquest.server");
+    return exportUsersCsvImpl(ctx, ctx.data);
+  });
+
+export const exportTransactionsCsv = createServerFn({ method: "POST" })
+  .validator((data: { userId?: string; days?: number }) => data)
+  .handler(async (ctx) => {
+    const { exportTransactionsCsvImpl } = await import("@/lib/coinquest.server");
+    return exportTransactionsCsvImpl(ctx, ctx.data);
+  });
+
+export const exportPayoutsCsv = createServerFn({ method: "POST" })
+  .validator((data: { status?: string; days?: number }) => data)
+  .handler(async (ctx) => {
+    const { exportPayoutsCsvImpl } = await import("@/lib/coinquest.server");
+    return exportPayoutsCsvImpl(ctx, ctx.data);
   });

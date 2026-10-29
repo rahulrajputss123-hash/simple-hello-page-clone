@@ -17,6 +17,7 @@ import { useIsNative } from "@/hooks/useIsNative";
 import { ViewedOfferProvider } from "@/lib/viewed-offer";
 import { SplashScreen } from "@/components/SplashScreen";
 import { Toaster } from "@/components/ui/sonner";
+import { MaintenanceCheck } from "@/components/MaintenanceCheck";
 
 function NotFoundComponent() {
   return (
@@ -212,10 +213,12 @@ function RootComponent() {
       <AuthProvider>
         {/* Lets the Support-tab AI assistant know which offer the user opened. */}
         <ViewedOfferProvider>
-          <SplashGate>
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
-          </SplashGate>
+          <MaintenanceCheck>
+            <SplashGate>
+              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+              <Outlet />
+            </SplashGate>
+          </MaintenanceCheck>
         </ViewedOfferProvider>
         <Toaster position="top-center" />
       </AuthProvider>
