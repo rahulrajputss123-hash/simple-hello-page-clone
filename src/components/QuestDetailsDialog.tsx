@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowUpRight, Info } from "lucide-react";
 
 import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import {
   deriveQuestView,
   QUEST_ACCENTS,
@@ -97,7 +97,7 @@ export function QuestDetailsDialog({
           )}
           <div className="min-w-0 flex-1 text-left">
             <p className="text-amount text-sm text-gold-dark" data-testid="quest-details-reward">
-              {formatMoney(quest.reward_amount)}
+              {formatReward(quest.reward_amount)}
             </p>
             {accent && (
               <span

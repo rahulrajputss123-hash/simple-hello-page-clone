@@ -32,8 +32,8 @@ import {
   LOCKER_MAX_URLS,
   SHORTLINK_MAX_STEPS,
   SHORTLINK_MIN_STEPS,
-  formatMoney,
 } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 
 type FormState = {
   id?: string;
@@ -285,7 +285,7 @@ export function QuestsManager() {
                             quest.locker_urls.length === 1 ? "locker" : "lockers"
                           }`
                         : ` · ${quest.shortlink_steps.length} shortlinks`}
-                    · reward {formatMoney(quest.reward_amount)} · sort {quest.sort_order}
+                    · reward {formatReward(quest.reward_amount)} · sort {quest.sort_order}
                   </p>
                   {/* A link-driven quest with nothing configured yet. It is still
                       publishable — users just see "link coming soon" — so this is

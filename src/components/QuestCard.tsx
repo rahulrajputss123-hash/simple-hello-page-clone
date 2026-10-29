@@ -1,7 +1,7 @@
 import { Check, Loader2, LockKeyhole } from "lucide-react";
 import { memo } from "react";
 
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import {
   CREDITED_ACCENT,
   deriveQuestView,
@@ -171,7 +171,7 @@ export const QuestCard = memo(function QuestCard({
                 className="text-[17px] font-bold leading-none [font-variant-numeric:tabular-nums]"
                 style={{ color: INK, fontFamily: DISPLAY_FONT }}
               >
-                {formatMoney(quest.reward_amount)}
+                {formatReward(quest.reward_amount)}
               </span>
             </span>
           </span>

@@ -51,7 +51,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import { computeLockState, formatLockReason } from "@/lib/lock-state";
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import { completeTask } from "@/lib/coinquest.functions";
 import { tasksQuery, userTasksQuery } from "@/lib/queries";
 import { refreshMyTasks } from "@/lib/tasks.functions";
@@ -241,7 +241,7 @@ function TaskPage() {
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate font-semibold">{task.title}</p>
                       <span className="text-amount text-sm text-gold-dark">
-                        {formatMoney(task.reward)}
+                        {formatReward(task.reward)}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">{task.description}</p>

@@ -15,7 +15,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 
 import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import { offerDisplayBadge } from "@/lib/offers/display-badge";
 import { requestProofUploadUrl } from "@/lib/offers.functions";
 import { useViewedOffer } from "@/lib/viewed-offer";
@@ -239,7 +239,7 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
           </h1>
           {offer && (
             <p className="text-amount text-base text-gold-dark" data-testid="offer-details-amount">
-              {offerDisplayBadge(offer) ?? formatMoney(offer.reward_amount)}
+              {offerDisplayBadge(offer) ?? formatReward(offer.reward_amount)}
             </p>
           )}
           {offer?.is_limited_deal && (

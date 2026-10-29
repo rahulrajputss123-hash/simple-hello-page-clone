@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/lib/auth";
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import { listActiveCampaigns, listMySubmissions } from "@/lib/marketplace.functions";
 import { cn } from "@/lib/utils";
 
@@ -132,7 +132,7 @@ const TaskCard = memo(function TaskCard({ campaign }: TaskCardProps) {
         </div>
         <div className="shrink-0 text-right">
           <p className="text-amount text-xl leading-none text-gold-dark">
-            {formatMoney(campaign.reward)}
+            {formatReward(campaign.reward)}
           </p>
           <p className="mt-1 text-[10px] text-muted-foreground">{campaign.estimatedTime}</p>
         </div>

@@ -3,7 +3,7 @@ import { memo, useCallback, useState } from "react";
 import { Link } from "@tanstack/react-router";
 
 import { OfferTagRow, type OfferTag } from "@/components/OfferTagRow";
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import { offerDisplayBadge } from "@/lib/offers/display-badge";
 
 interface OfferCardProps {
@@ -120,7 +120,7 @@ export const OfferCard = memo(function OfferCard({
             className="text-amount mt-auto pt-1 text-base leading-none text-gold-dark"
             data-testid={`featured-offer-amount-${id}`}
           >
-            {displayBadge ?? formatMoney(reward_amount)}
+            {displayBadge ?? formatReward(reward_amount)}
           </span>
         </div>
       </Link>

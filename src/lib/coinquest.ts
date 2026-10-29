@@ -34,6 +34,14 @@ export const SHORTLINK_MAX_STEPS = 10;
  */
 export const LOCKER_MAX_URLS = 10;
 
+/**
+ * Format a wallet balance or withdrawal amount for display.
+ * Shows exactly 2 decimal places with $ prefix.
+ * Use this for wallet balances and withdrawal amounts.
+ * For reward/earning amounts, use formatReward() from format-reward.ts instead.
+ * 
+ * @deprecated Use formatBalance() from format-reward.ts for new code
+ */
 export function formatMoney(value: number | string | null | undefined): string {
   const n = typeof value === "string" ? Number(value) : (value ?? 0);
   return `$${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
