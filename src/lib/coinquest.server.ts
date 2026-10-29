@@ -661,6 +661,28 @@ async function payManualTask(userId: string, userTaskId: string, title: string, 
 }
 
 export async function claimOfferImpl(userId: string, offerId: string, proofUrl: string | null) {
+  // Check maintenance mode
+  try {
+    const maintenanceStatus = await supabaseAdmin.rpc("get_maintenance_status");
+    if (maintenanceStatus.data?.enabled) {
+      // Check if user is admin
+      const { data: roles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      if (!roles) {
+        throw new Error("The app is currently under maintenance. Please try again later.");
+      }
+    }
+  } catch (error: any) {
+    // If it's our maintenance error, throw it
+    if (error.message.includes("maintenance")) throw error;
+    // Otherwise fail open (don't block on status check errors)
+  }
+
   const offer = await supabaseAdmin.from("offers").select("*").eq("id", offerId).single();
   if (offer.error || !offer.data.is_active) throw new Error("Offer unavailable.");
 
@@ -923,6 +945,28 @@ export async function savePayoutMethodImpl(
 }
 
 export async function createWithdrawalImpl(userId: string, amount: number, payoutMethodId: string) {
+  // Check maintenance mode
+  try {
+    const maintenanceStatus = await supabaseAdmin.rpc("get_maintenance_status");
+    if (maintenanceStatus.data?.enabled) {
+      // Check if user is admin
+      const { data: roles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      if (!roles) {
+        throw new Error("The app is currently under maintenance. Please try again later.");
+      }
+    }
+  } catch (error: any) {
+    // If it's our maintenance error, throw it
+    if (error.message.includes("maintenance")) throw error;
+    // Otherwise fail open (don't block on status check errors)
+  }
+
   if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL) {
     throw new Error(`Minimum withdrawal is $${MIN_WITHDRAWAL.toFixed(2)}.`);
   }
@@ -1813,9 +1857,9 @@ export async function listAdjustmentRequestsImpl(status?: "pending" | "approved"
     .select(
       `
       *,
-      user:user_id(id, name, email, wallet_balance),
-      requester:requested_by(id, name, email),
-      approver:approved_by(id, name, email)
+      user:profiles!adjustment_requests_user_id_fkey(id, name, email, wallet_balance),
+      requester:profiles!adjustment_requests_requested_by_fkey(id, name, email),
+      approver:profiles!adjustment_requests_approved_by_fkey(id, name, email)
     `,
     )
     .order("created_at", { ascending: false });
@@ -1825,9 +1869,17 @@ export async function listAdjustmentRequestsImpl(status?: "pending" | "approved"
   }
 
   const { data, error } = await query;
-  if (error) throw new Error("Could not fetch adjustment requests.");
+  if (error) {
+    console.error("[adjustment-requests] Error fetching:", error);
+    throw new Error("Could not fetch adjustment requests.");
+  }
 
-  return data ?? [];
+  return {
+    requests: data ?? [],
+    page: 1,
+    totalPages: 1,
+    total: (data ?? []).length,
+  };
 }
 
 export async function approveAdjustmentRequestImpl(
@@ -1955,13 +2007,26 @@ export async function adminListAuditLogsImpl(params: {
     throw new Error("Could not fetch audit logs.");
   }
 
-  const logs = data ?? [];
+  const logs = (data ?? []) as Array<{
+    id: string;
+    admin_id: string;
+    admin_email: string;
+    action: string;
+    target_type: string | null;
+    target_id: string | null;
+    before: any;
+    after: any;
+    note: string | null;
+    created_at: string;
+    total_count: number;
+  }>;
+  
   const totalCount = logs[0]?.total_count ?? 0;
   const page = params.page ?? 1;
   const pageSize = 25;
 
   return {
-    logs: logs.map((log) => ({
+    logs: logs.map((log: any) => ({
       id: log.id,
       adminId: log.admin_id,
       adminEmail: log.admin_email,
@@ -2018,29 +2083,32 @@ export async function getWithdrawalFraudSignalsImpl(withdrawalId: string) {
     const deviceDuplicatesResult = await supabaseAdmin.rpc("count_device_duplicates", {
       p_device_id: user.device_id,
     });
-    deviceDuplicates = deviceDuplicatesResult.data ?? 0;
+    deviceDuplicates = Number(deviceDuplicatesResult.data) ?? 0;
   }
+
+  const accountAge = Number(accountAgeDays.data) ?? 0;
+  const approvedCount = Number(approvedWithdrawals.data) ?? 0;
 
   // Determine risk level
   let riskLevel: "low" | "medium" | "high" = "low";
 
   // High risk: new account (<3 days) with first withdrawal OR device duplicates >= 2 OR flagged
   if (
-    (accountAgeDays.data !== null && accountAgeDays.data < 3 && approvedWithdrawals.data === 0) ||
+    (accountAge < 3 && approvedCount === 0) ||
     deviceDuplicates >= 2 ||
     user.is_flagged
   ) {
     riskLevel = "high";
   }
   // Medium risk: account age < 7 days OR has duplicate Binance Pay
-  else if (accountAgeDays.data !== null && accountAgeDays.data < 7) {
+  else if (accountAge < 7) {
     riskLevel = "medium";
   }
 
   return {
-    accountAgeDays: accountAgeDays.data ?? 0,
+    accountAgeDays: accountAge,
     lifetimeEarned: Number(user.lifetime_earned),
-    approvedWithdrawalsCount: approvedWithdrawals.data ?? 0,
+    approvedWithdrawalsCount: approvedCount,
     isFlagged: user.is_flagged,
     deviceDuplicatesCount: deviceDuplicates,
     riskLevel,
@@ -2197,5 +2265,491 @@ export async function listStaffImpl() {
     });
   }
 
-  return Array.from(staffMap.values());
+  return {
+    staff: Array.from(staffMap.values()),
+  };
+}
+
+// ============================================================================
+// QUICK REPLIES for ticket responses
+// ============================================================================
+
+export async function listQuickRepliesImpl(adminId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("admin_quick_replies")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[quick-replies] Failed to list", error);
+    throw new Error("Could not fetch quick replies.");
+  }
+
+  return (data ?? []) as Array<{
+    id: string;
+    title: string;
+    content: string;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+}
+
+export async function createQuickReplyImpl(
+  adminId: string,
+  title: string,
+  content: string,
+) {
+  const { data, error } = await supabaseAdmin
+    .from("admin_quick_replies")
+    .insert({
+      title,
+      content,
+      created_by: adminId,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[quick-replies] Failed to create", error);
+    throw new Error("Could not create quick reply.");
+  }
+
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "quick_reply_create",
+    targetType: "quick_reply",
+    targetId: data.id,
+    after: { title, content },
+    note: `Created quick reply: ${title}`,
+  });
+
+  return data;
+}
+
+export async function updateQuickReplyImpl(
+  adminId: string,
+  replyId: string,
+  title: string,
+  content: string,
+) {
+  // Fetch the old data and check ownership
+  const oldReply = await supabaseAdmin
+    .from("admin_quick_replies")
+    .select("*")
+    .eq("id", replyId)
+    .single();
+
+  if (oldReply.error || !oldReply.data) {
+    console.error("[quick-replies] Reply not found", oldReply.error);
+    throw new Error("Quick reply not found.");
+  }
+
+  // Staff can only edit their own replies
+  if (oldReply.data.created_by !== adminId) {
+    throw new Error("You can only edit your own quick replies.");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("admin_quick_replies")
+    .update({
+      title,
+      content,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", replyId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[quick-replies] Failed to update", error);
+    throw new Error("Could not update quick reply.");
+  }
+
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "quick_reply_update",
+    targetType: "quick_reply",
+    targetId: replyId,
+    before: { title: oldReply.data.title, content: oldReply.data.content },
+    after: { title, content },
+    note: `Updated quick reply: ${title}`,
+  });
+
+  return data;
+}
+
+export async function deleteQuickReplyImpl(adminId: string, replyId: string) {
+  // Fetch the reply data and check ownership
+  const oldReply = await supabaseAdmin
+    .from("admin_quick_replies")
+    .select("*")
+    .eq("id", replyId)
+    .single();
+
+  if (oldReply.error || !oldReply.data) {
+    console.error("[quick-replies] Reply not found", oldReply.error);
+    throw new Error("Quick reply not found.");
+  }
+
+  // Check if user is admin (can delete any) or if they own this reply
+  const { getUserRoles } = await import("./admin-audit.server");
+  const roles = await getUserRoles(adminId);
+  const isAdmin = roles.includes("admin");
+
+  if (!isAdmin && oldReply.data.created_by !== adminId) {
+    throw new Error("You can only delete your own quick replies. Admins can delete any.");
+  }
+
+  const { error } = await supabaseAdmin
+    .from("admin_quick_replies")
+    .delete()
+    .eq("id", replyId);
+
+  if (error) {
+    console.error("[quick-replies] Failed to delete", error);
+    throw new Error("Could not delete quick reply.");
+  }
+
+  const { logAdminAction } = await import("./admin-audit.server");
+  await logAdminAction({
+    adminId,
+    action: "quick_reply_delete",
+    targetType: "quick_reply",
+    targetId: replyId,
+    before: { title: oldReply.data.title, content: oldReply.data.content },
+    note: `Deleted quick reply: ${oldReply.data.title}`,
+  });
+
+  return { ok: true };
+}
+
+// ============================================================================
+// DASHBOARD ANALYTICS
+// ============================================================================
+
+export async function getDashboardSignupsImpl(days: number) {
+  const { data, error } = await supabaseAdmin.rpc("admin_daily_signups", {
+    p_days: days,
+  });
+
+  if (error) {
+    console.error("[dashboard] Failed to fetch signups", error);
+    throw new Error("Could not fetch signup data.");
+  }
+
+  return (data ?? []) as Array<{
+    signup_date: string;
+    google_signups: number;
+    email_signups: number;
+    total_signups: number;
+  }>;
+}
+
+export async function getDashboardActiveUsersImpl(days: number) {
+  const { data, error } = await supabaseAdmin.rpc("admin_daily_active_users", {
+    p_days: days,
+  });
+
+  if (error) {
+    console.error("[dashboard] Failed to fetch active users", error);
+    throw new Error("Could not fetch active users data.");
+  }
+
+  return (data ?? []) as Array<{
+    activity_date: string;
+    active_users: number;
+  }>;
+}
+
+export async function getDashboardRevenuePayoutImpl(days: number) {
+  const { data, error } = await supabaseAdmin.rpc("admin_daily_revenue_payout", {
+    p_days: days,
+  });
+
+  if (error) {
+    console.error("[dashboard] Failed to fetch revenue/payout", error);
+    throw new Error("Could not fetch revenue/payout data.");
+  }
+
+  return (data ?? []) as Array<{
+    transaction_date: string;
+    revenue: number;
+    payout: number;
+    net_profit: number;
+  }>;
+}
+
+export async function getDashboardTopOffersImpl(days: number) {
+  const { data, error } = await supabaseAdmin.rpc("admin_top_offers_by_completions", {
+    p_days: days,
+    p_limit: 10,
+  });
+
+  if (error) {
+    console.error("[dashboard] Failed to fetch top offers", error);
+    throw new Error("Could not fetch top offers data.");
+  }
+
+  return (data ?? []) as Array<{
+    offer_id: string;
+    offer_title: string;
+    offer_image_url: string | null;
+    completion_count: number;
+    total_reward_paid: number;
+    approval_rate: number;
+  }>;
+}
+
+export async function getUserDetailImpl(userId: string) {
+  const { data, error } = await supabaseAdmin.rpc("admin_user_detail", {
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error("[user-detail] Failed to fetch user detail", error);
+    throw new Error("Could not fetch user detail.");
+  }
+
+  return data as {
+    profile: {
+      id: string;
+      email: string;
+      name: string | null;
+      created_at: string;
+      wallet_balance: number;
+      lifetime_earned: number;
+      is_flagged: boolean;
+      device_id: string | null;
+      referral_code: string;
+      referred_by: string | null;
+    };
+    wallet_transactions: Array<{
+      id: string;
+      amount: number;
+      transaction_type: string;
+      description: string;
+      created_at: string;
+      reference_id: string | null;
+    }>;
+    offer_claims: Array<{
+      id: string;
+      offer_id: string;
+      offer_title: string;
+      status: string;
+      reward_amount: number;
+      created_at: string;
+      admin_note: string | null;
+    }>;
+    referral_stats: {
+      total_referrals: number;
+      active_referrals: number;
+      total_earned_from_referrals: number;
+    };
+    payout_methods: Array<{
+      id: string;
+      method_type: string;
+      label: string;
+      last_4_digits: string | null;
+      created_at: string;
+    }>;
+    device_info: {
+      device_id: string | null;
+      duplicate_count: number;
+    };
+  };
+}
+
+export async function getUserAuditLogImpl(userId: string) {
+  const { data, error } = await supabaseAdmin.rpc("admin_user_audit_log", {
+    p_user_id: userId,
+    p_limit: 50,
+  });
+
+  if (error) {
+    console.error("[user-audit] Failed to fetch user audit log", error);
+    throw new Error("Could not fetch user audit log.");
+  }
+
+  return (data ?? []) as Array<{
+    id: string;
+    admin_id: string;
+    admin_email: string;
+    action: string;
+    target_type: string;
+    target_id: string;
+    before: any;
+    after: any;
+    note: string;
+    created_at: string;
+  }>;
+}
+
+
+// ============================================================================
+// Admin Broadcast Notifications
+// ============================================================================
+
+export async function sendBroadcastNotificationImpl(ctx: RequestContext, data: {
+  title: string;
+  message: string;
+  activeOnly: boolean;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin"]);
+
+  const { data: result, error } = await supabase.rpc("admin_send_broadcast", {
+    p_admin_id: user.id,
+    p_title: data.title,
+    p_message: data.message,
+    p_active_only: data.activeOnly,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as { success: boolean; sent_count: number; error?: string; audit_id?: string };
+}
+
+// ============================================================================
+// Maintenance Mode
+// ============================================================================
+
+export async function setMaintenanceModeImpl(ctx: RequestContext, data: {
+  enabled: boolean;
+  message?: string;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin"]);
+
+  const { data: result, error } = await supabase.rpc("admin_set_maintenance_mode", {
+    p_admin_id: user.id,
+    p_enabled: data.enabled,
+    p_message: data.message || null,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as { success: boolean; enabled: boolean; audit_id: string };
+}
+
+export async function getMaintenanceStatusImpl(ctx: RequestContext) {
+  const supabase = await authServiceClient(ctx);
+
+  const { data: result, error } = await supabase.rpc("get_maintenance_status");
+
+  if (error) throw new Error(error.message);
+  
+  return result as { enabled: boolean; message?: string };
+}
+
+// Public maintenance check (no auth required)
+export async function checkMaintenanceStatusImpl(ctx: RequestContext) {
+  try {
+    const supabase = await createAnonClient(ctx);
+    const { data: result } = await supabase.rpc("get_maintenance_status");
+    return (result as { enabled: boolean; message?: string }) || { enabled: false, message: "" };
+  } catch (error) {
+    // FAIL OPEN: if status call errors, return enabled=false
+    console.error("Maintenance status check failed:", error);
+    return { enabled: false, message: "" };
+  }
+}
+
+// ============================================================================
+// CSV Exports
+// ============================================================================
+
+export async function exportUsersCsvImpl(ctx: RequestContext, data: {
+  flaggedOnly?: boolean;
+  activeOnly?: boolean;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin"]);
+
+  const { data: result, error } = await supabase.rpc("admin_export_users_csv", {
+    p_admin_id: user.id,
+    p_flagged_only: data.flaggedOnly || false,
+    p_active_only: data.activeOnly || false,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as Array<{
+    id: string;
+    email: string;
+    name: string;
+    referral_code: string;
+    wallet_balance: number;
+    held_balance: number;
+    lifetime_earned: number;
+    lifetime_withdrawn: number;
+    is_flagged: boolean;
+    created_at: string;
+  }>;
+}
+
+export async function exportTransactionsCsvImpl(ctx: RequestContext, data: {
+  userId?: string;
+  days?: number;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin"]);
+
+  const { data: result, error } = await supabase.rpc("admin_export_transactions_csv", {
+    p_admin_id: user.id,
+    p_user_id: data.userId || null,
+    p_days: data.days || 30,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as Array<{
+    id: string;
+    user_id: string;
+    user_email: string;
+    amount: number;
+    kind: string;
+    source: string;
+    status: string;
+    description: string;
+    created_at: string;
+  }>;
+}
+
+export async function exportPayoutsCsvImpl(ctx: RequestContext, data: {
+  status?: string;
+  days?: number;
+}) {
+  const supabase = await authServiceClient(ctx);
+  const user = await requireUser(supabase);
+  await requireRole(user, ["admin", "finance"]);
+
+  const { data: result, error } = await supabase.rpc("admin_export_payouts_csv", {
+    p_admin_id: user.id,
+    p_status: data.status || null,
+    p_days: data.days || 30,
+  });
+
+  if (error) throw new Error(error.message);
+  
+  return result as Array<{
+    id: string;
+    user_id: string;
+    user_email: string;
+    user_name: string;
+    amount: number;
+    method_type: string;
+    status: string;
+    reference_id: string;
+    transaction_hash: string;
+    admin_note: string;
+    created_at: string;
+    updated_at: string;
+  }>;
 }
