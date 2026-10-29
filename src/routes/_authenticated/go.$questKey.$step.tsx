@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { completeShortlinkStep, startShortlinkStep } from "@/lib/quests.functions";
 import { formatMoney } from "@/lib/coinquest";
 import { useAuth } from "@/lib/auth";
+import { isNativePlatform } from "@/lib/platform";
 
 /**
  * Return page from a shortlink network. Auto-runs completeShortlinkStep on mount.
@@ -52,7 +53,9 @@ function GoPage() {
     let cancelled = false;
     (async () => {
       try {
-        const result = await complete({ data: { questKey, step: stepNum } });
+        const result = await complete({
+          data: { questKey, step: stepNum, isNative: isNativePlatform() },
+        });
         if (cancelled) return;
         setState({ kind: "success", ...result });
 
@@ -85,7 +88,7 @@ function GoPage() {
     setOpeningNext(true);
     try {
       const result = await openNext({
-        data: { questKey, step: state.nextStep },
+        data: { questKey, step: state.nextStep, isNative: isNativePlatform() },
       });
       // `unavailable` means the quest has no links configured yet — nothing to
       // open, so just return home rather than surfacing a failure.

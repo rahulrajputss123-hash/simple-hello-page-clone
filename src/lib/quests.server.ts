@@ -37,6 +37,8 @@ export type QuestRow = {
   lock_type: "none" | "time" | "earning" | "first_withdrawal";
   unlock_at: string | null;
   required_lifetime_earned: number | null;
+  /** When true, quest is only shown and allowed in the native app. Hidden on web. */
+  app_only: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -56,6 +58,7 @@ function normalize(row: QuestRow): QuestRow {
     unlock_at: row.unlock_at ?? null,
     required_lifetime_earned:
       row.required_lifetime_earned != null ? Number(row.required_lifetime_earned) : null,
+    app_only: Boolean(row.app_only ?? false),
   };
 }
 
@@ -84,8 +87,12 @@ async function fetchLockInputs(
  * computed server-side in UTC. Locked quests are INCLUDED so the client can render
  * a locked state instead of hiding them.
  * Ads quests are filtered out when ADS_ENABLED is false.
+ * App-only quests are filtered out when isNative is false.
+ * 
+ * @param isNative - Client-reported platform flag. WARNING: Can be spoofed. Server enforcement
+ *                   in assertQuestNotLocked provides additional protection.
  */
-export async function listActiveQuestsImpl(userId?: string): Promise<(QuestRow & LockState)[]> {
+export async function listActiveQuestsImpl(userId?: string, isNative?: boolean): Promise<(QuestRow & LockState)[]> {
   const { data, error } = await db
     .from("quests")
     .select("*")
@@ -100,6 +107,13 @@ export async function listActiveQuestsImpl(userId?: string): Promise<(QuestRow &
   const adsEnabled = await areAdsEnabledImpl();
   if (!adsEnabled) {
     rows = rows.filter((quest) => quest.quest_type !== "ads");
+  }
+
+  // Filter out app-only quests when not on native platform
+  // NOTE: isNative flag is client-reported and can be spoofed. This is UI filtering only.
+  // Server enforcement happens in assertQuestNotLocked / assertQuestPlatform.
+  if (isNative === false) {
+    rows = rows.filter((quest) => !quest.app_only);
   }
 
   const { lifetimeEarned, lifetimeWithdrawn } = userId
@@ -148,6 +162,8 @@ export type QuestFormInput = {
   lockType: "none" | "time" | "earning" | "first_withdrawal";
   unlockAt?: string | null | undefined;
   requiredLifetimeEarned?: number | null | undefined;
+  /** When true, quest is only shown and allowed in the native app */
+  appOnly: boolean;
 };
 
 export async function upsertQuestImpl(input: QuestFormInput) {
@@ -203,6 +219,7 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     lock_type: input.lockType,
     unlock_at: input.lockType === "time" ? input.unlockAt : null,
     required_lifetime_earned: input.lockType === "earning" ? input.requiredLifetimeEarned : null,
+    app_only: input.appOnly,
   };
 
   if (input.id) {
@@ -266,6 +283,20 @@ export async function assertQuestNotLocked(userId: string, quest: QuestRow): Pro
     lifetimeWithdrawn,
   );
   assertNotLocked(state, quest.label);
+}
+
+/**
+ * Server-side platform enforcement for app-only quests.
+ * Throws if the quest is marked app_only and the request is NOT from a native app.
+ * Call this before allowing any quest progress or crediting any reward.
+ * 
+ * WARNING: Platform detection can be spoofed. This is a best-effort check to improve
+ * UX and reduce accidental web access, not a security boundary.
+ */
+export function assertQuestPlatform(quest: QuestRow, isNative: boolean): void {
+  if (quest.app_only && !isNative) {
+    throw new Error("This quest is only available in the app");
+  }
 }
 
 /**
@@ -391,9 +422,10 @@ async function finishQuestSession(
  * `step` is 1-based and `total` is the number of lockers, so the UI can render
  * "Locker 1 of 3".
  */
-export async function startLockerQuestImpl(userId: string, questKey: string) {
+export async function startLockerQuestImpl(userId: string, questKey: string, isNative: boolean) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "locker") throw new Error("This quest is not a locker quest.");
+  assertQuestPlatform(quest, isNative);
   const urls = quest.locker_urls;
   // Not configured yet. A soft result rather than a throw: the admin is allowed
   // to publish a quest before its links exist, so this is an expected state and
@@ -481,9 +513,10 @@ export async function startLockerQuestImpl(userId: string, questKey: string) {
  * be credited — only the most recent one is matched. This is an inherent
  * consequence of the static-redirect design. See reply notes for details.
  */
-export async function completeLockerQuestImpl(userId: string, questKey: string) {
+export async function completeLockerQuestImpl(userId: string, questKey: string, isNative: boolean) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "locker") throw new Error("This quest is not a locker quest.");
+  assertQuestPlatform(quest, isNative);
   await assertQuestNotLocked(userId, quest);
 
   const session = await db
@@ -607,9 +640,10 @@ export async function completeLockerQuestImpl(userId: string, questKey: string) 
   };
 }
 
-export async function startShortlinkStepImpl(userId: string, questKey: string, step: number) {
+export async function startShortlinkStepImpl(userId: string, questKey: string, step: number, isNative: boolean) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "shortlink") throw new Error("This quest is not a shortlink quest.");
+  assertQuestPlatform(quest, isNative);
   // Same soft path as the locker case — no steps configured yet is expected, not
   // an error. Checked before the session lookup so an unconfigured quest never
   // reports "Start the quest first".
@@ -649,9 +683,10 @@ export async function startShortlinkStepImpl(userId: string, questKey: string, s
   };
 }
 
-export async function completeShortlinkStepImpl(userId: string, questKey: string, step: number) {
+export async function completeShortlinkStepImpl(userId: string, questKey: string, step: number, isNative: boolean) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "shortlink") throw new Error("This quest is not a shortlink quest.");
+  assertQuestPlatform(quest, isNative);
   await assertQuestNotLocked(userId, quest);
 
   const session = await db

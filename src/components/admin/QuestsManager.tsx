@@ -53,6 +53,7 @@ type FormState = {
   lockType: "none" | "time" | "earning" | "first_withdrawal";
   unlockAt: string;
   requiredLifetimeEarned: string;
+  appOnly: boolean;
 };
 
 /**
@@ -121,6 +122,7 @@ const emptyForm = (): FormState => ({
   lockType: "none",
   unlockAt: "",
   requiredLifetimeEarned: "",
+  appOnly: false,
 });
 
 export function QuestsManager() {
@@ -169,6 +171,7 @@ export function QuestsManager() {
             state.lockType === "earning" && state.requiredLifetimeEarned
               ? Number(state.requiredLifetimeEarned)
               : null,
+          appOnly: state.appOnly,
         },
       }),
     onSuccess: () => {
@@ -217,6 +220,8 @@ export function QuestsManager() {
       unlockAt: String((quest as any).unlock_at ?? ""),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       requiredLifetimeEarned: String((quest as any).required_lifetime_earned ?? ""),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      appOnly: Boolean((quest as any).app_only ?? false),
     });
 
   const { noLinksYet, filledLockerUrls } = form
@@ -302,6 +307,15 @@ export function QuestsManager() {
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       🔒 {lockSummary(quest as any)}
                     </p>
+                  )}
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {(quest as any).app_only && (
+                    <span
+                      className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                      data-testid={`quest-app-only-badge-${quest.key}`}
+                    >
+                      App only
+                    </span>
                   )}
                 </div>
                 <span
@@ -564,21 +578,36 @@ export function QuestsManager() {
                     onChange={(event) => setForm({ ...form, sortOrder: event.target.value })}
                   />
                 </Field>
-                <div className="space-y-1">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={form.isActive}
-                      data-testid="quest-form-is-active"
-                      onCheckedChange={(value) => setForm({ ...form, isActive: value })}
-                    />
-                    Active
-                  </label>
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={form.isActive}
+                        data-testid="quest-form-is-active"
+                        onCheckedChange={(value) => setForm({ ...form, isActive: value })}
+                      />
+                      Active
+                    </label>
                   {noLinksYet && (
                     <p className="text-[11px] text-amber-600" data-testid="quest-form-draft-note">
                       No links yet — this quest can go live, but users will see “link coming soon”
                       until you add one.
                     </p>
                   )}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={form.appOnly}
+                        data-testid="quest-form-app-only"
+                        onCheckedChange={(value) => setForm({ ...form, appOnly: value })}
+                      />
+                      App only
+                    </label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Hide on web, show only in native app
+                    </p>
+                  </div>
                 </div>
               </div>
 

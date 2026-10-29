@@ -12,6 +12,7 @@ import { playRewardedAd } from "@/lib/ads";
 import { reportAdWatched, startQuest } from "@/lib/coinquest.functions";
 import { listActiveQuests, startLockerQuest, startShortlinkStep } from "@/lib/quests.functions";
 import { formatLockReason } from "@/lib/lock-state";
+import { isNativePlatform } from "@/lib/platform";
 
 // Lazy-load dialog (only shown on click)
 const QuestDetailsDialog = lazy(() =>
@@ -33,7 +34,7 @@ export function StarterQuests() {
   const quests = useQuery({
     queryKey: ["quests-active"],
     enabled: Boolean(session),
-    queryFn: () => fetchQuests({}),
+    queryFn: () => fetchQuests({ data: { isNative: isNativePlatform() } }),
   });
 
   const sessions = useQuery({
@@ -89,7 +90,7 @@ export function StarterQuests() {
   const runShortlink = useMutation({
     mutationFn: async ({ questKey, step }: { questKey: string; step: number }) => {
       await start({ data: { questKey } });
-      return openStep({ data: { questKey, step } });
+      return openStep({ data: { questKey, step, isNative: isNativePlatform() } });
     },
     onSuccess: (result) => {
       // The admin may publish a quest before its links exist. That's an expected
@@ -109,7 +110,8 @@ export function StarterQuests() {
   });
 
   const runLocker = useMutation({
-    mutationFn: async (questKey: string) => openLocker({ data: { questKey } }),
+    mutationFn: async (questKey: string) =>
+      openLocker({ data: { questKey, isNative: isNativePlatform() } }),
     onSuccess: (result) => {
       // No lockers configured yet — see the note in runShortlink.
       if ("unavailable" in result) {

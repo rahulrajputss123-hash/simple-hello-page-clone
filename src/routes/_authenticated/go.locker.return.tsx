@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { completeLockerQuest, startLockerQuest } from "@/lib/quests.functions";
 import { formatMoney } from "@/lib/coinquest";
 import { useAuth } from "@/lib/auth";
+import { isNativePlatform } from "@/lib/platform";
 
 /**
  * Return page for Content Locker quests.
@@ -61,7 +62,7 @@ function LockerReturnPage() {
     let cancelled = false;
     (async () => {
       try {
-        const result = await complete({ data: { questKey } });
+        const result = await complete({ data: { questKey, isNative: isNativePlatform() } });
         if (cancelled) return;
 
         // Multi-locker chain: more lockers to go. Show "Locker N done" and "Open Locker N+1" button
@@ -122,7 +123,7 @@ function LockerReturnPage() {
     if (state.kind !== "advancing" || !questKey) return;
     setOpeningNext(true);
     try {
-      const result = await openNext({ data: { questKey } });
+      const result = await openNext({ data: { questKey, isNative: isNativePlatform() } });
       if (!("unavailable" in result) && result.lockerUrl) {
         window.open(result.lockerUrl, "_blank", "noopener,noreferrer");
       }

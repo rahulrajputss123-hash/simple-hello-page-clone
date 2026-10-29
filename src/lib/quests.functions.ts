@@ -34,16 +34,21 @@ const questFormSchema = z.object({
   lockType: z.enum(["none", "time", "earning", "first_withdrawal"]).default("none"),
   unlockAt: z.string().datetime({ offset: true }).nullable().optional(),
   requiredLifetimeEarned: z.number().min(0).max(100_000).nullable().optional(),
+  appOnly: z.boolean().default(false),
 });
 
 /** Public (authenticated): active quests for the starter row + featured page.
  *  Passes the requesting userId so lock state is computed per-user server-side.
+ *  isNative flag filters app-only quests on web (can be spoofed — best effort).
  */
 export const listActiveQuests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input: unknown) =>
+    z.object({ isNative: z.boolean().optional().default(false) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
     const { listActiveQuestsImpl } = await import("./quests.server");
-    return listActiveQuestsImpl(context.userId);
+    return listActiveQuestsImpl(context.userId, data.isNative);
   });
 
 /** Admin: full list including inactive quests. */
@@ -86,12 +91,13 @@ export const startShortlinkStep = createServerFn({ method: "POST" })
       .object({
         questKey: z.string().min(1).max(40),
         step: z.number().int().min(1).max(SHORTLINK_MAX_STEPS),
+        isNative: z.boolean().optional().default(false),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { startShortlinkStepImpl } = await import("./quests.server");
-    return startShortlinkStepImpl(context.userId, data.questKey, data.step);
+    return startShortlinkStepImpl(context.userId, data.questKey, data.step, data.isNative);
   });
 
 /** User: called by the /go/$key/$step return page. Validates time-check + advances / credits. */
@@ -102,23 +108,29 @@ export const completeShortlinkStep = createServerFn({ method: "POST" })
       .object({
         questKey: z.string().min(1).max(40),
         step: z.number().int().min(1).max(SHORTLINK_MAX_STEPS),
+        isNative: z.boolean().optional().default(false),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { completeShortlinkStepImpl } = await import("./quests.server");
-    return completeShortlinkStepImpl(context.userId, data.questKey, data.step);
+    return completeShortlinkStepImpl(context.userId, data.questKey, data.step, data.isNative);
   });
 
 /** User: start a locker quest — creates a session and returns the locker URL to open. */
 export const startLockerQuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ questKey: z.string().min(1).max(40) }).parse(input),
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+        isNative: z.boolean().optional().default(false),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { startLockerQuestImpl } = await import("./quests.server");
-    return startLockerQuestImpl(context.userId, data.questKey);
+    return startLockerQuestImpl(context.userId, data.questKey, data.isNative);
   });
 
 /**
@@ -128,9 +140,14 @@ export const startLockerQuest = createServerFn({ method: "POST" })
 export const completeLockerQuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ questKey: z.string().min(1).max(40) }).parse(input),
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+        isNative: z.boolean().optional().default(false),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { completeLockerQuestImpl } = await import("./quests.server");
-    return completeLockerQuestImpl(context.userId, data.questKey);
+    return completeLockerQuestImpl(context.userId, data.questKey, data.isNative);
   });
