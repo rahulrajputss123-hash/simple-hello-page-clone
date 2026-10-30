@@ -33,6 +33,16 @@ const DEFAULT_NOT_ALLOWED =
 
 const MAX_PROOF_BYTES = 5 * 1024 * 1024; // 5 MB
 
+/**
+ * Format step reward: 2 decimals normally, 3 decimals if under $0.01
+ */
+function formatStepReward(usd: number): string {
+  if (usd < 0.01) {
+    return `$${usd.toFixed(3)}`;
+  }
+  return `$${usd.toFixed(2)}`;
+}
+
 export type OfferDetailsData = {
   id: string;
   external_offer_id?: string | null;
@@ -51,10 +61,15 @@ export type OfferDetailsData = {
   // Claim status if user has one
   claim_status?: "started" | "pending" | "approved" | "rejected" | null;
   claim_reject_reason?: string | null;
+  // Steps extracted from raw_payload (affike/revtoo)
+  steps?: Array<{ label: string; usd: number }>;
+  // Difficulty level (adswedmedia)
+  difficulty?: string;
 };
 
 export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
+  const [showAllSteps, setShowAllSteps] = useState(false);
   const showImage = Boolean(offer?.image_url) && !brokenImages[offer?.id ?? ""];
 
   const notAllowed = (offer?.not_allowed ?? "").trim() || DEFAULT_NOT_ALLOWED;
@@ -73,6 +88,13 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   const isPending = claimStatus === "pending";
   const isApproved = claimStatus === "approved";
   const isRejected = claimStatus === "rejected";
+
+  // Steps display logic
+  const steps = offer?.steps ?? [];
+  const hasSteps = steps.length > 0;
+  const MAX_VISIBLE_STEPS = 6;
+  const hasMoreSteps = steps.length > 8;
+  const visibleSteps = hasMoreSteps && !showAllSteps ? steps.slice(0, MAX_VISIBLE_STEPS) : steps;
 
   const [proofPath, setProofPath] = useState<string | null>(null);
   const [proofName, setProofName] = useState<string | null>(null);
@@ -250,6 +272,14 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
               Limited deal · one-time only
             </span>
           )}
+          {offer?.difficulty && (
+            <span
+              data-testid="offer-details-difficulty"
+              className="mt-1 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase text-primary"
+            >
+              {offer.difficulty}
+            </span>
+          )}
           {showStatusBadge && (
             <span
               className={`mt-2 inline-block rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusColor}`}
@@ -289,7 +319,7 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
           </section>
         )}
 
-        {offer?.requirements && (
+        {offer?.requirements && !hasSteps && (
           <section className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <ListChecks className="mr-1 inline size-3.5" />
@@ -301,6 +331,43 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
             >
               {offer.requirements}
             </p>
+          </section>
+        )}
+
+        {hasSteps && (
+          <section className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <ListChecks className="mr-1 inline size-3.5" />
+              How to complete
+            </p>
+            <div className="space-y-1.5" data-testid="offer-details-steps">
+              {visibleSteps.map((step, index) => (
+                <div
+                  key={index}
+                  className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-2.5 text-sm"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                      {index + 1}
+                    </span>
+                    <span className="leading-relaxed">{step.label}</span>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-gold-gradient px-2 py-0.5 text-[11px] font-bold text-gold-foreground shadow-sm">
+                    {formatStepReward(step.usd)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {hasMoreSteps && !showAllSteps && (
+              <button
+                type="button"
+                onClick={() => setShowAllSteps(true)}
+                className="w-full rounded-lg border border-primary/25 bg-primary/5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+                data-testid="offer-show-all-steps"
+              >
+                Show all {steps.length} steps
+              </button>
+            )}
           </section>
         )}
 
