@@ -42,6 +42,11 @@ type CachedOffer = {
   networkPayout: number | null;
 };
 
+export type OfferStep = {
+  label: string;
+  usd: number;
+};
+
 export type FeaturedOffer = {
   id: string;
   external_offer_id: string | null;
@@ -73,6 +78,10 @@ export type FeaturedOffer = {
   // User-specific claim status (only present when userId provided)
   claim_status?: "started" | "pending" | "approved" | "rejected" | null;
   claim_reject_reason?: string | null;
+  // Steps extracted from raw_payload (affike/revtoo only, for detail page)
+  steps?: OfferStep[];
+  // Difficulty level (adswedmedia only)
+  difficulty?: string;
 };
 
 function imageUrlFromIcon(icon: string | null | undefined): string | null {
@@ -149,6 +158,101 @@ async function offersHasImageUrl(): Promise<boolean> {
 const imageCol = (has: boolean) => (has ? ", image_url" : "");
 function pickImageUrl(o: { image_url?: string | null; icon?: string | null }): string | null {
   return imageUrlFromIcon(o.image_url) ?? imageUrlFromIcon(o.icon);
+}
+
+/**
+ * Strip HTML tags and decode entities from text.
+ * Converts <br> and <br /> to newlines, decodes common entities, removes other tags.
+ */
+function stripHtml(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/<[^>]*>/g, "")
+    .trim();
+}
+
+/**
+ * Extract step-by-step breakdown from raw_payload for affike and revtoo.
+ * Returns null if steps should not be shown (no valid steps, single generic step, etc).
+ */
+function extractStepsFromRawPayload(
+  providerSlug: string | null,
+  rawPayload: unknown,
+  offerRewardAmount: number,
+  revenueShare: number | null,
+  defaultRevenueShare: number,
+): OfferStep[] | null {
+  if (!rawPayload || typeof rawPayload !== "object") return null;
+  
+  const payload = rawPayload as Record<string, unknown>;
+  
+  // affike: conversionEvents = [{ id, action, points }]
+  if (providerSlug === "affike" && Array.isArray(payload.conversionEvents)) {
+    const events = payload.conversionEvents as Array<{
+      id?: string;
+      action?: string;
+      points?: number;
+    }>;
+    
+    const totalPoints = events.reduce((sum, e) => sum + (Number(e.points) || 0), 0);
+    if (totalPoints === 0) return null;
+    
+    const steps: OfferStep[] = [];
+    for (const event of events) {
+      const label = (event.action || "").trim();
+      const points = Number(event.points) || 0;
+      if (!label || points <= 0) continue;
+      
+      const usd = (offerRewardAmount * points) / totalPoints;
+      steps.push({ label: stripHtml(label), usd });
+    }
+    
+    // If only one step with generic label, don't show steps
+    if (steps.length === 1 && steps[0].label.toLowerCase() === "complete the offer") {
+      return null;
+    }
+    
+    return steps.length > 0 ? steps : null;
+  }
+  
+  // revtoo: events = [{ event_id, event_title, event_payout, event_reward, event_description }]
+  if (providerSlug === "revtoo" && Array.isArray(payload.events)) {
+    const events = payload.events as Array<{
+      event_id?: string;
+      event_title?: string;
+      event_payout?: number;
+      event_reward?: string;
+      event_description?: string;
+    }>;
+    
+    const share = revenueShare ?? defaultRevenueShare;
+    const steps: OfferStep[] = [];
+    
+    for (const event of events) {
+      const label = (event.event_title || "").trim();
+      const payout = Number(event.event_payout) || 0;
+      if (!label || payout <= 0) continue;
+      
+      const usd = payout * share;
+      steps.push({ label: stripHtml(label), usd });
+    }
+    
+    // If only one step with generic label, don't show steps
+    if (steps.length === 1 && steps[0].label.toLowerCase() === "complete the offer") {
+      return null;
+    }
+    
+    return steps.length > 0 ? steps : null;
+  }
+  
+  return null;
 }
 
 function offerRowFromNormalized(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) {
@@ -698,14 +802,54 @@ export async function getOfferByIdImpl(
 
   if (!offer) return null;
 
+  // Fetch provider info if offer has a provider_id (for default_revenue_share)
+  let providerSlug: string | null = null;
+  let defaultRevenueShare = 0.6;
+  if (offer.provider_id) {
+    const { data: provider } = await supabaseAdmin
+      .from("sdk_offerwall_providers")
+      .select("slug, default_revenue_share")
+      .eq("id", offer.provider_id)
+      .single();
+    if (provider) {
+      providerSlug = provider.slug;
+      defaultRevenueShare = Number(provider.default_revenue_share) || 0.6;
+    }
+  }
+
+  // Extract steps from raw_payload (only if requirements is empty/not manually set)
+  const hasManualRequirements = Boolean(offer.requirements?.trim());
+  const steps = !hasManualRequirements
+    ? extractStepsFromRawPayload(
+        providerSlug,
+        offer.raw_payload,
+        Number(offer.reward_amount),
+        offer.revenue_share ? Number(offer.revenue_share) : null,
+        defaultRevenueShare,
+      )
+    : null;
+
+  // Extract difficulty from raw_payload (adswedmedia only)
+  let difficulty: string | undefined;
+  if (
+    providerSlug === "adswedmedia" &&
+    offer.raw_payload &&
+    typeof offer.raw_payload === "object"
+  ) {
+    const payload = offer.raw_payload as Record<string, unknown>;
+    if (typeof payload.level === "string" && payload.level.trim()) {
+      difficulty = payload.level.trim();
+    }
+  }
+
   // Convert to FeaturedOffer shape
   const featuredOffer: FeaturedOffer = {
     id: offer.id,
     external_offer_id: offer.external_offer_id,
     title: offer.title,
-    description: offer.description ?? "",
-    requirements: offer.requirements ?? "",
-    not_allowed: offer.not_allowed ?? "",
+    description: stripHtml(offer.description ?? ""),
+    requirements: stripHtml(offer.requirements ?? ""),
+    not_allowed: stripHtml(offer.not_allowed ?? ""),
     icon: offer.icon ?? "",
     image_url: hasImageUrl ? imageUrlFromIcon(offer.image_url) : imageUrlFromIcon(offer.icon),
     reward_amount: Number(offer.reward_amount),
@@ -714,7 +858,7 @@ export async function getOfferByIdImpl(
     click_url: offer.click_url,
     source: "manual",
     provider_id: offer.provider_id,
-    provider_slug: null,
+    provider_slug: providerSlug,
     is_limited_deal: offer.is_limited_deal ?? false,
     deal_group_id: offer.deal_group_id,
     actual_cost: offer.actual_cost ? Number(offer.actual_cost) : null,
@@ -723,6 +867,8 @@ export async function getOfferByIdImpl(
     payout_mode: (offer.payout_mode as "manual" | "manual_proof" | "auto_postback") ?? "manual",
     category: offer.category,
     tags: [],
+    steps: steps ?? undefined,
+    difficulty,
   };
 
   // Enrich with user's claim status
