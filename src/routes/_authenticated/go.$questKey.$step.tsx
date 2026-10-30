@@ -7,7 +7,7 @@ import { CheckCircle2, ExternalLink, Home, Loader2, XCircle } from "lucide-react
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { completeShortlinkStep, startShortlinkStep } from "@/lib/quests.functions";
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import { useAuth } from "@/lib/auth";
 import { isNativePlatform } from "@/lib/platform";
 
@@ -139,7 +139,7 @@ function GoPage() {
               Quest completed!
             </p>
             <p className="text-amount text-gold-dark">
-              {formatMoney(state.reward)} credited to your wallet.
+              {formatReward(state.reward)} credited to your wallet.
             </p>
             <Button variant="jade" onClick={goHome} data-testid="go-back-home">
               <Home className="mr-1 size-4" /> Back to home

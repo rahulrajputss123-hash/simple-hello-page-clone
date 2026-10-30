@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { MIN_WITHDRAWAL, formatDateTime, formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import {
   maskPayoutMethod,
   PAYOUT_METHODS,
@@ -751,7 +752,10 @@ function WalletPage() {
                 }
               >
                 {Number(tx.amount) >= 0 ? "+" : "−"}
-                {formatMoney(Math.abs(Number(tx.amount)))}
+                {/* Show 3 decimals for earnings, 2 decimals for withdrawals */}
+                {tx.kind === 'earned' || tx.kind === 'bonus' || tx.kind === 'held'
+                  ? formatReward(Math.abs(Number(tx.amount)))
+                  : formatMoney(Math.abs(Number(tx.amount)))}
               </span>
             </li>
           ))}

@@ -8,7 +8,7 @@ import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { completeLockerQuest, startLockerQuest } from "@/lib/quests.functions";
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import { useAuth } from "@/lib/auth";
 import { isNativePlatform } from "@/lib/platform";
 
@@ -201,7 +201,7 @@ function LockerReturnPage() {
               Quest completed!
             </p>
             <p className="text-amount text-gold-dark">
-              {formatMoney(state.reward)} credited to your wallet.
+              {formatReward(state.reward)} credited to your wallet.
             </p>
             <p className="text-xs text-muted-foreground">Redirecting you home…</p>
             <Button variant="jade" onClick={goHome} data-testid="locker-back-home">

@@ -22,7 +22,22 @@ export type QuestRow = {
   icon: string;
   quest_type: "ads" | "shortlink" | "locker";
   ads_required: number;
+  /**
+   * Completion bonus credited when the entire quest finishes.
+   * For ads quests, this is the only reward.
+   * For step-based quests (shortlink/locker), this is paid in addition to step rewards.
+   */
   reward_amount: number;
+  /**
+   * Default reward per step for shortlink/locker quests.
+   * Ignored for ads quests. If step_rewards array is present, it overrides this.
+   */
+  step_reward: number;
+  /**
+   * Optional per-step reward amounts for shortlink/locker quests.
+   * If present, length must equal number of steps and overrides step_reward.
+   */
+  step_rewards: number[] | null;
   shortlink_steps: ShortlinkStep[];
   min_seconds_per_step: number;
   /**
@@ -47,6 +62,10 @@ function normalize(row: QuestRow): QuestRow {
   return {
     ...row,
     reward_amount: Number(row.reward_amount ?? 0),
+    step_reward: Number(row.step_reward ?? 0),
+    step_rewards: Array.isArray(row.step_rewards)
+      ? row.step_rewards.map((r) => Number(r))
+      : null,
     ads_required: Number(row.ads_required ?? 0),
     shortlink_steps: Array.isArray(row.shortlink_steps) ? row.shortlink_steps : [],
     min_seconds_per_step: Number(row.min_seconds_per_step ?? 15),
@@ -265,6 +284,69 @@ export async function getQuestByKey(key: string): Promise<QuestRow> {
   if (error) throw new Error(error.message ?? "Quest lookup failed.");
   if (!data) throw new Error("Unknown quest.");
   return normalize(data as QuestRow);
+}
+
+/**
+ * Credits the reward for completing a quest step (shortlink or locker).
+ * Idempotent via quest_step_credits unique constraint.
+ * Returns the amount credited (0 if already credited or if step_reward is 0).
+ */
+async function creditStepReward(
+  userId: string,
+  sessionId: string,
+  questKey: string,
+  questLabel: string,
+  stepIndex: number,
+  stepReward: number,
+): Promise<number> {
+  // If step reward is 0, skip (existing quests with no step rewards)
+  if (stepReward <= 0) return 0;
+
+  try {
+    // Insert credit claim first - unique constraint ensures atomicity
+    const { error: insertError } = await db.from("quest_step_credits").insert({
+      session_id: sessionId,
+      user_id: userId,
+      quest_key: questKey,
+      step_index: stepIndex,
+      amount: stepReward,
+    });
+
+    // If unique constraint violation, step already credited
+    if (insertError) {
+      if (insertError.code === "23505") {
+        // Unique violation - already credited
+        return 0;
+      }
+      throw insertError;
+    }
+
+    // Credit the wallet
+    try {
+      await creditWallet(
+        userId,
+        "quest_step",
+        `Quest step ${stepIndex} — ${questLabel}`,
+        stepReward,
+        `quest_step_${sessionId}_${stepIndex}`,
+      );
+      return stepReward;
+    } catch (creditError) {
+      // Credit failed - remove the claim so it can be retried
+      await db
+        .from("quest_step_credits")
+        .delete()
+        .eq("session_id", sessionId)
+        .eq("step_index", stepIndex);
+      throw creditError;
+    }
+  } catch (error) {
+    console.error(
+      `[quests] Failed to credit step ${stepIndex} reward for session ${sessionId}:`,
+      error,
+    );
+    return 0;
+  }
 }
 
 /**
@@ -580,6 +662,22 @@ export async function completeLockerQuestImpl(userId: string, questKey: string, 
 
   const completedCount = currentStep + 1;
 
+  // Determine step reward (custom array overrides default)
+  const stepReward =
+    quest.step_rewards && quest.step_rewards[completedCount - 1] != null
+      ? quest.step_rewards[completedCount - 1]
+      : quest.step_reward;
+
+  // Credit step reward BEFORE advancing
+  const stepRewardCredited = await creditStepReward(
+    userId,
+    session.data.id as string,
+    questKey,
+    quest.label,
+    completedCount,
+    stepReward,
+  );
+
   // Record task event for this completed locker step
   await recordLockerStepEvent(userId, session.data.id as string, completedCount);
 
@@ -598,6 +696,10 @@ export async function completeLockerQuestImpl(userId: string, questKey: string, 
       completed: false,
       credited: false,
       reward: 0,
+      stepReward: stepRewardCredited,
+      stepIndex: completedCount,
+      totalSteps: total,
+      completionBonus: Number(quest.reward_amount),
       // Lockers finished so far, and the 1-based index of the one opening next.
       step: completedCount,
       total,
@@ -621,18 +723,22 @@ export async function completeLockerQuestImpl(userId: string, questKey: string, 
     .eq("id", session.data.id)
     .eq("status", "started");
 
-  const reward = Number(quest.reward_amount);
+  const completionBonus = Number(quest.reward_amount);
   await finishQuestSession(
     userId,
     session.data.id as string,
-    reward,
+    completionBonus,
     `Content locker — ${quest.label}`,
   );
 
   return {
     completed: true,
     credited: true,
-    reward,
+    reward: completionBonus,
+    stepReward: stepRewardCredited,
+    stepIndex: completedCount,
+    totalSteps: total,
+    completionBonus,
     step: total,
     total,
     nextStep: null,
@@ -749,6 +855,22 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
   const total = Math.max(1, quest.shortlink_steps.length);
   const isFinal = step >= total;
 
+  // Determine step reward (custom array overrides default)
+  const stepReward =
+    quest.step_rewards && quest.step_rewards[step - 1] != null
+      ? quest.step_rewards[step - 1]
+      : quest.step_reward;
+
+  // Credit step reward BEFORE advancing
+  const stepRewardCredited = await creditStepReward(
+    userId,
+    session.data.id as string,
+    questKey,
+    quest.label,
+    step,
+    stepReward,
+  );
+
   // Record task event for this completed shortlink step
   await recordShortlinkStepEvent(userId, session.data.id as string, step);
 
@@ -766,17 +888,21 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
       })
       .eq("id", session.data.id)
       .eq("status", "started");
-    const reward = Number(quest.reward_amount);
+    const completionBonus = Number(quest.reward_amount);
     await finishQuestSession(
       userId,
       session.data.id as string,
-      reward,
+      completionBonus,
       `Shortlink quest — ${quest.label}`,
     );
     return {
       completed: true,
       credited: true,
-      reward,
+      reward: completionBonus,
+      stepReward: stepRewardCredited,
+      stepIndex: step,
+      totalSteps: total,
+      completionBonus,
       nextStep: null,
       nextUrl: null,
       step: total,
@@ -794,6 +920,10 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
     completed: false,
     credited: false,
     reward: 0,
+    stepReward: stepRewardCredited,
+    stepIndex: step,
+    totalSteps: total,
+    completionBonus: Number(quest.reward_amount),
     nextStep: step + 1,
     nextUrl: quest.shortlink_steps[step]?.url ?? null,
     step,

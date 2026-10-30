@@ -31,6 +31,7 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import {
   deriveReferralProgress,
   sumReferralTotals,
@@ -157,7 +158,7 @@ function ReferralRewardLine({ referral }: { referral: ReferralRow }) {
         ) : null}
       </p>
       <span className="flex items-center gap-1.5">
-        <span className="text-amount text-sm text-foreground">{formatMoney(amount)}</span>
+        <span className="text-amount text-sm text-foreground">{formatReward(amount)}</span>
         <span
           className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badge.className}`}
         >
@@ -272,7 +273,7 @@ export function ReferPage() {
     ? [
         "Your invite link works for two separate programs: publisher referral and advertiser referral. Advertiser rewards are added on top of publisher rewards.",
         `When a friend you invited becomes an advertiser and makes their first deposit, you earn ${settings.referral_bonus_split_percent}% of that deposit.`,
-        `Example: if your friend deposits $100, you earn ${formatMoney((100 * settings.referral_bonus_split_percent) / 100)}.`,
+        `Example: if your friend deposits $100, you earn ${formatReward((100 * settings.referral_bonus_split_percent) / 100)}.`,
         `The bonus shows as Pending for ${settings.referrer_bonus_hold_days} days after the deposit clears, then it is Credited to your main wallet.`,
         "If a deposit is refunded, reversed or charged back, the related bonus is cancelled, and deducted if it was already credited.",
         "Bonuses are paid only on real, successful deposits, not on promotional or bonus credit.",
@@ -393,7 +394,7 @@ export function ReferPage() {
               <Gift className="size-4 text-gold-dark" />
             </span>
             <p className="text-amount mt-3 text-2xl leading-none text-gold-dark">
-              {formatMoney(referralEarnings)}
+              {formatReward(referralEarnings)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">Credited to Wallet</p>
             {potentialEarnings > 0 && (
@@ -407,7 +408,7 @@ export function ReferPage() {
                   />
                 </div>
                 <p className="mt-1 text-[10px] text-muted-foreground">
-                  {formatMoney(referralEarnings)} earned of {formatMoney(potentialEarnings)}{" "}
+                  {formatReward(referralEarnings)} earned of {formatReward(potentialEarnings)}{" "}
                   potential
                 </p>
               </>
@@ -429,7 +430,7 @@ export function ReferPage() {
                 <Lock className="size-3" /> Pending
               </p>
               <p className="text-amount mt-1 text-xl leading-none text-gold-dark">
-                {formatMoney(totals.pending)}
+                {formatReward(totals.pending)}
               </p>
               <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
                 Locked — not in your wallet yet
@@ -440,7 +441,7 @@ export function ReferPage() {
                 <Check className="size-3" /> Credited
               </p>
               <p className="text-amount mt-1 text-xl leading-none text-primary">
-                {formatMoney(totals.credited)}
+                {formatReward(totals.credited)}
               </p>
               <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
                 Released to your main wallet
@@ -451,7 +452,7 @@ export function ReferPage() {
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             <p className="text-xs font-semibold">Total publisher referral earnings</p>
             <p className="text-amount text-base" data-testid="refer-earnings-total">
-              {formatMoney(totals.total)}
+              {formatReward(totals.total)}
             </p>
           </div>
 
@@ -459,7 +460,7 @@ export function ReferPage() {
             <Info className="mt-0.5 size-3.5 shrink-0" />
             <span>
               Pending referral earnings are <strong>not</strong> part of your wallet balance and
-              can&apos;t be withdrawn yet. The full {formatMoney(REFERRAL_MAX_BONUS)} for a friend
+              can&apos;t be withdrawn yet. The full {formatReward(REFERRAL_MAX_BONUS)} for a friend
               is released to your main wallet only once that friend completes all 3 milestones.
             </span>
           </p>

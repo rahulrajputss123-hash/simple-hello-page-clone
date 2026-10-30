@@ -32,8 +32,8 @@ import {
   LOCKER_MAX_URLS,
   SHORTLINK_MAX_STEPS,
   SHORTLINK_MIN_STEPS,
-  formatMoney,
 } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 
 type FormState = {
   id?: string;
@@ -43,6 +43,8 @@ type FormState = {
   questType: "ads" | "shortlink" | "locker";
   adsRequired: string;
   rewardAmount: string;
+  stepReward: string;
+  stepRewards: string;
   shortlinkSteps: ShortlinkStep[];
   minSecondsPerStep: string;
   /** 1-3 locker URLs, completed in order. Unlike shortlink's fixed 3, the
@@ -110,6 +112,8 @@ const emptyForm = (): FormState => ({
   questType: "ads",
   adsRequired: "5",
   rewardAmount: "1",
+  stepReward: "0",
+  stepRewards: "",
   shortlinkSteps: [
     { network: "", url: "" },
     { network: "", url: "" },
@@ -155,6 +159,13 @@ export function QuestsManager() {
           questType: state.questType,
           adsRequired: Number(state.adsRequired) || 0,
           rewardAmount: Number(state.rewardAmount) || 0,
+          stepReward: Number(state.stepReward) || 0,
+          stepRewards: state.stepRewards.trim()
+            ? state.stepRewards
+                .split(",")
+                .map((s) => Number(s.trim()))
+                .filter((n) => !isNaN(n))
+            : null,
           // Only complete rows are sent: half-typed rows would fail the step
           // schema, and an empty array is now valid (it saves as a draft).
           ...(state.questType === "shortlink"
@@ -203,6 +214,8 @@ export function QuestsManager() {
       questType: quest.quest_type,
       adsRequired: String(quest.ads_required ?? 0),
       rewardAmount: String(quest.reward_amount ?? 0),
+      stepReward: String(quest.step_reward ?? 0),
+      stepRewards: quest.step_rewards?.join(", ") ?? "",
       // Load exactly the steps that were saved (1-10). No padding to a fixed
       // count — the admin adds and removes rows explicitly.
       shortlinkSteps: quest.shortlink_steps?.length
@@ -285,7 +298,7 @@ export function QuestsManager() {
                             quest.locker_urls.length === 1 ? "locker" : "lockers"
                           }`
                         : ` · ${quest.shortlink_steps.length} shortlinks`}
-                    · reward {formatMoney(quest.reward_amount)} · sort {quest.sort_order}
+                    · reward {formatReward(quest.reward_amount)} · sort {quest.sort_order}
                   </p>
                   {/* A link-driven quest with nothing configured yet. It is still
                       publishable — users just see "link coming soon" — so this is
@@ -371,7 +384,7 @@ export function QuestsManager() {
                     onChange={(event) => setForm({ ...form, icon: event.target.value })}
                   />
                 </Field>
-                <Field label="Reward ($)">
+                <Field label="Final bonus (on completion) ($)">
                   <Input
                     inputMode="decimal"
                     value={form.rewardAmount}
@@ -379,6 +392,71 @@ export function QuestsManager() {
                   />
                 </Field>
               </div>
+              {(form.questType === "shortlink" || form.questType === "locker") && (
+                <div className="space-y-2 rounded-lg border border-dashed border-primary/40 bg-background-alt p-3">
+                  <p className="text-xs font-semibold text-primary">
+                    💰 Per-step rewards (shortlink & locker only)
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Reward per step ($)">
+                      <Input
+                        inputMode="decimal"
+                        value={form.stepReward}
+                        placeholder="0.50"
+                        onChange={(event) => setForm({ ...form, stepReward: event.target.value })}
+                      />
+                    </Field>
+                    <Field label="Custom reward per step (optional)">
+                      <Input
+                        inputMode="decimal"
+                        value={form.stepRewards}
+                        placeholder="0.50, 0.75, 1.00"
+                        onChange={(event) => setForm({ ...form, stepRewards: event.target.value })}
+                      />
+                    </Field>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Custom rewards override the default per-step amount. Enter comma-separated
+                    values, one per step. Steps without a custom value use the default.
+                  </p>
+                  {(() => {
+                    const stepCount =
+                      form.questType === "shortlink"
+                        ? linkInfo(form).filledShortlinkSteps.length
+                        : linkInfo(form).filledLockerUrls.length;
+                    const baseReward = Number(form.stepReward) || 0;
+                    const customRewards = form.stepRewards
+                      .split(",")
+                      .map((s) => Number(s.trim()))
+                      .filter((n) => !isNaN(n));
+                    const stepRewards = Array.from({ length: stepCount }, (_, i) =>
+                      customRewards[i] !== undefined ? customRewards[i] : baseReward,
+                    );
+                    const totalStepRewards = stepRewards.reduce((sum, r) => sum + r, 0);
+                    const completionBonus = Number(form.rewardAmount) || 0;
+                    const totalPayout = totalStepRewards + completionBonus;
+
+                    return (
+                      <div className="rounded-lg bg-background p-2 text-xs">
+                        <p className="font-semibold">Total payout breakdown:</p>
+                        <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                          {stepRewards.map((r, i) => (
+                            <li key={i}>
+                              Step {i + 1}: {formatReward(r)}
+                            </li>
+                          ))}
+                          {completionBonus > 0 && (
+                            <li>Completion bonus: {formatReward(completionBonus)}</li>
+                          )}
+                          <li className="font-semibold text-primary">
+                            Total: {formatReward(totalPayout)}
+                          </li>
+                        </ul>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
               <Field label="Quest type">
                 <div className="flex gap-2">
                   {(["ads", "shortlink", "locker"] as const).map((type) => (

@@ -1,7 +1,7 @@
 import { Check, Loader2, LockKeyhole } from "lucide-react";
 import { memo } from "react";
 
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import {
   CREDITED_ACCENT,
   deriveQuestView,
@@ -81,6 +81,22 @@ export const QuestCard = memo(function QuestCard({
     active,
     credited,
   );
+
+  // Calculate total reward for step-based quests
+  const displayReward = (() => {
+    if (quest.quest_type === "ads") {
+      return quest.reward_amount; // Ads quests: reward_amount is the only reward
+    }
+    // Step-based quests (shortlink/locker): sum step rewards + completion bonus
+    const stepCount = total;
+    const baseReward = quest.step_reward ?? 0;
+    const customRewards = quest.step_rewards ?? [];
+    let totalStepRewards = 0;
+    for (let i = 0; i < stepCount; i++) {
+      totalStepRewards += customRewards[i] !== undefined ? customRewards[i] : baseReward;
+    }
+    return totalStepRewards + quest.reward_amount;
+  })();
 
   const detail = locked
     ? (lockLabel ?? "This quest is currently locked")
@@ -171,7 +187,7 @@ export const QuestCard = memo(function QuestCard({
                 className="text-[17px] font-bold leading-none [font-variant-numeric:tabular-nums]"
                 style={{ color: INK, fontFamily: DISPLAY_FONT }}
               >
-                {formatMoney(quest.reward_amount)}
+                {formatReward(displayReward)}
               </span>
             </span>
           </span>

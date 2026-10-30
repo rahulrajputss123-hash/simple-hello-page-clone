@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowUpRight, Info } from "lucide-react";
 
 import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import {
   deriveQuestView,
   QUEST_ACCENTS,
@@ -97,7 +97,22 @@ export function QuestDetailsDialog({
           )}
           <div className="min-w-0 flex-1 text-left">
             <p className="text-amount text-sm text-gold-dark" data-testid="quest-details-reward">
-              {formatMoney(quest.reward_amount)}
+              {(() => {
+                if (quest.quest_type === "ads") {
+                  return formatReward(quest.reward_amount);
+                }
+                // Step-based quests: show total reward
+                const stepCount = quest.quest_type === "shortlink" 
+                  ? quest.shortlink_steps.length 
+                  : quest.locker_urls.length;
+                const baseReward = quest.step_reward ?? 0;
+                const customRewards = quest.step_rewards ?? [];
+                let totalStepRewards = 0;
+                for (let i = 0; i < stepCount; i++) {
+                  totalStepRewards += customRewards[i] !== undefined ? customRewards[i] : baseReward;
+                }
+                return formatReward(totalStepRewards + quest.reward_amount);
+              })()}
             </p>
             {accent && (
               <span
@@ -119,6 +134,77 @@ export function QuestDetailsDialog({
             <p className="text-sm leading-relaxed" data-testid="quest-details-description">
               {view.description}
             </p>
+          </section>
+        )}
+
+        {view && (quest.quest_type === "shortlink" || quest.quest_type === "locker") && (
+          <section className="space-y-2" data-testid="quest-details-rewards">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Rewards
+            </p>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
+              <ul className="space-y-1.5">
+                {(() => {
+                  const stepCount = view.total;
+                  const baseReward = quest.step_reward ?? 0;
+                  const customRewards = quest.step_rewards ?? [];
+                  const completionBonus = quest.reward_amount;
+                  const currentProgress = view.progress;
+                  
+                  const steps = Array.from({ length: stepCount }, (_, i) => {
+                    const stepNum = i + 1;
+                    const stepReward = customRewards[i] !== undefined ? customRewards[i] : baseReward;
+                    const isCompleted = stepNum <= currentProgress;
+                    return { stepNum, stepReward, isCompleted };
+                  });
+
+                  return (
+                    <>
+                      {steps.map(({ stepNum, stepReward, isCompleted }) => (
+                        <li
+                          key={stepNum}
+                          className="flex items-center justify-between gap-2"
+                          data-testid={`quest-reward-step-${stepNum}`}
+                        >
+                          <span className={isCompleted ? "text-muted-foreground line-through" : ""}>
+                            Step {stepNum}
+                          </span>
+                          <span className="flex items-center gap-1.5 font-semibold tabular-nums">
+                            {isCompleted && <span className="text-xs text-primary">✓</span>}
+                            {formatReward(stepReward)}
+                          </span>
+                        </li>
+                      ))}
+                      {completionBonus > 0 && (
+                        <li
+                          className="flex items-center justify-between gap-2 border-t border-primary/20 pt-1.5"
+                          data-testid="quest-reward-completion"
+                        >
+                          <span className={credited ? "text-muted-foreground line-through" : ""}>
+                            Completion bonus
+                          </span>
+                          <span className="flex items-center gap-1.5 font-semibold tabular-nums">
+                            {credited && <span className="text-xs text-primary">✓</span>}
+                            {formatReward(completionBonus)}
+                          </span>
+                        </li>
+                      )}
+                      <li
+                        className="flex items-center justify-between gap-2 border-t border-primary/30 pt-1.5 text-base font-bold text-primary"
+                        data-testid="quest-reward-total"
+                      >
+                        <span>Total</span>
+                        <span className="tabular-nums">
+                          {formatReward(
+                            steps.reduce((sum, s) => sum + s.stepReward, 0) + completionBonus
+                          )}
+                        </span>
+                      </li>
+                    </>
+                  );
+                })()}
+              </ul>
+            </div>
           </section>
         )}
 

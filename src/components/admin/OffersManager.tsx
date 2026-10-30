@@ -30,7 +30,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { requestBannerUploadUrl } from "@/lib/banners/functions";
-import { formatDateTime, formatMoney } from "@/lib/coinquest";
+import { formatDateTime } from "@/lib/coinquest";
+import { formatReward } from "@/lib/format-reward";
 import {
   deleteManualOffer,
   listAdminOffers,
@@ -433,7 +434,7 @@ export function OffersManager() {
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Reward {formatMoney(offer.reward_amount)}
+                  Reward {formatReward(offer.reward_amount)}
                   {/* Badge text is cosmetic, so the admin list shows it alongside
                       the real reward rather than in place of it. */}
                   {offerDisplayBadge(offer) && (
@@ -1071,7 +1072,7 @@ function DisplayBadgeFields({
       >
         Card shows:{" "}
         <span className="text-amount text-gold-dark">
-          {preview ?? formatMoney(Number(form.rewardAmount) || 0)}
+          {preview ?? formatReward(Number(form.rewardAmount) || 0)}
         </span>
         {preview ? null : (
           <span className="text-muted-foreground"> (the reward, since no badge is set)</span>
