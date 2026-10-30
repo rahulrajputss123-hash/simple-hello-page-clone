@@ -72,6 +72,18 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   const [showAllSteps, setShowAllSteps] = useState(false);
   const showImage = Boolean(offer?.image_url) && !brokenImages[offer?.id ?? ""];
 
+  // Debug logging
+  console.log(`[OfferDetailsView] Offer data:`, {
+    id: offer?.id,
+    title: offer?.title,
+    requirements: offer?.requirements,
+    requirementsLength: offer?.requirements?.length,
+    hasSteps: Boolean(offer?.steps),
+    stepsCount: offer?.steps?.length ?? 0,
+    steps: offer?.steps,
+    difficulty: offer?.difficulty,
+  });
+
   const notAllowed = (offer?.not_allowed ?? "").trim() || DEFAULT_NOT_ALLOWED;
   const hasClickUrl = Boolean(offer?.click_url?.trim());
   const autoPostback = offer?.payout_mode === "auto_postback";
