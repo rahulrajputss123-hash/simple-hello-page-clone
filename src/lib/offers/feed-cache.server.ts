@@ -161,6 +161,24 @@ function pickImageUrl(o: { image_url?: string | null; icon?: string | null }): s
 }
 
 /**
+ * Check if an offer has a valid reward amount (> 0).
+ * Zero-reward offers should be excluded from user feeds.
+ */
+function hasValidReward(rewardAmount: number): boolean {
+  return !isNaN(rewardAmount) && rewardAmount > 0;
+}
+
+/**
+ * Check if an offer has a valid image URL.
+ * Offers without images should be moved to the bottom of the feed.
+ */
+function hasValidImage(imageUrl: string | null): boolean {
+  if (!imageUrl) return false;
+  const trimmed = imageUrl.trim();
+  return trimmed.length > 0 && /^https?:\/\//i.test(trimmed);
+}
+
+/**
  * Strip HTML tags and decode entities from text.
  * Converts <br> and <br /> to newlines, decodes common entities, removes other tags.
  */
@@ -530,6 +548,7 @@ export async function assembleFeaturedImpl(
   const now = Date.now();
   const networkOffers: FeaturedOffer[] = ((networkOffersData.data ?? []) as any[])
     .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
+    .filter((o) => hasValidReward(Number(o.reward_amount))) // Filter zero-reward offers
     .map((o) => ({
       id: o.id,
       external_offer_id: o.external_offer_id ?? null,
@@ -562,13 +581,14 @@ export async function assembleFeaturedImpl(
       _pushToBottom: (o as { push_to_bottom?: boolean | null }).push_to_bottom ?? null,
     }));
 
-  // Apply seeded shuffle to network offers, then separate casino/bottom offers
+  // Apply seeded shuffle to network offers, then separate by image and casino/bottom
   const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
   const shuffleSeed = (userId || ip || "anonymous") + ":" + today;
   const shuffled = seededShuffle(networkOffers, shuffleSeed);
   
-  const regularOffers: FeaturedOffer[] = [];
-  const bottomOffers: FeaturedOffer[] = [];
+  const regularWithImage: FeaturedOffer[] = [];
+  const bottomWithImage: FeaturedOffer[] = [];
+  const noImageOffers: FeaturedOffer[] = [];
   
   for (const offer of shuffled) {
     const pushToBottom = (offer as any)._pushToBottom;
@@ -576,16 +596,23 @@ export async function assembleFeaturedImpl(
       pushToBottom === true || 
       (pushToBottom === null && isCasinoOffer(offer.title, offer.description));
     
-    if (shouldPushToBottom) {
-      bottomOffers.push(offer);
+    const hasImage = hasValidImage(offer.image_url);
+    
+    if (!hasImage) {
+      // All no-image offers go to the very bottom
+      noImageOffers.push(offer);
+    } else if (shouldPushToBottom) {
+      // Casino/bottom offers with image
+      bottomWithImage.push(offer);
     } else {
-      regularOffers.push(offer);
+      // Regular offers with image
+      regularWithImage.push(offer);
     }
     // Keep _pushToBottom for auto-tags logic, will be cleaned up later
   }
   
-  // Combine: regular offers first, then bottom offers
-  const sortedNetworkOffers = [...regularOffers, ...bottomOffers];
+  // Combine: regular WITH image, then bottom WITH image, then ALL no-image
+  const sortedNetworkOffers = [...regularWithImage, ...bottomWithImage, ...noImageOffers];
 
   // Process manual featured offers
   const manualOffers: FeaturedOffer[] = ((manualRowsData.data ?? []) as any[])
@@ -594,6 +621,7 @@ export async function assembleFeaturedImpl(
       const countries = (o.countries ?? []) as string[];
       return countries.length === 0 || countries.includes(country);
     })
+    .filter((o) => hasValidReward(Number(o.reward_amount))) // Filter zero-reward offers
     .map((o) => ({
       id: o.id,
       external_offer_id: o.external_offer_id ?? null,
@@ -807,7 +835,7 @@ export async function getOfferByIdImpl(
   let defaultRevenueShare = 0.6;
   if (offer.provider_id) {
     const { data: provider } = await supabaseAdmin
-      .from("sdk_offerwall_providers")
+      .from("offer_providers")
       .select("slug, default_revenue_share")
       .eq("id", offer.provider_id)
       .single();

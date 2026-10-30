@@ -101,12 +101,6 @@ export function FeaturedOffers({
   // Memoize visible offers
   const visibleOffers = useMemo(() => offers.slice(0, visibleCount), [offers, visibleCount]);
 
-  // Prefetch offer data on card hover/touch
-  const handleCardPrefetch = (offer: (typeof offers)[number]) => {
-    // Set offer data in cache so the page loads instantly
-    queryClient.setQueryData(["offer", offer.id], offer);
-  };
-
   if (isLoading) {
     return (
       <div className="grid grid-cols-3 gap-3" data-testid="featured-offers-loading">
@@ -149,7 +143,6 @@ export function FeaturedOffers({
             display_price={offer.display_price}
             display_percent={offer.display_percent}
             claim_status={offer.claim_status}
-            onPrefetch={() => handleCardPrefetch(offer)}
             isEager={index < 6}
             isPriority={index < 3}
           />
