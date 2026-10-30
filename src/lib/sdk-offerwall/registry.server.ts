@@ -3,6 +3,7 @@ import cpxResearchSdkAdapter from "./adapters/cpxresearch.server";
 import mooffersSdkAdapter from "./adapters/mooffers.server";
 import offerwallMeSdkAdapter from "./adapters/offerwallme.server";
 import revtooSdkAdapter from "./adapters/revtoo.server";
+import theoremreachSdkAdapter from "./adapters/theoremreach.server";
 import timewallSdkAdapter from "./adapters/timewall.server";
 import type { SdkOfferwallAdapter } from "./types";
 
@@ -31,3 +32,4 @@ registerSdkAdapter(revtooSdkAdapter);
 registerSdkAdapter(affikeSdkAdapter);
 registerSdkAdapter(mooffersSdkAdapter);
 registerSdkAdapter(timewallSdkAdapter);
+registerSdkAdapter(theoremreachSdkAdapter);

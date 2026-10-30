@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import { getOfferwallMeSignedUrl, listSdkOfferwallProviders } from "@/lib/sdk-offerwall.functions";
+import { getOfferwallMeSignedUrl, getTheoremReachSignedUrl, listSdkOfferwallProviders } from "@/lib/sdk-offerwall.functions";
 
 function buildOfferwallUrl(slug: string, appId: string, userId: string): string | null {
   if (slug === "mooffers") {
@@ -19,6 +19,10 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
     return `https://revtoo.com/offerwall/${appId}/${encodeURIComponent(userId)}`;
   }
   if (slug === "offerwallme") {
+    // Return placeholder - actual signed URL is fetched on click via server function
+    return "signed-url-required";
+  }
+  if (slug === "theoremreach") {
     // Return placeholder - actual signed URL is fetched on click via server function
     return "signed-url-required";
   }
@@ -47,14 +51,15 @@ const OfferwallCard = memo(function OfferwallCard({
 }) {
   const [broken, setBroken] = useState(false);
   const [loading, setLoading] = useState(false);
-  const fetchSignedUrl = useServerFn(getOfferwallMeSignedUrl);
+  const fetchOfferwallMeUrl = useServerFn(getOfferwallMeSignedUrl);
+  const fetchTheoremReachUrl = useServerFn(getTheoremReachSignedUrl);
 
   const handleError = useCallback(() => {
     setBroken(true);
     onImageError(provider.id);
   }, [provider.id, onImageError]);
 
-  const handleOfferwallMeClick = useCallback(async () => {
+  const handleSignedUrlClick = useCallback(async (providerSlug: string) => {
     if (loading) return;
     setLoading(true);
 
@@ -62,17 +67,25 @@ const OfferwallCard = memo(function OfferwallCard({
     const tab = window.open("", "_blank");
     
     try {
-      const signedUrl = await fetchSignedUrl({});
+      let signedUrl: string;
+      if (providerSlug === "offerwallme") {
+        signedUrl = await fetchOfferwallMeUrl({});
+      } else if (providerSlug === "theoremreach") {
+        signedUrl = await fetchTheoremReachUrl({});
+      } else {
+        throw new Error("Unknown signed URL provider");
+      }
+      
       if (tab) {
         tab.location.href = signedUrl;
       }
     } catch (err) {
       if (tab) tab.close();
-      toast.error(err instanceof Error ? err.message : "Failed to open offerwall.me");
+      toast.error(err instanceof Error ? err.message : `Failed to open ${providerSlug}`);
     } finally {
       setLoading(false);
     }
-  }, [fetchSignedUrl, loading]);
+  }, [fetchOfferwallMeUrl, fetchTheoremReachUrl, loading]);
 
   return (
     <article
@@ -102,12 +115,12 @@ const OfferwallCard = memo(function OfferwallCard({
           <p className="text-xs text-muted-foreground">{provider.tagline}</p>
         </div>
         {url ? (
-          slug === "offerwallme" ? (
+          slug === "offerwallme" || slug === "theoremreach" ? (
             <Button 
               size="sm" 
               variant="jade" 
               className="mt-auto gap-1"
-              onClick={handleOfferwallMeClick}
+              onClick={() => handleSignedUrlClick(slug)}
               disabled={loading}
             >
               {loading ? "Opening…" : "Open"} <ExternalLink className="size-3.5" />

@@ -165,3 +165,14 @@ export const getOfferwallMeSignedUrl = createServerFn({ method: "POST" })
     const { getOfferwallMeSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
     return getOfferwallMeSignedUrlImpl(context.userId);
   });
+
+/**
+ * Get a signed URL for TheoremReach (requires signed user identity).
+ * Uses the authenticated user ID from context (never accepts userId from client).
+ */
+export const getTheoremReachSignedUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { getTheoremReachSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
+    return getTheoremReachSignedUrlImpl(context.userId);
+  });
