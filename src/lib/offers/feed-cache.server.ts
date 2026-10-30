@@ -807,7 +807,7 @@ export async function getOfferByIdImpl(
   let defaultRevenueShare = 0.6;
   if (offer.provider_id) {
     const { data: provider } = await supabaseAdmin
-      .from("sdk_offerwall_providers")
+      .from("offer_providers")
       .select("slug, default_revenue_share")
       .eq("id", offer.provider_id)
       .single();

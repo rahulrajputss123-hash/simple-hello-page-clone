@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft } from "lucide-react";
-import { useEffect } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { OfferDetailsView } from "@/components/OfferDetailsView";
@@ -37,13 +36,6 @@ function OfferDetailsPage() {
     .flatMap(([_key, data]) => data?.offers ?? [])
     .find((o) => o.id === offerId);
 
-  // If found in cache, set it immediately
-  useEffect(() => {
-    if (cachedOffer) {
-      queryClient.setQueryData(["offer", offerId], cachedOffer);
-    }
-  }, [cachedOffer, offerId, queryClient]);
-
   const {
     data: offer,
     isLoading,
@@ -52,8 +44,8 @@ function OfferDetailsPage() {
     queryKey: ["offer", offerId],
     queryFn: () => fetchOffer({ data: { offerId } }),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    // Start with cached data if available
-    initialData: cachedOffer,
+    // Use cached data as placeholder while fetching full details
+    placeholderData: cachedOffer,
   });
 
   const handleBack = () => {
