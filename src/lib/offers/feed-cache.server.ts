@@ -189,16 +189,12 @@ function extractStepsFromRawPayload(
   revenueShare: number | null,
   defaultRevenueShare: number,
 ): OfferStep[] | null {
-  if (!rawPayload || typeof rawPayload !== "object") {
-    console.log(`[extractSteps] No raw_payload or invalid type`, { providerSlug, rawPayload });
-    return null;
-  }
+  if (!rawPayload || typeof rawPayload !== "object") return null;
   
   const payload = rawPayload as Record<string, unknown>;
   
   // affike: conversionEvents = [{ id, action, points }]
   if (providerSlug === "affike" && Array.isArray(payload.conversionEvents)) {
-    console.log(`[extractSteps] affike conversionEvents:`, payload.conversionEvents);
     const events = payload.conversionEvents as Array<{
       id?: string;
       action?: string;
@@ -206,7 +202,6 @@ function extractStepsFromRawPayload(
     }>;
     
     const totalPoints = events.reduce((sum, e) => sum + (Number(e.points) || 0), 0);
-    console.log(`[extractSteps] affike totalPoints:`, totalPoints);
     if (totalPoints === 0) return null;
     
     const steps: OfferStep[] = [];
@@ -219,8 +214,6 @@ function extractStepsFromRawPayload(
       steps.push({ label: stripHtml(label), usd });
     }
     
-    console.log(`[extractSteps] affike steps extracted:`, steps.length);
-    
     // If only one step with generic label, don't show steps
     if (steps.length === 1 && steps[0].label.toLowerCase() === "complete the offer") {
       return null;
@@ -231,7 +224,6 @@ function extractStepsFromRawPayload(
   
   // revtoo: events = [{ event_id, event_title, event_payout, event_reward, event_description }]
   if (providerSlug === "revtoo" && Array.isArray(payload.events)) {
-    console.log(`[extractSteps] revtoo events:`, payload.events.length);
     const events = payload.events as Array<{
       event_id?: string;
       event_title?: string;
@@ -241,7 +233,6 @@ function extractStepsFromRawPayload(
     }>;
     
     const share = revenueShare ?? defaultRevenueShare;
-    console.log(`[extractSteps] revtoo revenue share:`, { revenueShare, defaultRevenueShare, share });
     const steps: OfferStep[] = [];
     
     for (const event of events) {
@@ -253,8 +244,6 @@ function extractStepsFromRawPayload(
       steps.push({ label: stripHtml(label), usd });
     }
     
-    console.log(`[extractSteps] revtoo steps extracted:`, steps.length, steps.slice(0, 3));
-    
     // If only one step with generic label, don't show steps
     if (steps.length === 1 && steps[0].label.toLowerCase() === "complete the offer") {
       return null;
@@ -263,7 +252,6 @@ function extractStepsFromRawPayload(
     return steps.length > 0 ? steps : null;
   }
   
-  console.log(`[extractSteps] No matching provider`, { providerSlug });
   return null;
 }
 
@@ -814,14 +802,6 @@ export async function getOfferByIdImpl(
 
   if (!offer) return null;
 
-  console.log(`[getOfferByIdImpl] Offer ${offerId}:`, {
-    title: offer.title,
-    provider_id: offer.provider_id,
-    requirements_length: offer.requirements?.length ?? 0,
-    has_raw_payload: Boolean(offer.raw_payload),
-    raw_payload_keys: offer.raw_payload ? Object.keys(offer.raw_payload) : [],
-  });
-
   // Fetch provider info if offer has a provider_id (for default_revenue_share)
   let providerSlug: string | null = null;
   let defaultRevenueShare = 0.6;
@@ -834,7 +814,6 @@ export async function getOfferByIdImpl(
     if (provider) {
       providerSlug = provider.slug;
       defaultRevenueShare = Number(provider.default_revenue_share) || 0.6;
-      console.log(`[getOfferByIdImpl] Provider:`, { slug: providerSlug, defaultRevenueShare });
     }
   }
 
@@ -842,12 +821,6 @@ export async function getOfferByIdImpl(
   const strippedDescription = stripHtml(offer.description ?? "");
   const strippedRequirements = stripHtml(offer.requirements ?? "");
   const strippedNotAllowed = stripHtml(offer.not_allowed ?? "");
-
-  console.log(`[getOfferByIdImpl] Stripped text:`, {
-    requirements_before: offer.requirements,
-    requirements_after: strippedRequirements,
-    requirements_length: strippedRequirements.length,
-  });
 
   // Extract steps from raw_payload (only if requirements is empty/not manually set)
   const hasManualRequirements = Boolean(strippedRequirements.trim());
@@ -860,12 +833,6 @@ export async function getOfferByIdImpl(
         defaultRevenueShare,
       )
     : null;
-
-  console.log(`[getOfferByIdImpl] Steps extraction:`, {
-    hasManualRequirements,
-    stepsCount: steps?.length ?? 0,
-    steps: steps?.slice(0, 3), // Log first 3 steps
-  });
 
   // Extract difficulty from raw_payload (adswedmedia only)
   let difficulty: string | undefined;
@@ -908,14 +875,6 @@ export async function getOfferByIdImpl(
     steps: steps ?? undefined,
     difficulty,
   };
-
-  console.log(`[getOfferByIdImpl] Final offer:`, {
-    id: featuredOffer.id,
-    title: featuredOffer.title,
-    hasSteps: Boolean(featuredOffer.steps),
-    stepsCount: featuredOffer.steps?.length ?? 0,
-    difficulty: featuredOffer.difficulty,
-  });
 
   // Enrich with user's claim status
   const enriched = await enrichOffersWithClaimStatus([featuredOffer], userId);
