@@ -21,6 +21,10 @@ const questFormSchema = z.object({
   questType: z.enum(["ads", "shortlink", "locker"]).default("ads"),
   adsRequired: z.number().int().min(0).max(500).default(0),
   rewardAmount: z.number().min(0).max(10000).default(0),
+  // Step rewards: immediate credit per step (shortlink/locker only)
+  stepReward: z.number().min(0).max(10000).default(0),
+  // Optional per-step overrides: stepRewards[i-1] = reward for step i
+  stepRewards: z.array(z.number().min(0).max(10000)).optional().nullable(),
   // Up to 10 steps. No lower bound: an incomplete quest is saveable as a draft,
   // and upsertQuestImpl forces is_active = false until it has enough links, so a
   // half-built quest can never be shown to users.
