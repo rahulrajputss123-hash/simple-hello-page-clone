@@ -817,8 +817,13 @@ export async function getOfferByIdImpl(
     }
   }
 
+  // Strip HTML first for all text fields
+  const strippedDescription = stripHtml(offer.description ?? "");
+  const strippedRequirements = stripHtml(offer.requirements ?? "");
+  const strippedNotAllowed = stripHtml(offer.not_allowed ?? "");
+
   // Extract steps from raw_payload (only if requirements is empty/not manually set)
-  const hasManualRequirements = Boolean(offer.requirements?.trim());
+  const hasManualRequirements = Boolean(strippedRequirements.trim());
   const steps = !hasManualRequirements
     ? extractStepsFromRawPayload(
         providerSlug,
@@ -847,9 +852,9 @@ export async function getOfferByIdImpl(
     id: offer.id,
     external_offer_id: offer.external_offer_id,
     title: offer.title,
-    description: stripHtml(offer.description ?? ""),
-    requirements: stripHtml(offer.requirements ?? ""),
-    not_allowed: stripHtml(offer.not_allowed ?? ""),
+    description: strippedDescription,
+    requirements: strippedRequirements,
+    not_allowed: strippedNotAllowed,
     icon: offer.icon ?? "",
     image_url: hasImageUrl ? imageUrlFromIcon(offer.image_url) : imageUrlFromIcon(offer.icon),
     reward_amount: Number(offer.reward_amount),
