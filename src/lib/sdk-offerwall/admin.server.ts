@@ -268,3 +268,58 @@ export async function getOfferwallMeSignedUrlImpl(userId: string): Promise<strin
 
   return signedUrl;
 }
+
+/**
+ * Generate a signed URL for TheoremReach with user identity signature.
+ * Uses the authenticated userId from context (never accepts from client).
+ * Signature format: base64(HMAC-SHA1(secret, urlBeforeHash)), URL-safe encoding
+ */
+export async function getTheoremReachSignedUrlImpl(userId: string): Promise<string> {
+  console.log("[theoremreach] Starting signed URL generation");
+  console.log("[theoremreach] Environment check - has THEOREMREACH_SECRET_KEY:", Boolean(process.env["THEOREMREACH_SECRET_KEY"]));
+  
+  // Read the app_id (API key) from the theoremreach provider row
+  const { data: provider, error: providerError } = await supabaseAdmin
+    .from("sdk_offerwall_providers")
+    .select("app_id")
+    .eq("slug", "theoremreach")
+    .maybeSingle();
+
+  if (providerError) {
+    console.error("[theoremreach] Database error:", providerError);
+    throw providerError;
+  }
+  if (!provider?.app_id) {
+    console.error("[theoremreach] Provider not found or missing app_id");
+    throw new Error("TheoremReach provider not configured (missing app_id)");
+  }
+
+  const apiKey = provider.app_id.trim();
+  console.log("[theoremreach] Found API key:", apiKey.substring(0, 8) + "...");
+
+  // Read the secret from environment (server-only)
+  const secret = process.env["THEOREMREACH_SECRET_KEY"]?.trim();
+  if (!secret) {
+    console.error("[theoremreach] Environment variables available:", Object.keys(process.env).filter(k => k.includes("THEOREM") || k.includes("SECRET")).join(", "));
+    throw new Error("Environment variable THEOREMREACH_SECRET_KEY is not configured");
+  }
+
+  console.log("[theoremreach] Secret found, length:", secret.length);
+  console.log("[theoremreach] Generating signed URL for user:", userId.substring(0, 8) + "...");
+
+  // Build the base URL with parameters (before hash)
+  const baseUrl = `https://theoremreach.com/respondent_entry/direct?api_key=${encodeURIComponent(apiKey)}&user_id=${encodeURIComponent(userId)}`;
+
+  // Generate HMAC-SHA1 signature
+  const crypto = await import("crypto");
+  const hmac = crypto.createHmac("sha1", secret).update(baseUrl, "utf8").digest("base64");
+  
+  // Make it URL-safe (replace + with -, / with _, remove =)
+  const urlSafeHash = hmac.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+
+  // Append the hash to complete the signed URL
+  const signedUrl = `${baseUrl}&hash=${urlSafeHash}`;
+
+  console.log("[theoremreach] Generated signed URL successfully");
+  return signedUrl;
+}

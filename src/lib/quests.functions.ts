@@ -18,10 +18,10 @@ const questFormSchema = z.object({
     .regex(/^[a-z0-9_-]+$/i, "Key must be alphanumeric / _ / -"),
   label: z.string().trim().min(1).max(60),
   icon: z.string().trim().max(2000).default("gift"),
-  questType: z.enum(["ads", "shortlink", "locker"]).default("ads"),
+  questType: z.enum(["ads", "shortlink", "locker", "checkin"]).default("ads"),
   adsRequired: z.number().int().min(0).max(500).default(0),
   rewardAmount: z.number().min(0).max(10000).default(0),
-  // Step rewards: immediate credit per step (shortlink/locker only)
+  // Step rewards: immediate credit per step (shortlink/locker/checkin only)
   stepReward: z.number().min(0).max(10000).default(0),
   // Optional per-step overrides: stepRewards[i-1] = reward for step i
   stepRewards: z.array(z.number().min(0).max(10000)).optional().nullable(),
@@ -32,6 +32,14 @@ const questFormSchema = z.object({
   minSecondsPerStep: z.number().int().min(1).max(600).default(15),
   // Up to 3 ordered lockers, completed sequentially. Same draft rule as above.
   lockerUrls: z.array(z.string().trim().url().max(2000)).max(LOCKER_MAX_URLS).optional(),
+  // Check-in quest fields
+  totalDays: z.number().int().min(1).max(365).default(3),
+  requiredActiveSeconds: z.number().int().min(0).max(86400).default(300),
+  streakMode: z.enum(["consecutive", "total"]).default("consecutive"),
+  graceDays: z.number().int().min(0).max(30).default(0),
+  day1AutoComplete: z.boolean().default(true),
+  repeatable: z.boolean().default(false),
+  defaultTimezone: z.string().trim().min(1).max(100).default("Asia/Kolkata"),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(9999).default(0),
   // 'first_withdrawal' needs no extra field — it reads profiles.lifetime_withdrawn.
@@ -154,4 +162,79 @@ export const completeLockerQuest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { completeLockerQuestImpl } = await import("./quests.server");
     return completeLockerQuestImpl(context.userId, data.questKey, data.isNative);
+  });
+
+/**
+ * User: ensure check-in session exists and is valid.
+ * Idempotent - client should call after loading quests.
+ * Handles session creation, Day 1 auto-complete, and streak evaluation.
+ */
+export const ensureCheckinSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { ensureCheckinSessionImpl } = await import("./quests.server");
+    return ensureCheckinSessionImpl(context.userId, data.questKey);
+  });
+
+/**
+ * User: ping active time for check-in quest.
+ * Called by client every 30s while document is visible and focused.
+ * Server tracks active seconds and completes day when threshold reached.
+ */
+export const pingActiveTime = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { pingActiveTimeImpl } = await import("./quests.server");
+    return pingActiveTimeImpl(context.userId, data.questKey);
+  });
+
+/**
+ * User: check in today (tap-only mode).
+ * Completes today's day immediately if required_active_seconds = 0.
+ */
+export const checkInToday = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { checkInTodayImpl } = await import("./quests.server");
+    return checkInTodayImpl(context.userId, data.questKey);
+  });
+
+/**
+ * User: update user's timezone (client-detected via Intl API).
+ * Validates timezone server-side and enforces 7-day change limit.
+ * Uses service role to write profiles.timezone (not client-writable).
+ */
+export const updateUserTimezone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        timezone: z.string().trim().min(1).max(100),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { updateUserTimezoneImpl } = await import("./quests.server");
+    return updateUserTimezoneImpl(context.userId, data.timezone);
   });

@@ -57,6 +57,7 @@ import { Route as AuthenticatedAdvertiserResultsIdRouteImport } from './routes/_
 import { Route as AuthenticatedGoQuestKeyStepRouteImport } from './routes/_authenticated/go.$questKey.$step'
 import { Route as AuthenticatedGoLockerReturnRouteImport } from './routes/_authenticated/go.locker.return'
 import { Route as ApiPublicFeedPostbackAdbluemediaRouteImport } from './routes/api/public/feed-postback.adbluemedia'
+import { Route as ApiPublicFeedPostbackGemiadRouteImport } from './routes/api/public/feed-postback.gemiad'
 import { Route as ApiPublicFeedPostbackOgadsRouteImport } from './routes/api/public/feed-postback.ogads'
 import { Route as ApiPublicOfferPostbackOfferIdRouteImport } from './routes/api/public/offer-postback.$offerId'
 import { Route as ApiPublicOfferwallSlugRouteImport } from './routes/api/public/offerwall/$slug'
@@ -320,6 +321,12 @@ const ApiPublicFeedPostbackAdbluemediaRoute =
     path: '/api/public/feed-postback/adbluemedia',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicFeedPostbackGemiadRoute =
+  ApiPublicFeedPostbackGemiadRouteImport.update({
+    id: '/api/public/feed-postback/gemiad',
+    path: '/api/public/feed-postback/gemiad',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicFeedPostbackOgadsRoute =
   ApiPublicFeedPostbackOgadsRouteImport.update({
     id: '/api/public/feed-postback/ogads',
@@ -386,6 +393,7 @@ export interface FileRoutesByFullPath {
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
   '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
+  '/api/public/feed-postback/gemiad': typeof ApiPublicFeedPostbackGemiadRoute
   '/api/public/feed-postback/ogads': typeof ApiPublicFeedPostbackOgadsRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
@@ -438,6 +446,7 @@ export interface FileRoutesByTo {
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
   '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
+  '/api/public/feed-postback/gemiad': typeof ApiPublicFeedPostbackGemiadRoute
   '/api/public/feed-postback/ogads': typeof ApiPublicFeedPostbackOgadsRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
@@ -492,6 +501,7 @@ export interface FileRoutesById {
   '/_authenticated/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/_authenticated/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
   '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
+  '/api/public/feed-postback/gemiad': typeof ApiPublicFeedPostbackGemiadRoute
   '/api/public/feed-postback/ogads': typeof ApiPublicFeedPostbackOgadsRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
@@ -546,6 +556,7 @@ export interface FileRouteTypes {
     | '/go/$questKey/$step'
     | '/go/locker/return'
     | '/api/public/feed-postback/adbluemedia'
+    | '/api/public/feed-postback/gemiad'
     | '/api/public/feed-postback/ogads'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
@@ -598,6 +609,7 @@ export interface FileRouteTypes {
     | '/go/$questKey/$step'
     | '/go/locker/return'
     | '/api/public/feed-postback/adbluemedia'
+    | '/api/public/feed-postback/gemiad'
     | '/api/public/feed-postback/ogads'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
@@ -651,6 +663,7 @@ export interface FileRouteTypes {
     | '/_authenticated/go/$questKey/$step'
     | '/_authenticated/go/locker/return'
     | '/api/public/feed-postback/adbluemedia'
+    | '/api/public/feed-postback/gemiad'
     | '/api/public/feed-postback/ogads'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
@@ -676,6 +689,7 @@ export interface RootRouteChildren {
   ApiPublicMarketplacePostbackRoute: typeof ApiPublicMarketplacePostbackRoute
   ApiPublicRazorpayWebhookRoute: typeof ApiPublicRazorpayWebhookRoute
   ApiPublicFeedPostbackAdbluemediaRoute: typeof ApiPublicFeedPostbackAdbluemediaRoute
+  ApiPublicFeedPostbackGemiadRoute: typeof ApiPublicFeedPostbackGemiadRoute
   ApiPublicFeedPostbackOgadsRoute: typeof ApiPublicFeedPostbackOgadsRoute
   ApiPublicOfferPostbackOfferIdRoute: typeof ApiPublicOfferPostbackOfferIdRoute
   ApiPublicOfferwallSlugRoute: typeof ApiPublicOfferwallSlugRoute
@@ -1019,6 +1033,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFeedPostbackAdbluemediaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/feed-postback/gemiad': {
+      id: '/api/public/feed-postback/gemiad'
+      path: '/api/public/feed-postback/gemiad'
+      fullPath: '/api/public/feed-postback/gemiad'
+      preLoaderRoute: typeof ApiPublicFeedPostbackGemiadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/feed-postback/ogads': {
       id: '/api/public/feed-postback/ogads'
       path: '/api/public/feed-postback/ogads'
@@ -1131,6 +1152,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicMarketplacePostbackRoute: ApiPublicMarketplacePostbackRoute,
   ApiPublicRazorpayWebhookRoute: ApiPublicRazorpayWebhookRoute,
   ApiPublicFeedPostbackAdbluemediaRoute: ApiPublicFeedPostbackAdbluemediaRoute,
+  ApiPublicFeedPostbackGemiadRoute: ApiPublicFeedPostbackGemiadRoute,
   ApiPublicFeedPostbackOgadsRoute: ApiPublicFeedPostbackOgadsRoute,
   ApiPublicOfferPostbackOfferIdRoute: ApiPublicOfferPostbackOfferIdRoute,
   ApiPublicOfferwallSlugRoute: ApiPublicOfferwallSlugRoute,

@@ -87,6 +87,17 @@ export const QuestCard = memo(function QuestCard({
     if (quest.quest_type === "ads") {
       return quest.reward_amount; // Ads quests: reward_amount is the only reward
     }
+    if (quest.quest_type === "checkin") {
+      // Checkin: sum all step rewards (per-day) + completion bonus
+      const totalDays = quest.total_days ?? 3;
+      const baseReward = quest.step_reward ?? 0;
+      const customRewards = quest.step_rewards ?? [];
+      let totalStepRewards = 0;
+      for (let i = 0; i < totalDays; i++) {
+        totalStepRewards += customRewards[i] !== undefined ? customRewards[i] : baseReward;
+      }
+      return totalStepRewards + quest.reward_amount;
+    }
     // Step-based quests (shortlink/locker): sum step rewards + completion bonus
     const stepCount = total;
     const baseReward = quest.step_reward ?? 0;
@@ -106,7 +117,11 @@ export const QuestCard = memo(function QuestCard({
         ? `${remaining} ${remaining === 1 ? "ad" : "ads"} left to verify`
         : quest.quest_type === "shortlink"
           ? `Step ${nextStep} of ${total} · ${quest.min_seconds_per_step}s minimum`
-          : "Secure locker completion required";
+          : quest.quest_type === "checkin"
+            ? quest.streak_mode === "consecutive"
+              ? `${remaining} more ${remaining === 1 ? "day" : "days"} to go`
+              : `Check in ${remaining} more ${remaining === 1 ? "day" : "days"}`
+            : "Secure locker completion required";
   const summary = locked
     ? (lockLabel ?? "Quest locked")
     : credited
@@ -115,7 +130,9 @@ export const QuestCard = memo(function QuestCard({
         ? `Watch ${total} ${total === 1 ? "Ad" : "Ads"}`
         : quest.quest_type === "shortlink"
           ? `Visit ${total} ${total === 1 ? "Shortlink" : "Shortlinks"}`
-          : "Complete Locker";
+          : quest.quest_type === "checkin"
+            ? `Check in ${total} ${total === 1 ? "Day" : "Days"}`
+            : "Complete Locker";
   const ctaText = locked
     ? "Locked"
     : credited
@@ -128,13 +145,19 @@ export const QuestCard = memo(function QuestCard({
             ? progress > 0
               ? "Continue"
               : "Start Quest"
-            : "Complete Locker";
+            : quest.quest_type === "checkin"
+              ? progress > 0
+                ? "Continue Streak"
+                : "Start Streak"
+              : "Complete Locker";
   const actionTestId =
     quest.quest_type === "ads"
       ? `quest-watch-${quest.key}`
       : quest.quest_type === "shortlink"
         ? `quest-open-${quest.key}`
-        : `quest-locker-${quest.key}`;
+        : quest.quest_type === "checkin"
+          ? `quest-checkin-${quest.key}`
+          : `quest-locker-${quest.key}`;
 
   const inactive = locked || credited;
 
@@ -224,6 +247,46 @@ export const QuestCard = memo(function QuestCard({
         </p>
 
         <div className="min-h-3 flex-1" />
+
+        {/* checkin day chips */}
+        {quest.quest_type === "checkin" && !credited && !locked ? (
+          <div className="mb-3 flex flex-wrap gap-1.5" data-testid={`quest-checkin-days-${quest.key}`}>
+            {Array.from({ length: total }, (_, i) => {
+              const dayNumber = i + 1;
+              const completedDay = active?.checkin_days?.find((d, idx) => idx === i && d.completed_at);
+              const isToday = i === progress && !completedDay;
+              const isFuture = i > progress;
+              
+              return (
+                <div
+                  key={i}
+                  className="flex h-7 min-w-[2rem] items-center justify-center rounded-md px-2 text-[11px] font-semibold transition-all"
+                  style={
+                    completedDay
+                      ? {
+                          background: accent.tile,
+                          color: "#FFFFFF",
+                          boxShadow: `0 2px 6px ${accent.tileShadow}`,
+                        }
+                      : isToday
+                        ? {
+                            background: accent.badgeBg,
+                            color: accent.badgeInk,
+                            border: `1px solid ${accent.badgeInk}33`,
+                          }
+                        : {
+                            background: TRACK,
+                            color: INK_FAINT,
+                          }
+                  }
+                  data-testid={`quest-day-${quest.key}-${dayNumber}`}
+                >
+                  {completedDay ? "✓" : dayNumber}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
 
         {/* progress */}
         <div data-testid={`quest-progress-${quest.key}`}>

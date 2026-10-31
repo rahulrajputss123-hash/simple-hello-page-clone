@@ -40,7 +40,7 @@ type FormState = {
   key: string;
   label: string;
   icon: string;
-  questType: "ads" | "shortlink" | "locker";
+  questType: "ads" | "shortlink" | "locker" | "checkin";
   adsRequired: string;
   rewardAmount: string;
   stepReward: string;
@@ -50,6 +50,14 @@ type FormState = {
   /** 1-3 locker URLs, completed in order. Unlike shortlink's fixed 3, the
    *  admin chooses how many rows exist. */
   lockerUrls: string[];
+  // Check-in quest fields
+  totalDays: string;
+  requiredActiveSeconds: string;
+  streakMode: "consecutive" | "total";
+  graceDays: string;
+  day1AutoComplete: boolean;
+  repeatable: boolean;
+  defaultTimezone: string;
   isActive: boolean;
   sortOrder: string;
   lockType: "none" | "time" | "earning" | "first_withdrawal";
@@ -121,6 +129,14 @@ const emptyForm = (): FormState => ({
   ],
   minSecondsPerStep: "15",
   lockerUrls: [""],
+  // Check-in defaults
+  totalDays: "3",
+  requiredActiveSeconds: "300",
+  streakMode: "consecutive",
+  graceDays: "0",
+  day1AutoComplete: true,
+  repeatable: false,
+  defaultTimezone: "Asia/Kolkata",
   isActive: true,
   sortOrder: "0",
   lockType: "none",
@@ -173,6 +189,14 @@ export function QuestsManager() {
             : {}),
           minSecondsPerStep: Number(state.minSecondsPerStep) || 15,
           ...(state.questType === "locker" ? { lockerUrls: linkInfo(state).filledLockerUrls } : {}),
+          // Check-in fields
+          totalDays: Number(state.totalDays) || 3,
+          requiredActiveSeconds: Number(state.requiredActiveSeconds) || 300,
+          streakMode: state.streakMode,
+          graceDays: Number(state.graceDays) || 0,
+          day1AutoComplete: state.day1AutoComplete,
+          repeatable: state.repeatable,
+          defaultTimezone: state.defaultTimezone || "Asia/Kolkata",
           // Mirrors the server rule so the optimistic UI matches what is stored.
           isActive: state.isActive,
           sortOrder: Number(state.sortOrder) || 0,
@@ -225,6 +249,14 @@ export function QuestsManager() {
       // A backfilled single-locker quest opens as one row; always keep >= 1 row
       // so the form is never empty.
       lockerUrls: quest.locker_urls?.length ? [...quest.locker_urls].slice(0, 3) : [""],
+      // Check-in fields
+      totalDays: String(quest.total_days ?? 3),
+      requiredActiveSeconds: String(quest.required_active_seconds ?? 300),
+      streakMode: quest.streak_mode ?? "consecutive",
+      graceDays: String(quest.grace_days ?? 0),
+      day1AutoComplete: quest.day1_auto_complete ?? true,
+      repeatable: quest.repeatable ?? false,
+      defaultTimezone: quest.default_timezone ?? "Asia/Kolkata",
       isActive: quest.is_active,
       sortOrder: String(quest.sort_order ?? 0),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -459,7 +491,7 @@ export function QuestsManager() {
               )}
               <Field label="Quest type">
                 <div className="flex gap-2">
-                  {(["ads", "shortlink", "locker"] as const).map((type) => (
+                  {(["ads", "shortlink", "locker", "checkin"] as const).map((type) => (
                     <Button
                       key={type}
                       size="sm"
@@ -485,6 +517,132 @@ export function QuestsManager() {
                     onChange={(event) => setForm({ ...form, adsRequired: event.target.value })}
                   />
                 </Field>
+              ) : form.questType === "checkin" ? (
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Daily check-in quest with streak tracking. Each day = one step.
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Total days">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={form.totalDays}
+                        onChange={(event) => setForm({ ...form, totalDays: event.target.value })}
+                      />
+                    </Field>
+                    
+                    <Field label="Active seconds/day (0 = tap-only)">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="86400"
+                        value={form.requiredActiveSeconds}
+                        placeholder="300"
+                        onChange={(event) => setForm({ ...form, requiredActiveSeconds: event.target.value })}
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Streak mode">
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={form.streakMode === "consecutive" ? "jade" : "outline"}
+                        onClick={() => setForm({ ...form, streakMode: "consecutive" })}
+                      >
+                        Consecutive
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={form.streakMode === "total" ? "jade" : "outline"}
+                        onClick={() => setForm({ ...form, streakMode: "total" })}
+                      >
+                        Total (any N days)
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {form.streakMode === "consecutive" 
+                        ? "Missing a day resets the streak (with grace period)" 
+                        : "Any N distinct days complete it, gaps allowed"}
+                    </p>
+                  </Field>
+
+                  {form.streakMode === "consecutive" && (
+                    <Field label="Grace days (before reset)">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="30"
+                        value={form.graceDays}
+                        onChange={(event) => setForm({ ...form, graceDays: event.target.value })}
+                      />
+                    </Field>
+                  )}
+
+                  <Field label="Default timezone">
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors"
+                      value={form.defaultTimezone}
+                      onChange={(event) => setForm({ ...form, defaultTimezone: event.target.value })}
+                    >
+                      <optgroup label="South Asia">
+                        <option value="Asia/Kolkata">India (Asia/Kolkata) +5:30</option>
+                        <option value="Asia/Kathmandu">Nepal (Asia/Kathmandu) +5:45</option>
+                        <option value="Asia/Dhaka">Bangladesh (Asia/Dhaka) +6:00</option>
+                        <option value="Asia/Karachi">Pakistan (Asia/Karachi) +5:00</option>
+                        <option value="Asia/Colombo">Sri Lanka (Asia/Colombo) +5:30</option>
+                      </optgroup>
+                      <optgroup label="Southeast Asia">
+                        <option value="Asia/Bangkok">Thailand (Asia/Bangkok) +7:00</option>
+                        <option value="Asia/Singapore">Singapore +8:00</option>
+                        <option value="Asia/Manila">Philippines (Asia/Manila) +8:00</option>
+                      </optgroup>
+                      <optgroup label="Other">
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">US Eastern</option>
+                        <option value="Europe/London">UK (Europe/London)</option>
+                      </optgroup>
+                    </select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Used for users without a timezone set
+                    </p>
+                  </Field>
+
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={form.day1AutoComplete}
+                        onChange={(e) => setForm({ ...form, day1AutoComplete: e.target.checked })}
+                        className="size-4 rounded"
+                      />
+                      <span className="text-sm">Day 1 auto-complete</span>
+                    </label>
+                    <p className="text-xs text-muted-foreground ml-6">
+                      Automatically complete and pay Day 1 when quest starts
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={form.repeatable}
+                        onChange={(e) => setForm({ ...form, repeatable: e.target.checked })}
+                        className="size-4 rounded"
+                      />
+                      <span className="text-sm">Repeatable</span>
+                    </label>
+                    <p className="text-xs text-muted-foreground ml-6">
+                      Quest can be completed multiple times
+                    </p>
+                  </div>
+                </div>
               ) : form.questType === "locker" ? (
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground">

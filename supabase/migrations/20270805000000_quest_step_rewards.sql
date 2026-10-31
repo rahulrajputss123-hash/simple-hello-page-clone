@@ -58,11 +58,15 @@ GRANT ALL ON public.quest_step_credits TO service_role;
 -- RLS: Users can see their own step credits
 ALTER TABLE public.quest_step_credits ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "own step credits" 
-  ON public.quest_step_credits 
-  FOR SELECT 
-  TO authenticated 
-  USING (user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'));
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'quest_step_credits' AND policyname = 'own step credits') THEN
+    CREATE POLICY "own step credits" 
+      ON public.quest_step_credits 
+      FOR SELECT 
+      TO authenticated 
+      USING (user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'));
+  END IF;
+END $$;
 
 -- ============================================================================
 -- NOTES:
