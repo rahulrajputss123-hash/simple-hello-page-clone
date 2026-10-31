@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { LOCKER_MAX_URLS, SHORTLINK_MAX_STEPS } from "./coinquest";
 import { creditWallet } from "./coinquest.server";
@@ -20,21 +21,21 @@ export type QuestRow = {
   key: string;
   label: string;
   icon: string;
-  quest_type: "ads" | "shortlink" | "locker";
+  quest_type: "ads" | "shortlink" | "locker" | "checkin";
   ads_required: number;
   /**
    * Completion bonus credited when the entire quest finishes.
    * For ads quests, this is the only reward.
-   * For step-based quests (shortlink/locker), this is paid in addition to step rewards.
+   * For step-based quests (shortlink/locker/checkin), this is paid in addition to step rewards.
    */
   reward_amount: number;
   /**
-   * Default reward per step for shortlink/locker quests.
+   * Default reward per step for shortlink/locker/checkin quests.
    * Ignored for ads quests. If step_rewards array is present, it overrides this.
    */
   step_reward: number;
   /**
-   * Optional per-step reward amounts for shortlink/locker quests.
+   * Optional per-step reward amounts for shortlink/locker/checkin quests.
    * If present, length must equal number of steps and overrides step_reward.
    */
   step_rewards: number[] | null;
@@ -46,6 +47,20 @@ export type QuestRow = {
    * column, which is intentionally not exposed here.
    */
   locker_urls: string[];
+  /** Check-in quest: total days in the streak (1-365). Each day = one step. */
+  total_days: number;
+  /** Check-in quest: required active seconds per day (0 = tap-only mode). */
+  required_active_seconds: number;
+  /** Check-in quest: 'consecutive' (missing a day resets) or 'total' (any N days). */
+  streak_mode: "consecutive" | "total";
+  /** Check-in quest: grace days before consecutive streak resets (0-30). */
+  grace_days: number;
+  /** Check-in quest: auto-complete Day 1 on session start. */
+  day1_auto_complete: boolean;
+  /** Check-in quest: can be repeated after completion. */
+  repeatable: boolean;
+  /** Check-in quest: default timezone for users without one set (IANA format). */
+  default_timezone: string;
   is_active: boolean;
   sort_order: number;
   /** 'first_withdrawal' unlocks once profiles.lifetime_withdrawn > 0. */
@@ -72,6 +87,13 @@ function normalize(row: QuestRow): QuestRow {
     locker_urls: Array.isArray(row.locker_urls)
       ? row.locker_urls.map((url) => String(url).trim()).filter(Boolean)
       : [],
+    total_days: Number(row.total_days ?? 3),
+    required_active_seconds: Number(row.required_active_seconds ?? 300),
+    streak_mode: (row.streak_mode ?? "consecutive") as "consecutive" | "total",
+    grace_days: Number(row.grace_days ?? 0),
+    day1_auto_complete: Boolean(row.day1_auto_complete ?? true),
+    repeatable: Boolean(row.repeatable ?? false),
+    default_timezone: String(row.default_timezone ?? "Asia/Kolkata"),
     sort_order: Number(row.sort_order ?? 0),
     lock_type: (row.lock_type ?? "none") as QuestRow["lock_type"],
     unlock_at: row.unlock_at ?? null,
@@ -139,6 +161,31 @@ export async function listActiveQuestsImpl(userId?: string, isNative?: boolean):
     ? await fetchLockInputs(userId)
     : { lifetimeEarned: 0, lifetimeWithdrawn: 0 };
 
+  // Auto-start check-in quests for authenticated users
+  if (userId) {
+    for (const quest of rows) {
+      if (quest.quest_type === "checkin" && quest.is_active) {
+        try {
+          const userTimezone = await getUserTimezone(userId, quest.default_timezone);
+          const { session, day1Completed } = await getOrCreateCheckinSession(
+            userId,
+            quest,
+            userTimezone,
+          );
+
+          // Evaluate streak (consecutive mode may need reset)
+          const { needsReset } = await evaluateCheckinStreak(session, quest, userTimezone);
+          if (needsReset) {
+            await resetCheckinSession(userId, session.id, quest, userTimezone);
+          }
+        } catch (err) {
+          console.error(`[checkin] Failed to auto-start quest ${quest.key}:`, err);
+          // Continue with other quests
+        }
+      }
+    }
+  }
+
   return rows.map((quest) => {
     const lockState = userId
       ? computeLockState(
@@ -168,14 +215,32 @@ export type QuestFormInput = {
   key: string;
   label: string;
   icon: string;
-  questType: "ads" | "shortlink" | "locker";
+  questType: "ads" | "shortlink" | "locker" | "checkin";
   adsRequired: number;
   rewardAmount: number;
+  /** Default step reward (overridden by stepRewards array if present) */
+  stepReward: number;
+  /** Optional per-step rewards array */
+  stepRewards?: number[] | undefined | null;
   /** 1-10 ordered steps. Only meaningful when questType === "shortlink". */
   shortlinkSteps?: ShortlinkStep[] | undefined;
   minSecondsPerStep: number;
   /** 1-3 ordered locker URLs. Only meaningful when questType === "locker". */
   lockerUrls?: string[] | undefined;
+  /** Check-in: total days in streak (1-365) */
+  totalDays: number;
+  /** Check-in: required active seconds per day (0 = tap-only) */
+  requiredActiveSeconds: number;
+  /** Check-in: streak mode */
+  streakMode: "consecutive" | "total";
+  /** Check-in: grace days before reset */
+  graceDays: number;
+  /** Check-in: auto-complete Day 1 */
+  day1AutoComplete: boolean;
+  /** Check-in: repeatable after completion */
+  repeatable: boolean;
+  /** Check-in: default timezone */
+  defaultTimezone: string;
   isActive: boolean;
   sortOrder: number;
   lockType: "none" | "time" | "earning" | "first_withdrawal";
@@ -230,9 +295,18 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     quest_type: input.questType,
     ads_required: input.questType === "ads" ? input.adsRequired : 0,
     reward_amount: input.rewardAmount,
+    step_reward: input.stepReward ?? 0,
+    step_rewards: input.stepRewards ?? null,
     shortlink_steps: input.questType === "shortlink" ? shortlinkSteps : [],
     min_seconds_per_step: input.minSecondsPerStep,
     locker_urls: input.questType === "locker" ? lockerUrls : [],
+    total_days: input.questType === "checkin" ? input.totalDays : 3,
+    required_active_seconds: input.questType === "checkin" ? input.requiredActiveSeconds : 300,
+    streak_mode: input.questType === "checkin" ? input.streakMode : "consecutive",
+    grace_days: input.questType === "checkin" ? input.graceDays : 0,
+    day1_auto_complete: input.questType === "checkin" ? input.day1AutoComplete : true,
+    repeatable: input.questType === "checkin" ? input.repeatable : false,
+    default_timezone: input.questType === "checkin" ? input.defaultTimezone : "Asia/Kolkata",
     is_active: isActive,
     sort_order: input.sortOrder,
     lock_type: input.lockType,
@@ -930,3 +1004,552 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
     total,
   };
 }
+
+// ============================================================================
+// CHECK-IN QUEST LOGIC
+// ============================================================================
+
+/**
+ * Get or create a check-in quest session for a user.
+ * Auto-starts the quest on first access and completes Day 1 if day1_auto_complete is enabled.
+ * 
+ * Returns: { session, day1Completed } where day1Completed indicates if Day 1 was just auto-completed
+ */
+async function getOrCreateCheckinSession(
+  userId: string,
+  quest: QuestRow,
+  userTimezone: string,
+): Promise<{ session: any; day1Completed: boolean }> {
+  const { getLocalDate } = await import("./timezone.server");
+  const todayLocal = getLocalDate(userTimezone);
+
+  // Check for existing session
+  const existing = await db
+    .from("quest_sessions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("quest_key", quest.key)
+    .in("status", ["started"])
+    .order("started_at", { ascending: false })
+    .maybeSingle();
+
+  if (existing.data) {
+    return { session: existing.data, day1Completed: false };
+  }
+
+  // Create new session
+  const sessionToken = crypto.randomUUID();
+  const created = await db
+    .from("quest_sessions")
+    .insert({
+      user_id: userId,
+      quest_key: quest.key,
+      quest_type: "checkin",
+      reward_amount: quest.reward_amount,
+      status: "started",
+      started_at: new Date().toISOString(),
+      session_token: sessionToken,
+      // Lock the timezone at session start (anti-abuse)
+      metadata: { locked_timezone: userTimezone },
+    } as any)
+    .select("*")
+    .single();
+
+  if (created.error || !created.data) {
+    throw new Error(created.error?.message ?? "Failed to create check-in session");
+  }
+
+  // Day 1 auto-complete
+  let day1Completed = false;
+  if (quest.day1_auto_complete) {
+    day1Completed = await completeCheckinDay(
+      userId,
+      created.data.id as string,
+      quest.key,
+      quest,
+      todayLocal,
+      0, // Day 1 = step index 0
+      userTimezone,
+    );
+  }
+
+  return { session: created.data, day1Completed };
+}
+
+/**
+ * Complete a check-in day and credit the step reward.
+ * Idempotent via quest_step_credits unique constraint.
+ * 
+ * @returns true if day was newly completed, false if already complete
+ */
+async function completeCheckinDay(
+  userId: string,
+  sessionId: string,
+  questKey: string,
+  quest: QuestRow,
+  localDate: string,
+  dayIndex: number, // 0-based (Day 1 = 0, Day 2 = 1, etc.)
+  userTimezone: string,
+): Promise<boolean> {
+  // Check if day already completed
+  const existing = await db
+    .from("quest_checkin_days")
+    .select("completed_at")
+    .eq("session_id", sessionId)
+    .eq("local_date", localDate)
+    .maybeSingle();
+
+  if (existing.data?.completed_at) {
+    return false; // Already completed
+  }
+
+  // Upsert the day record as completed
+  const { error: upsertError } = await db
+    .from("quest_checkin_days")
+    .upsert(
+      {
+        session_id: sessionId,
+        user_id: userId,
+        quest_key: questKey,
+        local_date: localDate,
+        active_seconds: quest.required_active_seconds, // Mark as fully active
+        completed_at: new Date().toISOString(),
+      } as any,
+      {
+        onConflict: "session_id,local_date",
+      },
+    );
+
+  if (upsertError) {
+    console.error("[checkin] Failed to complete day:", upsertError);
+    throw new Error("Failed to complete check-in day");
+  }
+
+  // Calculate step reward (use per-day rewards if available)
+  const stepReward =
+    quest.step_rewards && quest.step_rewards[dayIndex] != null
+      ? quest.step_rewards[dayIndex]
+      : quest.step_reward;
+
+  // Credit step reward (idempotent)
+  if (stepReward && stepReward > 0) {
+    await creditStepReward(
+      userId,
+      sessionId,
+      questKey,
+      quest.label,
+      dayIndex,
+      stepReward,
+    );
+  }
+
+  // Check if this was the final day
+  const completedDays = await db
+    .from("quest_checkin_days")
+    .select("local_date")
+    .eq("session_id", sessionId)
+    .not("completed_at", "is", null);
+
+  const totalCompletedDays = completedDays.data?.length ?? 0;
+
+  if (totalCompletedDays >= quest.total_days) {
+    // Quest complete! Credit completion bonus
+    await finishQuestSession(
+      userId,
+      sessionId,
+      quest.reward_amount,
+      `Quest completed: ${quest.label}`,
+    );
+  }
+
+  return true;
+}
+
+/**
+ * Get user's timezone from profile, with fallback to quest's default timezone.
+ */
+async function getUserTimezone(userId: string, defaultTimezone: string): Promise<string> {
+  const { data } = await db
+    .from("profiles")
+    .select("timezone")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const userTz = data?.timezone;
+  if (userTz) {
+    const { validateTimezone } = await import("./timezone.server");
+    const validated = validateTimezone(userTz);
+    if (validated) return validated;
+  }
+
+  return defaultTimezone;
+}
+
+/**
+ * Evaluate streak status and handle resets for consecutive mode.
+ * Lazy evaluation: checks for missed days when the quest is accessed.
+ * 
+ * Returns: { needsReset, missedDays } where needsReset indicates session should be reset
+ */
+async function evaluateCheckinStreak(
+  session: any,
+  quest: QuestRow,
+  userTimezone: string,
+): Promise<{ needsReset: boolean; missedDays: number }> {
+  // Total mode: no resets, any N days work
+  if (quest.streak_mode === "total") {
+    return { needsReset: false, missedDays: 0 };
+  }
+
+  // Consecutive mode: check for missed days
+  const { getLocalDate, getYesterdayLocal, getDaysBetween } = await import("./timezone.server");
+  const todayLocal = getLocalDate(userTimezone);
+  const yesterdayLocal = getYesterdayLocal(userTimezone);
+
+  // Get all completed days for this session
+  const completedDays = await db
+    .from("quest_checkin_days")
+    .select("local_date")
+    .eq("session_id", session.id)
+    .not("completed_at", "is", null)
+    .order("local_date", { ascending: false });
+
+  const completed = completedDays.data?.map((d: any) => d.local_date) ?? [];
+
+  if (completed.length === 0) {
+    // No days completed yet (only Day 1 auto-complete pending)
+    return { needsReset: false, missedDays: 0 };
+  }
+
+  // Get the most recent completed day
+  const lastCompletedDate = completed[0];
+
+  // If last completed is today, streak is active
+  if (lastCompletedDate === todayLocal) {
+    return { needsReset: false, missedDays: 0 };
+  }
+
+  // If last completed is yesterday, streak is still active (user hasn't completed today yet)
+  if (lastCompletedDate === yesterdayLocal) {
+    return { needsReset: false, missedDays: 0 };
+  }
+
+  // Calculate missed days
+  const daysSinceLastComplete = getDaysBetween(userTimezone, lastCompletedDate, todayLocal) - 1;
+  const missedDays = Math.max(0, daysSinceLastComplete);
+
+  // Check if missed days exceed grace period
+  if (missedDays > quest.grace_days) {
+    return { needsReset: true, missedDays };
+  }
+
+  return { needsReset: false, missedDays };
+}
+
+/**
+ * Reset a check-in quest session (consecutive mode).
+ * Creates a new session and auto-completes Day 1 if enabled.
+ * Does NOT claw back step rewards already paid.
+ */
+async function resetCheckinSession(
+  userId: string,
+  oldSessionId: string,
+  quest: QuestRow,
+  userTimezone: string,
+): Promise<{ session: any; day1Completed: boolean }> {
+  // Mark old session as failed
+  await db
+    .from("quest_sessions")
+    .update({ status: "failed" } as any)
+    .eq("id", oldSessionId);
+
+  // Create fresh session (will auto-complete Day 1 if enabled)
+  return getOrCreateCheckinSession(userId, quest, userTimezone);
+}
+
+/**
+ * Ping active time for a check-in quest.
+ * Called by client every 30s while visible and focused.
+ * 
+ * Server logic:
+ * - Ignore pings <20s after previous ping (prevents parallel tabs/rapid pings)
+ * - Add min(now - last_ping_at, 35s) to today's active_seconds
+ * - Cap at required_active_seconds
+ * - Complete day when threshold reached
+ * 
+ * Returns: { dayCompleted, activeSeconds, requiredSeconds, stepReward }
+ */
+export async function pingActiveTimeImpl(
+  userId: string,
+  questKey: string,
+): Promise<{ dayCompleted: boolean; activeSeconds: number; requiredSeconds: number; stepReward: number }> {
+  // Get quest
+  const { data: quest } = await db
+    .from("quests")
+    .select("*")
+    .eq("key", questKey)
+    .eq("quest_type", "checkin")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!quest) {
+    throw new Error("Check-in quest not found");
+  }
+
+  const normalizedQuest = normalize(quest as QuestRow);
+
+  // Get user's timezone
+  const userTimezone = await getUserTimezone(userId, normalizedQuest.default_timezone);
+  const { getLocalDate } = await import("./timezone.server");
+  const todayLocal = getLocalDate(userTimezone);
+
+  // Get or create session
+  const { session } = await getOrCreateCheckinSession(userId, normalizedQuest, userTimezone);
+
+  // Check if session needs reset (lazy evaluation)
+  const { needsReset } = await evaluateCheckinStreak(session, normalizedQuest, userTimezone);
+  if (needsReset) {
+    const { session: newSession } = await resetCheckinSession(
+      userId,
+      session.id,
+      normalizedQuest,
+      userTimezone,
+    );
+    // Use the new session
+    Object.assign(session, newSession);
+  }
+
+  // Use locked timezone from session metadata (anti-abuse)
+  const lockedTimezone = session.metadata?.locked_timezone ?? userTimezone;
+
+  // Get or create today's day record
+  const existingDay = await db
+    .from("quest_checkin_days")
+    .select("*")
+    .eq("session_id", session.id)
+    .eq("local_date", todayLocal)
+    .maybeSingle();
+
+  const now = new Date();
+  const nowMs = now.getTime();
+
+  // If already completed, return current state
+  if (existingDay.data?.completed_at) {
+    return {
+      dayCompleted: true,
+      activeSeconds: normalizedQuest.required_active_seconds,
+      requiredSeconds: normalizedQuest.required_active_seconds,
+      stepReward: 0, // Already paid
+    };
+  }
+
+  // Check if ping is too soon (< 20s since last ping)
+  const lastPingAt = existingDay.data?.last_ping_at;
+  if (lastPingAt) {
+    const lastPingMs = new Date(lastPingAt).getTime();
+    const timeSinceLastPing = (nowMs - lastPingMs) / 1000; // seconds
+    if (timeSinceLastPing < 20) {
+      // Too soon, ignore this ping
+      return {
+        dayCompleted: false,
+        activeSeconds: existingDay.data.active_seconds ?? 0,
+        requiredSeconds: normalizedQuest.required_active_seconds,
+        stepReward: 0,
+      };
+    }
+  }
+
+  // Calculate seconds to add: min(time since last ping, 35s)
+  let secondsToAdd = 30; // Default if no previous ping
+  if (lastPingAt) {
+    const lastPingMs = new Date(lastPingAt).getTime();
+    const elapsedSeconds = (nowMs - lastPingMs) / 1000;
+    secondsToAdd = Math.min(elapsedSeconds, 35); // Cap at 35s
+  }
+
+  const currentActiveSeconds = existingDay.data?.active_seconds ?? 0;
+  const newActiveSeconds = Math.min(
+    currentActiveSeconds + secondsToAdd,
+    normalizedQuest.required_active_seconds,
+  );
+
+  // Upsert day record with new active time
+  await db
+    .from("quest_checkin_days")
+    .upsert(
+      {
+        session_id: session.id,
+        user_id: userId,
+        quest_key: questKey,
+        local_date: todayLocal,
+        active_seconds: newActiveSeconds,
+        last_ping_at: now.toISOString(),
+      } as any,
+      {
+        onConflict: "session_id,local_date",
+      },
+    );
+
+  // Check if day is now complete
+  const dayCompleted = newActiveSeconds >= normalizedQuest.required_active_seconds;
+
+  if (dayCompleted && !existingDay.data?.completed_at) {
+    // Complete the day (credits step reward)
+    const completedDays = await db
+      .from("quest_checkin_days")
+      .select("local_date")
+      .eq("session_id", session.id)
+      .not("completed_at", "is", null);
+
+    const dayIndex = completedDays.data?.length ?? 0; // Current day index (0-based)
+
+    await completeCheckinDay(
+      userId,
+      session.id,
+      questKey,
+      normalizedQuest,
+      todayLocal,
+      dayIndex,
+      lockedTimezone,
+    );
+
+    // Calculate step reward
+    const stepReward =
+      normalizedQuest.step_rewards && normalizedQuest.step_rewards[dayIndex] != null
+        ? normalizedQuest.step_rewards[dayIndex]
+        : normalizedQuest.step_reward;
+
+    return {
+      dayCompleted: true,
+      activeSeconds: newActiveSeconds,
+      requiredSeconds: normalizedQuest.required_active_seconds,
+      stepReward: stepReward ?? 0,
+    };
+  }
+
+  return {
+    dayCompleted: false,
+    activeSeconds: newActiveSeconds,
+    requiredSeconds: normalizedQuest.required_active_seconds,
+    stepReward: 0,
+  };
+}
+
+/**
+ * Check in today (tap-only mode).
+ * Completes today's day immediately if not already done.
+ * Only works when required_active_seconds = 0.
+ * 
+ * Returns: { success, dayCompleted, stepReward }
+ */
+export async function checkInTodayImpl(
+  userId: string,
+  questKey: string,
+): Promise<{ success: boolean; dayCompleted: boolean; stepReward: number; message?: string }> {
+  // Get quest
+  const { data: quest } = await db
+    .from("quests")
+    .select("*")
+    .eq("key", questKey)
+    .eq("quest_type", "checkin")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!quest) {
+    return { success: false, dayCompleted: false, stepReward: 0, message: "Quest not found" };
+  }
+
+  const normalizedQuest = normalize(quest as QuestRow);
+
+  // Verify tap-only mode
+  if (normalizedQuest.required_active_seconds !== 0) {
+    return {
+      success: false,
+      dayCompleted: false,
+      stepReward: 0,
+      message: "Quest requires active time tracking",
+    };
+  }
+
+  // Get user's timezone
+  const userTimezone = await getUserTimezone(userId, normalizedQuest.default_timezone);
+  const { getLocalDate } = await import("./timezone.server");
+  const todayLocal = getLocalDate(userTimezone);
+
+  // Get or create session
+  const { session } = await getOrCreateCheckinSession(userId, normalizedQuest, userTimezone);
+
+  // Check if session needs reset (lazy evaluation)
+  const { needsReset } = await evaluateCheckinStreak(session, normalizedQuest, userTimezone);
+  if (needsReset) {
+    const { session: newSession } = await resetCheckinSession(
+      userId,
+      session.id,
+      normalizedQuest,
+      userTimezone,
+    );
+    Object.assign(session, newSession);
+  }
+
+  // Use locked timezone from session metadata
+  const lockedTimezone = session.metadata?.locked_timezone ?? userTimezone;
+
+  // Check if today already completed
+  const existingDay = await db
+    .from("quest_checkin_days")
+    .select("completed_at")
+    .eq("session_id", session.id)
+    .eq("local_date", todayLocal)
+    .maybeSingle();
+
+  if (existingDay.data?.completed_at) {
+    return {
+      success: true,
+      dayCompleted: false, // Was already completed
+      stepReward: 0,
+      message: "Already checked in today",
+    };
+  }
+
+  // Get day index
+  const completedDays = await db
+    .from("quest_checkin_days")
+    .select("local_date")
+    .eq("session_id", session.id)
+    .not("completed_at", "is", null);
+
+  const dayIndex = completedDays.data?.length ?? 0;
+
+  // Complete today
+  const completed = await completeCheckinDay(
+    userId,
+    session.id,
+    questKey,
+    normalizedQuest,
+    todayLocal,
+    dayIndex,
+    lockedTimezone,
+  );
+
+  if (!completed) {
+    return {
+      success: false,
+      dayCompleted: false,
+      stepReward: 0,
+      message: "Failed to complete check-in",
+    };
+  }
+
+  // Calculate step reward
+  const stepReward =
+    normalizedQuest.step_rewards && normalizedQuest.step_rewards[dayIndex] != null
+      ? normalizedQuest.step_rewards[dayIndex]
+      : normalizedQuest.step_reward;
+
+  return {
+    success: true,
+    dayCompleted: true,
+    stepReward: stepReward ?? 0,
+  };
+}
+
