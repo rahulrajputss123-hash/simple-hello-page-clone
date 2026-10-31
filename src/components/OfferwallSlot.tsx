@@ -26,6 +26,9 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
     // Return placeholder - actual signed URL is fetched on click via server function
     return "signed-url-required";
   }
+  if (slug === "gemiad") {
+    return `https://gemiwall.com/${appId}/${encodeURIComponent(userId)}`;
+  }
   if (slug === "timewall") {
     return `https://timewall.io/users/login?oid=${appId}&uid=${encodeURIComponent(userId)}`;
   }

@@ -1,5 +1,6 @@
 import affikeSdkAdapter from "./adapters/affike.server";
 import cpxResearchSdkAdapter from "./adapters/cpxresearch.server";
+import gemiAdSdkAdapter from "./adapters/gemiad.server";
 import mooffersSdkAdapter from "./adapters/mooffers.server";
 import offerwallMeSdkAdapter from "./adapters/offerwallme.server";
 import revtooSdkAdapter from "./adapters/revtoo.server";
@@ -33,3 +34,4 @@ registerSdkAdapter(affikeSdkAdapter);
 registerSdkAdapter(mooffersSdkAdapter);
 registerSdkAdapter(timewallSdkAdapter);
 registerSdkAdapter(theoremreachSdkAdapter);
+registerSdkAdapter(gemiAdSdkAdapter);
