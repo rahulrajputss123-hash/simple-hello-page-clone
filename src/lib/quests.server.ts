@@ -21,21 +21,21 @@ export type QuestRow = {
   key: string;
   label: string;
   icon: string;
-  quest_type: "ads" | "shortlink" | "locker" | "checkin";
+  quest_type: "ads" | "shortlink" | "locker" | "checkin" | "feed_ptc" | "feed_shortlink" | "feed_article";
   ads_required: number;
   /**
    * Completion bonus credited when the entire quest finishes.
    * For ads quests, this is the only reward.
-   * For step-based quests (shortlink/locker/checkin), this is paid in addition to step rewards.
+   * For step-based quests (shortlink/locker/checkin/feed), this is paid in addition to step rewards.
    */
   reward_amount: number;
   /**
-   * Default reward per step for shortlink/locker/checkin quests.
+   * Default reward per step for shortlink/locker/checkin/feed quests.
    * Ignored for ads quests. If step_rewards array is present, it overrides this.
    */
   step_reward: number;
   /**
-   * Optional per-step reward amounts for shortlink/locker/checkin quests.
+   * Optional per-step reward amounts for shortlink/locker/checkin/feed quests.
    * If present, length must equal number of steps and overrides step_reward.
    */
   step_rewards: number[] | null;
@@ -61,6 +61,24 @@ export type QuestRow = {
   repeatable: boolean;
   /** Check-in quest: default timezone for users without one set (IANA format). */
   default_timezone: string;
+  /** Feed quest: feed type ("ptc"|"shortlink"|"article"). */
+  feed_kind: "ptc" | "shortlink" | "article" | null;
+  /** Feed quest: number of main steps (campaigns). */
+  steps_count: number;
+  /** Feed quest: number of backup campaigns. */
+  backup_count: number;
+  /** Feed quest: provider UUIDs to fetch from. */
+  feed_provider_ids: string[];
+  /** Feed quest: minimum reward in USD. */
+  min_reward_usd: number;
+  /** Feed quest: minimum completion rate for shortlinks (0-100). */
+  min_completion_rate: number;
+  /** Feed quest: max campaigns from one network (null = unlimited). */
+  max_per_network: number | null;
+  /** Feed quest: blocked domain names. */
+  blocked_domains: string[];
+  /** Feed quest: token expiry hours. */
+  token_ttl_hours: number;
   is_active: boolean;
   sort_order: number;
   /** 'first_withdrawal' unlocks once profiles.lifetime_withdrawn > 0. */
@@ -94,6 +112,15 @@ function normalize(row: QuestRow): QuestRow {
     day1_auto_complete: Boolean(row.day1_auto_complete ?? true),
     repeatable: Boolean(row.repeatable ?? false),
     default_timezone: String(row.default_timezone ?? "Asia/Kolkata"),
+    feed_kind: row.feed_kind as "ptc" | "shortlink" | "article" | null,
+    steps_count: Number(row.steps_count ?? 10),
+    backup_count: Number(row.backup_count ?? 4),
+    feed_provider_ids: Array.isArray(row.feed_provider_ids) ? row.feed_provider_ids : [],
+    min_reward_usd: Number(row.min_reward_usd ?? 0),
+    min_completion_rate: Number(row.min_completion_rate ?? 50),
+    max_per_network: row.max_per_network != null ? Number(row.max_per_network) : null,
+    blocked_domains: Array.isArray(row.blocked_domains) ? row.blocked_domains : [],
+    token_ttl_hours: Number(row.token_ttl_hours ?? 48),
     sort_order: Number(row.sort_order ?? 0),
     lock_type: (row.lock_type ?? "none") as QuestRow["lock_type"],
     unlock_at: row.unlock_at ?? null,
