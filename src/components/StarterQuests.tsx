@@ -43,7 +43,10 @@ export function StarterQuests() {
     queryFn: async () => {
       const { data } = await supabase
         .from("quest_sessions")
-        .select("*")
+        .select(`
+          *,
+          checkin_days:quest_checkin_days(local_date, active_seconds, completed_at)
+        `)
         .order("started_at", { ascending: false });
       return (data ?? []) as unknown as QuestSessionView[];
     },

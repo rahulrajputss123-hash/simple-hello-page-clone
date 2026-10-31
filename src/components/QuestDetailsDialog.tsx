@@ -1,14 +1,17 @@
-import { AlertTriangle, ArrowUpRight, Info } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Info, Play } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { Button } from "@/components/ui/button";
 import { formatReward } from "@/lib/format-reward";
+import { checkInToday } from "@/lib/quests.functions";
 import {
   deriveQuestView,
   QUEST_ACCENTS,
   type QuestCardQuest,
   type QuestSessionView,
 } from "@/lib/quest-view";
+import { useCheckinHeartbeat } from "@/hooks/useCheckinHeartbeat";
 
 /**
  * Pre-start confirmation sheet for Starter Quests.
@@ -39,18 +42,56 @@ export function QuestDetailsDialog({
   const accent = quest ? QUEST_ACCENTS[quest.quest_type] : null;
   const view = quest ? deriveQuestView(quest, active, credited) : null;
   const started = Boolean(view && view.progress > 0);
+  const [checkinSubmitting, setCheckinSubmitting] = useState(false);
+
+  // Checkin quest specific: detect if today is incomplete
+  const isCheckin = quest?.quest_type === "checkin";
+  const todayIncomplete = isCheckin && active && !credited && (() => {
+    const completedDays = active.checkin_days?.filter((d) => d.completed_at) ?? [];
+    const todayDay = active.checkin_days?.find((d, idx) => idx === completedDays.length);
+    return !todayDay?.completed_at;
+  })();
+
+  // Start heartbeat for checkin quests (only when dialog is open and day incomplete)
+  const heartbeat = useCheckinHeartbeat({
+    questKey: quest?.key ?? "",
+    enabled: Boolean(isCheckin && open && todayIncomplete),
+    onDayComplete: () => {
+      // Refresh the quest data
+      onOpenChange(false);
+    },
+  });
 
   const ctaLabel = !quest
     ? "Start Quest"
     : isSubmitting
       ? "Opening…"
-      : quest.quest_type === "ads"
-        ? "Watch Ads"
-        : quest.quest_type === "shortlink"
-          ? started
-            ? "Continue"
-            : "Start Quest"
-          : "Complete Locker";
+      : checkinSubmitting
+        ? "Checking In…"
+        : quest.quest_type === "ads"
+          ? "Watch Ads"
+          : quest.quest_type === "shortlink"
+            ? started
+              ? "Continue"
+              : "Start Quest"
+            : quest.quest_type === "checkin"
+              ? quest.required_active_seconds === 0
+                ? "Check In"
+                : "Keep App Open"
+              : "Complete Locker";
+
+  const handleCheckinTap = async () => {
+    if (!quest || quest.required_active_seconds !== 0) return;
+    setCheckinSubmitting(true);
+    try {
+      await checkInToday({ questKey: quest.key });
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Check-in failed:", error);
+    } finally {
+      setCheckinSubmitting(false);
+    }
+  };
 
   if (!open || !quest) return null;
 
@@ -68,16 +109,40 @@ export function QuestDetailsDialog({
           >
             Cancel
           </Button>
-          <Button
-            variant="jade"
-            className="flex-1"
-            onClick={onContinue}
-            disabled={isSubmitting || !quest}
-            data-testid="quest-details-continue"
-          >
-            {ctaLabel}
-            <ArrowUpRight className="ml-1 size-3.5" />
-          </Button>
+          {quest?.quest_type === "checkin" ? (
+            quest.required_active_seconds === 0 ? (
+              <Button
+                variant="jade"
+                className="flex-1"
+                onClick={handleCheckinTap}
+                disabled={checkinSubmitting || !quest || credited}
+                data-testid="quest-details-checkin"
+              >
+                {ctaLabel}
+              </Button>
+            ) : (
+              <Button
+                variant="jade"
+                className="flex-1"
+                disabled
+                data-testid="quest-details-active"
+              >
+                <Play className="mr-1 size-3.5" />
+                {Math.floor(heartbeat.activeSeconds)}s / {heartbeat.requiredSeconds}s
+              </Button>
+            )
+          ) : (
+            <Button
+              variant="jade"
+              className="flex-1"
+              onClick={onContinue}
+              disabled={isSubmitting || !quest}
+              data-testid="quest-details-continue"
+            >
+              {ctaLabel}
+              <ArrowUpRight className="ml-1 size-3.5" />
+            </Button>
+          )}
         </div>
       }
     >
@@ -208,6 +273,78 @@ export function QuestDetailsDialog({
           </section>
         )}
 
+        {/* Checkin-specific rewards breakdown */}
+        {view && quest.quest_type === "checkin" && (
+          <section className="space-y-2" data-testid="quest-details-checkin-rewards">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Daily Rewards
+            </p>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
+              <ul className="space-y-1.5">
+                {(() => {
+                  const totalDays = view.total;
+                  const baseReward = quest.step_reward ?? 0;
+                  const customRewards = quest.step_rewards ?? [];
+                  const completionBonus = quest.reward_amount;
+                  const completedDays = active?.checkin_days?.filter((d) => d.completed_at) ?? [];
+                  
+                  const days = Array.from({ length: totalDays }, (_, i) => {
+                    const dayNum = i + 1;
+                    const dayReward = customRewards[i] !== undefined ? customRewards[i] : baseReward;
+                    const isCompleted = i < completedDays.length;
+                    return { dayNum, dayReward, isCompleted };
+                  });
+
+                  return (
+                    <>
+                      {days.map(({ dayNum, dayReward, isCompleted }) => (
+                        <li
+                          key={dayNum}
+                          className="flex items-center justify-between gap-2"
+                          data-testid={`quest-reward-day-${dayNum}`}
+                        >
+                          <span className={isCompleted ? "text-muted-foreground line-through" : ""}>
+                            Day {dayNum}
+                          </span>
+                          <span className="flex items-center gap-1.5 font-semibold tabular-nums">
+                            {isCompleted && <span className="text-xs text-primary">✓</span>}
+                            {formatReward(dayReward)}
+                          </span>
+                        </li>
+                      ))}
+                      {completionBonus > 0 && (
+                        <li
+                          className="flex items-center justify-between gap-2 border-t border-primary/20 pt-1.5"
+                          data-testid="quest-reward-completion"
+                        >
+                          <span className={credited ? "text-muted-foreground line-through" : ""}>
+                            Completion bonus
+                          </span>
+                          <span className="flex items-center gap-1.5 font-semibold tabular-nums">
+                            {credited && <span className="text-xs text-primary">✓</span>}
+                            {formatReward(completionBonus)}
+                          </span>
+                        </li>
+                      )}
+                      <li
+                        className="flex items-center justify-between gap-2 border-t border-primary/30 pt-1.5 text-base font-bold text-primary"
+                        data-testid="quest-reward-total"
+                      >
+                        <span>Total</span>
+                        <span className="tabular-nums">
+                          {formatReward(
+                            days.reduce((sum, d) => sum + d.dayReward, 0) + completionBonus
+                          )}
+                        </span>
+                      </li>
+                    </>
+                  );
+                })()}
+              </ul>
+            </div>
+          </section>
+        )}
+
         {view && started && (
           <section className="space-y-1" data-testid="quest-details-progress">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -234,6 +371,29 @@ export function QuestDetailsDialog({
               You&apos;re about to start <strong>step {view.nextStep}</strong> of {view.total}. Stay
               on the page for at least {quest.min_seconds_per_step} seconds, then you&apos;ll be
               sent back automatically.
+            </span>
+          </section>
+        )}
+
+        {quest.quest_type === "checkin" && view && (
+          <section
+            className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-primary"
+            data-testid="quest-details-checkin-info"
+          >
+            <Info className="size-4 shrink-0" />
+            <span>
+              {quest.required_active_seconds === 0 ? (
+                <>
+                  Tap <strong>Check In</strong> once each day to maintain your streak. Come back
+                  daily to earn rewards!
+                </>
+              ) : (
+                <>
+                  Keep the app open and focused for <strong>{quest.required_active_seconds}s</strong>
+                  {" "}each day. We track your active time automatically. Your progress:
+                  {" "}<strong>{Math.floor(heartbeat.activeSeconds)}s / {heartbeat.requiredSeconds}s</strong>
+                </>
+              )}
             </span>
           </section>
         )}

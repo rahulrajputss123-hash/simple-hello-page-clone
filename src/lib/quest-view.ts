@@ -1,4 +1,12 @@
-import { Clapperboard, Link2, Lock, LockKeyhole, ShieldCheck, type LucideIcon } from "lucide-react";
+import {
+  CalendarCheck,
+  Clapperboard,
+  Link2,
+  Lock,
+  LockKeyhole,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
 
 import type { QuestRow } from "@/lib/quests.server";
 
@@ -16,6 +24,12 @@ export type QuestSessionView = {
   status: string;
   ads_watched: number;
   current_step?: number;
+  // Checkin-specific fields
+  checkin_days?: Array<{
+    local_date: string;
+    active_seconds?: number;
+    completed_at?: string | null;
+  }>;
 };
 
 export type QuestCardQuest = QuestRow & {
@@ -76,6 +90,16 @@ export const QUEST_ACCENTS: Record<QuestRow["quest_type"], QuestAccent> = {
     tileShadow: "rgba(3,105,161,0.32)",
     bar: "linear-gradient(90deg, #38BDF8, #0369A1)",
   },
+  checkin: {
+    label: "Streak",
+    icon: CalendarCheck,
+    wash: "rgba(139,92,246,0.10)",
+    badgeBg: "rgba(139,92,246,0.12)",
+    badgeInk: "#5B21B6",
+    tile: "linear-gradient(145deg, #A78BFA 0%, #7C3AED 100%)",
+    tileShadow: "rgba(124,58,237,0.32)",
+    bar: "linear-gradient(90deg, #A78BFA, #7C3AED)",
+  },
 };
 
 export const LOCKED_ACCENT: QuestAccent = {
@@ -115,6 +139,25 @@ export function deriveQuestView(
   active: QuestSessionView | undefined,
   credited: boolean,
 ): QuestView {
+  if (quest.quest_type === "checkin") {
+    // Checkin quest: each day = one step
+    const total = Math.max(1, quest.total_days ?? 3);
+    const completedDays = active?.checkin_days?.filter((d) => d.completed_at) ?? [];
+    const progress = credited ? total : completedDays.length;
+    
+    return {
+      total,
+      progress,
+      remaining: Math.max(0, total - progress),
+      nextStep: Math.min(progress + 1, total),
+      progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
+      description:
+        total === 1
+          ? "Check in today and get rewarded!"
+          : `Check in for ${total} days and build your streak!`,
+    };
+  }
+
   const total =
     quest.quest_type === "ads"
       ? Math.max(1, quest.ads_required)
