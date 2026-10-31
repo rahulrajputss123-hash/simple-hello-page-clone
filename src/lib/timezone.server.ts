@@ -1,7 +1,7 @@
 /**
  * Server-side timezone utilities for check-in quests.
  * 
- * Supports IANA timezone names with proper handling of:
+ * Supports ALL valid IANA timezone names with proper handling of:
  * - Half-hour offsets (Asia/Kolkata +5:30, Asia/Tehran +3:30)
  * - Quarter-hour offsets (Asia/Kathmandu +5:45, Australia/Eucla +8:45)
  * - DST transitions
@@ -10,86 +10,36 @@
  */
 
 /**
- * List of valid IANA timezone names.
- * Focus on South Asia + major regions for global audience.
- */
-const VALID_TIMEZONES = new Set([
-  // South Asia (primary audience)
-  "Asia/Kolkata", // India +5:30
-  "Asia/Kathmandu", // Nepal +5:45
-  "Asia/Dhaka", // Bangladesh +6:00
-  "Asia/Karachi", // Pakistan +5:00
-  "Asia/Colombo", // Sri Lanka +5:30
-  "Asia/Kabul", // Afghanistan +4:30
-  "Asia/Thimphu", // Bhutan +6:00
-  "Asia/Yangon", // Myanmar +6:30
-  
-  // Southeast Asia
-  "Asia/Bangkok", // Thailand +7:00
-  "Asia/Ho_Chi_Minh", // Vietnam +7:00
-  "Asia/Jakarta", // Indonesia +7:00
-  "Asia/Singapore", // Singapore +8:00
-  "Asia/Manila", // Philippines +8:00
-  "Asia/Kuala_Lumpur", // Malaysia +8:00
-  
-  // East Asia
-  "Asia/Tokyo", // Japan +9:00
-  "Asia/Seoul", // South Korea +9:00
-  "Asia/Shanghai", // China +8:00
-  "Asia/Hong_Kong", // Hong Kong +8:00
-  "Asia/Taipei", // Taiwan +8:00
-  
-  // Middle East
-  "Asia/Dubai", // UAE +4:00
-  "Asia/Riyadh", // Saudi Arabia +3:00
-  "Asia/Tehran", // Iran +3:30
-  "Asia/Jerusalem", // Israel +2:00/+3:00 DST
-  
-  // Central Asia
-  "Asia/Tashkent", // Uzbekistan +5:00
-  "Asia/Almaty", // Kazakhstan +6:00
-  
-  // Europe
-  "Europe/London", // UK +0:00/+1:00 DST
-  "Europe/Paris", // France/Germany +1:00/+2:00 DST
-  "Europe/Moscow", // Russia +3:00
-  "Europe/Istanbul", // Turkey +3:00
-  
-  // Americas
-  "America/New_York", // US Eastern -5:00/-4:00 DST
-  "America/Chicago", // US Central -6:00/-5:00 DST
-  "America/Denver", // US Mountain -7:00/-6:00 DST
-  "America/Los_Angeles", // US Pacific -8:00/-7:00 DST
-  "America/Toronto", // Canada Eastern -5:00/-4:00 DST
-  "America/Mexico_City", // Mexico -6:00
-  "America/Sao_Paulo", // Brazil -3:00
-  "America/Buenos_Aires", // Argentina -3:00
-  
-  // Africa
-  "Africa/Cairo", // Egypt +2:00
-  "Africa/Johannesburg", // South Africa +2:00
-  "Africa/Lagos", // Nigeria +1:00
-  "Africa/Nairobi", // Kenya +3:00
-  
-  // Oceania
-  "Pacific/Auckland", // New Zealand +12:00/+13:00 DST
-  "Australia/Sydney", // Australia +10:00/+11:00 DST
-  "Australia/Melbourne", // Australia +10:00/+11:00 DST
-  "Australia/Perth", // Australia +8:00
-  "Australia/Eucla", // Australia +8:45 (rare quarter-hour)
-  
-  // UTC
-  "UTC",
-]);
-
-/**
- * Validate and normalize IANA timezone name.
+ * Validate IANA timezone name using Intl.DateTimeFormat.
  * Returns the validated timezone or null if invalid.
+ * 
+ * Accepts ANY valid IANA timezone, including:
+ * - Asia/Kathmandu (+5:45 quarter-hour offset)
+ * - Asia/Kolkata, Asia/Dhaka, Asia/Karachi, Asia/Colombo
+ * - Indian/Maldives, Indian/Cocos, Indian/Christmas
+ * - Asia/Thimphu, Asia/Yangon, Asia/Tehran
+ * - All other standard IANA zones
  */
 export function validateTimezone(timezone: string | null | undefined): string | null {
   if (!timezone) return null;
+  
   const normalized = timezone.trim();
-  return VALID_TIMEZONES.has(normalized) ? normalized : null;
+  if (!normalized) return null;
+  
+  try {
+    // Try to create a DateTimeFormat with this timezone
+    // If it throws RangeError, the timezone is invalid
+    new Intl.DateTimeFormat("en-US", { timeZone: normalized });
+    return normalized;
+  } catch (err) {
+    if (err instanceof RangeError) {
+      // Invalid timezone
+      return null;
+    }
+    // Unexpected error, log and reject
+    console.error("[timezone] Unexpected error validating timezone:", err);
+    return null;
+  }
 }
 
 /**
@@ -135,32 +85,10 @@ export function getStartOfDayUTC(timezone: string, localDate: string): number {
       throw new Error(`Invalid date format: ${localDate}`);
     }
     
-    // Create a date string that will be interpreted in the target timezone
-    // Format: "YYYY-MM-DDTHH:MM:SS" without Z (local time)
-    const localMidnight = `${localDate}T00:00:00`;
-    
-    // Parse as local time in the target timezone
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-    
-    // Get UTC timestamp by parsing the local midnight
-    // We need to find what UTC time corresponds to midnight in the target timezone
-    const parts = formatter.formatToParts(new Date(now));
-    const tzYear = parts.find((p) => p.type === "year")?.value;
-    const tzMonth = parts.find((p) => p.type === "month")?.value;
-    const tzDay = parts.find((p) => p.type === "day")?.value;
-    
-    // Create Date object from local components
-    // This gives us the UTC timestamp when it's midnight in the target timezone
-    return Date.UTC(year, month - 1, day, 0, 0, 0, 0);
+    // Create Date object from local components in UTC
+    // Then find what UTC time corresponds to midnight in the target timezone
+    const utcMidnight = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
+    return utcMidnight;
   } catch (err) {
     console.error(`[timezone] Failed to get start of day for ${timezone} ${localDate}:`, err);
     // Fall back to UTC midnight

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { lazy, Suspense, useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { QuestCard, type QuestCardQuest, type QuestSessionView } from "@/components/QuestCard";
@@ -10,7 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { playRewardedAd } from "@/lib/ads";
 import { reportAdWatched, startQuest } from "@/lib/coinquest.functions";
-import { listActiveQuests, startLockerQuest, startShortlinkStep } from "@/lib/quests.functions";
+import { 
+  listActiveQuests, 
+  startLockerQuest, 
+  startShortlinkStep,
+  ensureCheckinSession,
+  updateUserTimezone
+} from "@/lib/quests.functions";
 import { formatLockReason } from "@/lib/lock-state";
 import { isNativePlatform } from "@/lib/platform";
 
@@ -30,6 +36,8 @@ export function StarterQuests() {
   const fetchQuests = useServerFn(listActiveQuests);
   const openStep = useServerFn(startShortlinkStep);
   const openLocker = useServerFn(startLockerQuest);
+  const ensureSession = useServerFn(ensureCheckinSession);
+  const setTimezone = useServerFn(updateUserTimezone);
 
   const quests = useQuery({
     queryKey: ["quests-active"],
@@ -51,6 +59,46 @@ export function StarterQuests() {
       return (data ?? []) as unknown as QuestSessionView[];
     },
   });
+
+  // Detect and update browser timezone on first load
+  useEffect(() => {
+    if (!session) return;
+
+    const detectAndUpdateTimezone = async () => {
+      try {
+        const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (browserTimezone) {
+          await setTimezone({ timezone: browserTimezone });
+        }
+      } catch (err) {
+        console.error("[timezone] Failed to detect/update:", err);
+      }
+    };
+
+    detectAndUpdateTimezone();
+  }, [session?.user.id]); // Only run once per user
+
+  // Initialize check-in sessions after quests load
+  useEffect(() => {
+    if (!session || !quests.data) return;
+
+    const initializeCheckinSessions = async () => {
+      const checkinQuests = quests.data.filter((q) => q.quest_type === "checkin");
+      
+      for (const quest of checkinQuests) {
+        try {
+          await ensureSession({ questKey: quest.key });
+        } catch (err) {
+          console.error(`[checkin] Failed to ensure session for ${quest.key}:`, err);
+        }
+      }
+
+      // Refresh sessions after initialization
+      void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session.user.id] });
+    };
+
+    initializeCheckinSessions();
+  }, [quests.data, session?.user.id]);
 
   const runAd = useMutation({
     mutationFn: async (questKey: string) => {

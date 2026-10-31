@@ -165,6 +165,25 @@ export const completeLockerQuest = createServerFn({ method: "POST" })
   });
 
 /**
+ * User: ensure check-in session exists and is valid.
+ * Idempotent - client should call after loading quests.
+ * Handles session creation, Day 1 auto-complete, and streak evaluation.
+ */
+export const ensureCheckinSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { ensureCheckinSessionImpl } = await import("./quests.server");
+    return ensureCheckinSessionImpl(context.userId, data.questKey);
+  });
+
+/**
  * User: ping active time for check-in quest.
  * Called by client every 30s while document is visible and focused.
  * Server tracks active seconds and completes day when threshold reached.
@@ -199,4 +218,23 @@ export const checkInToday = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { checkInTodayImpl } = await import("./quests.server");
     return checkInTodayImpl(context.userId, data.questKey);
+  });
+
+/**
+ * User: update user's timezone (client-detected via Intl API).
+ * Validates timezone server-side and enforces 7-day change limit.
+ * Uses service role to write profiles.timezone (not client-writable).
+ */
+export const updateUserTimezone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        timezone: z.string().trim().min(1).max(100),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { updateUserTimezoneImpl } = await import("./quests.server");
+    return updateUserTimezoneImpl(context.userId, data.timezone);
   });
