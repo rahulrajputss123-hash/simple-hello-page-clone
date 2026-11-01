@@ -18,7 +18,7 @@ const questFormSchema = z.object({
     .regex(/^[a-z0-9_-]+$/i, "Key must be alphanumeric / _ / -"),
   label: z.string().trim().min(1).max(60),
   icon: z.string().trim().max(2000).default("gift"),
-  questType: z.enum(["ads", "shortlink", "locker", "checkin"]).default("ads"),
+  questType: z.enum(["ads", "shortlink", "locker", "checkin", "network"]).default("ads"),
   adsRequired: z.number().int().min(0).max(500).default(0),
   rewardAmount: z.number().min(0).max(10000).default(0),
   // Step rewards: immediate credit per step (shortlink/locker/checkin only)
@@ -40,6 +40,12 @@ const questFormSchema = z.object({
   day1AutoComplete: z.boolean().default(true),
   repeatable: z.boolean().default(false),
   defaultTimezone: z.string().trim().min(1).max(100).default("Asia/Kolkata"),
+  // Network quest fields
+  networkProviderIds: z.array(z.string().uuid()).max(10).default([]),
+  requiredCount: z.number().int().min(1).max(10).default(3),
+  minQualifyingUsd: z.number().min(0).max(100).default(0.01),
+  tokenTtlHours: z.number().int().min(1).max(720).default(24),
+  rewardHoldHours: z.number().int().min(0).max(720).default(0),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(9999).default(0),
   // 'first_withdrawal' needs no extra field — it reads profiles.lifetime_withdrawn.
@@ -47,7 +53,19 @@ const questFormSchema = z.object({
   unlockAt: z.string().datetime({ offset: true }).nullable().optional(),
   requiredLifetimeEarned: z.number().min(0).max(100_000).nullable().optional(),
   appOnly: z.boolean().default(false),
-});
+}).refine(
+  (data) => {
+    // Network quest: required_count must be <= pool size
+    if (data.questType === "network") {
+      return data.requiredCount <= data.networkProviderIds.length;
+    }
+    return true;
+  },
+  {
+    message: "Required count must be less than or equal to pool size",
+    path: ["requiredCount"],
+  },
+);
 
 /** Public (authenticated): active quests for the starter row + featured page.
  *  Passes the requesting userId so lock state is computed per-user server-side.
@@ -237,4 +255,42 @@ export const updateUserTimezone = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { updateUserTimezoneImpl } = await import("./quests.server");
     return updateUserTimezoneImpl(context.userId, data.timezone);
+  });
+
+/**
+ * User: open a network quest provider.
+ * Generates a quest token and returns the offerwall URL.
+ * Rate-limited per user.
+ */
+export const openQuestNetwork = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+        providerId: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { openQuestNetworkImpl } = await import("./quests.server");
+    return openQuestNetworkImpl(context.userId, data.questKey, data.providerId);
+  });
+
+/**
+ * User: get network quest progress.
+ * Returns provider pool with completion status.
+ */
+export const getNetworkQuestProgress = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { getNetworkQuestProgressImpl } = await import("./quests.server");
+    return getNetworkQuestProgressImpl(context.userId, data.questKey);
   });
