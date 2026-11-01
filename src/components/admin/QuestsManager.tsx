@@ -40,7 +40,7 @@ type FormState = {
   key: string;
   label: string;
   icon: string;
-  questType: "ads" | "shortlink" | "locker" | "checkin";
+  questType: "ads" | "shortlink" | "locker" | "checkin" | "feed_ptc" | "feed_shortlink" | "feed_article" | "network";
   adsRequired: string;
   rewardAmount: string;
   stepReward: string;
@@ -64,6 +64,12 @@ type FormState = {
   unlockAt: string;
   requiredLifetimeEarned: string;
   appOnly: boolean;
+  // Network quest fields
+  networkProviderIds: string[];
+  requiredCount: string;
+  minQualifyingUsd: string;
+  tokenTtlHours: string;
+  rewardHoldHours: string;
 };
 
 /**
@@ -143,6 +149,12 @@ const emptyForm = (): FormState => ({
   unlockAt: "",
   requiredLifetimeEarned: "",
   appOnly: false,
+  // Network quest defaults
+  networkProviderIds: [],
+  requiredCount: "3",
+  minQualifyingUsd: "0.01",
+  tokenTtlHours: "24",
+  rewardHoldHours: "0",
 });
 
 export function QuestsManager() {
@@ -207,6 +219,16 @@ export function QuestsManager() {
               ? Number(state.requiredLifetimeEarned)
               : null,
           appOnly: state.appOnly,
+          // Network quest fields
+          ...(state.questType === "network"
+            ? {
+                networkProviderIds: state.networkProviderIds,
+                requiredCount: Number(state.requiredCount) || 3,
+                minQualifyingUsd: Number(state.minQualifyingUsd) || 0.01,
+                tokenTtlHours: Number(state.tokenTtlHours) || 24,
+                rewardHoldHours: Number(state.rewardHoldHours) || 0,
+              }
+            : {}),
         },
       }),
     onSuccess: () => {
@@ -267,6 +289,19 @@ export function QuestsManager() {
       requiredLifetimeEarned: String((quest as any).required_lifetime_earned ?? ""),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       appOnly: Boolean((quest as any).app_only ?? false),
+      // Network quest fields
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      networkProviderIds: Array.isArray((quest as any).network_provider_ids) 
+        ? (quest as any).network_provider_ids 
+        : [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      requiredCount: String((quest as any).required_count ?? 3),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      minQualifyingUsd: String((quest as any).min_qualifying_usd ?? 0.01),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tokenTtlHours: String((quest as any).token_ttl_hours ?? 24),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rewardHoldHours: String((quest as any).reward_hold_hours ?? 0),
     });
 
   const { noLinksYet, filledLockerUrls } = form
@@ -490,8 +525,8 @@ export function QuestsManager() {
                 </div>
               )}
               <Field label="Quest type">
-                <div className="flex gap-2">
-                  {(["ads", "shortlink", "locker", "checkin"] as const).map((type) => (
+                <div className="flex flex-wrap gap-2">
+                  {(["ads", "shortlink", "locker", "checkin", "network"] as const).map((type) => (
                     <Button
                       key={type}
                       size="sm"
@@ -503,7 +538,11 @@ export function QuestsManager() {
                         ? "Ads"
                         : type === "shortlink"
                           ? "Shortlink Chain"
-                          : "Content Locker"}
+                          : type === "locker"
+                            ? "Content Locker"
+                            : type === "checkin"
+                              ? "Check-in"
+                              : "Network"}
                     </Button>
                   ))}
                 </div>
@@ -803,6 +842,102 @@ export function QuestsManager() {
                       }
                     />
                   </Field>
+                </div>
+              )}
+
+              {form.questType === "network" && (
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Network quest: users complete offers from a pool of SDK providers. Any K providers count toward completion.
+                  </p>
+
+                  <Field label="Provider pool (enabled SDK providers)">
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Select providers to include in this quest. Users can complete any provider in any order.
+                    </div>
+                    {/* TODO: Multi-select for enabled SDK providers - for now just show text input */}
+                    <Input
+                      placeholder="Provider IDs (comma-separated)"
+                      value={form.networkProviderIds.join(", ")}
+                      onChange={(e) => 
+                        setForm({ 
+                          ...form, 
+                          networkProviderIds: e.target.value.split(",").map(s => s.trim()).filter(Boolean)
+                        })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Get provider IDs from SDK Offerwall Providers admin panel
+                    </p>
+                  </Field>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Required completions">
+                      <Input
+                        type="number"
+                        min="1"
+                        max={form.networkProviderIds.length || 10}
+                        value={form.requiredCount}
+                        onChange={(e) => setForm({ ...form, requiredCount: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Must be ≤ pool size ({form.networkProviderIds.length || 0})
+                      </p>
+                    </Field>
+
+                    <Field label="Min qualifying USD">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.minQualifyingUsd}
+                        onChange={(e) => setForm({ ...form, minQualifyingUsd: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Filters micro-payouts (default: $0.01)
+                      </p>
+                    </Field>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Token TTL (hours)">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="168"
+                        value={form.tokenTtlHours}
+                        onChange={(e) => setForm({ ...form, tokenTtlHours: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Quest token expiry (default: 24h)
+                      </p>
+                    </Field>
+
+                    <Field label="Reward hold (hours)">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="720"
+                        value={form.rewardHoldHours}
+                        onChange={(e) => setForm({ ...form, rewardHoldHours: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Chargeback protection (default: 0)
+                      </p>
+                    </Field>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+                    <p className="font-semibold text-amber-700 dark:text-amber-400">
+                      ⚠️ Network Quest Behavior
+                    </p>
+                    <ul className="mt-2 space-y-1 text-muted-foreground list-disc list-inside">
+                      <li>Users get NO wallet credit for offers completed via quest</li>
+                      <li>Quest reward is paid ONLY after K networks completed</li>
+                      <li>Conversions do NOT count toward milestone tasks</li>
+                      <li>Each provider counts once per session (multiple conversions OK)</li>
+                    </ul>
+                  </div>
                 </div>
               )}
 
