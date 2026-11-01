@@ -113,49 +113,49 @@ export function QuestDetailsDialog({
             Close
           </Button>
         ) : (
-        <div className="flex w-full gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="quest-details-cancel"
-          >
-            Cancel
-          </Button>
-          {quest?.quest_type === "checkin" ? (
-            quest.required_active_seconds === 0 ? (
-              <Button
-                variant="jade"
-                className="flex-1"
-                onClick={handleCheckinTap}
-                disabled={checkinSubmitting || !quest || credited}
-                data-testid="quest-details-checkin"
-              >
-                {ctaLabel}
-              </Button>
+          <div className="flex w-full gap-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              data-testid="quest-details-cancel"
+            >
+              Cancel
+            </Button>
+            {quest?.quest_type === "checkin" ? (
+              quest.required_active_seconds === 0 ? (
+                <Button
+                  variant="jade"
+                  className="flex-1"
+                  onClick={handleCheckinTap}
+                  disabled={checkinSubmitting || !quest || credited}
+                  data-testid="quest-details-checkin"
+                >
+                  {ctaLabel}
+                </Button>
+              ) : (
+                <Button
+                  variant="jade"
+                  className="flex-1"
+                  disabled
+                  data-testid="quest-details-active"
+                >
+                  <Play className="mr-1 size-3.5" />
+                  {Math.floor(heartbeat.activeSeconds)}s / {heartbeat.requiredSeconds}s
+                </Button>
+              )
             ) : (
               <Button
                 variant="jade"
                 className="flex-1"
-                disabled
-                data-testid="quest-details-active"
+                onClick={onContinue}
+                disabled={isSubmitting || !quest}
+                data-testid="quest-details-continue"
               >
-                <Play className="mr-1 size-3.5" />
-                {Math.floor(heartbeat.activeSeconds)}s / {heartbeat.requiredSeconds}s
+                {ctaLabel}
+                <ArrowUpRight className="ml-1 size-3.5" />
               </Button>
-            )
-          ) : (
-            <Button
-              variant="jade"
-              className="flex-1"
-              onClick={onContinue}
-              disabled={isSubmitting || !quest}
-              data-testid="quest-details-continue"
-            >
-              {ctaLabel}
-              <ArrowUpRight className="ml-1 size-3.5" />
-            </Button>
-          )}
-        </div>
+            )}
+          </div>
         )
       }
     >
