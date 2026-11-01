@@ -399,7 +399,7 @@ export async function getQuestByKey(key: string): Promise<QuestRow> {
  * Idempotent via quest_step_credits unique constraint.
  * Returns the amount credited (0 if already credited or if step_reward is 0).
  */
-async function creditStepReward(
+export async function creditStepReward(
   userId: string,
   sessionId: string,
   questKey: string,
@@ -443,9 +443,10 @@ async function creditStepReward(
     try {
       await creditWallet(
         userId,
+        roundedAmount,
         "quest_step",
         `Quest step ${stepIndex} — ${questLabel}`,
-        roundedAmount,
+        "earned",
         `quest_step_${sessionId}_${stepIndex}`,
       );
       return roundedAmount;
@@ -1922,6 +1923,7 @@ export async function openQuestNetworkImpl(
       session_id: sessionId,
       provider_id: providerId,
       quest_key: questKey,
+      kind: "network",
       expires_at: expiresAt.toISOString(),
     } as any);
 

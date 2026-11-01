@@ -51,13 +51,15 @@ CREATE TABLE IF NOT EXISTS public.quest_network_tokens (
   session_id uuid NOT NULL REFERENCES public.quest_sessions(id) ON DELETE CASCADE,
   provider_id uuid NOT NULL REFERENCES public.sdk_offerwall_providers(id) ON DELETE CASCADE,
   quest_key text NOT NULL,
+  kind text NOT NULL DEFAULT 'network' CHECK (kind IN ('network')),
   expires_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Indexes for efficient lookups
-CREATE UNIQUE INDEX IF NOT EXISTS quest_network_tokens_session_provider_uniq
-  ON public.quest_network_tokens (session_id, provider_id);
+-- Partial unique index: one active token per (session, provider)
+CREATE UNIQUE INDEX IF NOT EXISTS quest_network_tokens_session_provider_active_uniq
+  ON public.quest_network_tokens (session_id, provider_id)
+  WHERE (expires_at > now());
 
 CREATE INDEX IF NOT EXISTS quest_network_tokens_user_idx
   ON public.quest_network_tokens (user_id);
@@ -89,13 +91,21 @@ CREATE TABLE IF NOT EXISTS public.quest_network_completions (
   session_id uuid NOT NULL REFERENCES public.quest_sessions(id) ON DELETE CASCADE,
   provider_id uuid NOT NULL REFERENCES public.sdk_offerwall_providers(id) ON DELETE CASCADE,
   conversion_id uuid NOT NULL REFERENCES public.sdk_offerwall_conversions(id) ON DELETE CASCADE,
+  step_index integer NOT NULL,
+  kind text NOT NULL DEFAULT 'network' CHECK (kind IN ('network')),
   amount_usd numeric(10,4) NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- Unique constraint: each provider counts once per session
 CREATE UNIQUE INDEX IF NOT EXISTS quest_network_completions_session_provider_uniq
-  ON public.quest_network_completions (session_id, provider_id);
+  ON public.quest_network_completions (session_id, provider_id)
+  WHERE (kind = 'network');
+
+-- Unique constraint: step_index per session
+CREATE UNIQUE INDEX IF NOT EXISTS quest_network_completions_session_step_uniq
+  ON public.quest_network_completions (session_id, step_index)
+  WHERE (kind = 'network');
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS quest_network_completions_session_idx
@@ -120,11 +130,25 @@ DO $$ BEGIN
 END $$;
 
 -- 5. Extend sdk_offerwall_conversions status to include 'quest_absorbed'
-DO $$ BEGIN
-  -- Drop and recreate the constraint to add new value
-  ALTER TABLE public.sdk_offerwall_conversions DROP CONSTRAINT IF EXISTS sdk_offerwall_conversions_status_check;
-  ALTER TABLE public.sdk_offerwall_conversions ADD CONSTRAINT sdk_offerwall_conversions_status_check 
-    CHECK (status IN ('pending', 'credited', 'hold', 'hold_cancelled', 'chargeback', 'duplicate', 'invalid', 'quest_absorbed'));
+-- NOTE: DO NOT DROP OR RECREATE sdk_offerwall_conversions_status_check!
+-- The live database has existing CHECK constraints and 67 'rejected' rows.
+-- This is idempotent - if the constraint already includes quest_absorbed, this is a no-op.
+DO $$ 
+DECLARE
+  constraint_def text;
+BEGIN
+  -- Check if quest_absorbed is already in the constraint
+  SELECT pg_get_constraintdef(oid) INTO constraint_def
+  FROM pg_constraint
+  WHERE conname = 'sdk_offerwall_conversions_status_check'
+    AND conrelid = 'public.sdk_offerwall_conversions'::regclass;
+  
+  -- Only modify if quest_absorbed is not present
+  IF constraint_def IS NOT NULL AND constraint_def NOT LIKE '%quest_absorbed%' THEN
+    ALTER TABLE public.sdk_offerwall_conversions DROP CONSTRAINT sdk_offerwall_conversions_status_check;
+    ALTER TABLE public.sdk_offerwall_conversions ADD CONSTRAINT sdk_offerwall_conversions_status_check 
+      CHECK (status IN ('pending', 'credited', 'rejected', 'duplicate', 'reversed', 'quest_absorbed'));
+  END IF;
 END $$;
 
 -- Comments
@@ -134,8 +158,17 @@ COMMENT ON TABLE public.quest_network_tokens IS
 COMMENT ON COLUMN public.quest_network_tokens.token IS
   'Secret token used as user ID in offerwall URLs. Format: "q_" + 24 random url-safe chars.';
 
+COMMENT ON COLUMN public.quest_network_tokens.kind IS
+  'Token type. Always "network" for network quest tokens. Future: may add other quest token types.';
+
 COMMENT ON TABLE public.quest_network_completions IS
   'Tracks which providers have been completed in each network quest session. UNIQUE per (session, provider).';
+
+COMMENT ON COLUMN public.quest_network_completions.step_index IS
+  'Completion order (1-based). Determines which step reward to pay. Assigned atomically on insert.';
+
+COMMENT ON COLUMN public.quest_network_completions.kind IS
+  'Completion type. Always "network" for network quest completions.';
 
 COMMENT ON COLUMN public.quests.network_provider_ids IS
   'Pool of sdk_offerwall_provider UUIDs for network quests. Admin picks N providers, user must complete K.';
@@ -151,4 +184,3 @@ COMMENT ON COLUMN public.quests.token_ttl_hours IS
 
 COMMENT ON COLUMN public.quests.reward_hold_hours IS
   'Optional delay before releasing quest reward. Protects against chargebacks. 0 = instant (default).';
-

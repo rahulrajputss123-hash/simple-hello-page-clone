@@ -229,7 +229,38 @@ async function processQuestTokenPostback(
     return { ok: false, status: "rejected", reason: "invalid_quest_token" };
   }
 
-  // Check token expiry
+  // Verify token provider matches postback provider
+  if (tokenData.provider_id !== provider.id) {
+    await logAutomation({
+      eventType: "sdk_postback",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      message: "Quest token provider mismatch",
+      context: { 
+        token, 
+        tokenProviderId: tokenData.provider_id, 
+        postbackProviderId: provider.id,
+        params: req.params as JsonObject 
+      },
+    });
+    return { ok: false, status: "rejected", reason: "invalid_quest_token" };
+  }
+
+  // Verify session is still started
+  if (session.status !== "started") {
+    await logAutomation({
+      eventType: "sdk_postback",
+      status: "warning",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      message: `Quest session no longer active: ${session.status}`,
+      context: { token, sessionId: session.id, params: req.params as JsonObject },
+    });
+    return { ok: false, status: "rejected", reason: "quest_session_closed" };
+  }
+
   const expiresAt = new Date(tokenData.expires_at);
   if (expiresAt < new Date()) {
     await logAutomation({
@@ -243,7 +274,6 @@ async function processQuestTokenPostback(
     return { ok: false, status: "rejected", reason: "invalid_quest_token" };
   }
 
-  const session = tokenData.quest_sessions;
   const userId = session.user_id;
 
   // Verify auth (same as normal postback flow)
@@ -354,10 +384,10 @@ async function processQuestTokenPostback(
   });
 
   // --- Quest progress tracking -------------------------------------------
-  // Get quest to check min_qualifying_usd
+  // Get quest to check min_qualifying_usd and step rewards
   const { data: quest } = await db
     .from("quests")
-    .select("min_qualifying_usd, required_count")
+    .select("*")
     .eq("key", session.quest_key)
     .maybeSingle();
 
@@ -374,9 +404,12 @@ async function processQuestTokenPostback(
     return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
   }
 
+  const { normalize } = await import("../quests.server");
+  const normalizedQuest = normalize(quest);
+
   // Convert to USD
   const usd = convertSdkCurrency(provider, currencyAmount);
-  const minQualifyingUsd = Number(quest.min_qualifying_usd ?? 0.01);
+  const minQualifyingUsd = Number(normalizedQuest.min_qualifying_usd ?? 0.01);
 
   if (usd < minQualifyingUsd) {
     await logAutomation({
@@ -392,26 +425,70 @@ async function processQuestTokenPostback(
     return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
   }
 
-  // Try to insert completion (UNIQUE constraint prevents duplicates)
-  const { error: completionError } = await db
-    .from("quest_network_completions")
-    .insert({
-      session_id: session.id,
-      provider_id: provider.id,
-      conversion_id: conversion.id,
-      usd_amount: usd,
-    });
+  // Try to insert completion with atomic step_index assignment (with retry)
+  let stepIndex = 0;
+  let completionInserted = false;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    // Count existing completions to determine next step_index
+    const { data: existingCompletions } = await db
+      .from("quest_network_completions")
+      .select("step_index")
+      .eq("session_id", session.id)
+      .eq("kind", "network");
 
-  if (completionError) {
-    // UNIQUE(session_id, provider_id) violation — this provider was already counted
+    stepIndex = (existingCompletions || []).length + 1;
+
+    // Try to insert with this step_index
+    const { error: completionError } = await db
+      .from("quest_network_completions")
+      .insert({
+        session_id: session.id,
+        provider_id: provider.id,
+        conversion_id: conversion.id,
+        step_index: stepIndex,
+        kind: "network",
+        amount_usd: usd,
+      });
+
+    if (!completionError) {
+      completionInserted = true;
+      break;
+    }
+
+    // Check if it's a provider duplicate (this provider already counted)
+    if (completionError.code === "23505" && completionError.message?.includes("session_provider")) {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "info",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversion.id,
+        message: "Provider already completed for this quest session",
+        context: { questKey: session.quest_key },
+      });
+      return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
+    }
+
+    // Step index collision - retry with recomputed index
+    if (completionError.code === "23505") {
+      await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1))); // Backoff
+      continue;
+    }
+
+    // Other error
+    throw completionError;
+  }
+
+  if (!completionInserted) {
     await logAutomation({
       eventType: "quest_automation",
-      status: "info",
+      status: "error",
       source: provider.slug,
       providerId: provider.id,
       userId,
       referenceId: conversion.id,
-      message: "Provider already completed for this quest session",
+      message: "Failed to insert network completion after retries",
       context: { questKey: session.quest_key },
     });
     return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
@@ -424,49 +501,84 @@ async function processQuestTokenPostback(
     providerId: provider.id,
     userId,
     referenceId: conversion.id,
-    message: `Quest network completion recorded: ${provider.name}`,
-    context: { questKey: session.quest_key, usd },
+    message: `Quest network completion recorded: ${provider.name} (step ${stepIndex})`,
+    context: { questKey: session.quest_key, usd, stepIndex },
   });
 
-  // Count distinct completions
-  const { data: completions } = await db
+  // Credit step reward
+  const stepRewardAmount = normalizedQuest.step_rewards?.[stepIndex - 1] ?? normalizedQuest.step_reward ?? 0;
+  if (stepRewardAmount > 0) {
+    try {
+      const { creditStepReward } = await import("../quests.server");
+      const credited = await creditStepReward(
+        userId,
+        session.id,
+        session.quest_key,
+        normalizedQuest.label,
+        stepIndex,
+        stepRewardAmount,
+      );
+      
+      if (credited > 0) {
+        await logAutomation({
+          eventType: "quest_automation",
+          status: "success",
+          source: provider.slug,
+          providerId: provider.id,
+          userId,
+          referenceId: conversion.id,
+          message: `Step ${stepIndex} reward credited: $${credited.toFixed(2)}`,
+          context: { questKey: session.quest_key, stepIndex, amount: credited },
+        });
+      }
+    } catch (error) {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "error",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversion.id,
+        message: `Failed to credit step reward: ${error instanceof Error ? error.message : "unknown"}`,
+        context: { questKey: session.quest_key, stepIndex },
+      });
+    }
+  }
+
+  // Count distinct completions to check if quest is complete
+  const { data: allCompletions } = await db
     .from("quest_network_completions")
     .select("provider_id")
-    .eq("session_id", session.id);
+    .eq("session_id", session.id)
+    .eq("kind", "network");
 
-  const distinctCount = new Set((completions || []).map((c: any) => c.provider_id)).size;
-  const requiredCount = Number(quest.required_count ?? 3);
+  const distinctCount = new Set((allCompletions || []).map((c: any) => c.provider_id)).size;
+  const requiredCount = Number(normalizedQuest.required_count ?? 3);
 
-  if (distinctCount >= requiredCount && session.status === "started") {
-    // Quest complete! Mark session as verified and credit reward
-    await db
+  if (distinctCount >= requiredCount) {
+    // Quest complete! Mark session as verified and credit final bonus
+    const { data: sessionUpdate } = await db
       .from("quest_sessions")
       .update({ status: "verified", verified_at: new Date().toISOString() })
       .eq("id", session.id)
-      .eq("status", "started");
-
-    await logAutomation({
-      eventType: "quest_automation",
-      status: "success",
-      source: provider.slug,
-      providerId: provider.id,
-      userId,
-      referenceId: conversion.id,
-      message: `Network quest ${session.quest_key} completed: ${distinctCount}/${requiredCount}`,
-      context: { questKey: session.quest_key, sessionId: session.id },
-    });
-
-    // Get full quest data for finishQuestSession
-    const { data: fullQuest } = await db
-      .from("quests")
-      .select("*")
-      .eq("key", session.quest_key)
+      .eq("status", "started")
+      .select("status")
       .maybeSingle();
 
-    if (fullQuest) {
-      const { normalize, finishQuestSession } = await import("../quests.server");
-      const normalizedQuest = normalize(fullQuest);
-      
+    // Only credit if we actually updated the session (prevents double-credit)
+    if (sessionUpdate?.status === "verified") {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "success",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversion.id,
+        message: `Network quest ${session.quest_key} completed: ${distinctCount}/${requiredCount}`,
+        context: { questKey: session.quest_key, sessionId: session.id },
+      });
+
+      const { finishQuestSession } = await import("../quests.server");
       await finishQuestSession(
         userId,
         session.id,
