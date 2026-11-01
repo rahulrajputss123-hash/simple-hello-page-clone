@@ -84,8 +84,19 @@ export const QuestCard = memo(function QuestCard({
 
   // Calculate total reward for step-based quests
   const displayReward = (() => {
-    if (quest.quest_type === "ads" || quest.quest_type === "network") {
-      return quest.reward_amount; // Ads and network quests: reward_amount is the only reward
+    if (quest.quest_type === "ads") {
+      return quest.reward_amount; // Ads quests: reward_amount is the only reward
+    }
+    if (quest.quest_type === "network") {
+      // Network quests: sum all step rewards + completion bonus
+      const requiredCount = quest.required_count ?? 3;
+      const baseReward = quest.step_reward ?? 0;
+      const customRewards = quest.step_rewards ?? [];
+      let totalStepRewards = 0;
+      for (let i = 0; i < requiredCount; i++) {
+        totalStepRewards += customRewards[i] !== undefined ? customRewards[i] : baseReward;
+      }
+      return totalStepRewards + quest.reward_amount;
     }
     if (quest.quest_type === "checkin") {
       // Checkin: sum all step rewards (per-day) + completion bonus
