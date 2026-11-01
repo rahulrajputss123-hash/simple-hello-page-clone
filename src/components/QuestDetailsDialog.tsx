@@ -1,10 +1,10 @@
-import { AlertTriangle, ArrowUpRight, Info, Play } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertTriangle, ArrowUpRight, Check, ExternalLink, Info, Loader2, Play } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { Button } from "@/components/ui/button";
 import { formatReward } from "@/lib/format-reward";
-import { checkInToday } from "@/lib/quests.functions";
+import { checkInToday, getNetworkQuestProgress, openQuestNetwork } from "@/lib/quests.functions";
 import {
   deriveQuestView,
   QUEST_ACCENTS,
@@ -12,6 +12,8 @@ import {
   type QuestSessionView,
 } from "@/lib/quest-view";
 import { useCheckinHeartbeat } from "@/hooks/useCheckinHeartbeat";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 /**
  * Pre-start confirmation sheet for Starter Quests.
@@ -101,6 +103,16 @@ export function QuestDetailsDialog({
       onOpenChange={onOpenChange}
       title={quest.label}
       footer={
+        quest?.quest_type === "network" ? (
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="w-full"
+            data-testid="quest-details-close"
+          >
+            Close
+          </Button>
+        ) : (
         <div className="flex w-full gap-2">
           <Button
             variant="outline"
@@ -144,6 +156,7 @@ export function QuestDetailsDialog({
             </Button>
           )}
         </div>
+        )
       }
     >
       <div className="space-y-4" data-testid="quest-details-dialog">
@@ -166,10 +179,23 @@ export function QuestDetailsDialog({
                 if (quest.quest_type === "ads") {
                   return formatReward(quest.reward_amount);
                 }
+                if (quest.quest_type === "network") {
+                  // Network quests: sum all step rewards + completion bonus
+                  const requiredCount = quest.required_count ?? 3;
+                  const baseReward = quest.step_reward ?? 0;
+                  const customRewards = quest.step_rewards ?? [];
+                  let totalStepRewards = 0;
+                  for (let i = 0; i < requiredCount; i++) {
+                    totalStepRewards += customRewards[i] !== undefined ? customRewards[i] : baseReward;
+                  }
+                  return formatReward(totalStepRewards + quest.reward_amount);
+                }
                 // Step-based quests: show total reward
                 const stepCount = quest.quest_type === "shortlink" 
                   ? quest.shortlink_steps.length 
-                  : quest.locker_urls.length;
+                  : quest.quest_type === "checkin"
+                    ? quest.total_days ?? 3
+                    : quest.locker_urls.length;
                 const baseReward = quest.step_reward ?? 0;
                 const customRewards = quest.step_rewards ?? [];
                 let totalStepRewards = 0;
@@ -398,6 +424,16 @@ export function QuestDetailsDialog({
           </section>
         )}
 
+        {/* Network quest: provider grid */}
+        {quest.quest_type === "network" && (
+          <NetworkQuestProviderGrid
+            quest={quest}
+            active={active}
+            credited={credited}
+            open={open}
+          />
+        )}
+
         <section
           className="space-y-1 rounded-xl border border-destructive/30 bg-destructive/5 p-3"
           data-testid="quest-details-rules"
@@ -413,5 +449,210 @@ export function QuestDetailsDialog({
         </section>
       </div>
     </AppBottomSheet>
+  );
+}
+
+/**
+ * Network quest provider grid component.
+ * Shows providers with completion status, handles opening offerwalls, and polls for updates.
+ */
+function NetworkQuestProviderGrid({
+  quest,
+  active,
+  credited,
+  open,
+}: {
+  quest: QuestCardQuest;
+  active?: QuestSessionView;
+  credited: boolean;
+  open: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const fetchProgress = useServerFn(getNetworkQuestProgress);
+  const openNetwork = useServerFn(openQuestNetwork);
+  const [opening, setOpening] = useState<string | null>(null);
+  const openedWindowRef = useRef<Window | null>(null);
+
+  // Fetch network quest progress
+  const { data: progress, refetch } = useQuery({
+    queryKey: ["network-quest-progress", quest.key],
+    queryFn: () => fetchProgress({ questKey: quest.key }),
+    enabled: open && !credited,
+    refetchInterval: 5000, // Poll every 5s while dialog is open
+  });
+
+  // Poll on window focus
+  useEffect(() => {
+    if (!open || credited) return;
+
+    const handleFocus = () => {
+      void refetch();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [open, credited, refetch]);
+
+  const handleProviderClick = async (providerId: string) => {
+    if (opening || credited) return;
+
+    setOpening(providerId);
+
+    try {
+      // Pre-open the tab synchronously to avoid popup blockers
+      const newWindow = window.open("about:blank", "_blank");
+      openedWindowRef.current = newWindow;
+
+      // Get the offerwall URL
+      const result = await openNetwork({ questKey: quest.key, providerId });
+
+      if ("url" in result && result.url) {
+        // Navigate the pre-opened tab to the actual URL
+        if (newWindow) {
+          newWindow.location.href = result.url;
+        }
+      } else {
+        // Close the tab if we couldn't get a URL
+        newWindow?.close();
+        console.error("Failed to open network:", result);
+      }
+
+      // Refetch progress after a delay
+      setTimeout(() => {
+        void refetch();
+      }, 1000);
+    } catch (error) {
+      console.error("Error opening network:", error);
+      openedWindowRef.current?.close();
+    } finally {
+      setOpening(null);
+    }
+  };
+
+  // Calculate rewards
+  const requiredCount = quest.required_count ?? 3;
+  const baseReward = quest.step_reward ?? 0;
+  const customRewards = quest.step_rewards ?? [];
+  let totalStepRewards = 0;
+  for (let i = 0; i < requiredCount; i++) {
+    totalStepRewards += customRewards[i] !== undefined ? customRewards[i] : baseReward;
+  }
+  const completionBonus = quest.reward_amount;
+  const totalReward = totalStepRewards + completionBonus;
+
+  const providers = progress?.providers ?? [];
+  const doneCount = progress?.done ?? 0;
+  const required = progress?.required ?? requiredCount;
+
+  return (
+    <>
+      {/* Providers section */}
+      <section className="space-y-2" data-testid="quest-details-network-providers">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Complete offers from {required} {required === 1 ? "network" : "networks"}
+        </p>
+        
+        <div className="grid grid-cols-2 gap-2">
+          {providers.map((provider) => {
+            const isDone = provider.done;
+            const isOpening = opening === provider.providerId;
+
+            return (
+              <button
+                key={provider.providerId}
+                onClick={() => !isDone && handleProviderClick(provider.providerId)}
+                disabled={isDone || isOpening || credited}
+                className={`
+                  relative flex min-h-[80px] flex-col items-center justify-center gap-2 rounded-xl border p-3 transition-all
+                  ${isDone 
+                    ? "border-primary/30 bg-primary/10 cursor-default" 
+                    : "border-primary/20 bg-background hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
+                  }
+                  ${isOpening ? "opacity-50" : ""}
+                `}
+                data-testid={`network-provider-${provider.providerId}`}
+              >
+                {provider.logoUrl ? (
+                  <img
+                    src={provider.logoUrl}
+                    alt={provider.name}
+                    className="h-8 w-auto object-contain"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+                    {provider.name.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
+                
+                <span className="text-center text-xs font-medium">
+                  {provider.name}
+                </span>
+
+                {isDone && (
+                  <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  </div>
+                )}
+
+                {isOpening && (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/80">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-2 text-center text-sm">
+          <span className="font-semibold [font-variant-numeric:tabular-nums]">
+            {doneCount} / {required}
+          </span>
+          <span className="text-muted-foreground"> networks completed</span>
+        </div>
+      </section>
+
+      {/* Rewards section */}
+      <section className="space-y-2" data-testid="quest-details-network-rewards">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Rewards
+        </p>
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
+          <ul className="space-y-1.5">
+            <li className="flex items-center justify-between gap-2">
+              <span>Per-network reward</span>
+              <span className="font-semibold tabular-nums">
+                {formatReward(baseReward)} × {required}
+              </span>
+            </li>
+            {completionBonus > 0 && (
+              <li className="flex items-center justify-between gap-2 border-t border-primary/20 pt-1.5">
+                <span>Completion bonus</span>
+                <span className="font-semibold tabular-nums">
+                  {formatReward(completionBonus)}
+                </span>
+              </li>
+            )}
+            <li className="flex items-center justify-between gap-2 border-t border-primary/30 pt-1.5 text-base font-bold text-primary">
+              <span>Total</span>
+              <span className="tabular-nums">{formatReward(totalReward)}</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      {/* Instructions */}
+      <section
+        className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-primary"
+        data-testid="quest-details-network-info"
+      >
+        <Info className="size-4 shrink-0" />
+        <span>
+          Tap a network above to open its offerwall. Complete an <strong>offer, survey, or task</strong> inside the network.
+          PTC and shortlinks may not count if below the minimum payout threshold ($
+          {(quest.min_qualifying_usd ?? 0.01).toFixed(2)}).
+        </span>
+      </section>
+    </>
   );
 }
