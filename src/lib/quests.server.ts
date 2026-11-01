@@ -21,7 +21,7 @@ export type QuestRow = {
   key: string;
   label: string;
   icon: string;
-  quest_type: "ads" | "shortlink" | "locker" | "checkin" | "feed_ptc" | "feed_shortlink" | "feed_article" | "network";
+  quest_type: "ads" | "shortlink" | "locker" | "checkin" | "feed_ptc" | "feed_shortlink" | "feed_article" | "network" | "survey";
   ads_required: number;
   /**
    * Completion bonus credited when the entire quest finishes.
@@ -88,6 +88,14 @@ export type QuestRow = {
   min_qualifying_usd: number;
   /** Network quest: optional delay hours before releasing reward (chargeback protection). */
   reward_hold_hours: number;
+  /** Survey quest: number of surveys required to complete (1-10). */
+  required_surveys: number;
+  /** Survey quest: allowed survey providers ('cpx' | 'theoremreach' | 'timewall'). */
+  allowed_networks: string[];
+  /** Survey quest: minimum survey payout in USD to qualify. */
+  min_payout_usd: number;
+  /** Survey quest: maximum length of interview in minutes (null = no limit). */
+  max_loi: number | null;
   is_active: boolean;
   sort_order: number;
   /** 'first_withdrawal' unlocks once profiles.lifetime_withdrawn > 0. */
@@ -134,6 +142,10 @@ function normalize(row: QuestRow): QuestRow {
     required_count: Number(row.required_count ?? 3),
     min_qualifying_usd: Number(row.min_qualifying_usd ?? 0.01),
     reward_hold_hours: Number(row.reward_hold_hours ?? 0),
+    required_surveys: Number(row.required_surveys ?? 5),
+    allowed_networks: Array.isArray(row.allowed_networks) ? row.allowed_networks : [],
+    min_payout_usd: Number(row.min_payout_usd ?? 0.5),
+    max_loi: row.max_loi != null ? Number(row.max_loi) : null,
     sort_order: Number(row.sort_order ?? 0),
     lock_type: (row.lock_type ?? "none") as QuestRow["lock_type"],
     unlock_at: row.unlock_at ?? null,
@@ -406,6 +418,7 @@ export async function creditStepReward(
   questLabel: string,
   stepIndex: number,
   stepReward: number,
+  metadata?: Record<string, unknown>,
 ): Promise<number> {
   // If step reward is 0, skip (existing quests with no step rewards)
   if (stepReward <= 0) return 0;
@@ -428,6 +441,7 @@ export async function creditStepReward(
       quest_key: questKey,
       step_index: stepIndex,
       amount: roundedAmount, // Store rounded amount
+      metadata: metadata || null,
     });
 
     // If unique constraint violation, step already credited

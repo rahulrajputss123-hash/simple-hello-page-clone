@@ -760,6 +760,242 @@ async function processQuestTokenPostback(
 }
 
 /**
+ * Process survey quest progress after a successful wallet credit.
+ * 
+ * Maps provider conversions to survey networks and tracks progress via
+ * quest_step_credits with metadata storing survey_network + survey_id for deduplication.
+ * 
+ * A survey can only count once per user per quest session, even if the
+ * same postback arrives multiple times.
+ */
+async function processSurveyQuestProgress(params: {
+  userId: string;
+  conversionId: string;
+  provider: SdkOfferwallProvider;
+  transactionId: string;
+  offerId?: string;
+  rewardUsd: number;
+}): Promise<void> {
+  const { userId, conversionId, provider, transactionId, offerId, rewardUsd } = params;
+
+  // Map provider slug to survey network
+  const surveyNetwork = mapProviderToSurveyNetwork(provider.slug);
+  if (!surveyNetwork) {
+    // Not a survey provider, skip
+    return;
+  }
+
+  // Survey ID is the offer_id from postback (survey ID from provider)
+  const surveyId = offerId || transactionId;
+  if (!surveyId) {
+    await logAutomation({
+      eventType: "quest_automation",
+      status: "warning",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversionId,
+      message: "Survey quest: missing survey ID (offer_id or transaction_id)",
+    });
+    return;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as unknown as { from: (t: string) => any };
+
+  // Find active survey quest sessions for this user
+  const { data: sessions } = await db
+    .from("quest_sessions")
+    .select("id, quest_key, quests!inner(quest_type, label, required_surveys, step_reward, reward_amount, allowed_networks, min_payout_usd)")
+    .eq("user_id", userId)
+    .eq("status", "started")
+    .eq("quests.quest_type", "survey");
+
+  if (!sessions || sessions.length === 0) {
+    // No active survey quests
+    return;
+  }
+
+  for (const session of sessions) {
+    const quest = session.quests;
+
+    // Check if this network is allowed for this quest
+    const allowedNetworks = Array.isArray(quest.allowed_networks) ? quest.allowed_networks : [];
+    if (!allowedNetworks.includes(surveyNetwork)) {
+      continue;
+    }
+
+    // Check if payout meets minimum
+    const minPayoutUsd = Number(quest.min_payout_usd ?? 0.5);
+    if (rewardUsd < minPayoutUsd) {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "info",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversionId,
+        message: `Survey quest: payout $${rewardUsd.toFixed(2)} below minimum $${minPayoutUsd.toFixed(2)}`,
+        context: { questKey: session.quest_key, surveyNetwork, surveyId },
+      });
+      continue;
+    }
+
+    // Check if this survey was already completed in this session (deduplication)
+    const { data: existingCredit } = await db
+      .from("quest_step_credits")
+      .select("id")
+      .eq("session_id", session.id)
+      .contains("metadata", { survey_network: surveyNetwork, survey_id: surveyId })
+      .maybeSingle();
+
+    if (existingCredit) {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "info",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversionId,
+        message: "Survey already completed for this quest session",
+        context: { questKey: session.quest_key, surveyNetwork, surveyId },
+      });
+      continue;
+    }
+
+    // Count existing survey completions for this session
+    const { data: existingSteps, error: countError } = await db
+      .from("quest_step_credits")
+      .select("step_index")
+      .eq("session_id", session.id)
+      .order("step_index", { ascending: false })
+      .limit(1);
+
+    if (countError) throw countError;
+
+    const nextStepIndex = existingSteps?.[0]?.step_index ? existingSteps[0].step_index + 1 : 1;
+    const requiredSurveys = Number(quest.required_surveys ?? 5);
+
+    // Check if already at max surveys
+    if (nextStepIndex > requiredSurveys) {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "info",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversionId,
+        message: `Survey quest already complete: ${nextStepIndex - 1}/${requiredSurveys}`,
+        context: { questKey: session.quest_key, sessionId: session.id },
+      });
+      continue;
+    }
+
+    // Credit step reward with metadata for deduplication
+    const stepRewardAmount = Number(quest.step_reward ?? 0);
+    const { creditStepReward } = await import("../quests.server");
+    
+    try {
+      const credited = await creditStepReward(
+        userId,
+        session.id,
+        session.quest_key,
+        quest.label,
+        nextStepIndex,
+        stepRewardAmount,
+        {
+          survey_network: surveyNetwork,
+          survey_id: surveyId,
+          conversion_id: conversionId,
+        },
+      );
+
+      if (credited >= 0) {
+        await logAutomation({
+          eventType: "quest_automation",
+          status: "success",
+          source: provider.slug,
+          providerId: provider.id,
+          userId,
+          referenceId: conversionId,
+          message: stepRewardAmount > 0 
+            ? `Survey quest step ${nextStepIndex}/${requiredSurveys} completed, credited $${credited.toFixed(2)}`
+            : `Survey quest step ${nextStepIndex}/${requiredSurveys} completed`,
+          context: { questKey: session.quest_key, surveyNetwork, surveyId, stepIndex: nextStepIndex },
+        });
+      }
+    } catch (error) {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "error",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversionId,
+        message: `Failed to credit survey step reward: ${error instanceof Error ? error.message : "unknown"}`,
+        context: { questKey: session.quest_key, surveyNetwork, surveyId },
+      });
+      continue;
+    }
+
+    // Check if quest is now complete
+    if (nextStepIndex >= requiredSurveys) {
+      const { data: sessionUpdate } = await db
+        .from("quest_sessions")
+        .update({ status: "verified", verified_at: new Date().toISOString() })
+        .eq("id", session.id)
+        .eq("status", "started")
+        .select("status")
+        .maybeSingle();
+
+      if (sessionUpdate?.status === "verified") {
+        const { finishQuestSession } = await import("../quests.server");
+        const finalBonus = Number(quest.reward_amount ?? 0);
+        await finishQuestSession(
+          userId,
+          session.id,
+          finalBonus,
+          `Survey Quest: ${quest.label}`,
+        );
+
+        await logAutomation({
+          eventType: "quest_automation",
+          status: "success",
+          source: provider.slug,
+          providerId: provider.id,
+          userId,
+          referenceId: conversionId,
+          message: `Survey quest completed: ${quest.label} (${requiredSurveys}/${requiredSurveys}), final bonus $${finalBonus.toFixed(2)}`,
+          context: { questKey: session.quest_key, sessionId: session.id, finalBonus },
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Map provider slug to survey network identifier.
+ * Returns null if provider is not a survey provider.
+ */
+function mapProviderToSurveyNetwork(providerSlug: string): "cpxresearch" | "theoremreach" | "timewall" | null {
+  switch (providerSlug) {
+    case "cpxresearch":
+    case "cpx-research":
+    case "cpx":
+      return "cpxresearch";
+    case "theoremreach":
+    case "theorem-reach":
+    case "theorem":
+      return "theoremreach";
+    case "timewall":
+    case "time-wall":
+      return "timewall";
+    default:
+      return null;
+  }
+}
+
+/**
  * Generic, provider-agnostic postback pipeline:
  * verify caller -> parse -> dedupe -> credit wallet -> referral automation -> log.
  * Works for any configured provider; adapters may override parsing/verification.
@@ -1024,6 +1260,31 @@ export async function processSdkPostback(req: PostbackRequest): Promise<Postback
     message: `Credited $${reward.toFixed(2)} from ${provider.name}`,
     context: { currencyAmount, reward, transactionId: transactionKey },
   });
+
+  // --- Survey quest progress tracking ----------------------------------------
+  // Check if this conversion should count toward an active survey quest.
+  // Survey quests track progress based on verified postbacks with network + survey_id deduplication.
+  try {
+    await processSurveyQuestProgress({
+      userId,
+      conversionId: claim.data.id,
+      provider,
+      transactionId: parsed.providerTransactionId,
+      offerId: parsed.providerOfferId,
+      rewardUsd: reward,
+    });
+  } catch (error) {
+    // Survey quest tracking failure must never roll back the wallet credit.
+    await logAutomation({
+      eventType: "quest_automation",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: claim.data.id,
+      message: error instanceof Error ? error.message : "Survey quest progress tracking failed",
+    });
+  }
 
   // --- Referral automation --------------------------------------------------
   try {

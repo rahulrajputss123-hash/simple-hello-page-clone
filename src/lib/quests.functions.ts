@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { LOCKER_MAX_URLS, SHORTLINK_MAX_STEPS } from "./coinquest";
 
 const shortlinkStepSchema = z.object({
@@ -18,7 +19,7 @@ const questFormSchema = z.object({
     .regex(/^[a-z0-9_-]+$/i, "Key must be alphanumeric / _ / -"),
   label: z.string().trim().min(1).max(60),
   icon: z.string().trim().max(2000).default("gift"),
-  questType: z.enum(["ads", "shortlink", "locker", "checkin", "network"]).default("ads"),
+  questType: z.enum(["ads", "shortlink", "locker", "checkin", "network", "survey"]).default("ads"),
   adsRequired: z.number().int().min(0).max(500).default(0),
   rewardAmount: z.number().min(0).max(10000).default(0),
   // Step rewards: immediate credit per step (shortlink/locker/checkin only)
@@ -46,6 +47,11 @@ const questFormSchema = z.object({
   minQualifyingUsd: z.number().min(0).max(100).default(0.01),
   tokenTtlHours: z.number().int().min(1).max(720).default(24),
   rewardHoldHours: z.number().int().min(0).max(720).default(0),
+  // Survey quest fields
+  requiredSurveys: z.number().int().min(1).max(10).default(5),
+  allowedNetworks: z.array(z.enum(["cpxresearch", "theoremreach", "timewall"])).min(1).default(["cpxresearch", "theoremreach", "timewall"]),
+  minPayoutUsd: z.number().min(0).max(100).default(0.5),
+  maxLoi: z.number().int().min(1).max(120).nullable().optional(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(9999).default(0),
   // 'first_withdrawal' needs no extra field — it reads profiles.lifetime_withdrawn.
@@ -59,11 +65,15 @@ const questFormSchema = z.object({
     if (data.questType === "network") {
       return data.requiredCount <= data.networkProviderIds.length;
     }
+    // Survey quest: must have at least one allowed network
+    if (data.questType === "survey") {
+      return data.allowedNetworks && data.allowedNetworks.length > 0;
+    }
     return true;
   },
   {
-    message: "Required count must be less than or equal to pool size",
-    path: ["requiredCount"],
+    message: "Network quest: required count must be <= pool size. Survey quest: at least one network must be selected.",
+    path: ["requiredCount", "allowedNetworks"],
   },
 );
 
@@ -401,5 +411,182 @@ export const getFeedQuestProgress = createServerFn({ method: "POST" })
         completed: completedStepIndexes.has(idx + 1),
       })),
       completed: Array.from(completedStepIndexes),
+    };
+  });
+
+/**
+ * User: fetch survey feed for a survey quest.
+ * Returns mixed list of surveys from allowed networks (CPX, TheoremReach, Timewall).
+ * Requires Request context for IP and User-Agent headers.
+ */
+export const fetchSurveyFeed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+        sessionId: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context, request$ }) => {
+    const { getActiveQuestByKey } = await import("./quests.server");
+    const { fetchSurveyFeed: fetchSurveyFeedImpl } = await import("./surveys/survey-feed.server");
+    
+    // Get quest configuration
+    const quest = await getActiveQuestByKey(context.userId, data.questKey);
+    if (!quest) {
+      throw new Error("Quest not found or not unlocked");
+    }
+
+    if (quest.quest_type !== "survey") {
+      throw new Error("Not a survey quest");
+    }
+
+    // Extract IP and User-Agent from request
+    const headers = await request$.headers;
+    const ip = 
+      headers.get("cf-connecting-ip") || 
+      headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      headers.get("x-real-ip") ||
+      "0.0.0.0";
+    const userAgent = headers.get("user-agent") || "Mozilla/5.0";
+    
+    // Get country code from Cloudflare header or default
+    const countryCode = headers.get("cf-ipcountry") || "US";
+
+    // Fetch surveys from allowed networks
+    const surveys = await fetchSurveyFeedImpl({
+      userId: context.userId,
+      sessionId: data.sessionId,
+      ip,
+      countryCode,
+      userAgent,
+      allowedNetworks: quest.allowed_networks as ("cpxresearch" | "theoremreach" | "timewall")[],
+      minPayoutUsd: quest.min_payout_usd || undefined,
+      maxLoi: quest.max_loi || undefined,
+    });
+
+    return { surveys };
+  });
+
+/**
+ * User: start a survey quest session.
+ * Creates a new session and returns the session ID.
+ */
+export const startSurveyQuest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { getActiveQuestByKey } = await import("./quests.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    
+    const quest = await getActiveQuestByKey(context.userId, data.questKey);
+    if (!quest) {
+      throw new Error("Quest not found or not unlocked");
+    }
+
+    if (quest.quest_type !== "survey") {
+      throw new Error("Not a survey quest");
+    }
+
+    // Check if there's already an active session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabaseAdmin as unknown as { from: (t: string) => any };
+    const { data: existingSession } = await db
+      .from("quest_sessions")
+      .select("id")
+      .eq("user_id", context.userId)
+      .eq("quest_key", data.questKey)
+      .eq("status", "started")
+      .maybeSingle();
+
+    if (existingSession) {
+      return { sessionId: existingSession.id };
+    }
+
+    // Create new session
+    const { data: newSession, error } = await db
+      .from("quest_sessions")
+      .insert({
+        user_id: context.userId,
+        quest_key: data.questKey,
+        quest_type: "survey",
+        status: "started",
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create survey quest session: ${error.message}`);
+    }
+
+    return { sessionId: newSession.id };
+  });
+
+/**
+ * User: get survey quest progress.
+ * Returns completed survey count and required count.
+ */
+export const getSurveyQuestProgress = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { getActiveQuestByKey } = await import("./quests.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    
+    const quest = await getActiveQuestByKey(context.userId, data.questKey);
+    if (!quest) {
+      throw new Error("Quest not found or not unlocked");
+    }
+
+    if (quest.quest_type !== "survey") {
+      throw new Error("Not a survey quest");
+    }
+
+    // Get active session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabaseAdmin as unknown as { from: (t: string) => any };
+    const { data: session } = await db
+      .from("quest_sessions")
+      .select("id, status")
+      .eq("user_id", context.userId)
+      .eq("quest_key", data.questKey)
+      .in("status", ["started", "verified"])
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+
+    if (!session) {
+      return {
+        completed: 0,
+        required: quest.required_surveys,
+        isComplete: false,
+      };
+    }
+
+    // Count completed surveys from quest_step_credits
+    const { data: credits } = await db
+      .from("quest_step_credits")
+      .select("step_index")
+      .eq("session_id", session.id);
+
+    const completedCount = (credits || []).length;
+
+    return {
+      completed: completedCount,
+      required: quest.required_surveys,
+      isComplete: session.status === "verified",
     };
   });

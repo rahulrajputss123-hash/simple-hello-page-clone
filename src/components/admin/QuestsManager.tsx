@@ -40,7 +40,7 @@ type FormState = {
   key: string;
   label: string;
   icon: string;
-  questType: "ads" | "shortlink" | "locker" | "checkin" | "feed_ptc" | "feed_shortlink" | "feed_article" | "network";
+  questType: "ads" | "shortlink" | "locker" | "checkin" | "feed_ptc" | "feed_shortlink" | "feed_article" | "network" | "survey";
   adsRequired: string;
   rewardAmount: string;
   stepReward: string;
@@ -70,6 +70,11 @@ type FormState = {
   minQualifyingUsd: string;
   tokenTtlHours: string;
   rewardHoldHours: string;
+  // Survey quest fields
+  requiredSurveys: string;
+  allowedNetworks: string[];
+  minPayoutUsd: string;
+  maxLoi: string | null;
 };
 
 /**
@@ -155,6 +160,11 @@ const emptyForm = (): FormState => ({
   minQualifyingUsd: "0.01",
   tokenTtlHours: "24",
   rewardHoldHours: "0",
+  // Survey quest defaults
+  requiredSurveys: "5",
+  allowedNetworks: ["cpxresearch", "theoremreach", "timewall"],
+  minPayoutUsd: "0.50",
+  maxLoi: null,
 });
 
 export function QuestsManager() {
@@ -227,6 +237,15 @@ export function QuestsManager() {
                 minQualifyingUsd: Number(state.minQualifyingUsd) || 0.01,
                 tokenTtlHours: Number(state.tokenTtlHours) || 24,
                 rewardHoldHours: Number(state.rewardHoldHours) || 0,
+              }
+            : {}),
+          // Survey quest fields
+          ...(state.questType === "survey"
+            ? {
+                requiredSurveys: Number(state.requiredSurveys) || 5,
+                allowedNetworks: state.allowedNetworks,
+                minPayoutUsd: Number(state.minPayoutUsd) || 0.5,
+                maxLoi: state.maxLoi ? Number(state.maxLoi) : null,
               }
             : {}),
         },
@@ -302,6 +321,17 @@ export function QuestsManager() {
       tokenTtlHours: String((quest as any).token_ttl_hours ?? 24),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rewardHoldHours: String((quest as any).reward_hold_hours ?? 0),
+      // Survey quest fields
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      requiredSurveys: String((quest as any).required_surveys ?? 5),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      allowedNetworks: Array.isArray((quest as any).allowed_networks)
+        ? (quest as any).allowed_networks
+        : ["cpxresearch", "theoremreach", "timewall"],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      minPayoutUsd: String((quest as any).min_payout_usd ?? 0.5),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      maxLoi: (quest as any).max_loi ? String((quest as any).max_loi) : null,
     });
 
   const { noLinksYet, filledLockerUrls } = form
@@ -526,7 +556,7 @@ export function QuestsManager() {
               )}
               <Field label="Quest type">
                 <div className="flex flex-wrap gap-2">
-                  {(["ads", "shortlink", "locker", "checkin", "network"] as const).map((type) => (
+                  {(["ads", "shortlink", "locker", "checkin", "network", "survey"] as const).map((type) => (
                     <Button
                       key={type}
                       size="sm"
@@ -542,7 +572,9 @@ export function QuestsManager() {
                             ? "Content Locker"
                             : type === "checkin"
                               ? "Check-in"
-                              : "Network"}
+                              : type === "network"
+                                ? "Network"
+                                : "Survey"}
                     </Button>
                   ))}
                 </div>
@@ -938,6 +970,148 @@ export function QuestsManager() {
                       <li>Each provider counts once per session (multiple conversions OK)</li>
                     </ul>
                   </div>
+                </div>
+              )}
+
+              {form.questType === "survey" && (
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Survey quest: users complete surveys from CPX Research, TheoremReach, and/or Timewall. 
+                    Each completed survey = one step + step reward. Total = survey earnings (80%) + step rewards + final bonus.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Required surveys">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={form.requiredSurveys}
+                        onChange={(e) => setForm({ ...form, requiredSurveys: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        How many surveys to complete (1-10)
+                      </p>
+                    </Field>
+
+                    <Field label="Step reward per survey ($)">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.stepReward}
+                        placeholder="0.10"
+                        onChange={(e) => setForm({ ...form, stepReward: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Extra reward per completed survey
+                      </p>
+                    </Field>
+                  </div>
+
+                  <Field label="Allowed survey networks">
+                    <div className="space-y-2">
+                      {[
+                        { value: "cpxresearch", label: "CPX Research" },
+                        { value: "theoremreach", label: "TheoremReach" },
+                        { value: "timewall", label: "Timewall" },
+                      ].map((network) => (
+                        <label key={network.value} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={form.allowedNetworks.includes(network.value as never)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setForm({
+                                  ...form,
+                                  allowedNetworks: [...form.allowedNetworks, network.value as never],
+                                });
+                              } else {
+                                setForm({
+                                  ...form,
+                                  allowedNetworks: form.allowedNetworks.filter((n) => n !== network.value),
+                                });
+                              }
+                            }}
+                            className="size-4 rounded"
+                          />
+                          <span className="text-sm">{network.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Select at least one network (user sees mixed feed from all selected)
+                    </p>
+                  </Field>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Min payout USD (optional)">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.10"
+                        value={form.minPayoutUsd}
+                        placeholder="0.50"
+                        onChange={(e) => setForm({ ...form, minPayoutUsd: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Filter out low-paying surveys (default: $0.50)
+                      </p>
+                    </Field>
+
+                    <Field label="Max LOI minutes (optional)">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="120"
+                        value={form.maxLoi || ""}
+                        placeholder="No limit"
+                        onChange={(e) => setForm({ ...form, maxLoi: e.target.value || null })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Filter out long surveys (leave empty for no limit)
+                      </p>
+                    </Field>
+                  </div>
+
+                  <div className="rounded-xl border border-blue-500/40 bg-blue-500/5 p-3 text-xs">
+                    <p className="font-semibold text-blue-700 dark:text-blue-400">
+                      ℹ️ Survey Quest Behavior
+                    </p>
+                    <ul className="mt-2 space-y-1 text-muted-foreground list-disc list-inside">
+                      <li>User sees ONE mixed list from all selected networks</li>
+                      <li>Each survey completion = normal 80% credit + step reward</li>
+                      <li>Final bonus paid after all surveys completed</li>
+                      <li>Same survey cannot count twice in same quest session</li>
+                      <li>Progress tracked ONLY via verified postbacks (never frontend)</li>
+                    </ul>
+                  </div>
+
+                  {(() => {
+                    const requiredSurveys = Number(form.requiredSurveys) || 5;
+                    const stepReward = Number(form.stepReward) || 0;
+                    const totalStepRewards = requiredSurveys * stepReward;
+                    const completionBonus = Number(form.rewardAmount) || 0;
+                    const totalQuestRewards = totalStepRewards + completionBonus;
+
+                    return (
+                      <div className="rounded-lg bg-background p-3 border text-xs">
+                        <p className="font-semibold">Quest reward breakdown:</p>
+                        <ul className="mt-2 space-y-1 text-muted-foreground">
+                          <li>
+                            Step rewards: {requiredSurveys} surveys × {formatReward(stepReward)} = {formatReward(totalStepRewards)}
+                          </li>
+                          <li>Completion bonus: {formatReward(completionBonus)}</li>
+                          <li className="font-semibold text-primary pt-1 border-t mt-1">
+                            Total quest rewards: {formatReward(totalQuestRewards)}
+                          </li>
+                          <li className="text-[11px] italic mt-2">
+                            (Plus user keeps 80% of survey payouts from providers)
+                          </li>
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
