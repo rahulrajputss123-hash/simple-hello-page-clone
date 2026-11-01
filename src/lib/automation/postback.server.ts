@@ -229,6 +229,9 @@ async function processQuestTokenPostback(
     return { ok: false, status: "rejected", reason: "invalid_quest_token" };
   }
 
+  const session = tokenData.quest_sessions;
+  const userId = session.user_id;
+
   // Verify token provider matches postback provider
   if (tokenData.provider_id !== provider.id) {
     await logAutomation({
@@ -273,8 +276,6 @@ async function processQuestTokenPostback(
     });
     return { ok: false, status: "rejected", reason: "invalid_quest_token" };
   }
-
-  const userId = session.user_id;
 
   // Verify auth (same as normal postback flow)
   if (!auth.ok) {
@@ -409,6 +410,162 @@ async function processQuestTokenPostback(
 
   // Convert to USD
   const usd = convertSdkCurrency(provider, currencyAmount);
+
+  // ========== BRANCH: Feed Quest vs Network Quest ==========
+  if (tokenData.kind === "feed") {
+    // FEED QUEST: Steps are sequential, tracked by step_index
+    // No min_qualifying_usd check for feed quests
+    
+    // Verify campaign_id matches if provided by postback
+    if (parsed.providerOfferId && tokenData.campaign_id && parsed.providerOfferId !== tokenData.campaign_id) {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "warning",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversion.id,
+        message: `Campaign ID mismatch: expected ${tokenData.campaign_id}, got ${parsed.providerOfferId}`,
+        context: { questKey: session.quest_key, stepIndex: tokenData.step_index },
+      });
+      // Log and continue (some providers may not send campaign ID)
+    }
+
+    // Insert completion for this step
+    const { error: completionError } = await db
+      .from("quest_network_completions")
+      .insert({
+        session_id: session.id,
+        provider_id: provider.id,
+        conversion_id: conversion.id,
+        step_index: tokenData.step_index,
+        kind: "feed",
+        amount_usd: usd,
+      });
+
+    if (completionError) {
+      if (completionError.code === "23505") {
+        // Duplicate step completion (idempotent)
+        await logAutomation({
+          eventType: "quest_automation",
+          status: "info",
+          source: provider.slug,
+          providerId: provider.id,
+          userId,
+          referenceId: conversion.id,
+          message: `Step ${tokenData.step_index} already completed (duplicate postback)`,
+          context: { questKey: session.quest_key, stepIndex: tokenData.step_index },
+        });
+        return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
+      }
+      throw completionError;
+    }
+
+    await logAutomation({
+      eventType: "quest_automation",
+      status: "success",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversion.id,
+      message: `Feed quest step ${tokenData.step_index} completed: ${provider.name}`,
+      context: { questKey: session.quest_key, usd, stepIndex: tokenData.step_index },
+    });
+
+    // Credit step reward
+    const stepRewardAmount = normalizedQuest.step_rewards?.[tokenData.step_index - 1] ?? normalizedQuest.step_reward ?? 0;
+    if (stepRewardAmount > 0) {
+      try {
+        const { creditStepReward } = await import("../quests.server");
+        const credited = await creditStepReward(
+          userId,
+          session.id,
+          session.quest_key,
+          normalizedQuest.label,
+          tokenData.step_index,
+          stepRewardAmount,
+        );
+        
+        if (credited > 0) {
+          await logAutomation({
+            eventType: "quest_automation",
+            status: "success",
+            source: provider.slug,
+            providerId: provider.id,
+            userId,
+            referenceId: conversion.id,
+            message: `Step ${tokenData.step_index} reward credited: $${credited.toFixed(2)}`,
+            context: { questKey: session.quest_key, stepIndex: tokenData.step_index, amount: credited },
+          });
+        }
+      } catch (error) {
+        await logAutomation({
+          eventType: "quest_automation",
+          status: "error",
+          source: provider.slug,
+          providerId: provider.id,
+          userId,
+          referenceId: conversion.id,
+          message: `Failed to credit step reward: ${error instanceof Error ? error.message : "unknown"}`,
+          context: { questKey: session.quest_key, stepIndex: tokenData.step_index },
+        });
+      }
+    }
+
+    // Check if all steps completed
+    const { data: allCompletions } = await db
+      .from("quest_network_completions")
+      .select("step_index")
+      .eq("session_id", session.id)
+      .eq("kind", "feed");
+
+    const completedSteps = (allCompletions || []).length;
+    const requiredSteps = Number(normalizedQuest.steps_count ?? 10);
+
+    if (completedSteps >= requiredSteps) {
+      // Quest complete! Credit final bonus
+      const { data: sessionUpdate } = await db
+        .from("quest_sessions")
+        .update({ status: "verified", verified_at: new Date().toISOString() })
+        .eq("id", session.id)
+        .eq("status", "started")
+        .select("status")
+        .maybeSingle();
+
+      if (sessionUpdate?.status === "verified") {
+        try {
+          const { finishQuestSession } = await import("../quests.server");
+          await finishQuestSession(userId, session.id, normalizedQuest);
+          
+          await logAutomation({
+            eventType: "quest_automation",
+            status: "success",
+            source: provider.slug,
+            providerId: provider.id,
+            userId,
+            referenceId: conversion.id,
+            message: `Feed quest completed: ${normalizedQuest.label}`,
+            context: { questKey: session.quest_key, completedSteps, requiredSteps },
+          });
+        } catch (error) {
+          await logAutomation({
+            eventType: "quest_automation",
+            status: "error",
+            source: provider.slug,
+            providerId: provider.id,
+            userId,
+            referenceId: conversion.id,
+            message: `Failed to finish quest: ${error instanceof Error ? error.message : "unknown"}`,
+            context: { questKey: session.quest_key },
+          });
+        }
+      }
+    }
+
+    return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
+  }
+
+  // ========== NETWORK QUEST (original logic) ==========
   const minQualifyingUsd = Number(normalizedQuest.min_qualifying_usd ?? 0.01);
 
   if (usd < minQualifyingUsd) {

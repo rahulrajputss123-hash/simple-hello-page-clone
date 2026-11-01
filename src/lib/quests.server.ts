@@ -2055,3 +2055,20 @@ export async function getNetworkQuestProgressImpl(
     required: normalizedQuest.required_count,
   };
 }
+
+
+// ========== Feed Quest Functions ==========
+/**
+ * Get active quest by key (with lock validation).
+ */
+export async function getActiveQuestByKey(userId: string, key: string): Promise<QuestRow | null> {
+  try {
+    const quest = await getQuestByKey(key);
+    await assertQuestNotLocked(userId, quest);
+    return quest;
+  } catch {
+    return null;
+  }
+}
+
+export { startFeedQuestImpl, openFeedQuestStepImpl } from "./quests/feed-quests.server";

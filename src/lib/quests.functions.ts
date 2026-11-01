@@ -294,3 +294,112 @@ export const getNetworkQuestProgress = createServerFn({ method: "POST" })
     const { getNetworkQuestProgressImpl } = await import("./quests.server");
     return getNetworkQuestProgressImpl(context.userId, data.questKey);
   });
+
+/**
+ * Start a feed quest: fetch and snapshot campaigns.
+ */
+export const startFeedQuest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ questKey: z.string() }).parse(input)
+  )
+  .handler(async ({ context, data: { questKey }, request$ }) => {
+    const { getActiveQuestByKey, startFeedQuestImpl } = await import("./quests.server");
+    const db = supabaseAdmin as never;
+    
+    const quest = await getActiveQuestByKey(context.user.id, questKey);
+    if (!quest) {
+      throw new Error("Quest not found or not unlocked");
+    }
+
+    if (!quest.feed_kind) {
+      throw new Error("Not a feed quest");
+    }
+
+    const result = await startFeedQuestImpl(db, context.user.id, questKey, quest, request$);
+    
+    if (!result.success) {
+      throw new Error(result.reason === "unavailable" ? "Not enough campaigns available" : "Failed to start quest");
+    }
+
+    return { sessionId: result.sessionId };
+  });
+
+/**
+ * Open a specific feed quest step.
+ */
+export const openFeedQuestStep = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ questKey: z.string(), step: z.number().int().min(1) }).parse(input)
+  )
+  .handler(async ({ context, data: { questKey, step }, request$ }) => {
+    const { getActiveQuestByKey, openFeedQuestStepImpl } = await import("./quests.server");
+    const db = supabaseAdmin as never;
+    
+    const quest = await getActiveQuestByKey(context.user.id, questKey);
+    if (!quest) {
+      throw new Error("Quest not found or not unlocked");
+    }
+
+    if (!quest.feed_kind) {
+      throw new Error("Not a feed quest");
+    }
+
+    const result = await openFeedQuestStepImpl(db, context.user.id, questKey, step, quest, request$);
+    
+    if (result.error) {
+      throw new Error(result.error);
+    }
+
+    return { url: result.url };
+  });
+
+/**
+ * Get feed quest progress (completed steps).
+ */
+export const getFeedQuestProgress = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ questKey: z.string() }).parse(input)
+  )
+  .handler(async ({ context, data: { questKey } }) => {
+    const db = supabaseAdmin as never;
+    
+    // Get active session
+    const { data: session } = await db
+      .from("quest_sessions")
+      .select("id, feed_snapshot, status")
+      .eq("user_id", context.user.id)
+      .eq("quest_key", questKey)
+      .eq("status", "started")
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+
+    if (!session) {
+      return { steps: [], completed: [] };
+    }
+
+    const snapshot = session.feed_snapshot as { source: string; title: string; rewardUsd: number; backup: boolean }[];
+    const mainSteps = (snapshot || []).filter((s) => !s.backup);
+
+    // Get completions
+    const { data: completions } = await db
+      .from("quest_network_completions")
+      .select("step_index")
+      .eq("session_id", session.id)
+      .eq("kind", "feed");
+
+    const completedStepIndexes = new Set((completions || []).map((c: never) => c.step_index));
+
+    return {
+      steps: mainSteps.map((s, idx) => ({
+        step: idx + 1,
+        source: s.source,
+        title: s.title,
+        rewardUsd: s.rewardUsd,
+        completed: completedStepIndexes.has(idx + 1),
+      })),
+      completed: Array.from(completedStepIndexes),
+    };
+  });
