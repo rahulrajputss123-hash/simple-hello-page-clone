@@ -1880,12 +1880,13 @@ export async function openQuestNetworkImpl(
     sessionId = newSession.id;
   }
 
-  // Check if this provider is already completed
+  // Check if this provider is already completed (network quest)
   const { data: existingCompletion } = await db
     .from("quest_network_completions")
     .select("id")
     .eq("session_id", sessionId)
     .eq("provider_id", providerId)
+    .eq("kind", "network")  // Filter by kind since table is shared
     .maybeSingle();
 
   if (existingCompletion) {
@@ -2028,11 +2029,12 @@ export async function getNetworkQuestProgressImpl(
     };
   }
 
-  // Get completions
+  // Get completions (network quest only)
   const { data: completions } = await db
     .from("quest_network_completions")
     .select("provider_id")
-    .eq("session_id", session.id);
+    .eq("session_id", session.id)
+    .eq("kind", "network");  // Filter by kind since table is shared
 
   const completedProviderIds = new Set((completions ?? []).map((c: any) => c.provider_id));
 

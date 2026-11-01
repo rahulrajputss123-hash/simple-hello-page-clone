@@ -71,11 +71,18 @@ CREATE TABLE IF NOT EXISTS public.quest_network_tokens (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Partial unique index: one active token per (session, provider)
-CREATE UNIQUE INDEX IF NOT EXISTS quest_network_tokens_session_provider_active_uniq
+-- Unique index: one token per (session, provider) for network quests
+-- Note: Cannot use now() in WHERE clause - Postgres rejects functions in index predicates
+CREATE UNIQUE INDEX IF NOT EXISTS quest_network_tokens_network_uniq
   ON public.quest_network_tokens (session_id, provider_id)
-  WHERE (expires_at > now());
+  WHERE kind = 'network';
 
+-- Unique index: one token per (session, step) for feed quests
+CREATE UNIQUE INDEX IF NOT EXISTS quest_network_tokens_session_step_uniq
+  ON public.quest_network_tokens (session_id, step_index)
+  WHERE step_index IS NOT NULL;
+
+-- Indexes for lookups
 CREATE INDEX IF NOT EXISTS quest_network_tokens_user_idx
   ON public.quest_network_tokens (user_id);
 
@@ -85,18 +92,12 @@ CREATE INDEX IF NOT EXISTS quest_network_tokens_session_idx
 CREATE INDEX IF NOT EXISTS quest_network_tokens_expires_idx
   ON public.quest_network_tokens (expires_at);
 
--- Unique index: one token per (session, step) for feed quests
-CREATE UNIQUE INDEX IF NOT EXISTS quest_network_tokens_session_step_uniq
-  ON public.quest_network_tokens (session_id, step_index)
-  WHERE step_index IS NOT NULL;
-
--- Index for looking up tokens by session and step
 CREATE INDEX IF NOT EXISTS quest_network_tokens_session_step_idx
   ON public.quest_network_tokens (session_id, step_index)
   WHERE step_index IS NOT NULL;
 
--- RLS: service-role only
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.quest_network_tokens TO authenticated;
+-- RLS: Tokens are secrets - service-role only
+REVOKE ALL ON public.quest_network_tokens FROM anon, authenticated;
 GRANT ALL ON public.quest_network_tokens TO service_role;
 
 ALTER TABLE public.quest_network_tokens ENABLE ROW LEVEL SECURITY;
@@ -116,31 +117,32 @@ CREATE TABLE IF NOT EXISTS public.quest_network_completions (
   session_id uuid NOT NULL REFERENCES public.quest_sessions(id) ON DELETE CASCADE,
   provider_id uuid NOT NULL REFERENCES public.sdk_offerwall_providers(id) ON DELETE CASCADE,
   conversion_id uuid NOT NULL REFERENCES public.sdk_offerwall_conversions(id) ON DELETE CASCADE,
-  step_index integer NOT NULL,
-  kind text NOT NULL DEFAULT 'network' CHECK (kind IN ('network')),
+  step_index integer,  -- Nullable for extensibility
+  kind text NOT NULL DEFAULT 'network' CHECK (kind IN ('network', 'feed')),
   amount_usd numeric(10,4) NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Unique constraint: each provider counts once per session
-CREATE UNIQUE INDEX IF NOT EXISTS quest_network_completions_session_provider_uniq
+-- Unique constraint: each provider counts once per network quest session
+CREATE UNIQUE INDEX IF NOT EXISTS quest_network_completions_network_uniq
   ON public.quest_network_completions (session_id, provider_id)
-  WHERE (kind = 'network');
+  WHERE kind = 'network';
 
--- Unique constraint: step_index per session
-CREATE UNIQUE INDEX IF NOT EXISTS quest_network_completions_session_step_uniq
+-- Unique constraint: each step_index used once per session
+CREATE UNIQUE INDEX IF NOT EXISTS quest_network_completions_step_uniq
   ON public.quest_network_completions (session_id, step_index)
-  WHERE (kind = 'network');
+  WHERE step_index IS NOT NULL;
 
--- Indexes
+-- Unique constraint: each conversion_id used once
+CREATE UNIQUE INDEX IF NOT EXISTS quest_network_completions_conversion_uniq
+  ON public.quest_network_completions (conversion_id);
+
+-- Lookup indexes
 CREATE INDEX IF NOT EXISTS quest_network_completions_session_idx
   ON public.quest_network_completions (session_id);
 
-CREATE INDEX IF NOT EXISTS quest_network_completions_conversion_idx
-  ON public.quest_network_completions (conversion_id);
-
--- RLS: service-role only
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.quest_network_completions TO authenticated;
+-- RLS: Completions are internal - service-role only
+REVOKE ALL ON public.quest_network_completions FROM anon, authenticated;
 GRANT ALL ON public.quest_network_completions TO service_role;
 
 ALTER TABLE public.quest_network_completions ENABLE ROW LEVEL SECURITY;
@@ -199,10 +201,10 @@ COMMENT ON TABLE public.quest_network_completions IS
   'Tracks which providers have been completed in each network quest session. UNIQUE per (session, provider).';
 
 COMMENT ON COLUMN public.quest_network_completions.step_index IS
-  'Completion order (1-based). Determines which step reward to pay. Assigned atomically on insert.';
+  'Completion order (1-based). Determines which step reward to pay. Assigned atomically on insert. Nullable for extensibility.';
 
 COMMENT ON COLUMN public.quest_network_completions.kind IS
-  'Completion type. Always "network" for network quest completions.';
+  'Completion type. "network" for network quest completions, "feed" for feed quest completions.';
 
 COMMENT ON COLUMN public.quests.network_provider_ids IS
   'Pool of sdk_offerwall_provider UUIDs for network quests. Admin picks N providers, user must complete K.';
