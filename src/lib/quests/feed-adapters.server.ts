@@ -5,7 +5,7 @@
  * into a common format for ranking and step creation.
  */
 
-import crypto from "crypto";
+import { createHmac } from "crypto";
 
 export type FeedKind = "ptc" | "shortlink" | "article";
 
@@ -118,8 +118,7 @@ async function fetchOfferwallMe(
   // Generate signed identity (48h expiry)
   const expiryMs = Date.now() + 48 * 60 * 60 * 1000;
   const message = `offerwall-user-v1\n${provider.api_key}\n${context.userRef}\n${expiryMs}`;
-  const signature = crypto
-    .createHmac("sha256", provider.secret)
+  const signature = createHmac("sha256", provider.secret)
     .update(message)
     .digest("hex");
 
