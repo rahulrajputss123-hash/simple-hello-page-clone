@@ -8,16 +8,7 @@
 -- This migration is idempotent and safe to re-run.
 -- ============================================================================
 
--- 1. Add feed quest types to CHECK constraint
--- The constraint name is quests_quest_type_check
-DO $$ BEGIN
-  -- Drop and recreate the constraint to add new values
-  ALTER TABLE public.quests DROP CONSTRAINT IF EXISTS quests_quest_type_check;
-  ALTER TABLE public.quests ADD CONSTRAINT quests_quest_type_check 
-    CHECK (quest_type IN ('ads', 'shortlink', 'locker', 'checkin', 'feed_ptc', 'feed_shortlink', 'feed_article'));
-END $$;
-
--- 2. Add feed quest configuration columns to quests table
+-- 1. Add feed quest configuration columns to quests table
 ALTER TABLE public.quests
   ADD COLUMN IF NOT EXISTS feed_kind text,
   ADD COLUMN IF NOT EXISTS steps_count integer DEFAULT 10,
@@ -57,35 +48,12 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- 3. Add step_index to quest_network_tokens (for feed quest steps)
-ALTER TABLE public.quest_network_tokens
-  ADD COLUMN IF NOT EXISTS step_index integer,
-  ADD COLUMN IF NOT EXISTS source text,
-  ADD COLUMN IF NOT EXISTS campaign_id text;
-
--- Create unique constraint on (session_id, step_index) for feed quests
-CREATE UNIQUE INDEX IF NOT EXISTS quest_network_tokens_session_step_uniq
-  ON public.quest_network_tokens (session_id, step_index)
-  WHERE step_index IS NOT NULL;
-
--- Index for looking up tokens by session and step
-CREATE INDEX IF NOT EXISTS quest_network_tokens_session_step_idx
-  ON public.quest_network_tokens (session_id, step_index)
-  WHERE step_index IS NOT NULL;
-
--- 4. Add feed_snapshot to quest_sessions (stores ranked campaigns)
+-- 2. Add feed_snapshot to quest_sessions (stores ranked campaigns)
 ALTER TABLE public.quest_sessions
   ADD COLUMN IF NOT EXISTS feed_snapshot jsonb;
 
 COMMENT ON COLUMN public.quest_sessions.feed_snapshot IS
   'Feed quest snapshot: array of {source, campaignId, title, rewardUsd, duration, completionRate, url, backup}. Stable ranking for the session.';
-
--- 5. Add is_enabled flag to sdk_offerwall_providers
-ALTER TABLE public.sdk_offerwall_providers
-  ADD COLUMN IF NOT EXISTS is_enabled boolean DEFAULT true;
-
-COMMENT ON COLUMN public.sdk_offerwall_providers.is_enabled IS
-  'Whether this provider is enabled for feed quests. Disabled providers are skipped.';
 
 -- Comments
 COMMENT ON COLUMN public.quests.feed_kind IS
@@ -114,13 +82,3 @@ COMMENT ON COLUMN public.quests.blocked_domains IS
 
 COMMENT ON COLUMN public.quests.token_ttl_hours IS
   'Hours before a quest token expires. Re-issued on step reopen. Default 48h.';
-
-COMMENT ON COLUMN public.quest_network_tokens.step_index IS
-  'Step number (1-based) for feed quest tokens. NULL for non-feed quests.';
-
-COMMENT ON COLUMN public.quest_network_tokens.source IS
-  'Feed source identifier (e.g. "offerwall.me", "bitcotasks"). Used to match postbacks.';
-
-COMMENT ON COLUMN public.quest_network_tokens.campaign_id IS
-  'External campaign ID from the feed provider. Used to match postbacks.';
-

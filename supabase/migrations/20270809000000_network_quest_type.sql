@@ -10,10 +10,24 @@
 -- ============================================================================
 
 -- 1. Add 'network' to quest_type CHECK constraint
-DO $$ BEGIN
-  ALTER TABLE public.quests DROP CONSTRAINT IF EXISTS quests_quest_type_check;
-  ALTER TABLE public.quests ADD CONSTRAINT quests_quest_type_check 
-    CHECK (quest_type IN ('ads', 'shortlink', 'locker', 'checkin', 'feed_ptc', 'feed_shortlink', 'feed_article', 'network'));
+-- The live constraint already includes: 'ads', 'shortlink', 'locker', 'checkin', 
+-- 'feed_ptc', 'feed_shortlink', 'feed_article', 'network'
+-- This is idempotent - only updates if 'network' is missing.
+DO $$ 
+DECLARE
+  constraint_def text;
+BEGIN
+  SELECT pg_get_constraintdef(oid) INTO constraint_def
+  FROM pg_constraint
+  WHERE conname = 'quests_quest_type_check'
+    AND conrelid = 'public.quests'::regclass;
+  
+  -- Only modify if network is not present
+  IF constraint_def IS NOT NULL AND constraint_def NOT LIKE '%network%' THEN
+    ALTER TABLE public.quests DROP CONSTRAINT quests_quest_type_check;
+    ALTER TABLE public.quests ADD CONSTRAINT quests_quest_type_check 
+      CHECK (quest_type IN ('ads', 'shortlink', 'locker', 'checkin', 'feed_ptc', 'feed_shortlink', 'feed_article', 'network'));
+  END IF;
 END $$;
 
 -- 2. Add network quest configuration columns to quests table
@@ -21,8 +35,9 @@ ALTER TABLE public.quests
   ADD COLUMN IF NOT EXISTS network_provider_ids uuid[] DEFAULT '{}',
   ADD COLUMN IF NOT EXISTS required_count integer DEFAULT 3,
   ADD COLUMN IF NOT EXISTS min_qualifying_usd numeric(10,4) DEFAULT 0.01,
-  ADD COLUMN IF NOT EXISTS token_ttl_hours integer DEFAULT 24,
   ADD COLUMN IF NOT EXISTS reward_hold_hours integer DEFAULT 0;
+
+-- Note: token_ttl_hours is shared with feed quests and added in migration 20270808000000_feed_quest_types.sql
 
 -- Constraints for network quest fields
 DO $$ BEGIN
@@ -34,10 +49,7 @@ DO $$ BEGIN
     ALTER TABLE public.quests ADD CONSTRAINT quests_min_qualifying_usd_check 
       CHECK (min_qualifying_usd >= 0);
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'quests_network_token_ttl_hours_check') THEN
-    ALTER TABLE public.quests ADD CONSTRAINT quests_network_token_ttl_hours_check 
-      CHECK (token_ttl_hours > 0 AND token_ttl_hours <= 720);
-  END IF;
+  -- Note: token_ttl_hours constraint is shared with feed quests (quests_token_ttl_hours_check) from migration 20270808
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'quests_reward_hold_hours_check') THEN
     ALTER TABLE public.quests ADD CONSTRAINT quests_reward_hold_hours_check 
       CHECK (reward_hold_hours >= 0 AND reward_hold_hours <= 720);
@@ -51,7 +63,10 @@ CREATE TABLE IF NOT EXISTS public.quest_network_tokens (
   session_id uuid NOT NULL REFERENCES public.quest_sessions(id) ON DELETE CASCADE,
   provider_id uuid NOT NULL REFERENCES public.sdk_offerwall_providers(id) ON DELETE CASCADE,
   quest_key text NOT NULL,
-  kind text NOT NULL DEFAULT 'network' CHECK (kind IN ('network')),
+  kind text NOT NULL DEFAULT 'network' CHECK (kind IN ('network', 'feed')),
+  step_index integer,
+  source text,
+  campaign_id text,
   expires_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -69,6 +84,16 @@ CREATE INDEX IF NOT EXISTS quest_network_tokens_session_idx
 
 CREATE INDEX IF NOT EXISTS quest_network_tokens_expires_idx
   ON public.quest_network_tokens (expires_at);
+
+-- Unique index: one token per (session, step) for feed quests
+CREATE UNIQUE INDEX IF NOT EXISTS quest_network_tokens_session_step_uniq
+  ON public.quest_network_tokens (session_id, step_index)
+  WHERE step_index IS NOT NULL;
+
+-- Index for looking up tokens by session and step
+CREATE INDEX IF NOT EXISTS quest_network_tokens_session_step_idx
+  ON public.quest_network_tokens (session_id, step_index)
+  WHERE step_index IS NOT NULL;
 
 -- RLS: service-role only
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.quest_network_tokens TO authenticated;
@@ -159,7 +184,16 @@ COMMENT ON COLUMN public.quest_network_tokens.token IS
   'Secret token used as user ID in offerwall URLs. Format: "q_" + 24 random url-safe chars.';
 
 COMMENT ON COLUMN public.quest_network_tokens.kind IS
-  'Token type. Always "network" for network quest tokens. Future: may add other quest token types.';
+  'Token type. "network" for network quests, "feed" for feed quests. Extensible for future quest types.';
+
+COMMENT ON COLUMN public.quest_network_tokens.step_index IS
+  'Step number (1-based) for feed quest tokens. NULL for network quest tokens.';
+
+COMMENT ON COLUMN public.quest_network_tokens.source IS
+  'Feed source identifier (e.g. "offerwall.me", "bitcotasks"). NULL for network quests. Used to match postbacks.';
+
+COMMENT ON COLUMN public.quest_network_tokens.campaign_id IS
+  'External campaign ID from the feed provider. NULL for network quests. Used to match postbacks.';
 
 COMMENT ON TABLE public.quest_network_completions IS
   'Tracks which providers have been completed in each network quest session. UNIQUE per (session, provider).';
@@ -179,8 +213,7 @@ COMMENT ON COLUMN public.quests.required_count IS
 COMMENT ON COLUMN public.quests.min_qualifying_usd IS
   'Minimum offer payout in USD to count toward quest completion. Filters out PTC/shortlink micro-payouts. Default 0.01.';
 
-COMMENT ON COLUMN public.quests.token_ttl_hours IS
-  'Hours before a quest token expires. Default 24h. Reissued on each openQuestNetwork call.';
+-- Note: token_ttl_hours comment is in feed quest migration 20270808000000_feed_quest_types.sql
 
 COMMENT ON COLUMN public.quests.reward_hold_hours IS
   'Optional delay before releasing quest reward. Protects against chargebacks. 0 = instant (default).';
