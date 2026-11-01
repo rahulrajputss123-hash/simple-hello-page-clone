@@ -84,8 +84,8 @@ export const QuestCard = memo(function QuestCard({
 
   // Calculate total reward for step-based quests
   const displayReward = (() => {
-    if (quest.quest_type === "ads") {
-      return quest.reward_amount; // Ads quests: reward_amount is the only reward
+    if (quest.quest_type === "ads" || quest.quest_type === "network") {
+      return quest.reward_amount; // Ads and network quests: reward_amount is the only reward
     }
     if (quest.quest_type === "checkin") {
       // Checkin: sum all step rewards (per-day) + completion bonus
@@ -121,7 +121,9 @@ export const QuestCard = memo(function QuestCard({
             ? quest.streak_mode === "consecutive"
               ? `${remaining} more ${remaining === 1 ? "day" : "days"} to go`
               : `Check in ${remaining} more ${remaining === 1 ? "day" : "days"}`
-            : "Secure locker completion required";
+            : quest.quest_type === "network"
+              ? `Complete ${remaining} more ${remaining === 1 ? "network" : "networks"}`
+              : "Secure locker completion required";
   const summary = locked
     ? (lockLabel ?? "Quest locked")
     : credited
@@ -132,7 +134,9 @@ export const QuestCard = memo(function QuestCard({
           ? `Visit ${total} ${total === 1 ? "Shortlink" : "Shortlinks"}`
           : quest.quest_type === "checkin"
             ? `Check in ${total} ${total === 1 ? "Day" : "Days"}`
-            : "Complete Locker";
+            : quest.quest_type === "network"
+              ? `Complete ${total} ${total === 1 ? "Network" : "Networks"}`
+              : "Complete Locker";
   const ctaText = locked
     ? "Locked"
     : credited
@@ -149,7 +153,11 @@ export const QuestCard = memo(function QuestCard({
               ? progress > 0
                 ? "Continue Streak"
                 : "Start Streak"
-              : "Complete Locker";
+              : quest.quest_type === "network"
+                ? progress > 0
+                  ? "Continue"
+                  : "Start Quest"
+                : "Complete Locker";
   const actionTestId =
     quest.quest_type === "ads"
       ? `quest-watch-${quest.key}`
@@ -157,7 +165,9 @@ export const QuestCard = memo(function QuestCard({
         ? `quest-open-${quest.key}`
         : quest.quest_type === "checkin"
           ? `quest-checkin-${quest.key}`
-          : `quest-locker-${quest.key}`;
+          : quest.quest_type === "network"
+            ? `quest-network-${quest.key}`
+            : `quest-locker-${quest.key}`;
 
   const inactive = locked || credited;
 
