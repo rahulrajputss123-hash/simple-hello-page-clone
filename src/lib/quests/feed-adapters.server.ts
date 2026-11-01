@@ -37,8 +37,26 @@ export type FeedProvider = {
   bearer_token: string | null;
   secret: string | null;
   currency_per_usd: number;
-  is_enabled: boolean;
+  enabled: boolean; // From sdk_offerwall_providers.enabled column
+  status: string; // From sdk_offerwall_providers.status column
 };
+
+/**
+ * Query providers for feed quests:
+ * 
+ * ```sql
+ * SELECT id, slug as key, name, 
+ *        extra_config->>'api_key' as api_key,
+ *        extra_config->>'bearer_token' as bearer_token,
+ *        secret_refs->>'secret' as secret,
+ *        currency_per_usd, enabled, status
+ * FROM sdk_offerwall_providers
+ * WHERE id = ANY($1)  -- feed_provider_ids from quest
+ *   AND enabled = true
+ *   AND status != 'disabled'
+ * ORDER BY display_order
+ * ```
+ */
 
 /**
  * Fetch feed from a provider.
@@ -49,13 +67,14 @@ export async function fetchFeed(
   provider: FeedProvider,
   context: FeedContext,
 ): Promise<FeedItem[]> {
-  if (!provider.is_enabled) {
-    console.warn(`[feed] Provider ${provider.key} is disabled, skipping`);
+  // Skip if provider not enabled or disabled
+  if (!provider.enabled || provider.status === 'disabled') {
+    console.warn(`[feed] Provider ${provider.key} is not enabled (enabled=${provider.enabled}, status=${provider.status}), skipping`);
     return [];
   }
 
   if (!provider.currency_per_usd || provider.currency_per_usd <= 0) {
-    console.error(`[feed] Provider ${provider.key} has invalid currency_per_usd, skipping`);
+    console.error(`[feed] Provider ${provider.key} has invalid currency_per_usd (${provider.currency_per_usd}), skipping`);
     return [];
   }
 
@@ -191,8 +210,15 @@ async function fetchBitcoTasks(
   provider: FeedProvider,
   context: FeedContext,
 ): Promise<FeedItem[]> {
+  // Skip BitcoTasks if not configured (owner adds manually from admin)
   if (!provider.api_key || !provider.bearer_token) {
-    throw new Error("BitcoTasks requires api_key and bearer_token");
+    console.warn("[feed] BitcoTasks requires api_key and bearer_token - skipping (add from admin panel)");
+    return [];
+  }
+
+  if (!provider.currency_per_usd || provider.currency_per_usd <= 0) {
+    console.warn("[feed] BitcoTasks has invalid currency_per_usd - skipping (configure in admin panel)");
+    return [];
   }
 
   const endpoints = {
