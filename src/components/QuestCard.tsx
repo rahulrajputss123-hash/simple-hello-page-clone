@@ -87,6 +87,12 @@ export const QuestCard = memo(function QuestCard({
     if (quest.quest_type === "ads") {
       return quest.reward_amount; // Ads quests: reward_amount is the only reward
     }
+    if (quest.quest_type === "survey") {
+      // Survey quests: step reward per survey + completion bonus
+      const requiredSurveys = quest.required_surveys ?? 5;
+      const stepReward = quest.step_reward ?? 0;
+      return (requiredSurveys * stepReward) + quest.reward_amount;
+    }
     if (quest.quest_type === "network") {
       // Network quests: sum all step rewards + completion bonus
       const requiredCount = quest.required_count ?? 3;
@@ -126,6 +132,8 @@ export const QuestCard = memo(function QuestCard({
       ? "Reward verified and added to your wallet"
       : quest.quest_type === "ads"
         ? `${remaining} ${remaining === 1 ? "ad" : "ads"} left to verify`
+        : quest.quest_type === "survey"
+          ? `${remaining} ${remaining === 1 ? "survey" : "surveys"} remaining`
         : quest.quest_type === "shortlink"
           ? `Step ${nextStep} of ${total} · ${quest.min_seconds_per_step}s minimum`
           : quest.quest_type === "checkin"
@@ -141,6 +149,8 @@ export const QuestCard = memo(function QuestCard({
       ? "Reward credited"
       : quest.quest_type === "ads"
         ? `Watch ${total} ${total === 1 ? "Ad" : "Ads"}`
+        : quest.quest_type === "survey"
+          ? `Complete ${total} ${total === 1 ? "Survey" : "Surveys"}`
         : quest.quest_type === "shortlink"
           ? `Visit ${total} ${total === 1 ? "Shortlink" : "Shortlinks"}`
           : quest.quest_type === "checkin"
@@ -156,6 +166,10 @@ export const QuestCard = memo(function QuestCard({
         ? "Opening..."
         : quest.quest_type === "ads"
           ? "Watch Ads"
+          : quest.quest_type === "survey"
+            ? progress > 0
+              ? "Continue"
+              : "Start Quest"
           : quest.quest_type === "shortlink"
             ? progress > 0
               ? "Continue"
@@ -172,6 +186,8 @@ export const QuestCard = memo(function QuestCard({
   const actionTestId =
     quest.quest_type === "ads"
       ? `quest-watch-${quest.key}`
+      : quest.quest_type === "survey"
+        ? `quest-survey-${quest.key}`
       : quest.quest_type === "shortlink"
         ? `quest-open-${quest.key}`
         : quest.quest_type === "checkin"

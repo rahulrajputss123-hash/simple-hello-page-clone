@@ -6,6 +6,7 @@ import {
   LockKeyhole,
   Network,
   ShieldCheck,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -147,6 +148,16 @@ export const QUEST_ACCENTS: Record<QuestRow["quest_type"], QuestAccent> = {
     tileShadow: "rgba(3,105,161,0.32)",
     bar: "linear-gradient(90deg, #38BDF8, #0369A1)",
   },
+  survey: {
+    label: "Survey",
+    icon: MessageSquare,
+    wash: "rgba(14,165,233,0.10)",
+    badgeBg: "rgba(14,165,233,0.12)",
+    badgeInk: "#0C4A6E",
+    tile: "linear-gradient(145deg, #0EA5E9 0%, #0284C7 100%)",
+    tileShadow: "rgba(2,132,199,0.32)",
+    bar: "linear-gradient(90deg, #0EA5E9, #0284C7)",
+  },
 };
 
 export const LOCKED_ACCENT: QuestAccent = {
@@ -186,6 +197,21 @@ export function deriveQuestView(
   active: QuestSessionView | undefined,
   credited: boolean,
 ): QuestView {
+  if (quest.quest_type === "survey") {
+    // Survey quest: complete N surveys from allowed networks
+    const total = Math.max(1, quest.required_surveys ?? 5);
+    const progress = credited ? total : (active?.survey_completions_count ?? 0);
+    
+    return {
+      total,
+      progress,
+      remaining: Math.max(0, total - progress),
+      nextStep: Math.min(progress + 1, total),
+      progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
+      description: `Complete ${total} ${total === 1 ? "survey" : "surveys"} and get rewarded!`,
+    };
+  }
+
   if (quest.quest_type === "network") {
     // Network quest: K completions from N providers
     const total = Math.max(1, quest.required_count ?? 3);
