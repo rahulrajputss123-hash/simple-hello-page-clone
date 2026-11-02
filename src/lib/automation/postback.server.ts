@@ -416,20 +416,47 @@ async function processQuestTokenPostback(
     // FEED QUEST: Steps are sequential, tracked by step_index
     // No min_qualifying_usd check for feed quests
     
-    // Verify campaign_id matches if provided by postback
-    if (parsed.providerOfferId && tokenData.campaign_id && parsed.providerOfferId !== tokenData.campaign_id) {
-      await logAutomation({
-        eventType: "quest_automation",
-        status: "warning",
-        source: provider.slug,
-        providerId: provider.id,
-        userId,
-        referenceId: conversion.id,
-        message: `Campaign ID mismatch: expected ${tokenData.campaign_id}, got ${parsed.providerOfferId}`,
-        context: { questKey: session.quest_key, stepIndex: tokenData.step_index },
-      });
-      // Log and continue (some providers may not send campaign ID)
+    // ===== CAMPAIGN ID VERIFICATION =====
+    // BitcoTasks: No campaign_id in postbacks, validate offer_type instead
+    if (provider.slug === "bitcotasks") {
+      const { FEED_KIND_OFFER_TYPES } = await import("../sdk-offerwall/adapters/bitcotasks.server");
+      const offerType = String(parsed.raw?.offer_type ?? "").toLowerCase();
+      const feedKind = normalizedQuest.feed_kind;
+      const allowedTypes = feedKind ? FEED_KIND_OFFER_TYPES[feedKind] ?? [] : [];
+      
+      if (!offerType || !allowedTypes.includes(offerType as never)) {
+        await logAutomation({
+          eventType: "quest_automation",
+          status: "error",
+          source: provider.slug,
+          providerId: provider.id,
+          userId,
+          referenceId: conversion.id,
+          message: `BitcoTasks offer_type mismatch: expected one of [${allowedTypes.join(", ")}], got "${offerType}"`,
+          context: { questKey: session.quest_key, stepIndex: tokenData.step_index, feedKind, offerType },
+        });
+        // REJECT: do not complete step, do not pay, keep conversion unabsorbed
+        return { ok: false, status: "rejected", reason: "offer_type_mismatch", conversionId: conversion.id };
+      }
     }
+    // Other providers: verify campaign_id if provided
+    else if (parsed.providerOfferId && tokenData.campaign_id) {
+      if (parsed.providerOfferId !== tokenData.campaign_id) {
+        await logAutomation({
+          eventType: "quest_automation",
+          status: "error",
+          source: provider.slug,
+          providerId: provider.id,
+          userId,
+          referenceId: conversion.id,
+          message: `Campaign ID mismatch: expected ${tokenData.campaign_id}, got ${parsed.providerOfferId}. REJECTED.`,
+          context: { questKey: session.quest_key, stepIndex: tokenData.step_index },
+        });
+        // REJECT: do not complete step, do not pay, keep conversion unabsorbed
+        return { ok: false, status: "rejected", reason: "campaign_id_mismatch", conversionId: conversion.id };
+      }
+    }
+    // If postback carries no campaign_id, rely on token alone (allowed)
 
     // Insert completion for this step
     const { error: completionError } = await db
@@ -567,6 +594,24 @@ async function processQuestTokenPostback(
 
   // ========== NETWORK QUEST (original logic) ==========
   const minQualifyingUsd = Number(normalizedQuest.min_qualifying_usd ?? 0.01);
+
+  // BitcoTasks: Only offer_type === 'offer' counts for network quests
+  if (provider.slug === "bitcotasks") {
+    const offerType = String(parsed.raw?.offer_type ?? "").toLowerCase();
+    if (offerType !== "offer") {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "info",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversion.id,
+        message: `BitcoTasks offer_type "${offerType}" does not count for network quest (only "offer" counts)`,
+        context: { questKey: session.quest_key, offerType },
+      });
+      return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
+    }
+  }
 
   if (usd < minQualifyingUsd) {
     await logAutomation({
