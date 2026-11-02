@@ -87,6 +87,23 @@ export const QuestCard = memo(function QuestCard({
     if (quest.quest_type === "ads") {
       return quest.reward_amount; // Ads quests: reward_amount is the only reward
     }
+    if (quest.quest_type === "survey") {
+      // Survey quests: step reward per survey + completion bonus
+      const requiredSurveys = quest.required_surveys ?? 5;
+      const stepReward = quest.step_reward ?? 0;
+      return (requiredSurveys * stepReward) + quest.reward_amount;
+    }
+    if (quest.quest_type === "network") {
+      // Network quests: sum all step rewards + completion bonus
+      const requiredCount = quest.required_count ?? 3;
+      const baseReward = quest.step_reward ?? 0;
+      const customRewards = quest.step_rewards ?? [];
+      let totalStepRewards = 0;
+      for (let i = 0; i < requiredCount; i++) {
+        totalStepRewards += customRewards[i] !== undefined ? customRewards[i] : baseReward;
+      }
+      return totalStepRewards + quest.reward_amount;
+    }
     if (quest.quest_type === "checkin") {
       // Checkin: sum all step rewards (per-day) + completion bonus
       const totalDays = quest.total_days ?? 3;
@@ -115,24 +132,32 @@ export const QuestCard = memo(function QuestCard({
       ? "Reward verified and added to your wallet"
       : quest.quest_type === "ads"
         ? `${remaining} ${remaining === 1 ? "ad" : "ads"} left to verify`
+        : quest.quest_type === "survey"
+          ? `${remaining} ${remaining === 1 ? "survey" : "surveys"} remaining`
         : quest.quest_type === "shortlink"
           ? `Step ${nextStep} of ${total} · ${quest.min_seconds_per_step}s minimum`
           : quest.quest_type === "checkin"
             ? quest.streak_mode === "consecutive"
               ? `${remaining} more ${remaining === 1 ? "day" : "days"} to go`
               : `Check in ${remaining} more ${remaining === 1 ? "day" : "days"}`
-            : "Secure locker completion required";
+            : quest.quest_type === "network"
+              ? `Complete ${remaining} more ${remaining === 1 ? "network" : "networks"}`
+              : "Secure locker completion required";
   const summary = locked
     ? (lockLabel ?? "Quest locked")
     : credited
       ? "Reward credited"
       : quest.quest_type === "ads"
         ? `Watch ${total} ${total === 1 ? "Ad" : "Ads"}`
+        : quest.quest_type === "survey"
+          ? `Complete ${total} ${total === 1 ? "Survey" : "Surveys"}`
         : quest.quest_type === "shortlink"
           ? `Visit ${total} ${total === 1 ? "Shortlink" : "Shortlinks"}`
           : quest.quest_type === "checkin"
             ? `Check in ${total} ${total === 1 ? "Day" : "Days"}`
-            : "Complete Locker";
+            : quest.quest_type === "network"
+              ? `Complete ${total} ${total === 1 ? "Network" : "Networks"}`
+              : "Complete Locker";
   const ctaText = locked
     ? "Locked"
     : credited
@@ -141,6 +166,10 @@ export const QuestCard = memo(function QuestCard({
         ? "Opening..."
         : quest.quest_type === "ads"
           ? "Watch Ads"
+          : quest.quest_type === "survey"
+            ? progress > 0
+              ? "Continue"
+              : "Start Quest"
           : quest.quest_type === "shortlink"
             ? progress > 0
               ? "Continue"
@@ -149,15 +178,23 @@ export const QuestCard = memo(function QuestCard({
               ? progress > 0
                 ? "Continue Streak"
                 : "Start Streak"
-              : "Complete Locker";
+              : quest.quest_type === "network"
+                ? progress > 0
+                  ? "Continue"
+                  : "Start Quest"
+                : "Complete Locker";
   const actionTestId =
     quest.quest_type === "ads"
       ? `quest-watch-${quest.key}`
+      : quest.quest_type === "survey"
+        ? `quest-survey-${quest.key}`
       : quest.quest_type === "shortlink"
         ? `quest-open-${quest.key}`
         : quest.quest_type === "checkin"
           ? `quest-checkin-${quest.key}`
-          : `quest-locker-${quest.key}`;
+          : quest.quest_type === "network"
+            ? `quest-network-${quest.key}`
+            : `quest-locker-${quest.key}`;
 
   const inactive = locked || credited;
 

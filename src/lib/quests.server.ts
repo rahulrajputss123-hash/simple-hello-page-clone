@@ -21,21 +21,22 @@ export type QuestRow = {
   key: string;
   label: string;
   icon: string;
-  quest_type: "ads" | "shortlink" | "locker" | "checkin";
+  quest_type: "ads" | "shortlink" | "locker" | "checkin" | "feed_ptc" | "feed_shortlink" | "feed_article" | "network" | "survey";
   ads_required: number;
   /**
    * Completion bonus credited when the entire quest finishes.
    * For ads quests, this is the only reward.
-   * For step-based quests (shortlink/locker/checkin), this is paid in addition to step rewards.
+   * For step-based quests (shortlink/locker/checkin/feed), this is paid in addition to step rewards.
+   * For network quests, this is the ONLY reward (user gets nothing from the underlying offers).
    */
   reward_amount: number;
   /**
-   * Default reward per step for shortlink/locker/checkin quests.
-   * Ignored for ads quests. If step_rewards array is present, it overrides this.
+   * Default reward per step for shortlink/locker/checkin/feed quests.
+   * Ignored for ads/network quests. If step_rewards array is present, it overrides this.
    */
   step_reward: number;
   /**
-   * Optional per-step reward amounts for shortlink/locker/checkin quests.
+   * Optional per-step reward amounts for shortlink/locker/checkin/feed quests.
    * If present, length must equal number of steps and overrides step_reward.
    */
   step_rewards: number[] | null;
@@ -61,6 +62,40 @@ export type QuestRow = {
   repeatable: boolean;
   /** Check-in quest: default timezone for users without one set (IANA format). */
   default_timezone: string;
+  /** Feed quest: feed type ("ptc"|"shortlink"|"article"). */
+  feed_kind: "ptc" | "shortlink" | "article" | null;
+  /** Feed quest: number of main steps (campaigns). */
+  steps_count: number;
+  /** Feed quest: number of backup campaigns. */
+  backup_count: number;
+  /** Feed quest: provider UUIDs to fetch from. */
+  feed_provider_ids: string[];
+  /** Feed quest: minimum reward in USD. */
+  min_reward_usd: number;
+  /** Feed quest: minimum completion rate for shortlinks (0-100). */
+  min_completion_rate: number;
+  /** Feed quest: max campaigns from one network (null = unlimited). */
+  max_per_network: number | null;
+  /** Feed quest: blocked domain names. */
+  blocked_domains: string[];
+  /** Feed quest: token expiry hours. */
+  token_ttl_hours: number;
+  /** Network quest: pool of provider UUIDs (N providers shown, K required). */
+  network_provider_ids: string[];
+  /** Network quest: number of distinct providers required to complete (K). */
+  required_count: number;
+  /** Network quest: minimum offer payout in USD to count (filters PTC/micro-payouts). */
+  min_qualifying_usd: number;
+  /** Network quest: optional delay hours before releasing reward (chargeback protection). */
+  reward_hold_hours: number;
+  /** Survey quest: number of surveys required to complete (1-10). */
+  required_surveys: number;
+  /** Survey quest: allowed survey providers ('cpx' | 'theoremreach' | 'timewall'). */
+  allowed_networks: string[];
+  /** Survey quest: minimum survey payout in USD to qualify. */
+  min_payout_usd: number;
+  /** Survey quest: maximum length of interview in minutes (null = no limit). */
+  max_loi: number | null;
   is_active: boolean;
   sort_order: number;
   /** 'first_withdrawal' unlocks once profiles.lifetime_withdrawn > 0. */
@@ -94,6 +129,23 @@ function normalize(row: QuestRow): QuestRow {
     day1_auto_complete: Boolean(row.day1_auto_complete ?? true),
     repeatable: Boolean(row.repeatable ?? false),
     default_timezone: String(row.default_timezone ?? "Asia/Kolkata"),
+    feed_kind: row.feed_kind as "ptc" | "shortlink" | "article" | null,
+    steps_count: Number(row.steps_count ?? 10),
+    backup_count: Number(row.backup_count ?? 4),
+    feed_provider_ids: Array.isArray(row.feed_provider_ids) ? row.feed_provider_ids : [],
+    min_reward_usd: Number(row.min_reward_usd ?? 0),
+    min_completion_rate: Number(row.min_completion_rate ?? 50),
+    max_per_network: row.max_per_network != null ? Number(row.max_per_network) : null,
+    blocked_domains: Array.isArray(row.blocked_domains) ? row.blocked_domains : [],
+    token_ttl_hours: Number(row.token_ttl_hours ?? 48),
+    network_provider_ids: Array.isArray(row.network_provider_ids) ? row.network_provider_ids : [],
+    required_count: Number(row.required_count ?? 3),
+    min_qualifying_usd: Number(row.min_qualifying_usd ?? 0.01),
+    reward_hold_hours: Number(row.reward_hold_hours ?? 0),
+    required_surveys: Number(row.required_surveys ?? 5),
+    allowed_networks: Array.isArray(row.allowed_networks) ? row.allowed_networks : [],
+    min_payout_usd: Number(row.min_payout_usd ?? 0.5),
+    max_loi: row.max_loi != null ? Number(row.max_loi) : null,
     sort_order: Number(row.sort_order ?? 0),
     lock_type: (row.lock_type ?? "none") as QuestRow["lock_type"],
     unlock_at: row.unlock_at ?? null,
@@ -194,7 +246,7 @@ export type QuestFormInput = {
   key: string;
   label: string;
   icon: string;
-  questType: "ads" | "shortlink" | "locker" | "checkin";
+  questType: "ads" | "shortlink" | "locker" | "checkin" | "network";
   adsRequired: number;
   rewardAmount: number;
   /** Default step reward (overridden by stepRewards array if present) */
@@ -220,6 +272,16 @@ export type QuestFormInput = {
   repeatable: boolean;
   /** Check-in: default timezone */
   defaultTimezone: string;
+  /** Network: pool of provider UUIDs */
+  networkProviderIds: string[];
+  /** Network: required distinct completions */
+  requiredCount: number;
+  /** Network: minimum qualifying USD */
+  minQualifyingUsd: number;
+  /** Network: token TTL hours */
+  tokenTtlHours: number;
+  /** Network: reward hold hours */
+  rewardHoldHours: number;
   isActive: boolean;
   sortOrder: number;
   lockType: "none" | "time" | "earning" | "first_withdrawal";
@@ -286,6 +348,11 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     day1_auto_complete: input.questType === "checkin" ? input.day1AutoComplete : true,
     repeatable: input.questType === "checkin" ? input.repeatable : false,
     default_timezone: input.questType === "checkin" ? input.defaultTimezone : "Asia/Kolkata",
+    network_provider_ids: input.questType === "network" ? input.networkProviderIds : [],
+    required_count: input.questType === "network" ? input.requiredCount : 3,
+    min_qualifying_usd: input.questType === "network" ? input.minQualifyingUsd : 0.01,
+    token_ttl_hours: input.questType === "network" ? input.tokenTtlHours : 24,
+    reward_hold_hours: input.questType === "network" ? input.rewardHoldHours : 0,
     is_active: isActive,
     sort_order: input.sortOrder,
     lock_type: input.lockType,
@@ -344,13 +411,14 @@ export async function getQuestByKey(key: string): Promise<QuestRow> {
  * Idempotent via quest_step_credits unique constraint.
  * Returns the amount credited (0 if already credited or if step_reward is 0).
  */
-async function creditStepReward(
+export async function creditStepReward(
   userId: string,
   sessionId: string,
   questKey: string,
   questLabel: string,
   stepIndex: number,
   stepReward: number,
+  metadata?: Record<string, unknown>,
 ): Promise<number> {
   // If step reward is 0, skip (existing quests with no step rewards)
   if (stepReward <= 0) return 0;
@@ -373,6 +441,7 @@ async function creditStepReward(
       quest_key: questKey,
       step_index: stepIndex,
       amount: roundedAmount, // Store rounded amount
+      metadata: metadata || null,
     });
 
     // If unique constraint violation, step already credited
@@ -388,9 +457,10 @@ async function creditStepReward(
     try {
       await creditWallet(
         userId,
+        roundedAmount,
         "quest_step",
         `Quest step ${stepIndex} — ${questLabel}`,
-        roundedAmount,
+        "earned",
         `quest_step_${sessionId}_${stepIndex}`,
       );
       return roundedAmount;
@@ -522,7 +592,7 @@ async function recordLockerStepEvent(
  * session left 'verified' by a failed credit is finished by the user's next
  * attempt instead of being stranded.
  */
-async function finishQuestSession(
+export async function finishQuestSession(
   userId: string,
   sessionId: string,
   reward: number,
@@ -1716,3 +1786,303 @@ export async function checkInTodayImpl(
   };
 }
 
+
+/**
+ * Open a network quest provider (generate token and return offerwall URL).
+ * 
+ * Creates or reuses a quest token for the given provider and returns the
+ * offerwall URL with the token as the user ID. This allows tracking completions
+ * without crediting the user's wallet.
+ * 
+ * @param userId - Authenticated user ID from context (never from client)
+ * @param questKey - Quest key
+ * @param providerId - SDK offerwall provider UUID
+ * @returns {url: string} or {unavailable: boolean} or {error: string}
+ */
+export async function openQuestNetworkImpl(
+  userId: string,
+  questKey: string,
+  providerId: string,
+): Promise<{ url?: string; unavailable?: boolean; error?: string }> {
+  // Get quest
+  const { data: quest } = await db
+    .from("quests")
+    .select("*")
+    .eq("key", questKey)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!quest) {
+    return { error: "Quest not found" };
+  }
+
+  const normalizedQuest = normalize(quest as QuestRow);
+
+  // Verify quest type
+  if (normalizedQuest.quest_type !== "network") {
+    return { error: "Quest is not a network quest" };
+  }
+
+  // Check if locked
+  const { lifetimeEarned, lifetimeWithdrawn } = await fetchLockInputs(userId);
+  const lockState = computeLockState(
+    normalizedQuest.lock_type,
+    normalizedQuest.unlock_at,
+    normalizedQuest.required_lifetime_earned,
+    lifetimeEarned,
+    lifetimeWithdrawn,
+  );
+
+  if (lockState.is_locked) {
+    return { error: "Quest is locked" };
+  }
+
+  // Verify provider is in the pool
+  if (!normalizedQuest.network_provider_ids.includes(providerId)) {
+    return { error: "Provider not in quest pool" };
+  }
+
+  // Get provider
+  const { data: provider } = await db
+    .from("sdk_offerwall_providers")
+    .select("*")
+    .eq("id", providerId)
+    .eq("is_enabled", true)
+    .maybeSingle();
+
+  if (!provider) {
+    return { unavailable: true };
+  }
+
+  // Get or create active session
+  const { data: existingSession } = await db
+    .from("quest_sessions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("quest_key", questKey)
+    .eq("status", "started")
+    .order("started_at", { ascending: false })
+    .maybeSingle();
+
+  let sessionId: string;
+
+  if (existingSession) {
+    sessionId = existingSession.id;
+  } else {
+    // Create new session
+    const { data: newSession, error: sessionError } = await db
+      .from("quest_sessions")
+      .insert({
+        user_id: userId,
+        quest_key: questKey,
+        quest_type: "network",
+        quest_label: normalizedQuest.label,
+        reward_amount: normalizedQuest.reward_amount,
+        ads_required: 0, // Not used for network quests
+        status: "started",
+        started_at: new Date().toISOString(),
+        session_token: crypto.randomUUID(),
+      } as any)
+      .select("id")
+      .single();
+
+    if (sessionError || !newSession) {
+      console.error("[network quest] Failed to create session:", sessionError);
+      return { error: "Failed to create quest session" };
+    }
+
+    sessionId = newSession.id;
+  }
+
+  // Check if this provider is already completed (network quest)
+  const { data: existingCompletion } = await db
+    .from("quest_network_completions")
+    .select("id")
+    .eq("session_id", sessionId)
+    .eq("provider_id", providerId)
+    .eq("kind", "network")  // Filter by kind since table is shared
+    .maybeSingle();
+
+  if (existingCompletion) {
+    return { error: "Provider already completed in this session" };
+  }
+
+  // Create or reuse token
+  const expiresAt = new Date(Date.now() + normalizedQuest.token_ttl_hours * 60 * 60 * 1000);
+
+  const { data: existingToken } = await db
+    .from("quest_network_tokens")
+    .select("token")
+    .eq("session_id", sessionId)
+    .eq("provider_id", providerId)
+    .maybeSingle();
+
+  let token: string;
+
+  if (existingToken) {
+    // Reuse existing token and update expiry
+    token = existingToken.token;
+    await db
+      .from("quest_network_tokens")
+      .update({ expires_at: expiresAt.toISOString() } as any)
+      .eq("token", token);
+  } else {
+    // Generate new token
+    const randomBytes = crypto.getRandomValues(new Uint8Array(18));
+    const base64 = Buffer.from(randomBytes).toString("base64url").substring(0, 24);
+    token = `q_${base64}`;
+
+    const { error: tokenError } = await db.from("quest_network_tokens").insert({
+      token,
+      user_id: userId,
+      session_id: sessionId,
+      provider_id: providerId,
+      quest_key: questKey,
+      kind: "network",
+      expires_at: expiresAt.toISOString(),
+    } as any);
+
+    if (tokenError) {
+      console.error("[network quest] Failed to create token:", tokenError);
+      return { error: "Failed to create quest token" };
+    }
+  }
+
+  // Build offerwall URL with token as user ID
+  try {
+    const url = await buildQuestOfferwallUrl(token, provider);
+    return { url };
+  } catch (err) {
+    console.error("[network quest] Failed to build URL:", err);
+    return { error: "Failed to build offerwall URL" };
+  }
+}
+
+/**
+ * Build offerwall URL with quest token as user ID.
+ * Reuses the same logic as OfferwallSlot/buildOfferwallUrl.
+ */
+async function buildQuestOfferwallUrl(token: string, provider: any): Promise<string> {
+  const providerKey = provider.key;
+
+  // For Offerwall.me, use the signed URL generator
+  if (providerKey === "offerwall.me") {
+    const { getOfferwallMeSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
+    return getOfferwallMeSignedUrlImpl(token);
+  }
+
+  // For other providers, construct URL with token as user ID
+  // This matches the logic in OfferwallSlot/buildOfferwallUrl
+  let url = provider.url ?? "";
+
+  // Replace placeholders
+  url = url.replace("{USER_ID}", encodeURIComponent(token));
+  url = url.replace("{PUBID}", encodeURIComponent(provider.api_key ?? ""));
+  url = url.replace("{API_KEY}", encodeURIComponent(provider.api_key ?? ""));
+
+  return url;
+}
+
+/**
+ * Get network quest progress for a session.
+ * Returns array of providers with completion status.
+ */
+export async function getNetworkQuestProgressImpl(
+  userId: string,
+  questKey: string,
+): Promise<{
+  providers: Array<{
+    providerId: string;
+    name: string;
+    logoUrl: string | null;
+    done: boolean;
+  }>;
+  done: number;
+  required: number;
+} | null> {
+  // Get quest
+  const { data: quest } = await db
+    .from("quests")
+    .select("*")
+    .eq("key", questKey)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!quest || quest.quest_type !== "network") {
+    return null;
+  }
+
+  const normalizedQuest = normalize(quest as QuestRow);
+
+  // Get active session
+  const { data: session } = await db
+    .from("quest_sessions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("quest_key", questKey)
+    .eq("status", "started")
+    .order("started_at", { ascending: false })
+    .maybeSingle();
+
+  if (!session) {
+    // No session yet, return all providers as not done
+    const { data: providers } = await db
+      .from("sdk_offerwall_providers")
+      .select("id, name, logo_url")
+      .in("id", normalizedQuest.network_provider_ids);
+
+    return {
+      providers: (providers ?? []).map((p: any) => ({
+        providerId: p.id,
+        name: p.name,
+        logoUrl: p.logo_url,
+        done: false,
+      })),
+      done: 0,
+      required: normalizedQuest.required_count,
+    };
+  }
+
+  // Get completions (network quest only)
+  const { data: completions } = await db
+    .from("quest_network_completions")
+    .select("provider_id")
+    .eq("session_id", session.id)
+    .eq("kind", "network");  // Filter by kind since table is shared
+
+  const completedProviderIds = new Set((completions ?? []).map((c: any) => c.provider_id));
+
+  // Get providers
+  const { data: providers } = await db
+    .from("sdk_offerwall_providers")
+    .select("id, name, logo_url")
+    .in("id", normalizedQuest.network_provider_ids);
+
+  return {
+    providers: (providers ?? []).map((p: any) => ({
+      providerId: p.id,
+      name: p.name,
+      logoUrl: p.logo_url,
+      done: completedProviderIds.has(p.id),
+    })),
+    done: completedProviderIds.size,
+    required: normalizedQuest.required_count,
+  };
+}
+
+
+// ========== Feed Quest Functions ==========
+/**
+ * Get active quest by key (with lock validation).
+ */
+export async function getActiveQuestByKey(userId: string, key: string): Promise<QuestRow | null> {
+  try {
+    const quest = await getQuestByKey(key);
+    await assertQuestNotLocked(userId, quest);
+    return quest;
+  } catch {
+    return null;
+  }
+}
+
+export { startFeedQuestImpl, openFeedQuestStepImpl } from "./quests/feed-quests.server";

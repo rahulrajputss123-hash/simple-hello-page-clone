@@ -4,7 +4,9 @@ import {
   Link2,
   Lock,
   LockKeyhole,
+  Network,
   ShieldCheck,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +31,12 @@ export type QuestSessionView = {
     local_date: string;
     active_seconds?: number;
     completed_at?: string | null;
+  }>;
+  // Network quest progress
+  network_completions?: Array<{
+    provider_id: string;
+    provider_name: string;
+    provider_logo_url?: string;
   }>;
 };
 
@@ -100,6 +108,56 @@ export const QUEST_ACCENTS: Record<QuestRow["quest_type"], QuestAccent> = {
     tileShadow: "rgba(124,58,237,0.32)",
     bar: "linear-gradient(90deg, #A78BFA, #7C3AED)",
   },
+  network: {
+    label: "Network",
+    icon: Network,
+    wash: "rgba(236,72,153,0.10)",
+    badgeBg: "rgba(236,72,153,0.12)",
+    badgeInk: "#9F1239",
+    tile: "linear-gradient(145deg, #F472B6 0%, #DB2777 100%)",
+    tileShadow: "rgba(219,39,119,0.32)",
+    bar: "linear-gradient(90deg, #F472B6, #DB2777)",
+  },
+  feed_ptc: {
+    label: "PTC Feed",
+    icon: Clapperboard,
+    wash: "rgba(16,163,113,0.10)",
+    badgeBg: "rgba(16,163,113,0.12)",
+    badgeInk: "#0A6B4A",
+    tile: "linear-gradient(145deg, #34D399 0%, #059669 100%)",
+    tileShadow: "rgba(5,150,105,0.32)",
+    bar: "linear-gradient(90deg, #34D399, #059669)",
+  },
+  feed_shortlink: {
+    label: "Link Feed",
+    icon: Link2,
+    wash: "rgba(217,119,6,0.10)",
+    badgeBg: "rgba(217,119,6,0.13)",
+    badgeInk: "#92400E",
+    tile: "linear-gradient(145deg, #FBBF24 0%, #D97706 100%)",
+    tileShadow: "rgba(217,119,6,0.32)",
+    bar: "linear-gradient(90deg, #FBBF24, #D97706)",
+  },
+  feed_article: {
+    label: "Read Feed",
+    icon: Link2,
+    wash: "rgba(2,132,199,0.10)",
+    badgeBg: "rgba(2,132,199,0.12)",
+    badgeInk: "#075985",
+    tile: "linear-gradient(145deg, #38BDF8 0%, #0369A1 100%)",
+    tileShadow: "rgba(3,105,161,0.32)",
+    bar: "linear-gradient(90deg, #38BDF8, #0369A1)",
+  },
+  survey: {
+    label: "Survey",
+    icon: MessageSquare,
+    wash: "rgba(14,165,233,0.10)",
+    badgeBg: "rgba(14,165,233,0.12)",
+    badgeInk: "#0C4A6E",
+    tile: "linear-gradient(145deg, #0EA5E9 0%, #0284C7 100%)",
+    tileShadow: "rgba(2,132,199,0.32)",
+    bar: "linear-gradient(90deg, #0EA5E9, #0284C7)",
+  },
 };
 
 export const LOCKED_ACCENT: QuestAccent = {
@@ -139,6 +197,36 @@ export function deriveQuestView(
   active: QuestSessionView | undefined,
   credited: boolean,
 ): QuestView {
+  if (quest.quest_type === "survey") {
+    // Survey quest: complete N surveys from allowed networks
+    const total = Math.max(1, quest.required_surveys ?? 5);
+    const progress = credited ? total : (active?.survey_completions_count ?? 0);
+    
+    return {
+      total,
+      progress,
+      remaining: Math.max(0, total - progress),
+      nextStep: Math.min(progress + 1, total),
+      progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
+      description: `Complete ${total} ${total === 1 ? "survey" : "surveys"} and get rewarded!`,
+    };
+  }
+
+  if (quest.quest_type === "network") {
+    // Network quest: K completions from N providers
+    const total = Math.max(1, quest.required_count ?? 3);
+    const progress = credited ? total : (active?.network_completions?.length ?? 0);
+    
+    return {
+      total,
+      progress,
+      remaining: Math.max(0, total - progress),
+      nextStep: Math.min(progress + 1, total),
+      progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
+      description: `Complete offers from ${total} ${total === 1 ? "network" : "networks"} and get rewarded!`,
+    };
+  }
+
   if (quest.quest_type === "checkin") {
     // Checkin quest: each day = one step
     const total = Math.max(1, quest.total_days ?? 3);
