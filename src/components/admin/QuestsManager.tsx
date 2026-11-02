@@ -26,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { deleteQuest, listAdminQuests, saveQuest } from "@/lib/quests.functions";
+import { deleteQuest, listAdminQuests, saveQuest, listSdkProvidersForQuests } from "@/lib/quests.functions";
 import type { QuestRow, ShortlinkStep } from "@/lib/quests.server";
 import {
   LOCKER_MAX_URLS,
@@ -75,6 +75,16 @@ type FormState = {
   allowedNetworks: string[];
   minPayoutUsd: string;
   maxLoi: string | null;
+  // Feed quest fields (Top PTC, Top Shortlinks, Top Articles)
+  feedKind: "ptc" | "shortlink" | "article" | null;
+  stepsCount: string;
+  backupCount: string;
+  feedProviderIds: string[];
+  minRewardUsd: string;
+  minCompletionRate: string;
+  maxPerNetwork: string;
+  blockedDomains: string;
+  feedTokenTtlHours: string;
 };
 
 /**
@@ -165,11 +175,22 @@ const emptyForm = (): FormState => ({
   allowedNetworks: ["cpxresearch", "theoremreach", "timewall"],
   minPayoutUsd: "0.50",
   maxLoi: null,
+  // Feed quest defaults
+  feedKind: null,
+  stepsCount: "10",
+  backupCount: "4",
+  feedProviderIds: [],
+  minRewardUsd: "0.10",
+  minCompletionRate: "50",
+  maxPerNetwork: "",
+  blockedDomains: "",
+  feedTokenTtlHours: "48",
 });
 
 export function QuestsManager() {
   const queryClient = useQueryClient();
   const fetchQuests = useServerFn(listAdminQuests);
+  const fetchSdkProviders = useServerFn(listSdkProvidersForQuests);
   const save = useServerFn(saveQuest);
   const remove = useServerFn(deleteQuest);
   const [form, setForm] = useState<FormState | null>(null);
@@ -178,6 +199,11 @@ export function QuestsManager() {
   const quests = useQuery({
     queryKey: ["admin-quests"],
     queryFn: () => fetchQuests({}),
+  });
+
+  const sdkProviders = useQuery({
+    queryKey: ["sdk-providers-for-quests"],
+    queryFn: () => fetchSdkProviders({}),
   });
 
   const refresh = () => {
@@ -246,6 +272,22 @@ export function QuestsManager() {
                 allowedNetworks: state.allowedNetworks,
                 minPayoutUsd: Number(state.minPayoutUsd) || 0.5,
                 maxLoi: state.maxLoi ? Number(state.maxLoi) : null,
+              }
+            : {}),
+          // Feed quest fields (Top PTC, Top Shortlinks, Top Articles)
+          ...(state.questType === "feed_ptc" || state.questType === "feed_shortlink" || state.questType === "feed_article"
+            ? {
+                feedKind: state.feedKind,
+                stepsCount: Number(state.stepsCount) || 10,
+                backupCount: Number(state.backupCount) || 4,
+                feedProviderIds: state.feedProviderIds,
+                minRewardUsd: Number(state.minRewardUsd) || 0.10,
+                minCompletionRate: Number(state.minCompletionRate) || 50,
+                maxPerNetwork: state.maxPerNetwork ? Number(state.maxPerNetwork) : null,
+                blockedDomains: state.blockedDomains.trim()
+                  ? state.blockedDomains.split(",").map(d => d.trim()).filter(Boolean)
+                  : [],
+                tokenTtlHours: Number(state.feedTokenTtlHours) || 48,
               }
             : {}),
         },
@@ -332,6 +374,29 @@ export function QuestsManager() {
       minPayoutUsd: String((quest as any).min_payout_usd ?? 0.5),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       maxLoi: (quest as any).max_loi ? String((quest as any).max_loi) : null,
+      // Feed quest fields
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      feedKind: (quest as any).feed_kind ?? null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      stepsCount: String((quest as any).steps_count ?? 10),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      backupCount: String((quest as any).backup_count ?? 4),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      feedProviderIds: Array.isArray((quest as any).feed_provider_ids)
+        ? (quest as any).feed_provider_ids
+        : [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      minRewardUsd: String((quest as any).min_reward_usd ?? 0.10),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      minCompletionRate: String((quest as any).min_completion_rate ?? 50),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      maxPerNetwork: (quest as any).max_per_network ? String((quest as any).max_per_network) : "",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      blockedDomains: Array.isArray((quest as any).blocked_domains)
+        ? (quest as any).blocked_domains.join(", ")
+        : "",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      feedTokenTtlHours: String((quest as any).token_ttl_hours ?? 48),
     });
 
   const { noLinksYet, filledLockerUrls } = form
@@ -556,12 +621,20 @@ export function QuestsManager() {
               )}
               <Field label="Quest type">
                 <div className="flex flex-wrap gap-2">
-                  {(["ads", "shortlink", "locker", "checkin", "network", "survey"] as const).map((type) => (
+                  {(["ads", "shortlink", "locker", "checkin", "network", "survey", "feed_ptc", "feed_shortlink", "feed_article"] as const).map((type) => (
                     <Button
                       key={type}
                       size="sm"
                       variant={form.questType === type ? "jade" : "outline"}
-                      onClick={() => setForm({ ...form, questType: type })}
+                      onClick={() => {
+                        const newForm = { ...form, questType: type };
+                        // Set feedKind when selecting feed quest types
+                        if (type === "feed_ptc") newForm.feedKind = "ptc";
+                        else if (type === "feed_shortlink") newForm.feedKind = "shortlink";
+                        else if (type === "feed_article") newForm.feedKind = "article";
+                        else newForm.feedKind = null;
+                        setForm(newForm);
+                      }}
                       className="capitalize"
                     >
                       {type === "ads"
@@ -574,7 +647,13 @@ export function QuestsManager() {
                               ? "Check-in"
                               : type === "network"
                                 ? "Network"
-                                : "Survey"}
+                                : type === "survey"
+                                  ? "Survey"
+                                  : type === "feed_ptc"
+                                    ? "Top PTC"
+                                    : type === "feed_shortlink"
+                                      ? "Top Shortlinks"
+                                      : "Top Articles"}
                     </Button>
                   ))}
                 </div>
@@ -887,19 +966,38 @@ export function QuestsManager() {
                     <div className="text-sm text-muted-foreground mb-2">
                       Select providers to include in this quest. Users can complete any provider in any order.
                     </div>
-                    {/* TODO: Multi-select for enabled SDK providers - for now just show text input */}
-                    <Input
-                      placeholder="Provider IDs (comma-separated)"
-                      value={form.networkProviderIds.join(", ")}
-                      onChange={(e) => 
-                        setForm({ 
-                          ...form, 
-                          networkProviderIds: e.target.value.split(",").map(s => s.trim()).filter(Boolean)
-                        })
-                      }
-                    />
+                    {sdkProviders.isLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading providers...</p>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
+                        {(sdkProviders.data || []).map((provider) => (
+                          <label key={provider.id} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={form.networkProviderIds.includes(provider.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setForm({
+                                    ...form,
+                                    networkProviderIds: [...form.networkProviderIds, provider.id],
+                                  });
+                                } else {
+                                  setForm({
+                                    ...form,
+                                    networkProviderIds: form.networkProviderIds.filter((id) => id !== provider.id),
+                                  });
+                                }
+                              }}
+                              className="size-4 rounded"
+                            />
+                            <span className="text-sm">{provider.name}</span>
+                            <span className="text-xs text-muted-foreground">({provider.slug})</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">
-                      Get provider IDs from SDK Offerwall Providers admin panel
+                      Pool size: {form.networkProviderIds.length} (must be ≥ required count, ≤ 10)
                     </p>
                   </Field>
 
@@ -908,7 +1006,7 @@ export function QuestsManager() {
                       <Input
                         type="number"
                         min="1"
-                        max={form.networkProviderIds.length || 10}
+                        max={Math.min(form.networkProviderIds.length || 1, 10)}
                         value={form.requiredCount}
                         onChange={(e) => setForm({ ...form, requiredCount: e.target.value })}
                       />
@@ -1112,6 +1210,215 @@ export function QuestsManager() {
                       </div>
                     );
                   })()}
+                </div>
+              )}
+
+              {(form.questType === "feed_ptc" || form.questType === "feed_shortlink" || form.questType === "feed_article") && (
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Feed quest: users complete top-performing campaigns from selected providers.{" "}
+                    {form.feedKind === "ptc" && "PTC (paid-to-click) campaigns with timer verification."}
+                    {form.feedKind === "shortlink" && "Shortlink campaigns with completion rate filtering."}
+                    {form.feedKind === "article" && "Article/content view campaigns."}
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field label="Steps (main campaigns)">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={form.stepsCount}
+                        onChange={(e) => setForm({ ...form, stepsCount: e.target.value })}
+                      />
+                    </Field>
+
+                    <Field label="Backup campaigns">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={form.backupCount}
+                        onChange={(e) => setForm({ ...form, backupCount: e.target.value })}
+                      />
+                    </Field>
+
+                    <Field label="Token TTL (hours)">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="168"
+                        value={form.feedTokenTtlHours}
+                        onChange={(e) => setForm({ ...form, feedTokenTtlHours: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Provider pool (enabled SDK providers)">
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Select providers to fetch campaigns from. Campaigns are fetched and ranked by performance.
+                    </div>
+                    {sdkProviders.isLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading providers...</p>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
+                        {(sdkProviders.data || []).map((provider) => (
+                          <label key={provider.id} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={form.feedProviderIds.includes(provider.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setForm({
+                                    ...form,
+                                    feedProviderIds: [...form.feedProviderIds, provider.id],
+                                  });
+                                } else {
+                                  setForm({
+                                    ...form,
+                                    feedProviderIds: form.feedProviderIds.filter((id) => id !== provider.id),
+                                  });
+                                }
+                              }}
+                              className="size-4 rounded"
+                            />
+                            <span className="text-sm">{provider.name}</span>
+                            <span className="text-xs text-muted-foreground">({provider.slug})</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {form.feedProviderIds.length} provider{form.feedProviderIds.length !== 1 ? "s" : ""} selected
+                    </p>
+                  </Field>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Min reward (USD)">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.minRewardUsd}
+                        onChange={(e) => setForm({ ...form, minRewardUsd: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Filter campaigns below this payout
+                      </p>
+                    </Field>
+
+                    {form.feedKind === "shortlink" && (
+                      <Field label="Min completion rate (%)">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={form.minCompletionRate}
+                          onChange={(e) => setForm({ ...form, minCompletionRate: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Shortlinks only: filter low-quality chains
+                        </p>
+                      </Field>
+                    )}
+
+                    <Field label="Max per network (optional)">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={form.maxPerNetwork}
+                        placeholder="No limit"
+                        onChange={(e) => setForm({ ...form, maxPerNetwork: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Limit campaigns from one provider
+                      </p>
+                    </Field>
+                  </div>
+
+                  <Field label="Blocked domains (optional)">
+                    <Input
+                      value={form.blockedDomains}
+                      placeholder="spam.com, badsite.net"
+                      onChange={(e) => setForm({ ...form, blockedDomains: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Comma-separated list of domains to exclude from feed
+                    </p>
+                  </Field>
+
+                  <Field label="Per-step rewards (comma-separated, optional)">
+                    <Input
+                      value={form.stepRewards}
+                      placeholder="0.10, 0.15, 0.20, ..."
+                      onChange={(e) => setForm({ ...form, stepRewards: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Leave empty for no step rewards. Length should match steps count.
+                    </p>
+                  </Field>
+
+                  {/* Preview box */}
+                  {(() => {
+                    const stepsCount = Number(form.stepsCount) || 10;
+                    const minRewardUsd = Number(form.minRewardUsd) || 0.10;
+                    
+                    const stepRewardsList = form.stepRewards.trim()
+                      ? form.stepRewards.split(",").map(s => Number(s.trim())).filter(n => !isNaN(n))
+                      : [];
+                    const totalStepRewards = stepRewardsList.reduce((sum, r) => sum + r, 0);
+                    const completionBonus = Number(form.rewardAmount) || 0;
+                    const totalQuestRewards = totalStepRewards + completionBonus;
+                    
+                    // Estimated network payout (steps × min reward)
+                    const estimatedNetworkPayout = stepsCount * minRewardUsd;
+                    const payoutWarning = totalQuestRewards > estimatedNetworkPayout;
+
+                    return (
+                      <div className="rounded-lg border p-3 text-xs space-y-2">
+                        <p className="font-semibold">💰 Payout Preview</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-muted-foreground">Estimated network payout:</p>
+                            <p className="text-sm">
+                              {stepsCount} steps × ${minRewardUsd.toFixed(2)} ≈ {formatReward(estimatedNetworkPayout)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Total user payout:</p>
+                            <p className="text-sm">
+                              {stepRewardsList.length > 0 ? `${formatReward(totalStepRewards)} steps + ` : ""}
+                              {formatReward(completionBonus)} bonus = {formatReward(totalQuestRewards)}
+                            </p>
+                          </div>
+                        </div>
+                        {payoutWarning && (
+                          <div className="rounded bg-amber-500/10 border border-amber-500/40 p-2 mt-2">
+                            <p className="font-semibold text-amber-700 dark:text-amber-400">
+                              ⚠️ User payout exceeds estimated network revenue
+                            </p>
+                            <p className="text-muted-foreground mt-1">
+                              The quest pays users more than the minimum network payout. Make sure your margins are correct.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  <div className="rounded-xl border border-blue-500/40 bg-blue-500/5 p-3 text-xs">
+                    <p className="font-semibold text-blue-700 dark:text-blue-400">
+                      ℹ️ Feed Quest Behavior
+                    </p>
+                    <ul className="mt-2 space-y-1 text-muted-foreground list-disc list-inside">
+                      <li>Feed is rebuilt every session from live provider APIs</li>
+                      <li>Steps are sequential (user sees 1 campaign at a time)</li>
+                      <li>Backup campaigns replace failed/unavailable steps</li>
+                      <li>Campaign ID verification happens via postback</li>
+                      <li>Step rewards credited immediately, completion bonus at end</li>
+                    </ul>
+                  </div>
                 </div>
               )}
 

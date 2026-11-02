@@ -227,6 +227,29 @@ export function deriveQuestView(
     };
   }
 
+  if (quest.quest_type === "feed_ptc" || quest.quest_type === "feed_shortlink" || quest.quest_type === "feed_article") {
+    // Feed quest: complete N sequential campaigns from dynamic feed
+    const total = Math.max(1, quest.steps_count ?? 10);
+    const progress = credited ? total : (active?.current_step ?? 0);
+    
+    const feedTypeName = quest.quest_type === "feed_ptc" 
+      ? "PTC campaign" 
+      : quest.quest_type === "feed_shortlink" 
+        ? "shortlink" 
+        : "article";
+    
+    return {
+      total,
+      progress,
+      remaining: Math.max(0, total - progress),
+      nextStep: Math.min(progress + 1, total),
+      progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
+      description: total === 1 
+        ? `Complete the ${feedTypeName} and get rewarded!`
+        : `Complete ${total} ${feedTypeName}s and get rewarded!`,
+    };
+  }
+
   if (quest.quest_type === "checkin") {
     // Checkin quest: each day = one step
     const total = Math.max(1, quest.total_days ?? 3);

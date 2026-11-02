@@ -19,7 +19,7 @@ const questFormSchema = z.object({
     .regex(/^[a-z0-9_-]+$/i, "Key must be alphanumeric / _ / -"),
   label: z.string().trim().min(1).max(60),
   icon: z.string().trim().max(2000).default("gift"),
-  questType: z.enum(["ads", "shortlink", "locker", "checkin", "network", "survey"]).default("ads"),
+  questType: z.enum(["ads", "shortlink", "locker", "checkin", "network", "survey", "feed_ptc", "feed_shortlink", "feed_article"]).default("ads"),
   adsRequired: z.number().int().min(0).max(500).default(0),
   rewardAmount: z.number().min(0).max(10000).default(0),
   // Step rewards: immediate credit per step (shortlink/locker/checkin only)
@@ -52,6 +52,15 @@ const questFormSchema = z.object({
   allowedNetworks: z.array(z.enum(["cpxresearch", "theoremreach", "timewall"])).min(1).default(["cpxresearch", "theoremreach", "timewall"]),
   minPayoutUsd: z.number().min(0).max(100).default(0.5),
   maxLoi: z.number().int().min(1).max(120).nullable().optional(),
+  // Feed quest fields (Top PTC, Top Shortlinks, Top Articles)
+  feedKind: z.enum(["ptc", "shortlink", "article"]).nullable().optional(),
+  stepsCount: z.number().int().min(1).max(20).default(10),
+  backupCount: z.number().int().min(0).max(10).default(4),
+  feedProviderIds: z.array(z.string().uuid()).max(10).default([]),
+  minRewardUsd: z.number().min(0).max(100).default(0.10),
+  minCompletionRate: z.number().int().min(0).max(100).default(50),
+  maxPerNetwork: z.number().int().min(1).max(20).nullable().optional(),
+  blockedDomains: z.array(z.string().trim().max(200)).max(100).default([]),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(9999).default(0),
   // 'first_withdrawal' needs no extra field — it reads profiles.lifetime_withdrawn.
@@ -589,4 +598,21 @@ export const getSurveyQuestProgress = createServerFn({ method: "POST" })
       required: quest.required_surveys,
       isComplete: session.status === "verified",
     };
+  });
+
+/** Admin: list enabled SDK offerwall providers for quest configuration. */
+export const listSdkProvidersForQuests = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { assertAdmin } = await import("./coinquest.server");
+    await assertAdmin(context.supabase, context.userId);
+    
+    const { data, error } = await supabaseAdmin
+      .from("sdk_offerwall_providers")
+      .select("id, name, slug, enabled, status")
+      .eq("enabled", true)
+      .order("name", { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
   });
