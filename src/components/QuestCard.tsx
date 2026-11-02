@@ -104,6 +104,17 @@ export const QuestCard = memo(function QuestCard({
       }
       return totalStepRewards + quest.reward_amount;
     }
+    if (quest.quest_type === "feed_ptc" || quest.quest_type === "feed_shortlink" || quest.quest_type === "feed_article") {
+      // Feed quests: sum all step rewards + completion bonus
+      const stepsCount = quest.steps_count ?? 10;
+      const baseReward = quest.step_reward ?? 0;
+      const customRewards = quest.step_rewards ?? [];
+      let totalStepRewards = 0;
+      for (let i = 0; i < stepsCount; i++) {
+        totalStepRewards += customRewards[i] !== undefined ? customRewards[i] : baseReward;
+      }
+      return totalStepRewards + quest.reward_amount;
+    }
     if (quest.quest_type === "checkin") {
       // Checkin: sum all step rewards (per-day) + completion bonus
       const totalDays = quest.total_days ?? 3;
@@ -134,15 +145,17 @@ export const QuestCard = memo(function QuestCard({
         ? `${remaining} ${remaining === 1 ? "ad" : "ads"} left to verify`
         : quest.quest_type === "survey"
           ? `${remaining} ${remaining === 1 ? "survey" : "surveys"} remaining`
-        : quest.quest_type === "shortlink"
-          ? `Step ${nextStep} of ${total} · ${quest.min_seconds_per_step}s minimum`
-          : quest.quest_type === "checkin"
-            ? quest.streak_mode === "consecutive"
-              ? `${remaining} more ${remaining === 1 ? "day" : "days"} to go`
-              : `Check in ${remaining} more ${remaining === 1 ? "day" : "days"}`
-            : quest.quest_type === "network"
-              ? `Complete ${remaining} more ${remaining === 1 ? "network" : "networks"}`
-              : "Secure locker completion required";
+          : quest.quest_type === "shortlink"
+            ? `Step ${nextStep} of ${total} · ${quest.min_seconds_per_step}s minimum`
+            : quest.quest_type === "checkin"
+              ? quest.streak_mode === "consecutive"
+                ? `${remaining} more ${remaining === 1 ? "day" : "days"} to go`
+                : `Check in ${remaining} more ${remaining === 1 ? "day" : "days"}`
+              : quest.quest_type === "network"
+                ? `Complete ${remaining} more ${remaining === 1 ? "network" : "networks"}`
+                : quest.quest_type === "feed_ptc" || quest.quest_type === "feed_shortlink" || quest.quest_type === "feed_article"
+                  ? `Step ${nextStep} of ${total} · Top campaigns`
+                  : "Secure locker completion required";
   const summary = locked
     ? (lockLabel ?? "Quest locked")
     : credited
@@ -151,13 +164,19 @@ export const QuestCard = memo(function QuestCard({
         ? `Watch ${total} ${total === 1 ? "Ad" : "Ads"}`
         : quest.quest_type === "survey"
           ? `Complete ${total} ${total === 1 ? "Survey" : "Surveys"}`
-        : quest.quest_type === "shortlink"
-          ? `Visit ${total} ${total === 1 ? "Shortlink" : "Shortlinks"}`
-          : quest.quest_type === "checkin"
-            ? `Check in ${total} ${total === 1 ? "Day" : "Days"}`
-            : quest.quest_type === "network"
-              ? `Complete ${total} ${total === 1 ? "Network" : "Networks"}`
-              : "Complete Locker";
+          : quest.quest_type === "shortlink"
+            ? `Visit ${total} ${total === 1 ? "Shortlink" : "Shortlinks"}`
+            : quest.quest_type === "checkin"
+              ? `Check in ${total} ${total === 1 ? "Day" : "Days"}`
+              : quest.quest_type === "network"
+                ? `Complete ${total} ${total === 1 ? "Network" : "Networks"}`
+                : quest.quest_type === "feed_ptc"
+                  ? `Top ${total} PTC`
+                  : quest.quest_type === "feed_shortlink"
+                    ? `Top ${total} Shortlinks`
+                    : quest.quest_type === "feed_article"
+                      ? `Top ${total} Articles`
+                      : "Complete Locker";
   const ctaText = locked
     ? "Locked"
     : credited
@@ -182,7 +201,11 @@ export const QuestCard = memo(function QuestCard({
                 ? progress > 0
                   ? "Continue"
                   : "Start Quest"
-                : "Complete Locker";
+                : quest.quest_type === "feed_ptc" || quest.quest_type === "feed_shortlink" || quest.quest_type === "feed_article"
+                  ? progress > 0
+                    ? "Continue"
+                    : "Start Quest"
+                  : "Complete Locker";
   const actionTestId =
     quest.quest_type === "ads"
       ? `quest-watch-${quest.key}`
@@ -194,7 +217,9 @@ export const QuestCard = memo(function QuestCard({
           ? `quest-checkin-${quest.key}`
           : quest.quest_type === "network"
             ? `quest-network-${quest.key}`
-            : `quest-locker-${quest.key}`;
+            : quest.quest_type === "feed_ptc" || quest.quest_type === "feed_shortlink" || quest.quest_type === "feed_article"
+              ? `quest-feed-${quest.key}`
+              : `quest-locker-${quest.key}`;
 
   const inactive = locked || credited;
 

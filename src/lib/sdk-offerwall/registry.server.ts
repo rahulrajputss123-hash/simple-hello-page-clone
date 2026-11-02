@@ -1,4 +1,5 @@
 import affikeSdkAdapter from "./adapters/affike.server";
+import bitcotasksSdkAdapter from "./adapters/bitcotasks.server";
 import cpxResearchSdkAdapter from "./adapters/cpxresearch.server";
 import gemiAdSdkAdapter from "./adapters/gemiad.server";
 import mooffersSdkAdapter from "./adapters/mooffers.server";
@@ -28,6 +29,7 @@ export function listSdkAdapterSlugs(): string[] {
 }
 
 registerSdkAdapter(cpxResearchSdkAdapter);
+registerSdkAdapter(bitcotasksSdkAdapter);
 registerSdkAdapter(offerwallMeSdkAdapter);
 registerSdkAdapter(revtooSdkAdapter);
 registerSdkAdapter(affikeSdkAdapter);
