@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { Button } from "@/components/ui/button";
 import { formatReward } from "@/lib/format-reward";
-import { checkInToday, getNetworkQuestProgress, openQuestNetwork } from "@/lib/quests.functions";
+import { checkInToday, getNetworkQuestProgress, openQuestNetwork, fetchSurveyFeed, startSurveyQuest, getSurveyQuestProgress } from "@/lib/quests.functions";
 import {
   deriveQuestView,
   QUEST_ACCENTS,
@@ -72,6 +72,10 @@ export function QuestDetailsDialog({
         ? "Checking In…"
         : quest.quest_type === "ads"
           ? "Watch Ads"
+          : quest.quest_type === "survey"
+            ? started
+              ? "View Surveys"
+              : "Start Quest"
           : quest.quest_type === "shortlink"
             ? started
               ? "Continue"
@@ -178,6 +182,13 @@ export function QuestDetailsDialog({
               {(() => {
                 if (quest.quest_type === "ads") {
                   return formatReward(quest.reward_amount);
+                }
+                if (quest.quest_type === "survey") {
+                  // Survey quests: step rewards + completion bonus
+                  const requiredSurveys = quest.required_surveys ?? 5;
+                  const stepReward = quest.step_reward ?? 0;
+                  const totalStepRewards = requiredSurveys * stepReward;
+                  return totalStepRewards + quest.reward_amount;
                 }
                 if (quest.quest_type === "network") {
                   // Network quests: sum all step rewards + completion bonus
@@ -434,6 +445,16 @@ export function QuestDetailsDialog({
           />
         )}
 
+        {/* Survey quest: survey feed */}
+        {quest.quest_type === "survey" && (
+          <SurveyQuestFeed
+            quest={quest}
+            active={active}
+            credited={credited}
+            open={open}
+          />
+        )}
+
         <section
           className="space-y-1 rounded-xl border border-destructive/30 bg-destructive/5 p-3"
           data-testid="quest-details-rules"
@@ -651,6 +672,204 @@ function NetworkQuestProviderGrid({
           Tap a network above to open its offerwall. Complete an <strong>offer, survey, or task</strong> inside the network.
           PTC and shortlinks may not count if below the minimum payout threshold ($
           {(quest.min_qualifying_usd ?? 0.01).toFixed(2)}).
+        </span>
+      </section>
+    </>
+  );
+}
+
+
+/**
+ * Survey quest feed component.
+ * Shows mixed surveys from CPX Research, TheoremReach, and Timewall.
+ */
+function SurveyQuestFeed({
+  quest,
+  active,
+  credited,
+  open,
+}: {
+  quest: QuestCardQuest;
+  active?: QuestSessionView;
+  credited: boolean;
+  open: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const fetchFeed = useServerFn(fetchSurveyFeed);
+  const startQuest = useServerFn(startSurveyQuest);
+  const fetchProgress = useServerFn(getSurveyQuestProgress);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [opening, setOpening] = useState<string | null>(null);
+  const openedWindowRef = useRef<Window | null>(null);
+
+  // Start quest session when dialog opens
+  useEffect(() => {
+    if (open && !credited && !sessionId) {
+      startQuest({ questKey: quest.key })
+        .then((result) => setSessionId(result.sessionId))
+        .catch((err) => console.error("Failed to start survey quest:", err));
+    }
+  }, [open, credited, sessionId, quest.key, startQuest]);
+
+  // Fetch survey feed
+  const { data: feedData, refetch: refetchFeed, isLoading } = useQuery({
+    queryKey: ["survey-feed", quest.key, sessionId],
+    queryFn: () => fetchFeed({ questKey: quest.key, sessionId: sessionId! }),
+    enabled: open && !credited && Boolean(sessionId),
+    staleTime: 120_000, // 120s cache
+    refetchInterval: 120_000, // Refresh every 120s
+  });
+
+  // Fetch progress
+  const { data: progress, refetch: refetchProgress } = useQuery({
+    queryKey: ["survey-progress", quest.key],
+    queryFn: () => fetchProgress({ questKey: quest.key }),
+    enabled: open && !credited,
+    refetchInterval: 10_000, // Poll every 10s
+  });
+
+  // Refresh progress when user returns to tab
+  useEffect(() => {
+    if (!open || credited) return;
+    
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refetchProgress();
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [open, credited, refetchProgress]);
+
+  // Check if opened window closed
+  useEffect(() => {
+    if (!openedWindowRef.current) return;
+    
+    const interval = setInterval(() => {
+      if (openedWindowRef.current?.closed) {
+        openedWindowRef.current = null;
+        setOpening(null);
+        // Refresh progress after window closes
+        refetchProgress();
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [refetchProgress]);
+
+  const handleSurveyClick = (survey: any) => {
+    if (opening || credited) return;
+    
+    setOpening(survey.id);
+    // Open synchronously to avoid popup blockers
+    const newWindow = window.open(survey.entryLink, "_blank", "noopener,noreferrer");
+    openedWindowRef.current = newWindow;
+    
+    // Clear opening state after a delay
+    setTimeout(() => {
+      if (opening === survey.id) {
+        setOpening(null);
+      }
+    }, 2000);
+  };
+
+  const surveys = feedData?.surveys ?? [];
+  const completed = progress?.completed ?? 0;
+  const required = progress?.required ?? quest.required_surveys ?? 5;
+
+  return (
+    <>
+      {/* Progress */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Survey Progress</span>
+          <span className="text-xs text-muted-foreground">
+            {completed} / {required} completed
+          </span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full bg-primary transition-all duration-300"
+            style={{ width: `${Math.min(100, (completed / required) * 100)}%` }}
+          />
+        </div>
+      </section>
+
+      {/* Survey Feed */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold">Available Surveys</h3>
+        
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : surveys.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-8 text-center">
+            <Info className="size-8 text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">No surveys available right now</p>
+            <p className="text-xs text-muted-foreground mt-1">Check back in a few minutes</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {surveys.map((survey: any) => (
+              <button
+                key={`${survey.network}-${survey.id}`}
+                onClick={() => handleSurveyClick(survey)}
+                disabled={opening === survey.id || credited}
+                className="w-full flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <span className="font-medium text-sm line-clamp-1">{survey.title}</span>
+                    <span className="shrink-0 font-semibold text-primary">
+                      +${survey.payoutUsd.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{survey.loi} min</span>
+                    {survey.rating && <span>★ {survey.rating.toFixed(1)}</span>}
+                    <span className="capitalize">{survey.network.replace("research", "")}</span>
+                  </div>
+                </div>
+                {opening === survey.id ? (
+                  <Loader2 className="size-4 shrink-0 animate-spin text-primary mt-0.5" />
+                ) : (
+                  <ExternalLink className="size-4 shrink-0 text-muted-foreground mt-0.5" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Timewall Card */}
+      {quest.allowed_networks?.includes("timewall") && (
+        <section>
+          <button
+            onClick={() => {
+              // TODO: Open Timewall wall
+              console.log("Open Timewall wall");
+            }}
+            className="w-full flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3 transition-colors hover:bg-primary/10"
+          >
+            <div>
+              <p className="font-medium text-sm">Timewall Surveys</p>
+              <p className="text-xs text-muted-foreground">Browse more surveys</p>
+            </div>
+            <ArrowUpRight className="size-5 text-primary" />
+          </button>
+        </section>
+      )}
+
+      {/* Info */}
+      <section className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-primary">
+        <Info className="size-4 shrink-0" />
+        <span>
+          Complete surveys from the list above. You'll earn <strong>80% of the survey payout</strong>{" "}
+          plus a <strong>${(quest.step_reward ?? 0).toFixed(2)} step reward</strong> per survey.
+          After completing all {required} surveys, you'll receive a{" "}
+          <strong>${quest.reward_amount.toFixed(2)} completion bonus</strong>.
         </span>
       </section>
     </>
