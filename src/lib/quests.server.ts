@@ -16,12 +16,24 @@ const db = supabaseAdmin as unknown as { from: (t: string) => any };
 
 export type ShortlinkStep = { network: string; url: string };
 
+export type TimedStep = { ad_network: string; push_network: string };
+
 export type QuestRow = {
   id: string;
   key: string;
   label: string;
   icon: string;
-  quest_type: "ads" | "shortlink" | "locker" | "checkin" | "feed_ptc" | "feed_shortlink" | "feed_article" | "network" | "survey";
+  quest_type:
+    | "ads"
+    | "shortlink"
+    | "locker"
+    | "checkin"
+    | "feed_ptc"
+    | "feed_shortlink"
+    | "feed_article"
+    | "network"
+    | "survey"
+    | "timed_ptc";
   ads_required: number;
   /**
    * Completion bonus credited when the entire quest finishes.
@@ -96,6 +108,14 @@ export type QuestRow = {
   min_payout_usd: number;
   /** Survey quest: maximum length of interview in minutes (null = no limit). */
   max_loi: number | null;
+  /** Timed PTC quest: array of steps with ad_network and push_network (max 10). */
+  timed_steps: TimedStep[];
+  /** Timed PTC quest: required seconds per step (10-600). */
+  timed_step_seconds: number;
+  /** Timed PTC quest: required seconds between checkpoints (5-120). */
+  timed_checkpoint_seconds: number;
+  /** Timed PTC quest: maximum allowed failed taps (1-5). */
+  timed_max_failed_taps: number;
   is_active: boolean;
   sort_order: number;
   /** 'first_withdrawal' unlocks once profiles.lifetime_withdrawn > 0. */
@@ -113,9 +133,7 @@ function normalize(row: QuestRow): QuestRow {
     ...row,
     reward_amount: Number(row.reward_amount ?? 0),
     step_reward: Number(row.step_reward ?? 0),
-    step_rewards: Array.isArray(row.step_rewards)
-      ? row.step_rewards.map((r) => Number(r))
-      : null,
+    step_rewards: Array.isArray(row.step_rewards) ? row.step_rewards.map((r) => Number(r)) : null,
     ads_required: Number(row.ads_required ?? 0),
     shortlink_steps: Array.isArray(row.shortlink_steps) ? row.shortlink_steps : [],
     min_seconds_per_step: Number(row.min_seconds_per_step ?? 15),
@@ -146,6 +164,10 @@ function normalize(row: QuestRow): QuestRow {
     allowed_networks: Array.isArray(row.allowed_networks) ? row.allowed_networks : [],
     min_payout_usd: Number(row.min_payout_usd ?? 0.5),
     max_loi: row.max_loi != null ? Number(row.max_loi) : null,
+    timed_steps: Array.isArray(row.timed_steps) ? row.timed_steps : [],
+    timed_step_seconds: Number(row.timed_step_seconds ?? 60),
+    timed_checkpoint_seconds: Number(row.timed_checkpoint_seconds ?? 10),
+    timed_max_failed_taps: Number(row.timed_max_failed_taps ?? 2),
     sort_order: Number(row.sort_order ?? 0),
     lock_type: (row.lock_type ?? "none") as QuestRow["lock_type"],
     unlock_at: row.unlock_at ?? null,
@@ -181,11 +203,14 @@ async function fetchLockInputs(
  * a locked state instead of hiding them.
  * Ads quests are filtered out when ADS_ENABLED is false.
  * App-only quests are filtered out when isNative is false.
- * 
+ *
  * @param isNative - Client-reported platform flag. WARNING: Can be spoofed. Server enforcement
  *                   in assertQuestNotLocked provides additional protection.
  */
-export async function listActiveQuestsImpl(userId?: string, isNative?: boolean): Promise<(QuestRow & LockState)[]> {
+export async function listActiveQuestsImpl(
+  userId?: string,
+  isNative?: boolean,
+): Promise<(QuestRow & LockState)[]> {
   const { data, error } = await db
     .from("quests")
     .select("*")
@@ -246,7 +271,7 @@ export type QuestFormInput = {
   key: string;
   label: string;
   icon: string;
-  questType: "ads" | "shortlink" | "locker" | "checkin" | "network";
+  questType: "ads" | "shortlink" | "locker" | "checkin" | "network" | "timed_ptc";
   adsRequired: number;
   rewardAmount: number;
   /** Default step reward (overridden by stepRewards array if present) */
@@ -282,6 +307,14 @@ export type QuestFormInput = {
   tokenTtlHours: number;
   /** Network: reward hold hours */
   rewardHoldHours: number;
+  /** Timed PTC: array of steps (max 10) */
+  timedSteps?: TimedStep[] | undefined;
+  /** Timed PTC: required seconds per step (10-600) */
+  timedStepSeconds: number;
+  /** Timed PTC: required seconds between checkpoints (5-120) */
+  timedCheckpointSeconds: number;
+  /** Timed PTC: maximum allowed failed taps (1-5) */
+  timedMaxFailedTaps: number;
   isActive: boolean;
   sortOrder: number;
   lockType: "none" | "time" | "earning" | "first_withdrawal";
@@ -294,11 +327,15 @@ export type QuestFormInput = {
 export async function upsertQuestImpl(input: QuestFormInput) {
   const lockerUrls = (input.lockerUrls ?? []).map((url) => url.trim()).filter(Boolean);
   const shortlinkSteps = input.shortlinkSteps ?? [];
+  const timedSteps = input.timedSteps ?? [];
 
   // Upper bounds and malformed URLs are still hard errors — they are mistakes,
   // not an unfinished draft.
   if (input.questType === "shortlink" && shortlinkSteps.length > SHORTLINK_MAX_STEPS) {
     throw new Error(`A shortlink quest can have at most ${SHORTLINK_MAX_STEPS} steps.`);
+  }
+  if (input.questType === "timed_ptc" && timedSteps.length > 10) {
+    throw new Error("A timed PTC quest can have at most 10 steps.");
   }
   if (input.questType === "ads" && input.adsRequired < 1) {
     throw new Error("Ads-type quests need at least 1 ad.");
@@ -353,6 +390,10 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     min_qualifying_usd: input.questType === "network" ? input.minQualifyingUsd : 0.01,
     token_ttl_hours: input.questType === "network" ? input.tokenTtlHours : 24,
     reward_hold_hours: input.questType === "network" ? input.rewardHoldHours : 0,
+    timed_steps: input.questType === "timed_ptc" ? timedSteps : [],
+    timed_step_seconds: input.questType === "timed_ptc" ? input.timedStepSeconds : 60,
+    timed_checkpoint_seconds: input.questType === "timed_ptc" ? input.timedCheckpointSeconds : 10,
+    timed_max_failed_taps: input.questType === "timed_ptc" ? input.timedMaxFailedTaps : 2,
     is_active: isActive,
     sort_order: input.sortOrder,
     lock_type: input.lockType,
@@ -425,11 +466,11 @@ export async function creditStepReward(
 
   // Round to 2 decimal places (wallet precision: numeric(10,2))
   const roundedAmount = Math.round(stepReward * 100) / 100;
-  
+
   // Reject amounts finer than wallet precision
   if (Math.abs(stepReward - roundedAmount) > 0.001) {
     console.warn(
-      `[quests] Step reward ${stepReward} exceeds wallet precision, rounding to ${roundedAmount}`
+      `[quests] Step reward ${stepReward} exceeds wallet precision, rounding to ${roundedAmount}`,
     );
   }
 
@@ -504,7 +545,7 @@ export async function assertQuestNotLocked(userId: string, quest: QuestRow): Pro
  * Server-side platform enforcement for app-only quests.
  * Throws if the quest is marked app_only and the request is NOT from a native app.
  * Call this before allowing any quest progress or crediting any reward.
- * 
+ *
  * WARNING: Platform detection can be spoofed. This is a best-effort check to improve
  * UX and reduce accidental web access, not a security boundary.
  */
@@ -879,7 +920,12 @@ export async function completeLockerQuestImpl(userId: string, questKey: string, 
   };
 }
 
-export async function startShortlinkStepImpl(userId: string, questKey: string, step: number, isNative: boolean) {
+export async function startShortlinkStepImpl(
+  userId: string,
+  questKey: string,
+  step: number,
+  isNative: boolean,
+) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "shortlink") throw new Error("This quest is not a shortlink quest.");
   assertQuestPlatform(quest, isNative);
@@ -922,7 +968,12 @@ export async function startShortlinkStepImpl(userId: string, questKey: string, s
   };
 }
 
-export async function completeShortlinkStepImpl(userId: string, questKey: string, step: number, isNative: boolean) {
+export async function completeShortlinkStepImpl(
+  userId: string,
+  questKey: string,
+  step: number,
+  isNative: boolean,
+) {
   const quest = await getQuestByKey(questKey);
   if (quest.quest_type !== "shortlink") throw new Error("This quest is not a shortlink quest.");
   assertQuestPlatform(quest, isNative);
@@ -1071,7 +1122,7 @@ export async function completeShortlinkStepImpl(userId: string, questKey: string
 /**
  * Get or create a check-in quest session for a user.
  * Auto-starts the quest on first access and completes Day 1 if day1_auto_complete is enabled.
- * 
+ *
  * Returns: { session, day1Completed } where day1Completed indicates if Day 1 was just auto-completed
  */
 async function getOrCreateCheckinSession(
@@ -1099,7 +1150,7 @@ async function getOrCreateCheckinSession(
 
   // Try to create new session
   const sessionToken = crypto.randomUUID();
-  
+
   try {
     const created = await db
       .from("quest_sessions")
@@ -1164,7 +1215,7 @@ async function getOrCreateCheckinSession(
 /**
  * Complete a check-in day and credit the step reward.
  * Idempotent via quest_step_credits unique constraint.
- * 
+ *
  * @returns true if day was newly completed, false if already complete
  */
 async function completeCheckinDay(
@@ -1189,21 +1240,19 @@ async function completeCheckinDay(
   }
 
   // Upsert the day record as completed
-  const { error: upsertError } = await db
-    .from("quest_checkin_days")
-    .upsert(
-      {
-        session_id: sessionId,
-        user_id: userId,
-        quest_key: questKey,
-        local_date: localDate,
-        active_seconds: quest.required_active_seconds, // Mark as fully active
-        completed_at: new Date().toISOString(),
-      } as any,
-      {
-        onConflict: "session_id,local_date",
-      },
-    );
+  const { error: upsertError } = await db.from("quest_checkin_days").upsert(
+    {
+      session_id: sessionId,
+      user_id: userId,
+      quest_key: questKey,
+      local_date: localDate,
+      active_seconds: quest.required_active_seconds, // Mark as fully active
+      completed_at: new Date().toISOString(),
+    } as any,
+    {
+      onConflict: "session_id,local_date",
+    },
+  );
 
   if (upsertError) {
     console.error("[checkin] Failed to complete day:", upsertError);
@@ -1218,14 +1267,7 @@ async function completeCheckinDay(
 
   // Credit step reward (idempotent)
   if (stepReward && stepReward > 0) {
-    await creditStepReward(
-      userId,
-      sessionId,
-      questKey,
-      quest.label,
-      dayIndex,
-      stepReward,
-    );
+    await creditStepReward(userId, sessionId, questKey, quest.label, dayIndex, stepReward);
   }
 
   // Check if this was the final day
@@ -1254,11 +1296,7 @@ async function completeCheckinDay(
  * Get user's timezone from profile, with fallback to quest's default timezone.
  */
 async function getUserTimezone(userId: string, defaultTimezone: string): Promise<string> {
-  const { data } = await db
-    .from("profiles")
-    .select("timezone")
-    .eq("id", userId)
-    .maybeSingle();
+  const { data } = await db.from("profiles").select("timezone").eq("id", userId).maybeSingle();
 
   const userTz = data?.timezone;
   if (userTz) {
@@ -1283,7 +1321,7 @@ export async function updateUserTimezoneImpl(
     // Validate timezone
     const { validateTimezone, canChangeTimezone } = await import("./timezone.server");
     const validated = validateTimezone(timezone);
-    
+
     if (!validated) {
       return { success: false, error: "Invalid timezone" };
     }
@@ -1336,7 +1374,7 @@ export async function updateUserTimezoneImpl(
 /**
  * Evaluate streak status and handle resets for consecutive mode.
  * Lazy evaluation: checks for missed days when the quest is accessed.
- * 
+ *
  * Returns: { needsReset, missedDays } where needsReset indicates session should be reset
  */
 async function evaluateCheckinStreak(
@@ -1418,14 +1456,14 @@ async function resetCheckinSession(
 /**
  * Ensure a check-in session exists and is valid.
  * Idempotent - safe to call multiple times, will only create/pay once.
- * 
+ *
  * Client should call this after loading quests to initialize check-in sessions.
  * Handles:
  * - Session creation with race-safe unique constraint
  * - Day 1 auto-complete (paid exactly once via quest_step_credits)
  * - Streak evaluation and reset (consecutive mode)
  * - Timezone lock
- * 
+ *
  * @returns Session state and whether Day 1 was newly completed
  */
 export async function ensureCheckinSessionImpl(
@@ -1496,19 +1534,24 @@ export async function ensureCheckinSessionImpl(
 /**
  * Ping active time for a check-in quest.
  * Called by client every 30s while visible and focused.
- * 
+ *
  * Server logic:
  * - Ignore pings <20s after previous ping (prevents parallel tabs/rapid pings)
  * - Add min(now - last_ping_at, 35s) to today's active_seconds
  * - Cap at required_active_seconds
  * - Complete day when threshold reached
- * 
+ *
  * Returns: { dayCompleted, activeSeconds, requiredSeconds, stepReward }
  */
 export async function pingActiveTimeImpl(
   userId: string,
   questKey: string,
-): Promise<{ dayCompleted: boolean; activeSeconds: number; requiredSeconds: number; stepReward: number }> {
+): Promise<{
+  dayCompleted: boolean;
+  activeSeconds: number;
+  requiredSeconds: number;
+  stepReward: number;
+}> {
   // Get quest
   const { data: quest } = await db
     .from("quests")
@@ -1548,7 +1591,7 @@ export async function pingActiveTimeImpl(
   // Use locked timezone from session.timezone (anti-abuse)
   // If not set (old sessions), fall back to metadata or user timezone
   const lockedTimezone = session.timezone ?? session.metadata?.locked_timezone ?? userTimezone;
-  
+
   // Recalculate today's date using the locked timezone
   const todayLocalLocked = getLocalDate(lockedTimezone);
 
@@ -1604,21 +1647,19 @@ export async function pingActiveTimeImpl(
   );
 
   // Upsert day record with new active time (using locked timezone date)
-  await db
-    .from("quest_checkin_days")
-    .upsert(
-      {
-        session_id: session.id,
-        user_id: userId,
-        quest_key: questKey,
-        local_date: todayLocalLocked,
-        active_seconds: newActiveSeconds,
-        last_ping_at: now.toISOString(),
-      } as any,
-      {
-        onConflict: "session_id,local_date",
-      },
-    );
+  await db.from("quest_checkin_days").upsert(
+    {
+      session_id: session.id,
+      user_id: userId,
+      quest_key: questKey,
+      local_date: todayLocalLocked,
+      active_seconds: newActiveSeconds,
+      last_ping_at: now.toISOString(),
+    } as any,
+    {
+      onConflict: "session_id,local_date",
+    },
+  );
 
   // Check if day is now complete
   const dayCompleted = newActiveSeconds >= normalizedQuest.required_active_seconds;
@@ -1669,7 +1710,7 @@ export async function pingActiveTimeImpl(
  * Check in today (tap-only mode).
  * Completes today's day immediately if not already done.
  * Only works when required_active_seconds = 0.
- * 
+ *
  * Returns: { success, dayCompleted, stepReward }
  */
 export async function checkInTodayImpl(
@@ -1723,7 +1764,7 @@ export async function checkInTodayImpl(
 
   // Use locked timezone from session.timezone (anti-abuse)
   const lockedTimezone = session.timezone ?? session.metadata?.locked_timezone ?? userTimezone;
-  
+
   // Recalculate today's date using locked timezone
   const todayLocalLocked = getLocalDate(lockedTimezone);
 
@@ -1786,14 +1827,13 @@ export async function checkInTodayImpl(
   };
 }
 
-
 /**
  * Open a network quest provider (generate token and return offerwall URL).
- * 
+ *
  * Creates or reuses a quest token for the given provider and returns the
  * offerwall URL with the token as the user ID. This allows tracking completions
  * without crediting the user's wallet.
- * 
+ *
  * @param userId - Authenticated user ID from context (never from client)
  * @param questKey - Quest key
  * @param providerId - SDK offerwall provider UUID
@@ -1900,7 +1940,7 @@ export async function openQuestNetworkImpl(
     .select("id")
     .eq("session_id", sessionId)
     .eq("provider_id", providerId)
-    .eq("kind", "network")  // Filter by kind since table is shared
+    .eq("kind", "network") // Filter by kind since table is shared
     .maybeSingle();
 
   if (existingCompletion) {
@@ -2048,7 +2088,7 @@ export async function getNetworkQuestProgressImpl(
     .from("quest_network_completions")
     .select("provider_id")
     .eq("session_id", session.id)
-    .eq("kind", "network");  // Filter by kind since table is shared
+    .eq("kind", "network"); // Filter by kind since table is shared
 
   const completedProviderIds = new Set((completions ?? []).map((c: any) => c.provider_id));
 
@@ -2069,7 +2109,6 @@ export async function getNetworkQuestProgressImpl(
     required: normalizedQuest.required_count,
   };
 }
-
 
 // ========== Feed Quest Functions ==========
 /**
