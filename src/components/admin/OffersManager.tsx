@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { CountryMultiSelect } from "@/components/admin/CountryMultiSelect";
 import { offerDisplayBadge } from "@/lib/offers/display-badge";
+import { formatMoney } from "@/lib/coinquest";
 import { EmptyState } from "@/components/States";
 import {
   AlertDialog,
