@@ -871,7 +871,7 @@ async function processSurveyQuestProgress(params: {
     }
 
     // Check if payout meets minimum
-    const minPayoutUsd = Number(quest.min_payout_usd ?? 0.5);
+    const minPayoutUsd = Number(quest.min_payout_usd ?? 0);
     if (rewardUsd < minPayoutUsd) {
       await logAutomation({
         eventType: "quest_automation",
