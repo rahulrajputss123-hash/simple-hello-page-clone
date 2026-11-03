@@ -1105,6 +1105,42 @@ export async function processSdkPostback(req: PostbackRequest): Promise<Postback
 
   const currencyAmount = Number.isFinite(parsed.currencyAmount) ? parsed.currencyAmount : 0;
   
+  // ========== TEST-ONLY CALLBACK HANDLING (debug=true) ==========
+  // If adapter returned testOnly flag (e.g. TheoremReach debug=true), log and return immediately.
+  // This short-circuits BEFORE user resolution to avoid "user_not_found" errors for test callbacks.
+  if (parsed.testOnly) {
+    await supabaseAdmin.from("sdk_offerwall_conversions").insert({
+      provider_id: provider.id,
+      user_id: null, // No user for test callbacks
+      provider_transaction_id: parsed.providerTransactionId || `test-${Date.now()}`,
+      provider_user_ref: parsed.providerUserRef || null,
+      provider_offer_id: parsed.providerOfferId ?? null,
+      currency_amount: 0,
+      reward_amount: 0,
+      status: "test",
+      signature_valid: auth.signatureValid ?? true,
+      source_ip: req.sourceIp,
+      raw_payload: req.params as never,
+      processed_at: new Date().toISOString(),
+    });
+    
+    await logAutomation({
+      eventType: "sdk_postback",
+      status: "info",
+      source: provider.slug,
+      providerId: provider.id,
+      message: "Test callback received (debug=true, signature valid)",
+      context: { 
+        transactionId: parsed.providerTransactionId,
+        userRef: parsed.providerUserRef,
+        params: req.params as JsonObject 
+      },
+    });
+    
+    return { ok: true, status: "credited", reason: "test_callback" };
+  }
+  // ========== END TEST-ONLY HANDLING ==========
+  
   // ========== NETWORK QUEST TOKEN HANDLING ==========
   // If the user ref starts with "q_", it's a quest token, not a real user ID.
   // Quest tokens let users complete offers inside quests without crediting their wallet.

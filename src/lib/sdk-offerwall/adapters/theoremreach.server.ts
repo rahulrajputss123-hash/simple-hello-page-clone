@@ -72,13 +72,25 @@ export const theoremreachSdkAdapter: SdkOfferwallAdapter = {
 
     const validSignature = secureEquals(expectedHash, providedHash);
 
-    // Debug mode: verify hash, return empty to signal 200 but no credit
-    if (debug) {
+    // If hash is invalid, reject immediately (empty txId signals invalid)
+    if (!validSignature) {
       return {
-        providerTransactionId: validSignature ? txId : "",
+        providerTransactionId: "",
         providerUserRef: userId,
         providerOfferId: field(payload, "offer_id") || undefined,
-        currencyAmount: 0, // No credit for debug
+        currencyAmount: 0,
+        raw: payload,
+      };
+    }
+
+    // Debug mode: hash is valid, return testOnly flag (no user lookup, no credit)
+    if (debug) {
+      return {
+        providerTransactionId: txId,
+        providerUserRef: userId,
+        providerOfferId: field(payload, "offer_id") || undefined,
+        currencyAmount: 0,
+        testOnly: true,
         raw: payload,
       };
     }
@@ -107,10 +119,10 @@ export const theoremreachSdkAdapter: SdkOfferwallAdapter = {
 
     // Valid completion: use currency (USD amount), not reward
     return {
-      providerTransactionId: validSignature ? txId : "",
+      providerTransactionId: txId,
       providerUserRef: userId,
       providerOfferId: field(payload, "offer_id") || undefined,
-      currencyAmount: validSignature ? Number(currencyUsd || 0) : 0,
+      currencyAmount: Number(currencyUsd || 0),
       raw: payload,
     };
   },
