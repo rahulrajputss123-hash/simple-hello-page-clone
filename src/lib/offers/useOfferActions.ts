@@ -4,7 +4,9 @@ import { toast } from "sonner";
 
 import { claimOffer, startOfferClaim, submitOfferProof } from "@/lib/coinquest.functions";
 import { trackOfferClick } from "@/lib/offers.functions";
+import { getToroxClickUrl } from "@/lib/offers/torox.functions";
 import { appendAffSub4 } from "@/lib/offers/click-url";
+import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/adapters/torox.server";
 import { useAuth } from "@/lib/auth";
 
 export type OfferActionData = {
@@ -24,6 +26,7 @@ export function useOfferActions(
   const startClaim = useServerFn(startOfferClaim);
   const submitProof = useServerFn(submitOfferProof);
   const trackClick = useServerFn(trackOfferClick);
+  const getToroxUrl = useServerFn(getToroxClickUrl);
 
   const startMutation = useMutation({
     mutationFn: async (offer: OfferActionData) => {
@@ -31,17 +34,37 @@ export function useOfferActions(
       return { result, offer };
     },
     onSuccess: async ({ offer }) => {
-      // Open URL in new tab
-      if (offer.click_url) {
-        void trackClick({ data: { offerId: offer.id } }).catch(() => {});
-        const clickUrl = appendAffSub4(
-          offer.click_url,
-          offer.provider_slug,
-          session?.user.id,
-          offer.external_offer_id,
-        );
-        if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
+      // Special handling for Torox: open blank tab first to avoid popup blocker
+      if (offer.provider_slug === "torox" && offer.click_url?.startsWith(TOROX_CLICK_URL_SENTINEL)) {
+        const blankTab = window.open("about:blank", "_blank", "noopener,noreferrer");
+        
+        try {
+          void trackClick({ data: { offerId: offer.id } }).catch(() => {});
+          const { clickUrl } = await getToroxUrl({ data: { offerId: offer.id } });
+          if (blankTab && clickUrl) {
+            blankTab.location.href = clickUrl;
+          } else {
+            blankTab?.close();
+            throw new Error("Could not generate tracking link.");
+          }
+        } catch (err) {
+          blankTab?.close();
+          toast.error(err instanceof Error ? err.message : "Could not open offer link.");
+        }
+      } else {
+        // Normal offer flow
+        if (offer.click_url) {
+          void trackClick({ data: { offerId: offer.id } }).catch(() => {});
+          const clickUrl = appendAffSub4(
+            offer.click_url,
+            offer.provider_slug,
+            session?.user.id,
+            offer.external_offer_id,
+          );
+          if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
+        }
       }
+      
       // Show toast
       toast.success("Complete the offer, then come back here and upload your proof.");
       // Invalidate queries
@@ -80,16 +103,36 @@ export function useOfferActions(
       if (input.hasClickUrl) {
         void trackClick({ data: { offerId: input.offerId } }).catch(() => {});
       }
-      // Open URL if present
-      if (input.clickUrl) {
-        const clickUrl = appendAffSub4(
-          input.clickUrl,
-          input.provider_slug,
-          session?.user.id,
-          input.external_offer_id,
-        );
-        if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
+      
+      // Special handling for Torox
+      if (input.provider_slug === "torox" && input.clickUrl?.startsWith(TOROX_CLICK_URL_SENTINEL)) {
+        const blankTab = window.open("about:blank", "_blank", "noopener,noreferrer");
+        
+        try {
+          const { clickUrl } = await getToroxUrl({ data: { offerId: input.offerId } });
+          if (blankTab && clickUrl) {
+            blankTab.location.href = clickUrl;
+          } else {
+            blankTab?.close();
+            throw new Error("Could not generate tracking link.");
+          }
+        } catch (err) {
+          blankTab?.close();
+          toast.error(err instanceof Error ? err.message : "Could not open offer link.");
+        }
+      } else {
+        // Normal offer flow
+        if (input.clickUrl) {
+          const clickUrl = appendAffSub4(
+            input.clickUrl,
+            input.provider_slug,
+            session?.user.id,
+            input.external_offer_id,
+          );
+          if (clickUrl) window.open(clickUrl, "_blank", "noopener,noreferrer");
+        }
       }
+      
       // Submit claim
       return claim({
         data: {

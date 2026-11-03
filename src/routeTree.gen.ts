@@ -60,6 +60,7 @@ import { Route as AuthenticatedTimedPtcQuestKeyStepRouteImport } from './routes/
 import { Route as ApiPublicFeedPostbackAdbluemediaRouteImport } from './routes/api/public/feed-postback.adbluemedia'
 import { Route as ApiPublicFeedPostbackGemiadRouteImport } from './routes/api/public/feed-postback.gemiad'
 import { Route as ApiPublicFeedPostbackOgadsRouteImport } from './routes/api/public/feed-postback.ogads'
+import { Route as ApiPublicFeedPostbackToroxRouteImport } from './routes/api/public/feed-postback.torox'
 import { Route as ApiPublicOfferPostbackOfferIdRouteImport } from './routes/api/public/offer-postback.$offerId'
 import { Route as ApiPublicOfferwallSlugRouteImport } from './routes/api/public/offerwall/$slug'
 
@@ -340,6 +341,12 @@ const ApiPublicFeedPostbackOgadsRoute =
     path: '/api/public/feed-postback/ogads',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicFeedPostbackToroxRoute =
+  ApiPublicFeedPostbackToroxRouteImport.update({
+    id: '/api/public/feed-postback/torox',
+    path: '/api/public/feed-postback/torox',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicOfferPostbackOfferIdRoute =
   ApiPublicOfferPostbackOfferIdRouteImport.update({
     id: '/api/public/offer-postback/$offerId',
@@ -403,6 +410,7 @@ export interface FileRoutesByFullPath {
   '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
   '/api/public/feed-postback/gemiad': typeof ApiPublicFeedPostbackGemiadRoute
   '/api/public/feed-postback/ogads': typeof ApiPublicFeedPostbackOgadsRoute
+  '/api/public/feed-postback/torox': typeof ApiPublicFeedPostbackToroxRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
@@ -457,6 +465,7 @@ export interface FileRoutesByTo {
   '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
   '/api/public/feed-postback/gemiad': typeof ApiPublicFeedPostbackGemiadRoute
   '/api/public/feed-postback/ogads': typeof ApiPublicFeedPostbackOgadsRoute
+  '/api/public/feed-postback/torox': typeof ApiPublicFeedPostbackToroxRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
@@ -513,6 +522,7 @@ export interface FileRoutesById {
   '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
   '/api/public/feed-postback/gemiad': typeof ApiPublicFeedPostbackGemiadRoute
   '/api/public/feed-postback/ogads': typeof ApiPublicFeedPostbackOgadsRoute
+  '/api/public/feed-postback/torox': typeof ApiPublicFeedPostbackToroxRoute
   '/api/public/offer-postback/$offerId': typeof ApiPublicOfferPostbackOfferIdRoute
   '/api/public/offerwall/$slug': typeof ApiPublicOfferwallSlugRoute
 }
@@ -569,6 +579,7 @@ export interface FileRouteTypes {
     | '/api/public/feed-postback/adbluemedia'
     | '/api/public/feed-postback/gemiad'
     | '/api/public/feed-postback/ogads'
+    | '/api/public/feed-postback/torox'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -623,6 +634,7 @@ export interface FileRouteTypes {
     | '/api/public/feed-postback/adbluemedia'
     | '/api/public/feed-postback/gemiad'
     | '/api/public/feed-postback/ogads'
+    | '/api/public/feed-postback/torox'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   id:
@@ -678,6 +690,7 @@ export interface FileRouteTypes {
     | '/api/public/feed-postback/adbluemedia'
     | '/api/public/feed-postback/gemiad'
     | '/api/public/feed-postback/ogads'
+    | '/api/public/feed-postback/torox'
     | '/api/public/offer-postback/$offerId'
     | '/api/public/offerwall/$slug'
   fileRoutesById: FileRoutesById
@@ -704,6 +717,7 @@ export interface RootRouteChildren {
   ApiPublicFeedPostbackAdbluemediaRoute: typeof ApiPublicFeedPostbackAdbluemediaRoute
   ApiPublicFeedPostbackGemiadRoute: typeof ApiPublicFeedPostbackGemiadRoute
   ApiPublicFeedPostbackOgadsRoute: typeof ApiPublicFeedPostbackOgadsRoute
+  ApiPublicFeedPostbackToroxRoute: typeof ApiPublicFeedPostbackToroxRoute
   ApiPublicOfferPostbackOfferIdRoute: typeof ApiPublicOfferPostbackOfferIdRoute
   ApiPublicOfferwallSlugRoute: typeof ApiPublicOfferwallSlugRoute
 }
@@ -1067,6 +1081,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFeedPostbackOgadsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/feed-postback/torox': {
+      id: '/api/public/feed-postback/torox'
+      path: '/api/public/feed-postback/torox'
+      fullPath: '/api/public/feed-postback/torox'
+      preLoaderRoute: typeof ApiPublicFeedPostbackToroxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/offer-postback/$offerId': {
       id: '/api/public/offer-postback/$offerId'
       path: '/api/public/offer-postback/$offerId'
@@ -1177,6 +1198,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicFeedPostbackAdbluemediaRoute: ApiPublicFeedPostbackAdbluemediaRoute,
   ApiPublicFeedPostbackGemiadRoute: ApiPublicFeedPostbackGemiadRoute,
   ApiPublicFeedPostbackOgadsRoute: ApiPublicFeedPostbackOgadsRoute,
+  ApiPublicFeedPostbackToroxRoute: ApiPublicFeedPostbackToroxRoute,
   ApiPublicOfferPostbackOfferIdRoute: ApiPublicOfferPostbackOfferIdRoute,
   ApiPublicOfferwallSlugRoute: ApiPublicOfferwallSlugRoute,
 }
