@@ -7,6 +7,7 @@ import {
   Network,
   ShieldCheck,
   MessageSquare,
+  Timer,
   type LucideIcon,
 } from "lucide-react";
 
@@ -158,6 +159,16 @@ export const QUEST_ACCENTS: Record<QuestRow["quest_type"], QuestAccent> = {
     tileShadow: "rgba(2,132,199,0.32)",
     bar: "linear-gradient(90deg, #0EA5E9, #0284C7)",
   },
+  timed_ptc: {
+    label: "Timed PTC",
+    icon: Timer,
+    wash: "rgba(251,146,60,0.10)",
+    badgeBg: "rgba(251,146,60,0.12)",
+    badgeInk: "#9A3412",
+    tile: "linear-gradient(145deg, #FB923C 0%, #EA580C 100%)",
+    tileShadow: "rgba(234,88,12,0.32)",
+    bar: "linear-gradient(90deg, #FB923C, #EA580C)",
+  },
 };
 
 export const LOCKED_ACCENT: QuestAccent = {
@@ -201,7 +212,7 @@ export function deriveQuestView(
     // Survey quest: complete N surveys from allowed networks
     const total = Math.max(1, quest.required_surveys ?? 5);
     const progress = credited ? total : (active?.survey_completions_count ?? 0);
-    
+
     return {
       total,
       progress,
@@ -216,7 +227,7 @@ export function deriveQuestView(
     // Network quest: K completions from N providers
     const total = Math.max(1, quest.required_count ?? 3);
     const progress = credited ? total : (active?.network_completions?.length ?? 0);
-    
+
     return {
       total,
       progress,
@@ -227,26 +238,32 @@ export function deriveQuestView(
     };
   }
 
-  if (quest.quest_type === "feed_ptc" || quest.quest_type === "feed_shortlink" || quest.quest_type === "feed_article") {
+  if (
+    quest.quest_type === "feed_ptc" ||
+    quest.quest_type === "feed_shortlink" ||
+    quest.quest_type === "feed_article"
+  ) {
     // Feed quest: complete N sequential campaigns from dynamic feed
     const total = Math.max(1, quest.steps_count ?? 10);
     const progress = credited ? total : (active?.current_step ?? 0);
-    
-    const feedTypeName = quest.quest_type === "feed_ptc" 
-      ? "PTC campaign" 
-      : quest.quest_type === "feed_shortlink" 
-        ? "shortlink" 
-        : "article";
-    
+
+    const feedTypeName =
+      quest.quest_type === "feed_ptc"
+        ? "PTC campaign"
+        : quest.quest_type === "feed_shortlink"
+          ? "shortlink"
+          : "article";
+
     return {
       total,
       progress,
       remaining: Math.max(0, total - progress),
       nextStep: Math.min(progress + 1, total),
       progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
-      description: total === 1 
-        ? `Complete the ${feedTypeName} and get rewarded!`
-        : `Complete ${total} ${feedTypeName}s and get rewarded!`,
+      description:
+        total === 1
+          ? `Complete the ${feedTypeName} and get rewarded!`
+          : `Complete ${total} ${feedTypeName}s and get rewarded!`,
     };
   }
 
@@ -255,7 +272,7 @@ export function deriveQuestView(
     const total = Math.max(1, quest.total_days ?? 3);
     const completedDays = active?.checkin_days?.filter((d) => d.completed_at) ?? [];
     const progress = credited ? total : completedDays.length;
-    
+
     return {
       total,
       progress,
@@ -266,6 +283,24 @@ export function deriveQuestView(
         total === 1
           ? "Check in today and get rewarded!"
           : `Check in for ${total} days and build your streak!`,
+    };
+  }
+
+  if (quest.quest_type === "timed_ptc") {
+    // Timed PTC quest: sequential steps with timer + checkpoints
+    const total = Math.max(1, quest.timed_steps?.length ?? 1);
+    const progress = credited ? total : (active?.current_step ?? 0);
+
+    return {
+      total,
+      progress,
+      remaining: Math.max(0, total - progress),
+      nextStep: Math.min(progress + 1, total),
+      progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
+      description:
+        total === 1
+          ? "Complete the timed step and get rewarded!"
+          : `Complete ${total} timed steps and get rewarded!`,
     };
   }
 

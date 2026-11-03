@@ -56,6 +56,7 @@ import { Route as AuthenticatedAdvertiserEditIdRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdvertiserResultsIdRouteImport } from './routes/_authenticated/advertiser/results.$id'
 import { Route as AuthenticatedGoQuestKeyStepRouteImport } from './routes/_authenticated/go.$questKey.$step'
 import { Route as AuthenticatedGoLockerReturnRouteImport } from './routes/_authenticated/go.locker.return'
+import { Route as AuthenticatedTimedPtcQuestKeyStepRouteImport } from './routes/_authenticated/timed-ptc.$questKey.$step'
 import { Route as ApiPublicFeedPostbackAdbluemediaRouteImport } from './routes/api/public/feed-postback.adbluemedia'
 import { Route as ApiPublicFeedPostbackGemiadRouteImport } from './routes/api/public/feed-postback.gemiad'
 import { Route as ApiPublicFeedPostbackOgadsRouteImport } from './routes/api/public/feed-postback.ogads'
@@ -315,6 +316,12 @@ const AuthenticatedGoLockerReturnRoute =
     path: '/go/locker/return',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTimedPtcQuestKeyStepRoute =
+  AuthenticatedTimedPtcQuestKeyStepRouteImport.update({
+    id: '/timed-ptc/$questKey/$step',
+    path: '/timed-ptc/$questKey/$step',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicFeedPostbackAdbluemediaRoute =
   ApiPublicFeedPostbackAdbluemediaRouteImport.update({
     id: '/api/public/feed-postback/adbluemedia',
@@ -392,6 +399,7 @@ export interface FileRoutesByFullPath {
   '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
+  '/timed-ptc/$questKey/$step': typeof AuthenticatedTimedPtcQuestKeyStepRoute
   '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
   '/api/public/feed-postback/gemiad': typeof ApiPublicFeedPostbackGemiadRoute
   '/api/public/feed-postback/ogads': typeof ApiPublicFeedPostbackOgadsRoute
@@ -445,6 +453,7 @@ export interface FileRoutesByTo {
   '/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
+  '/timed-ptc/$questKey/$step': typeof AuthenticatedTimedPtcQuestKeyStepRoute
   '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
   '/api/public/feed-postback/gemiad': typeof ApiPublicFeedPostbackGemiadRoute
   '/api/public/feed-postback/ogads': typeof ApiPublicFeedPostbackOgadsRoute
@@ -500,6 +509,7 @@ export interface FileRoutesById {
   '/_authenticated/advertiser/results/$id': typeof AuthenticatedAdvertiserResultsIdRoute
   '/_authenticated/go/$questKey/$step': typeof AuthenticatedGoQuestKeyStepRoute
   '/_authenticated/go/locker/return': typeof AuthenticatedGoLockerReturnRoute
+  '/_authenticated/timed-ptc/$questKey/$step': typeof AuthenticatedTimedPtcQuestKeyStepRoute
   '/api/public/feed-postback/adbluemedia': typeof ApiPublicFeedPostbackAdbluemediaRoute
   '/api/public/feed-postback/gemiad': typeof ApiPublicFeedPostbackGemiadRoute
   '/api/public/feed-postback/ogads': typeof ApiPublicFeedPostbackOgadsRoute
@@ -555,6 +565,7 @@ export interface FileRouteTypes {
     | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
+    | '/timed-ptc/$questKey/$step'
     | '/api/public/feed-postback/adbluemedia'
     | '/api/public/feed-postback/gemiad'
     | '/api/public/feed-postback/ogads'
@@ -608,6 +619,7 @@ export interface FileRouteTypes {
     | '/advertiser/results/$id'
     | '/go/$questKey/$step'
     | '/go/locker/return'
+    | '/timed-ptc/$questKey/$step'
     | '/api/public/feed-postback/adbluemedia'
     | '/api/public/feed-postback/gemiad'
     | '/api/public/feed-postback/ogads'
@@ -662,6 +674,7 @@ export interface FileRouteTypes {
     | '/_authenticated/advertiser/results/$id'
     | '/_authenticated/go/$questKey/$step'
     | '/_authenticated/go/locker/return'
+    | '/_authenticated/timed-ptc/$questKey/$step'
     | '/api/public/feed-postback/adbluemedia'
     | '/api/public/feed-postback/gemiad'
     | '/api/public/feed-postback/ogads'
@@ -1026,6 +1039,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGoLockerReturnRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/timed-ptc/$questKey/$step': {
+      id: '/_authenticated/timed-ptc/$questKey/$step'
+      path: '/timed-ptc/$questKey/$step'
+      fullPath: '/timed-ptc/$questKey/$step'
+      preLoaderRoute: typeof AuthenticatedTimedPtcQuestKeyStepRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/feed-postback/adbluemedia': {
       id: '/api/public/feed-postback/adbluemedia'
       path: '/api/public/feed-postback/adbluemedia'
@@ -1094,6 +1114,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdvertiserResultsIdRoute: typeof AuthenticatedAdvertiserResultsIdRoute
   AuthenticatedGoQuestKeyStepRoute: typeof AuthenticatedGoQuestKeyStepRoute
   AuthenticatedGoLockerReturnRoute: typeof AuthenticatedGoLockerReturnRoute
+  AuthenticatedTimedPtcQuestKeyStepRoute: typeof AuthenticatedTimedPtcQuestKeyStepRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1127,6 +1148,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdvertiserResultsIdRoute: AuthenticatedAdvertiserResultsIdRoute,
   AuthenticatedGoQuestKeyStepRoute: AuthenticatedGoQuestKeyStepRoute,
   AuthenticatedGoLockerReturnRoute: AuthenticatedGoLockerReturnRoute,
+  AuthenticatedTimedPtcQuestKeyStepRoute:
+    AuthenticatedTimedPtcQuestKeyStepRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

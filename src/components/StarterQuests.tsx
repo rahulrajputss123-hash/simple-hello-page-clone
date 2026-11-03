@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -10,12 +11,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { playRewardedAd } from "@/lib/ads";
 import { reportAdWatched, startQuest } from "@/lib/coinquest.functions";
-import { 
-  listActiveQuests, 
-  startLockerQuest, 
+import {
+  listActiveQuests,
+  startLockerQuest,
   startShortlinkStep,
   ensureCheckinSession,
-  updateUserTimezone
+  updateUserTimezone,
 } from "@/lib/quests.functions";
 import { formatLockReason } from "@/lib/lock-state";
 import { isNativePlatform } from "@/lib/platform";
@@ -28,6 +29,7 @@ const QuestDetailsDialog = lazy(() =>
 export function StarterQuests() {
   const { session } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [busy, setBusy] = useState<string | null>(null);
   /** Quest awaiting confirmation in the details dialog. Nothing external runs until Continue. */
   const [pendingQuest, setPendingQuest] = useState<QuestCardQuest | null>(null);
@@ -51,10 +53,12 @@ export function StarterQuests() {
     queryFn: async () => {
       const { data } = await supabase
         .from("quest_sessions")
-        .select(`
+        .select(
+          `
           *,
           checkin_days:quest_checkin_days(local_date, active_seconds, completed_at)
-        `)
+        `,
+        )
         .order("started_at", { ascending: false });
       return (data ?? []) as unknown as QuestSessionView[];
     },
@@ -84,7 +88,7 @@ export function StarterQuests() {
 
     const initializeCheckinSessions = async () => {
       const checkinQuests = quests.data.filter((q) => q.quest_type === "checkin");
-      
+
       for (const quest of checkinQuests) {
         try {
           await ensureSession({ questKey: quest.key });
@@ -104,17 +108,17 @@ export function StarterQuests() {
     mutationFn: async (questKey: string) => {
       const questSession = await start({ data: { questKey } });
       const result = await playRewardedAd();
-      
+
       // If no ad SDK is available, don't proceed
       if (!result.completed) {
         throw new Error("ADS_NOT_AVAILABLE");
       }
-      
-      return report({ 
-        data: { 
+
+      return report({
+        data: {
           sessionId: (questSession as { id: string }).id,
-          provider: result.provider
-        } 
+          provider: result.provider,
+        },
       });
     },
     onSuccess: (result: unknown) => {
@@ -227,7 +231,14 @@ export function StarterQuests() {
     if (Boolean(q.is_locked) || credited) return;
 
     setBusy(q.key);
-    if (q.quest_type === "shortlink") {
+    if (q.quest_type === "timed_ptc") {
+      // Navigate to timed PTC page
+      navigate({
+        to: "/timed-ptc/$questKey/$step",
+        params: { questKey: q.key, step: String(nextStep) },
+      });
+      setPendingQuest(null);
+    } else if (q.quest_type === "shortlink") {
       runShortlink.mutate({ questKey: q.key, step: nextStep });
     } else if (q.quest_type === "locker") {
       runLocker.mutate(q.key);
@@ -272,30 +283,38 @@ export function StarterQuests() {
         className="stagger-children flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-3 pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         data-testid="starter-quests-scroll"
       >
-        {quests.data.map((quest) => {
-          const q = quest as QuestCardQuest;
-          const isLocked: boolean = Boolean(q.is_locked);
-          const unlockReason = q.unlock_reason ?? null;
+        {quests.data
+          .filter((quest) => {
+            // Hide timed_ptc quests from native app
+            if (quest.quest_type === "timed_ptc" && isNativePlatform()) {
+              return false;
+            }
+            return true;
+          })
+          .map((quest) => {
+            const q = quest as QuestCardQuest;
+            const isLocked: boolean = Boolean(q.is_locked);
+            const unlockReason = q.unlock_reason ?? null;
 
-          // Shared formatter so Quest cards and the Task list word locks identically.
-          const lockLabel = isLocked ? formatLockReason(unlockReason) : null;
+            // Shared formatter so Quest cards and the Task list word locks identically.
+            const lockLabel = isLocked ? formatLockReason(unlockReason) : null;
 
-          const { active, credited } = questRuntime(q);
-          const isBusy = busy === quest.key;
+            const { active, credited } = questRuntime(q);
+            const isBusy = busy === quest.key;
 
-          return (
-            <QuestCard
-              key={quest.key}
-              quest={q}
-              active={active}
-              credited={Boolean(credited)}
-              busy={isBusy}
-              lockLabel={lockLabel}
-              onLocked={createLockedHandler(lockLabel)}
-              onOpenDetails={createOpenDetailsHandler(quest.key)}
-            />
-          );
-        })}
+            return (
+              <QuestCard
+                key={quest.key}
+                quest={q}
+                active={active}
+                credited={Boolean(credited)}
+                busy={isBusy}
+                lockLabel={lockLabel}
+                onLocked={createLockedHandler(lockLabel)}
+                onOpenDetails={createOpenDetailsHandler(quest.key)}
+              />
+            );
+          })}
       </div>
 
       {pendingQuest && (

@@ -56,6 +56,7 @@ export function useAuthForm({
   const [googleBusy, setGoogleBusy] = useState(false);
   const [name, setName] = useState("");
   const [referralCode, setReferralCode] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const { session } = useAuth();
   const navigate = useNavigate();
 
@@ -77,6 +78,12 @@ export function useAuthForm({
   }, [session, navigate]);
 
   const signInWithGoogle = async () => {
+    // Enforce terms acceptance in signup mode
+    if (mode === "signup" && !termsAccepted) {
+      toast.error("Please accept the Terms and Privacy Policy to continue");
+      return;
+    }
+
     setGoogleBusy(true);
     try {
       // Persist the referral code before leaving the page: the OAuth round-trip
@@ -101,6 +108,13 @@ export function useAuthForm({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    
+    // Enforce terms acceptance in signup mode
+    if (mode === "signup" && !termsAccepted) {
+      toast.error("Please accept the Terms and Privacy Policy to continue");
+      return;
+    }
+
     const form = new FormData(event.currentTarget);
     const raw = {
       email: String(form.get("email") ?? ""),
@@ -178,6 +192,8 @@ export function useAuthForm({
     setName,
     referralCode,
     setReferralCode,
+    termsAccepted,
+    setTermsAccepted,
     submit,
     signInWithGoogle,
   };

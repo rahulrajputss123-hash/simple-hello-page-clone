@@ -86,12 +86,48 @@ export function AuthCard({ auth, id = "auth" }: { auth: AuthFormApi; id?: string
           </p>
         )}
 
+        {signup && (
+          <div className="flex items-start gap-2.5 pt-1">
+            <input
+              type="checkbox"
+              id="landing-terms-checkbox"
+              checked={auth.termsAccepted}
+              onChange={(e) => auth.setTermsAccepted(e.target.checked)}
+              className="mt-0.5 h-[18px] w-[18px] min-h-[44px] min-w-[44px] cursor-pointer rounded border-input accent-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:h-4 sm:w-4 sm:min-h-0 sm:min-w-0"
+              data-testid="landing-terms-checkbox"
+            />
+            <label
+              htmlFor="landing-terms-checkbox"
+              className="cursor-pointer select-none text-xs leading-relaxed text-muted-foreground"
+            >
+              I agree to the{" "}
+              <a
+                href="/legal/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+              >
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a
+                href="/legal/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+              >
+                Privacy Policy
+              </a>
+            </label>
+          </div>
+        )}
+
         <Button
           type="submit"
           variant="gold"
           size="lg"
           className="mt-1 w-full"
-          disabled={disabled}
+          disabled={signup ? disabled || !auth.termsAccepted : disabled}
           data-testid="landing-auth-submit"
         >
           {busy
@@ -126,7 +162,7 @@ export function AuthCard({ auth, id = "auth" }: { auth: AuthFormApi; id?: string
         variant="outline"
         size="lg"
         className="mt-3 w-full gap-2.5 bg-card"
-        disabled={disabled}
+        disabled={signup ? disabled || !auth.termsAccepted : disabled}
         data-testid="landing-google-btn"
         onClick={() => void auth.signInWithGoogle()}
       >

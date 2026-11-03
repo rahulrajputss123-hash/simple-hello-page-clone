@@ -76,7 +76,7 @@ function AuthPage() {
             variant="outline"
             size="lg"
             className="w-full gap-2.5 bg-card"
-            disabled={disabled}
+            disabled={mode === "signup" ? disabled || !auth.termsAccepted : disabled}
             data-testid="auth-google-btn"
             onClick={() => void auth.signInWithGoogle()}
           >
@@ -159,12 +159,48 @@ function AuthPage() {
             </div>
           )}
 
+          {mode === "signup" && (
+            <div className="auth-fade-slide flex items-start gap-2.5 pt-1">
+              <input
+                type="checkbox"
+                id="terms-checkbox"
+                checked={auth.termsAccepted}
+                onChange={(e) => auth.setTermsAccepted(e.target.checked)}
+                className="mt-0.5 h-[18px] w-[18px] min-h-[44px] min-w-[44px] cursor-pointer rounded border-input accent-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:h-4 sm:w-4 sm:min-h-0 sm:min-w-0"
+                data-testid="auth-terms-checkbox"
+              />
+              <label
+                htmlFor="terms-checkbox"
+                className="cursor-pointer select-none text-xs leading-relaxed text-muted-foreground"
+              >
+                I agree to the{" "}
+                <a
+                  href="/legal/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+                >
+                  Terms of Service
+                </a>{" "}
+                and{" "}
+                <a
+                  href="/legal/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+                >
+                  Privacy Policy
+                </a>
+              </label>
+            </div>
+          )}
+
           <Button
             type="submit"
             variant="jade"
             size="lg"
             className="mt-1 w-full shadow-lift"
-            disabled={disabled}
+            disabled={mode === "signup" ? disabled || !auth.termsAccepted : disabled}
             data-testid="auth-submit-btn"
           >
             {busy
@@ -187,7 +223,28 @@ function AuthPage() {
         </form>
 
         <p className="mt-4 text-center text-[11px] text-muted-foreground">
-          By continuing you agree to our terms & privacy policy.
+          {mode === "signin" ? (
+            <>
+              By continuing you agree to our{" "}
+              <a
+                href="/legal/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+              >
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a
+                href="/legal/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+              >
+                Privacy Policy
+              </a>
+            </>
+          ) : null}
         </p>
       </div>
     </main>
