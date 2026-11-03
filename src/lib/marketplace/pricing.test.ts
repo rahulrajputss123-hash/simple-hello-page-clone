@@ -108,19 +108,19 @@ const totals = campaignTotals({
 
 // Sufficient funds
 assert(
-  hasSufficientFunds(15.0, 10.0, totals),
-  "Should have sufficient funds (15 deposit + 10 bonus >= 22 total, 15 deposit >= 14.50 fees)",
+  hasSufficientFunds({ spendable: 25.0, deposit: 15.0, totals }),
+  "Should have sufficient funds (25 spendable >= 22 total, 15 deposit >= 14.50 fees)",
 );
 
 // Insufficient deposit for fees (even though spendable is enough)
 assert(
-  !hasSufficientFunds(10.0, 15.0, totals),
+  !hasSufficientFunds({ spendable: 25.0, deposit: 10.0, totals }),
   "Should NOT have sufficient funds (deposit 10 < fees 14.50)",
 );
 
 // Insufficient total
 assert(
-  !hasSufficientFunds(15.0, 5.0, totals),
+  !hasSufficientFunds({ spendable: 20.0, deposit: 15.0, totals }),
   "Should NOT have sufficient funds (spendable 20 < total 22)",
 );
 

@@ -451,6 +451,21 @@ export async function getQuestByKey(key: string): Promise<QuestRow> {
  * Credits the reward for completing a quest step (shortlink or locker).
  * Idempotent via quest_step_credits unique constraint.
  * Returns the amount credited (0 if already credited or if step_reward is 0).
+ * 
+ * RECONCILIATION: Find orphaned claims (claim without matching wallet transaction):
+ * 
+ * SELECT qsc.id, qsc.user_id, qsc.quest_key, qsc.step_index, qsc.amount, qsc.created_at
+ * FROM quest_step_credits qsc
+ * LEFT JOIN wallet_transactions wt
+ *   ON wt.reference_id = CONCAT('quest_step_', qsc.session_id, '_', qsc.step_index)
+ *   AND wt.user_id = qsc.user_id
+ *   AND wt.transaction_type = 'earned'
+ * WHERE wt.id IS NULL
+ *   AND qsc.amount > 0
+ * ORDER BY qsc.created_at DESC;
+ * 
+ * These rows indicate a crash occurred between claim insert and wallet credit.
+ * To reconcile: manually credit the wallet or delete the orphaned claim row.
  */
 export async function creditStepReward(
   userId: string,

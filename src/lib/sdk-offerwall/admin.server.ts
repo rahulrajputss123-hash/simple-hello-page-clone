@@ -221,9 +221,6 @@ export async function listSdkConversionsImpl(input: {
  * Signature format: HMAC-SHA256(secret, "offerwall-user-v1\n{apiKey}\n{userId}\n{expires}")
  */
 export async function getOfferwallMeSignedUrlImpl(userId: string): Promise<string> {
-  console.log("[offerwallme] Starting signed URL generation");
-  console.log("[offerwallme] Environment check - has OFFERWALLME_SECRET_KEY:", Boolean(process.env["OFFERWALLME_SECRET_KEY"]));
-  
   // Read the app_id (API key) from the offerwallme provider row
   const { data: provider, error: providerError } = await supabaseAdmin
     .from("sdk_offerwall_providers")
@@ -232,26 +229,19 @@ export async function getOfferwallMeSignedUrlImpl(userId: string): Promise<strin
     .maybeSingle();
 
   if (providerError) {
-    console.error("[offerwallme] Database error:", providerError);
     throw providerError;
   }
   if (!provider?.app_id) {
-    console.error("[offerwallme] Provider not found or missing app_id");
     throw new Error("offerwall.me provider not configured (missing app_id)");
   }
 
   const apiKey = provider.app_id.trim();
-  console.log("[offerwallme] Found API key:", apiKey.substring(0, 8) + "...");
 
   // Read the secret from environment (server-only)
   const secret = process.env["OFFERWALLME_SECRET_KEY"]?.trim();
   if (!secret) {
-    console.error("[offerwallme] Environment variables available:", Object.keys(process.env).filter(k => k.includes("OFFERWALL") || k.includes("SECRET")).join(", "));
     throw new Error("Environment variable OFFERWALLME_SECRET_KEY is not configured");
   }
-
-  console.log("[offerwallme] Secret found, length:", secret.length);
-  console.log("[offerwallme] Generating signed URL for user:", userId.substring(0, 8) + "...");
 
   // Generate expiry (1 hour from now)
   const expires = Math.floor(Date.now() / 1000) + 3600;
@@ -275,9 +265,6 @@ export async function getOfferwallMeSignedUrlImpl(userId: string): Promise<strin
  * Signature format: base64(HMAC-SHA1(secret, urlBeforeHash)), URL-safe encoding
  */
 export async function getTheoremReachSignedUrlImpl(userId: string): Promise<string> {
-  console.log("[theoremreach] Starting signed URL generation");
-  console.log("[theoremreach] Environment check - has THEOREMREACH_SECRET_KEY:", Boolean(process.env["THEOREMREACH_SECRET_KEY"]));
-  
   // Read the app_id (API key) from the theoremreach provider row
   const { data: provider, error: providerError } = await supabaseAdmin
     .from("sdk_offerwall_providers")
@@ -290,22 +277,16 @@ export async function getTheoremReachSignedUrlImpl(userId: string): Promise<stri
     throw providerError;
   }
   if (!provider?.app_id) {
-    console.error("[theoremreach] Provider not found or missing app_id");
     throw new Error("TheoremReach provider not configured (missing app_id)");
   }
 
   const apiKey = provider.app_id.trim();
-  console.log("[theoremreach] Found API key:", apiKey.substring(0, 8) + "...");
 
   // Read the secret from environment (server-only)
   const secret = process.env["THEOREMREACH_SECRET_KEY"]?.trim();
   if (!secret) {
-    console.error("[theoremreach] Environment variables available:", Object.keys(process.env).filter(k => k.includes("THEOREM") || k.includes("SECRET")).join(", "));
     throw new Error("Environment variable THEOREMREACH_SECRET_KEY is not configured");
   }
-
-  console.log("[theoremreach] Secret found, length:", secret.length);
-  console.log("[theoremreach] Generating signed URL for user:", userId.substring(0, 8) + "...");
 
   // Build the base URL with parameters (before hash)
   const baseUrl = `https://theoremreach.com/respondent_entry/direct?api_key=${encodeURIComponent(apiKey)}&user_id=${encodeURIComponent(userId)}`;
