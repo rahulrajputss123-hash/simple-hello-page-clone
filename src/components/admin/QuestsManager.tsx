@@ -475,13 +475,73 @@ export function QuestsManager() {
     (form.questType === "ads"
       ? Number(form.adsRequired) > 0
       : form.questType === "locker"
-        ? // Zero URLs is a valid draft; only the upper bound is a real error.
-          filledLockerUrls.length <= LOCKER_MAX_URLS
-        : form.shortlinkSteps.length <= SHORTLINK_MAX_STEPS &&
-          // Any row that has been started must be finished.
-          form.shortlinkSteps.every(
-            (s) => (!s.network.trim() && !s.url.trim()) || (s.network.trim() && s.url.trim()),
-          ));
+        ? filledLockerUrls.length <= LOCKER_MAX_URLS
+        : form.questType === "shortlink"
+          ? form.shortlinkSteps.length <= SHORTLINK_MAX_STEPS &&
+            form.shortlinkSteps.every(
+              (s) => (!s.network.trim() && !s.url.trim()) || (s.network.trim() && s.url.trim()),
+            )
+          : form.questType === "checkin"
+            ? Number(form.totalDays) > 0 && Number(form.totalDays) <= 365
+            : form.questType === "network"
+              ? form.networkProviderIds.length > 0 && Number(form.requiredCount) > 0
+              : form.questType === "survey"
+                ? form.allowedNetworks.length > 0 && Number(form.requiredSurveys) > 0
+                : form.questType === "timed_ptc"
+                  ? form.timedSteps.length > 0 &&
+                    form.timedSteps.every((s) => Number(s.reward) > 0)
+                  : form.questType === "feed_ptc" ||
+                      form.questType === "feed_shortlink" ||
+                      form.questType === "feed_article"
+                    ? form.feedProviderIds.length > 0 && Number(form.stepsCount) > 0
+                    : true);
+
+  const saveValidationReason = !form
+    ? "No quest selected"
+    : form.key.trim().length < 2
+      ? "Quest key must be at least 2 characters"
+      : form.label.trim().length < 1
+        ? "Quest label is required"
+        : form.questType === "ads" && Number(form.adsRequired) <= 0
+          ? "Ads required must be greater than 0"
+          : form.questType === "locker" && filledLockerUrls.length > LOCKER_MAX_URLS
+            ? `Cannot have more than ${LOCKER_MAX_URLS} locker URLs`
+            : form.questType === "shortlink" && form.shortlinkSteps.length > SHORTLINK_MAX_STEPS
+              ? `Cannot have more than ${SHORTLINK_MAX_STEPS} shortlink steps`
+              : form.questType === "shortlink" &&
+                  !form.shortlinkSteps.every(
+                    (s) =>
+                      (!s.network.trim() && !s.url.trim()) || (s.network.trim() && s.url.trim()),
+                  )
+                ? "All shortlink steps must be complete (network + URL) or empty"
+                : form.questType === "checkin" && Number(form.totalDays) <= 0
+                  ? "Check-in quest must have at least 1 day"
+                  : form.questType === "checkin" && Number(form.totalDays) > 365
+                    ? "Check-in quest cannot exceed 365 days"
+                    : form.questType === "network" && form.networkProviderIds.length === 0
+                      ? "Network quest must have at least one provider selected"
+                      : form.questType === "network" && Number(form.requiredCount) <= 0
+                        ? "Network quest must require at least 1 completion"
+                        : form.questType === "survey" && form.allowedNetworks.length === 0
+                          ? "Survey quest must have at least one network selected"
+                          : form.questType === "survey" && Number(form.requiredSurveys) <= 0
+                            ? "Survey quest must require at least 1 survey"
+                            : form.questType === "timed_ptc" && form.timedSteps.length === 0
+                              ? "Timed PTC quest must have at least one step"
+                              : form.questType === "timed_ptc" &&
+                                  !form.timedSteps.every((s) => Number(s.reward) > 0)
+                                ? "All timed PTC steps must have a reward > 0"
+                                : (form.questType === "feed_ptc" ||
+                                      form.questType === "feed_shortlink" ||
+                                      form.questType === "feed_article") &&
+                                    form.feedProviderIds.length === 0
+                                  ? "Feed quest must have at least one provider selected"
+                                  : (form.questType === "feed_ptc" ||
+                                        form.questType === "feed_shortlink" ||
+                                        form.questType === "feed_article") &&
+                                      Number(form.stepsCount) <= 0
+                                    ? "Feed quest must have at least 1 step"
+                                    : "";
 
   const origin = typeof window !== "undefined" ? window.location.origin : "https://yourapp.com";
 
@@ -657,7 +717,9 @@ export function QuestsManager() {
                       const baseReward = Number(form.stepReward) || 0;
                       const customRewards = form.stepRewards
                         .split(",")
-                        .map((s) => Number(s.trim()))
+                        .map((s) => s.trim())
+                        .filter((s) => s !== "")
+                        .map((s) => Number(s))
                         .filter((n) => !isNaN(n));
                       const stepRewards = Array.from({ length: stepCount }, (_, i) =>
                         customRewards[i] !== undefined ? customRewards[i] : baseReward,
@@ -849,6 +911,42 @@ export function QuestsManager() {
                         Used for users without a timezone set
                       </p>
                     </Field>
+
+                    {(() => {
+                      const totalDays = Number(form.totalDays) || 0;
+                      const baseReward = Number(form.stepReward) || 0;
+                      const customRewards = form.stepRewards
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter((s) => s !== "")
+                        .map((s) => Number(s))
+                        .filter((n) => !isNaN(n));
+                      const dayRewards = Array.from({ length: totalDays }, (_, i) =>
+                        customRewards[i] !== undefined ? customRewards[i] : baseReward,
+                      );
+                      const totalStepRewards = dayRewards.reduce((sum, r) => sum + r, 0);
+                      const completionBonus = Number(form.rewardAmount) || 0;
+                      const totalPayout = totalStepRewards + completionBonus;
+
+                      return (
+                        <div className="rounded-lg bg-background p-2 text-xs">
+                          <p className="font-semibold">Reward breakdown:</p>
+                          <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                            {dayRewards.map((r, i) => (
+                              <li key={i}>
+                                Day {i + 1}: {formatReward(r)}
+                              </li>
+                            ))}
+                            {completionBonus > 0 && (
+                              <li>Completion bonus: {formatReward(completionBonus)}</li>
+                            )}
+                            <li className="font-semibold text-primary">
+                              Total: {formatReward(totalPayout)}
+                            </li>
+                          </ul>
+                        </div>
+                      );
+                    })()}
 
                     <div className="space-y-2">
                       <label className="flex items-center gap-2">
@@ -1202,6 +1300,21 @@ export function QuestsManager() {
                       </Field>
                     </div>
 
+                    <Field label="Custom reward per survey (optional)">
+                      <Input
+                        inputMode="decimal"
+                        value={form.stepRewards}
+                        placeholder="0.10, 0.15, 0.20, 0.25, 0.30"
+                        onChange={(event) =>
+                          setForm({ ...form, stepRewards: event.target.value })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Optional: comma-separated rewards for each survey. Surveys without custom
+                        value use the default step reward above.
+                      </p>
+                    </Field>
+
                     <Field label="Allowed survey networks">
                       <div className="space-y-2">
                         {[
@@ -1287,8 +1400,17 @@ export function QuestsManager() {
 
                     {(() => {
                       const requiredSurveys = Number(form.requiredSurveys) || 5;
-                      const stepReward = Number(form.stepReward) || 0;
-                      const totalStepRewards = requiredSurveys * stepReward;
+                      const baseReward = Number(form.stepReward) || 0;
+                      const customRewards = form.stepRewards
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter((s) => s !== "")
+                        .map((s) => Number(s))
+                        .filter((n) => !isNaN(n));
+                      const surveyRewards = Array.from({ length: requiredSurveys }, (_, i) =>
+                        customRewards[i] !== undefined ? customRewards[i] : baseReward,
+                      );
+                      const totalStepRewards = surveyRewards.reduce((sum, r) => sum + r, 0);
                       const completionBonus = Number(form.rewardAmount) || 0;
                       const totalQuestRewards = totalStepRewards + completionBonus;
 
@@ -1296,9 +1418,13 @@ export function QuestsManager() {
                         <div className="rounded-lg bg-background p-3 border text-xs">
                           <p className="font-semibold">Quest reward breakdown:</p>
                           <ul className="mt-2 space-y-1 text-muted-foreground">
-                            <li>
-                              Step rewards: {requiredSurveys} surveys × {formatReward(stepReward)} ={" "}
-                              {formatReward(totalStepRewards)}
+                            {surveyRewards.map((r, i) => (
+                              <li key={i}>
+                                Survey {i + 1} reward: {formatReward(r)}
+                              </li>
+                            ))}
+                            <li className="pt-1 border-t mt-1">
+                              Step rewards total: {formatReward(totalStepRewards)}
                             </li>
                             <li>Completion bonus: {formatReward(completionBonus)}</li>
                             <li className="font-semibold text-primary pt-1 border-t mt-1">
@@ -1853,6 +1979,11 @@ export function QuestsManager() {
                   {saveAction.isPending ? "Saving…" : "Save quest"}
                 </Button>
               </DialogFooter>
+              {!canSave && saveValidationReason && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 px-6 pb-3">
+                  ⚠️ {saveValidationReason}
+                </p>
+              )}
             </>
           )}
         </DialogContent>

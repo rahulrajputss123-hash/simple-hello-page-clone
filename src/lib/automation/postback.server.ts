@@ -851,7 +851,7 @@ async function processSurveyQuestProgress(params: {
   // Find active survey quest sessions for this user
   const { data: sessions } = await db
     .from("quest_sessions")
-    .select("id, quest_key, quests!inner(quest_type, label, required_surveys, step_reward, reward_amount, allowed_networks, min_payout_usd)")
+    .select("id, quest_key, quests!inner(quest_type, label, required_surveys, step_reward, step_rewards, reward_amount, allowed_networks, min_payout_usd)")
     .eq("user_id", userId)
     .eq("status", "started")
     .eq("quests.quest_type", "survey");
@@ -937,7 +937,10 @@ async function processSurveyQuestProgress(params: {
     }
 
     // Credit step reward with metadata for deduplication
-    const stepRewardAmount = Number(quest.step_reward ?? 0);
+    // Support custom per-survey rewards (step_rewards[i]) with fallback to step_reward
+    const stepRewards = Array.isArray(quest.step_rewards) ? quest.step_rewards : [];
+    const stepRewardAmount = stepRewards[nextStepIndex - 1] ?? Number(quest.step_reward ?? 0);
+    
     const { creditStepReward } = await import("../quests.server");
     
     try {
