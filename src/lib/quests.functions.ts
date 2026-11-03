@@ -557,8 +557,8 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
       countryCode,
       userAgent,
       allowedNetworks: quest.allowed_networks as ("cpxresearch" | "theoremreach" | "timewall")[],
-      minPayoutUsd: quest.min_payout_usd || undefined,
-      maxLoi: quest.max_loi || undefined,
+      minPayoutUsd: quest.min_payout_usd ?? undefined,
+      maxLoi: quest.max_loi ?? undefined,
     });
 
     return { surveys };
