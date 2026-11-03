@@ -80,6 +80,11 @@ async function handle(request: Request, slug: string) {
     const okText = result.ok || result.status === "duplicate" ? "ok" : "error";
     return new Response(okText, { status, headers: { "Content-Type": "text/plain" } });
   }
+  if (slug === "torox") {
+    // Torox requires "1" for success/duplicate, "0" for failure
+    const body = result.ok || result.status === "duplicate" ? "1" : "0";
+    return new Response(body, { status: 200, headers: { "Content-Type": "text/plain" } });
+  }
   return Response.json(result, { status });
 }
 

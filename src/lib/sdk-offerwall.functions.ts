@@ -176,3 +176,14 @@ export const getTheoremReachSignedUrl = createServerFn({ method: "POST" })
     const { getTheoremReachSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
     return getTheoremReachSignedUrlImpl(context.userId);
   });
+
+/**
+ * Generate a signed wall URL for Torox by calling their session endpoint.
+ * Uses the authenticated user ID from context (never accepts userId from client).
+ */
+export const getToroxWallUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { getToroxWallUrlImpl } = await import("./sdk-offerwall/admin.server");
+    return getToroxWallUrlImpl(context.userId);
+  });

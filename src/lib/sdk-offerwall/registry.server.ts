@@ -7,6 +7,7 @@ import offerwallMeSdkAdapter from "./adapters/offerwallme.server";
 import revtooSdkAdapter from "./adapters/revtoo.server";
 import theoremreachSdkAdapter from "./adapters/theoremreach.server";
 import timewallSdkAdapter from "./adapters/timewall.server";
+import toroxSdkAdapter from "./adapters/torox.server";
 import type { SdkOfferwallAdapter } from "./types";
 
 /**
@@ -37,3 +38,4 @@ registerSdkAdapter(mooffersSdkAdapter);
 registerSdkAdapter(timewallSdkAdapter);
 registerSdkAdapter(theoremreachSdkAdapter);
 registerSdkAdapter(gemiAdSdkAdapter);
+registerSdkAdapter(toroxSdkAdapter);
