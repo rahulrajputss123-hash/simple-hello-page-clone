@@ -4,6 +4,7 @@ import { affikeAdapter } from "./adapters/affike.server";
 import { gemiAdAdapter } from "./adapters/gemiad.server";
 import { ogAdsAdapter } from "./adapters/ogads.server";
 import revtooAdapter from "./adapters/revtoo.server";
+import { toroxAdapter } from "./adapters/torox.server";
 import type { OfferProviderAdapter } from "./provider-types";
 
 /**
@@ -31,3 +32,4 @@ registerAdapter(affikeAdapter);
 registerAdapter(adswedMediaAdapter);
 registerAdapter(revtooAdapter);
 registerAdapter(gemiAdAdapter);
+registerAdapter(toroxAdapter);

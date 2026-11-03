@@ -11,7 +11,7 @@ export type SdkRoundingMode = "floor" | "ceil" | "nearest";
 export type SdkIdentityMode = "user_uuid" | "hashed_uuid" | "referral_code" | "custom";
 export type SdkDedupeStrategy = "transaction_id" | "transaction_id_and_user" | "payload_hash";
 export type SdkPostbackAuthMode = "none" | "signature" | "ip_allowlist" | "signature_and_ip";
-export type SdkConversionStatus = "pending" | "credited" | "rejected" | "duplicate" | "reversed";
+export type SdkConversionStatus = "pending" | "credited" | "rejected" | "duplicate" | "reversed" | "test";
 
 /** JSON-serializable config blob (safe to cross the server-fn boundary). */
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
@@ -155,6 +155,8 @@ export type NormalizedSdkConversion = {
   providerOfferId?: string | undefined;
   currencyAmount: number;
   raw: JsonObject;
+  /** If true, this is a test callback (debug=true) that should not credit any user. */
+  testOnly?: boolean | undefined;
 };
 
 /** Provider currency -> USD wallet amount. Pure helper; no wallet writes here. */

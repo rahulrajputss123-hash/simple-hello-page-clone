@@ -1,4 +1,5 @@
 import { REVTOO_USER_ID_PLACEHOLDER } from "./adapters/revtoo.server";
+import { TOROX_CLICK_URL_SENTINEL } from "./adapters/torox.server";
 
 /**
  * Client-side per-user tracking for offer click URLs.
@@ -19,6 +20,10 @@ import { REVTOO_USER_ID_PLACEHOLDER } from "./adapters/revtoo.server";
  * identifier. We replace or append s1=userId in the click URL so postbacks
  * can credit the correct user.
  *
+ * Torox (`torox`) click URLs must be generated per-user at click time via the
+ * Torox Partner API. The cached offer stores a sentinel `torox://campaign/{id}`.
+ * This is handled by getToroxClickUrl server function in useOfferActions, NOT here.
+ *
  * Other providers' URLs are returned unchanged.
  */
 export function appendAffSub4(
@@ -27,6 +32,14 @@ export function appendAffSub4(
   userId: string | null | undefined,
   externalOfferId?: string | null,
 ): string | null {
+  // Torox: sentinel pattern, handled in useOfferActions via getToroxClickUrl
+  if (providerSlug === "torox") {
+    // This function should never be called with torox URLs in production,
+    // but return null to be safe (prevents opening sentinel in browser)
+    if (url?.startsWith(TOROX_CLICK_URL_SENTINEL)) return null;
+    return url ?? null;
+  }
+
   // Affike: construct the full track/click URL from scratch.
   if (providerSlug === "affike") {
     if (!userId || !externalOfferId) return null;
