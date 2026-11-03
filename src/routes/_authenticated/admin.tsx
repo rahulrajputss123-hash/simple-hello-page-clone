@@ -591,16 +591,6 @@ function AdminPage() {
   // Check if user has any admin-like role
   const hasAdminAccess = roles.length > 0 && roles.some(r => r === "admin" || r === "finance" || r === "support");
 
-  if (!hasAdminAccess) {
-    return (
-      <AppShell subtitle="Admin">
-        <p className="mt-8 text-center text-sm text-muted-foreground">
-          You don't have access to the admin panel.
-        </p>
-      </AppShell>
-    );
-  }
-
   // Determine which tabs the user can see based on their roles
   const canSeeTab = (tabKey: TabKey): boolean => {
     if (roles.includes("admin")) return true; // Admins see everything
@@ -648,41 +638,52 @@ function AdminPage() {
     ],
   };
 
-  // Calculate badge counts for tabs
-  const tabBadges: Record<string, number> = useMemo(() => ({
+  // Calculate badge counts for tabs (plain const, no useMemo needed)
+  const tabBadges: Record<string, number> = {
     withdrawals: withdrawals.data?.pendingCount ?? 0,
     claims: claims.data?.pendingCount ?? 0,
     tickets: tickets.data?.openCount ?? 0,
-  }), [withdrawals.data?.pendingCount, claims.data?.pendingCount, tickets.data?.openCount]);
+  };
 
-  // Filter tabs in current section based on role
-  const visibleTabsInSection = useMemo(() => {
-    return tabSections[section].filter(([key]) => canSeeTab(key));
-  }, [section, tabSections, canSeeTab]);
+  // Filter tabs in current section based on role (plain const)
+  const visibleTabsInSection = tabSections[section].filter(([key]) => canSeeTab(key));
 
-  // Get all visible sections (that have at least one visible tab)
-  const visibleSections = useMemo(() => {
-    return (["operations", "content", "integrations", "marketplace"] as SectionKey[]).filter(
-      sectionKey => tabSections[sectionKey].some(([tabKey]) => canSeeTab(tabKey))
-    );
-  }, [tabSections, canSeeTab]);
+  // Get all visible sections (plain const)
+  const visibleSections = (["operations", "content", "integrations", "marketplace"] as SectionKey[]).filter(
+    sectionKey => tabSections[sectionKey].some(([tabKey]) => canSeeTab(tabKey))
+  );
 
-  // Set initial tab to first visible tab if current tab is not visible
-  if (visibleTabsInSection.length > 0 && !canSeeTab(tab)) {
-    const firstVisibleTab = visibleTabsInSection[0][0];
-    setTab(firstVisibleTab);
-  }
+  // Handle tab/section synchronization in useEffect (must be before early return)
+  useEffect(() => {
+    if (!hasAdminAccess) return;
 
-  // Auto-switch section if current tab is not in current section
-  const currentSectionTabs = tabSections[section].map(([key]) => key);
-  if (!currentSectionTabs.includes(tab)) {
-    // Find which section contains the current tab
-    for (const [sectionKey, tabs] of Object.entries(tabSections)) {
-      if (tabs.some(([key]) => key === tab)) {
-        setSection(sectionKey as SectionKey);
-        break;
+    // Set initial tab to first visible tab if current tab is not visible
+    if (visibleTabsInSection.length > 0 && !canSeeTab(tab)) {
+      const firstVisibleTab = visibleTabsInSection[0][0];
+      setTab(firstVisibleTab);
+    }
+
+    // Auto-switch section if current tab is not in current section
+    const currentSectionTabs = tabSections[section].map(([key]) => key);
+    if (!currentSectionTabs.includes(tab)) {
+      // Find which section contains the current tab
+      for (const [sectionKey, tabs] of Object.entries(tabSections)) {
+        if (tabs.some(([key]) => key === tab)) {
+          setSection(sectionKey as SectionKey);
+          break;
+        }
       }
     }
+  }, [hasAdminAccess, tab, section, visibleTabsInSection, canSeeTab, tabSections]);
+
+  if (!hasAdminAccess) {
+    return (
+      <AppShell subtitle="Admin">
+        <p className="mt-8 text-center text-sm text-muted-foreground">
+          You don't have access to the admin panel.
+        </p>
+      </AppShell>
+    );
   }
 
   const totalData = totals.data?.totals;
