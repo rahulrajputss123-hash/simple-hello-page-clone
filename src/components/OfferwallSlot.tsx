@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import { getOfferwallMeSignedUrl, getTheoremReachSignedUrl, listSdkOfferwallProviders } from "@/lib/sdk-offerwall.functions";
+import { getOfferwallMeSignedUrl, getTheoremReachSignedUrl, getToroxWallUrl, listSdkOfferwallProviders } from "@/lib/sdk-offerwall.functions";
 
 function buildOfferwallUrl(slug: string, appId: string, userId: string): string | null {
   if (slug === "mooffers") {
@@ -23,6 +23,10 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
     return "signed-url-required";
   }
   if (slug === "theoremreach") {
+    // Return placeholder - actual signed URL is fetched on click via server function
+    return "signed-url-required";
+  }
+  if (slug === "torox") {
     // Return placeholder - actual signed URL is fetched on click via server function
     return "signed-url-required";
   }
@@ -56,6 +60,7 @@ const OfferwallCard = memo(function OfferwallCard({
   const [loading, setLoading] = useState(false);
   const fetchOfferwallMeUrl = useServerFn(getOfferwallMeSignedUrl);
   const fetchTheoremReachUrl = useServerFn(getTheoremReachSignedUrl);
+  const fetchToroxUrl = useServerFn(getToroxWallUrl);
 
   const handleError = useCallback(() => {
     setBroken(true);
@@ -75,6 +80,8 @@ const OfferwallCard = memo(function OfferwallCard({
         signedUrl = await fetchOfferwallMeUrl({});
       } else if (providerSlug === "theoremreach") {
         signedUrl = await fetchTheoremReachUrl({});
+      } else if (providerSlug === "torox") {
+        signedUrl = await fetchToroxUrl({});
       } else {
         throw new Error("Unknown signed URL provider");
       }
@@ -88,7 +95,7 @@ const OfferwallCard = memo(function OfferwallCard({
     } finally {
       setLoading(false);
     }
-  }, [fetchOfferwallMeUrl, fetchTheoremReachUrl, loading]);
+  }, [fetchOfferwallMeUrl, fetchTheoremReachUrl, fetchToroxUrl, loading]);
 
   return (
     <article
@@ -118,7 +125,7 @@ const OfferwallCard = memo(function OfferwallCard({
           <p className="text-xs text-muted-foreground">{provider.tagline}</p>
         </div>
         {url ? (
-          slug === "offerwallme" || slug === "theoremreach" ? (
+          slug === "offerwallme" || slug === "theoremreach" || slug === "torox" ? (
             <Button 
               size="sm" 
               variant="jade" 

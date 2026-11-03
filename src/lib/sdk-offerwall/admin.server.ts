@@ -304,3 +304,117 @@ export async function getTheoremReachSignedUrlImpl(userId: string): Promise<stri
   console.log("[theoremreach] Generated signed URL successfully");
   return signedUrl;
 }
+
+/**
+ * Generate a per-player wall URL for Torox by calling their session endpoint.
+ * Uses the authenticated userId from context (never accepts from client).
+ * Wall URL is a random per-player token and must be generated on every click.
+ */
+export async function getToroxWallUrlImpl(userId: string): Promise<string> {
+  // Read the app_id (placement_id) from the torox provider row
+  const { data: provider, error: providerError } = await supabaseAdmin
+    .from("sdk_offerwall_providers")
+    .select("app_id, enabled")
+    .eq("slug", "torox")
+    .maybeSingle();
+
+  if (providerError) {
+    throw providerError;
+  }
+  if (!provider) {
+    throw new Error("Torox provider not configured");
+  }
+  if (!provider.enabled) {
+    throw new Error("Torox provider is not enabled");
+  }
+  if (!provider.app_id) {
+    throw new Error("Torox provider missing placement ID (app_id)");
+  }
+
+  const placementId = provider.app_id.trim();
+
+  // Read the token from environment (server-only)
+  const token = process.env["TOROX_WALL_TOKEN"]?.trim();
+  if (!token) {
+    throw new Error("Environment variable TOROX_WALL_TOKEN is not configured");
+  }
+
+  // Read API base (default to production)
+  const apiBase = (process.env["TOROX_API_BASE"] || "https://api.wall.torox.io").trim();
+
+  // Build the session endpoint URL
+  const sessionUrl = new URL(`${apiBase}/partner/session`);
+  sessionUrl.searchParams.set("placement_id", placementId);
+  sessionUrl.searchParams.set("token", token);
+
+  // Call the Torox session endpoint
+  let response: Response;
+  try {
+    response = await fetch(sessionUrl.toString(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        player: {
+          uid: userId,
+        },
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (err) {
+    throw new Error(
+      `Failed to connect to Torox: ${err instanceof Error ? err.message : "network error"}`,
+    );
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Torox session API error (${response.status}): ${text.slice(0, 200)}`);
+  }
+
+  // Parse response
+  let parsed: unknown;
+  try {
+    parsed = await response.json();
+  } catch {
+    throw new Error("Torox session API returned invalid JSON");
+  }
+
+  // Validate response structure
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Torox session API returned invalid response");
+  }
+
+  const result = parsed as Record<string, unknown>;
+
+  // Check ok field
+  if (result.ok !== true) {
+    throw new Error("Torox session API returned ok=false");
+  }
+
+  // Extract wall_url
+  const wallUrl = String(result.wall_url ?? "").trim();
+  if (!wallUrl) {
+    throw new Error("Torox session API did not return wall_url");
+  }
+
+  // Validate it's an HTTPS URL on a torox.io host
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(wallUrl);
+  } catch {
+    throw new Error("Torox session API returned invalid wall_url");
+  }
+
+  if (parsedUrl.protocol !== "https:") {
+    throw new Error("Torox wall_url must use HTTPS");
+  }
+
+  if (!parsedUrl.hostname.endsWith(".torox.io") && parsedUrl.hostname !== "torox.io") {
+    throw new Error("Torox wall_url must be on a torox.io domain");
+  }
+
+  return wallUrl;
+}
