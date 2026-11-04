@@ -77,7 +77,9 @@ async function handle(request: Request, slug: string) {
     return new Response(body, { status, headers: { "Content-Type": "text/plain" } });
   }
   if (slug === "bitcotasks" || slug === "revtoo") {
-    const okText = result.ok || result.status === "duplicate" ? "ok" : "error";
+    // BitcoTasks: return "ok" for ANY validly signed postback (including debug=1, status=2)
+    // Only invalid signature or unknown user returns "error"
+    const okText = result.ok || result.status === "duplicate" || result.reason === "zero_reward" ? "ok" : "error";
     return new Response(okText, { status, headers: { "Content-Type": "text/plain" } });
   }
   if (slug === "torox") {

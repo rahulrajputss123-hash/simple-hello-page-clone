@@ -322,6 +322,12 @@ async function processQuestTokenPostback(
   }
   const existing = await dupeQuery.maybeSingle();
   if (existing.data) {
+    // Update conversion to duplicate status
+    await supabaseAdmin
+      .from("sdk_offerwall_conversions")
+      .update({ status: "duplicate", reject_reason: "duplicate", processed_at: new Date().toISOString() })
+      .eq("id", conversion.id);
+    
     await logAutomation({
       eventType: "sdk_postback",
       status: "warning",
@@ -425,6 +431,12 @@ async function processQuestTokenPostback(
       const allowedTypes = feedKind ? FEED_KIND_OFFER_TYPES[feedKind] ?? [] : [];
       
       if (!offerType || !allowedTypes.includes(offerType as never)) {
+        // Update conversion with reject_reason
+        await supabaseAdmin
+          .from("sdk_offerwall_conversions")
+          .update({ status: "quest_absorbed", reject_reason: "offer_type_mismatch", processed_at: new Date().toISOString() })
+          .eq("id", conversion.id);
+        
         await logAutomation({
           eventType: "quest_automation",
           status: "error",
@@ -435,13 +447,18 @@ async function processQuestTokenPostback(
           message: `BitcoTasks offer_type mismatch: expected one of [${allowedTypes.join(", ")}], got "${offerType}"`,
           context: { questKey: session.quest_key, stepIndex: tokenData.step_index, feedKind, offerType },
         });
-        // REJECT: do not complete step, do not pay, keep conversion unabsorbed
-        return { ok: false, status: "rejected", reason: "offer_type_mismatch", conversionId: conversion.id };
+        return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
       }
     }
-    // Other providers: verify campaign_id if provided
-    else if (parsed.providerOfferId && tokenData.campaign_id) {
+    // Other providers: verify campaign_id if provided (skip for name-based providers like Offerwall.me)
+    else if (parsed.providerOfferId && tokenData.campaign_id && provider.slug !== "offerwallme") {
       if (parsed.providerOfferId !== tokenData.campaign_id) {
+        // Update conversion with reject_reason
+        await supabaseAdmin
+          .from("sdk_offerwall_conversions")
+          .update({ status: "quest_absorbed", reject_reason: "campaign_id_mismatch", processed_at: new Date().toISOString() })
+          .eq("id", conversion.id);
+        
         await logAutomation({
           eventType: "quest_automation",
           status: "error",
@@ -449,11 +466,10 @@ async function processQuestTokenPostback(
           providerId: provider.id,
           userId,
           referenceId: conversion.id,
-          message: `Campaign ID mismatch: expected ${tokenData.campaign_id}, got ${parsed.providerOfferId}. REJECTED.`,
+          message: `Campaign ID mismatch: expected ${tokenData.campaign_id}, got ${parsed.providerOfferId}`,
           context: { questKey: session.quest_key, stepIndex: tokenData.step_index },
         });
-        // REJECT: do not complete step, do not pay, keep conversion unabsorbed
-        return { ok: false, status: "rejected", reason: "campaign_id_mismatch", conversionId: conversion.id };
+        return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
       }
     }
     // If postback carries no campaign_id, rely on token alone (allowed)
@@ -599,6 +615,12 @@ async function processQuestTokenPostback(
   if (provider.slug === "bitcotasks") {
     const offerType = String(parsed.raw?.offer_type ?? "").toLowerCase();
     if (offerType !== "offer") {
+      // Update conversion with reject_reason  
+      await supabaseAdmin
+        .from("sdk_offerwall_conversions")
+        .update({ status: "quest_absorbed", reject_reason: "offer_type_not_offer", processed_at: new Date().toISOString() })
+        .eq("id", conversion.id);
+      
       await logAutomation({
         eventType: "quest_automation",
         status: "info",
@@ -614,6 +636,12 @@ async function processQuestTokenPostback(
   }
 
   if (usd < minQualifyingUsd) {
+    // Update conversion with reject_reason
+    await supabaseAdmin
+      .from("sdk_offerwall_conversions")
+      .update({ status: "quest_absorbed", reject_reason: "below_minimum", processed_at: new Date().toISOString() })
+      .eq("id", conversion.id);
+    
     await logAutomation({
       eventType: "quest_automation",
       status: "info",
