@@ -2041,27 +2041,50 @@ export async function openQuestNetworkImpl(
 
 /**
  * Build offerwall URL with quest token as user ID.
- * Reuses the same logic as OfferwallSlot/buildOfferwallUrl.
+ * Mirrors the logic in OfferwallSlot/buildOfferwallUrl using correct provider schema.
  */
 async function buildQuestOfferwallUrl(token: string, provider: any): Promise<string> {
-  const providerKey = provider.key;
+  const slug = provider.slug;
+  const appId = provider.app_id;
 
-  // For Offerwall.me, use the signed URL generator
-  if (providerKey === "offerwall.me") {
+  // Simple URL builders (mooffers, affike, revtoo, gemiad, timewall, cpxresearch, adswedmedia)
+  if (slug === "mooffers") {
+    return `https://wall.mooffers.com/offerwall/${appId}?uid=${encodeURIComponent(token)}`;
+  }
+  if (slug === "affike") {
+    return `https://affike.com/offerwall/${appId}/${encodeURIComponent(token)}`;
+  }
+  if (slug === "revtoo") {
+    return `https://revtoo.com/offerwall/${appId}/${encodeURIComponent(token)}`;
+  }
+  if (slug === "gemiad") {
+    return `https://gemiwall.com/${appId}/${encodeURIComponent(token)}`;
+  }
+  if (slug === "timewall") {
+    return `https://timewall.io/users/login?oid=${appId}&uid=${encodeURIComponent(token)}`;
+  }
+  if (slug === "cpxresearch") {
+    return `https://offers.cpx-research.com/index.php?app_id=${appId}&ext_user_id=${encodeURIComponent(token)}`;
+  }
+  if (slug === "adswedmedia") {
+    return `https://adswedmedia.com/offer/${appId}/${encodeURIComponent(token)}`;
+  }
+
+  // Signed URL providers (offerwallme, theoremreach, torox)
+  if (slug === "offerwallme") {
     const { getOfferwallMeSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
     return getOfferwallMeSignedUrlImpl(token);
   }
+  if (slug === "theoremreach") {
+    const { getTheoremReachSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
+    return getTheoremReachSignedUrlImpl(token);
+  }
+  if (slug === "torox") {
+    const { getToroxWallUrlImpl } = await import("./sdk-offerwall/admin.server");
+    return getToroxWallUrlImpl(token);
+  }
 
-  // For other providers, construct URL with token as user ID
-  // This matches the logic in OfferwallSlot/buildOfferwallUrl
-  let url = provider.url ?? "";
-
-  // Replace placeholders
-  url = url.replace("{USER_ID}", encodeURIComponent(token));
-  url = url.replace("{PUBID}", encodeURIComponent(provider.api_key ?? ""));
-  url = url.replace("{API_KEY}", encodeURIComponent(provider.api_key ?? ""));
-
-  return url;
+  throw new Error(`Unsupported provider slug: ${slug}`);
 }
 
 /**

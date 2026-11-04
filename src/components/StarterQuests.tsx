@@ -136,7 +136,7 @@ export function StarterQuests() {
 
       for (const quest of checkinQuests) {
         try {
-          await ensureSession({ questKey: quest.key });
+          await ensureSession({ data: { questKey: quest.key } });
         } catch (err) {
           console.error(`[checkin] Failed to ensure session for ${quest.key}:`, err);
         }

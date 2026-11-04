@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { formatReward } from "@/lib/format-reward";
 import { checkInToday, getNetworkQuestProgress, openQuestNetwork, fetchSurveyFeed, startSurveyQuest, getSurveyQuestProgress } from "@/lib/quests.functions";
 import {
@@ -504,6 +505,7 @@ function NetworkQuestProviderGrid({
   open: boolean;
 }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const fetchProgress = useServerFn(getNetworkQuestProgress);
   const openNetwork = useServerFn(openQuestNetwork);
   const [opening, setOpening] = useState<string | null>(null);
@@ -512,7 +514,7 @@ function NetworkQuestProviderGrid({
   // Fetch network quest progress
   const { data: progress, refetch } = useQuery({
     queryKey: ["network-quest-progress", quest.key],
-    queryFn: () => fetchProgress({ questKey: quest.key }),
+    queryFn: () => fetchProgress({ data: { questKey: quest.key } }),
     enabled: open && !credited,
     refetchInterval: 5000, // Poll every 5s while dialog is open
   });
@@ -540,7 +542,7 @@ function NetworkQuestProviderGrid({
       openedWindowRef.current = newWindow;
 
       // Get the offerwall URL
-      const result = await openNetwork({ questKey: quest.key, providerId });
+      const result = await openNetwork({ data: { questKey: quest.key, providerId } });
 
       if ("url" in result && result.url) {
         // Navigate the pre-opened tab to the actual URL
@@ -550,7 +552,13 @@ function NetworkQuestProviderGrid({
       } else {
         // Close the tab if we couldn't get a URL
         newWindow?.close();
-        console.error("Failed to open network:", result);
+        
+        const errorMsg = "error" in result ? result.error : "Failed to open network";
+        toast({
+          title: "Could not open offerwall",
+          description: errorMsg,
+          variant: "destructive",
+        });
       }
 
       // Refetch progress after a delay
@@ -558,8 +566,12 @@ function NetworkQuestProviderGrid({
         void refetch();
       }, 1000);
     } catch (error) {
-      console.error("Error opening network:", error);
       openedWindowRef.current?.close();
+      toast({
+        title: "Error opening network",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setOpening(null);
     }
@@ -738,7 +750,7 @@ function SurveyQuestFeed({
   // Fetch progress
   const { data: progress, refetch: refetchProgress } = useQuery({
     queryKey: ["survey-progress", quest.key],
-    queryFn: () => fetchProgress({ questKey: quest.key }),
+    queryFn: () => fetchProgress({ data: { questKey: quest.key } }),
     enabled: open && !credited,
     refetchInterval: 10_000, // Poll every 10s
   });
