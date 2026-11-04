@@ -452,40 +452,131 @@ export async function claimActiveTimeReward(
   db: DbClient,
   userId: string,
   questKey: string,
-): Promise<{ success: boolean; reason: string; totalSeconds?: number }> {
-  // Get quest reward
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: quest } = await (db as any)
-    .from("quests")
-    .select("target_minutes, reward_amount")
-    .eq("key", questKey)
-    .eq("quest_type", "active_time")
-    .maybeSingle();
-
-  if (!quest) {
-    return { success: false, reason: "quest_not_found" };
-  }
-
-  const targetSeconds = (quest.target_minutes || 60) * 60;
-  const rewardAmount = quest.reward_amount || 0;
-
-  // Call atomic Postgres function
+): Promise<{ success: boolean; reason: string; accumulatedSeconds?: number }> {
+  // Call atomic Postgres function (only marks as claimed, doesn't credit wallet)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any).rpc("claim_active_time_quest_reward", {
     p_user_id: userId,
     p_quest_key: questKey,
-    p_target_seconds: targetSeconds,
-    p_reward_amount: rewardAmount,
   });
 
   if (error || !data || data.length === 0) {
+    console.error("[active-time] RPC claim failed:", error);
     return { success: false, reason: "claim_failed" };
   }
 
   const result = data[0];
-  return {
-    success: result.success,
-    reason: result.reason,
-    totalSeconds: result.total_seconds,
-  };
+  
+  if (!result.success) {
+    return {
+      success: false,
+      reason: result.reason,
+      accumulatedSeconds: result.accumulated_seconds,
+    };
+  }
+
+  // Success! Now credit wallet via the existing helper
+  try {
+    const { creditWallet } = await import("../coinquest.server");
+    const rewardAmount = Number(result.reward_amount);
+    
+    // Get quest label for description
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: quest } = await (db as any)
+      .from("quests")
+      .select("label")
+      .eq("key", questKey)
+      .maybeSingle();
+    
+    const questLabel = quest?.label || questKey;
+    
+    // Find or create quest session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let { data: session } = await (db as any)
+      .from("quest_sessions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("quest_key", questKey)
+      .in("status", ["started", "verified"])
+      .order("started_at", { ascending: false })
+      .maybeSingle();
+    
+    // Create session if none exists
+    if (!session) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: newSession, error: sessionError } = await (db as any)
+        .from("quest_sessions")
+        .insert({
+          user_id: userId,
+          quest_key: questKey,
+          quest_type: "active_time",
+          status: "started",
+          reward_amount: rewardAmount,
+        })
+        .select("id")
+        .single();
+      
+      if (sessionError) {
+        console.error("[active-time] Failed to create session:", sessionError);
+        // Rollback credited_at flag
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (db as any)
+          .from("quest_active_time_progress")
+          .update({ credited_at: null })
+          .eq("user_id", userId)
+          .eq("quest_key", questKey);
+        return { success: false, reason: "session_creation_failed" };
+      }
+      
+      session = newSession;
+    }
+    
+    const sessionId = session.id as string;
+    
+    // Credit wallet using the standard helper
+    await creditWallet(
+      userId,
+      rewardAmount,
+      "quest",
+      `Active time — ${questLabel}`,
+      "earned",
+      sessionId, // reference_id = session_id for idempotency
+    );
+    
+    // Mark session as credited
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db as any)
+      .from("quest_sessions")
+      .update({ status: "credited", credited_at: new Date().toISOString() })
+      .eq("id", sessionId);
+    
+    // Send notification
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db as any)
+      .from("notifications")
+      .insert({
+        user_id: userId,
+        title: "Quest completed",
+        body: `You earned $${rewardAmount.toFixed(2)} for "${questLabel}".`,
+        kind: "quest",
+      });
+    
+    return {
+      success: true,
+      reason: "claimed",
+      accumulatedSeconds: result.accumulated_seconds,
+    };
+  } catch (creditError) {
+    console.error("[active-time] Wallet credit failed:", creditError);
+    
+    // Rollback credited_at flag so user can retry
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db as any)
+      .from("quest_active_time_progress")
+      .update({ credited_at: null })
+      .eq("user_id", userId)
+      .eq("quest_key", questKey);
+    
+    return { success: false, reason: "wallet_credit_failed" };
+  }
 }

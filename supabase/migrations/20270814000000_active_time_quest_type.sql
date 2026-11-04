@@ -139,17 +139,16 @@ CREATE POLICY quest_active_time_grace_history_service_all
 
 -- 5. Atomic reward payout function
 -- Ensures reward is paid exactly once even with concurrent calls
+-- Note: Actual wallet credit happens in app code via creditWallet helper
 CREATE OR REPLACE FUNCTION public.claim_active_time_quest_reward(
   p_user_id uuid,
-  p_quest_key text,
-  p_target_seconds integer,
-  p_reward_amount numeric
+  p_quest_key text
 )
 RETURNS TABLE (
   success boolean,
   reason text,
-  total_seconds integer,
-  credited_at timestamptz
+  reward_amount numeric,
+  accumulated_seconds integer
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -157,8 +156,8 @@ SET search_path = public
 AS $$
 DECLARE
   v_progress record;
-  v_session_id uuid;
-  v_quest_label text;
+  v_quest record;
+  v_target_seconds integer;
 BEGIN
   -- Lock the progress row for this user+quest
   SELECT * INTO v_progress
@@ -168,82 +167,47 @@ BEGIN
   
   -- Check if row exists
   IF NOT FOUND THEN
-    RETURN QUERY SELECT false, 'progress_not_found'::text, 0, null::timestamptz;
+    RETURN QUERY SELECT false, 'progress_not_found'::text, 0::numeric, 0;
     RETURN;
   END IF;
   
   -- Check if already credited
   IF v_progress.credited_at IS NOT NULL THEN
-    RETURN QUERY SELECT false, 'already_credited'::text, v_progress.total_seconds, v_progress.credited_at;
+    RETURN QUERY SELECT false, 'already_claimed'::text, 0::numeric, v_progress.accumulated_seconds;
     RETURN;
   END IF;
+  
+  -- Get quest config
+  SELECT target_minutes, reward_amount INTO v_quest
+  FROM public.quests
+  WHERE key = p_quest_key AND quest_type = 'active_time' AND is_active = true;
+  
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, 'quest_not_found'::text, 0::numeric, 0;
+    RETURN;
+  END IF;
+  
+  v_target_seconds := v_quest.target_minutes * 60;
   
   -- Check if target reached
-  IF v_progress.total_seconds < p_target_seconds THEN
-    RETURN QUERY SELECT false, 'target_not_reached'::text, v_progress.total_seconds, null::timestamptz;
+  IF v_progress.accumulated_seconds < v_target_seconds THEN
+    RETURN QUERY SELECT false, 'target_not_reached'::text, 0::numeric, v_progress.accumulated_seconds;
     RETURN;
   END IF;
   
-  -- Find or create active session
-  SELECT id, quests.label INTO v_session_id, v_quest_label
-  FROM public.quest_sessions
-  JOIN public.quests ON quests.key = quest_sessions.quest_key
-  WHERE quest_sessions.user_id = p_user_id 
-    AND quest_sessions.quest_key = p_quest_key
-    AND quest_sessions.status = 'started'
-  ORDER BY quest_sessions.started_at DESC
-  LIMIT 1;
-  
-  -- Create session if none exists
-  IF v_session_id IS NULL THEN
-    SELECT label INTO v_quest_label FROM public.quests WHERE key = p_quest_key;
-    
-    INSERT INTO public.quest_sessions (user_id, quest_key, quest_type, status, started_at)
-    VALUES (p_user_id, p_quest_key, 'active_time', 'started', now())
-    RETURNING id INTO v_session_id;
-  END IF;
-  
-  -- Mark as credited (atomic)
+  -- Mark as credited (actual wallet credit happens in app code)
   UPDATE public.quest_active_time_progress
   SET credited_at = now(), updated_at = now()
-  WHERE user_id = p_user_id AND quest_key = p_quest_key AND credited_at IS NULL;
+  WHERE user_id = p_user_id AND quest_key = p_quest_key;
   
-  -- Check if update succeeded (another process may have claimed it)
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT false, 'already_credited'::text, v_progress.total_seconds, v_progress.credited_at;
-    RETURN;
-  END IF;
-  
-  -- Mark session as verified and credit wallet
-  UPDATE public.quest_sessions
-  SET status = 'verified', verified_at = now()
-  WHERE id = v_session_id AND status = 'started';
-  
-  -- Credit wallet
-  INSERT INTO public.ledger_entries (
-    user_id, amount, entry_type, category, description, metadata, quest_session_id
-  ) VALUES (
-    p_user_id,
-    p_reward_amount,
-    'credit',
-    'quest',
-    'Active Time Quest: ' || COALESCE(v_quest_label, p_quest_key),
-    jsonb_build_object('quest_key', p_quest_key, 'seconds', v_progress.total_seconds),
-    v_session_id
-  );
-  
-  -- Update wallet balance
-  UPDATE public.profiles
-  SET balance = balance + p_reward_amount
-  WHERE id = p_user_id;
-  
-  RETURN QUERY SELECT true, 'success'::text, v_progress.total_seconds, now();
+  RETURN QUERY SELECT true, 'claimed'::text, v_quest.reward_amount, v_progress.accumulated_seconds;
 END;
 $$;
 
 COMMENT ON FUNCTION public.claim_active_time_quest_reward IS
-  'Atomically pays out active time quest reward exactly once. Uses row-level locking.';
+  'Atomically marks active time quest as claimed. Uses row-level locking. Wallet credit happens in app code.';
 
 -- Grant execute to service role only
 REVOKE ALL ON FUNCTION public.claim_active_time_quest_reward FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.claim_active_time_quest_reward TO service_role;
+
