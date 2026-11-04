@@ -710,8 +710,48 @@ export const listSdkProvidersForQuests = createServerFn({ method: "POST" })
 // ========== Active Time Quest Functions ==========
 
 /**
+ * Get active time quest key if user has one active and started.
+ */
+export const getActiveTimeQuestKey = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    
+    // Get active time quest that is active and not locked
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabaseAdmin as unknown as { from: (t: string) => any };
+    
+    const { data: quest } = await db
+      .from("quests")
+      .select("key, target_minutes")
+      .eq("quest_type", "active_time")
+      .eq("is_active", true)
+      .maybeSingle();
+    
+    if (!quest) {
+      return { questKey: null };
+    }
+    
+    // Check if user has started this quest and hasn't completed it yet
+    const { data: progress } = await db
+      .from("quest_active_time_progress")
+      .select("total_seconds, credited_at")
+      .eq("user_id", context.userId)
+      .eq("quest_key", quest.key)
+      .maybeSingle();
+    
+    // Return key only if quest is in progress (started but not completed)
+    if (progress && !progress.credited_at && progress.total_seconds < quest.target_minutes * 60) {
+      return { questKey: quest.key };
+    }
+    
+    return { questKey: null };
+  });
+
+/**
  * Process active time ping - server authoritative time tracking.
  * Client sends ping every 30s, server credits min(gap, 35s) with <20s filter.
+ * Auto-claims reward when target is reached.
  */
 export const processActiveTimePing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -724,8 +764,22 @@ export const processActiveTimePing = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { processActiveTimePingImpl } = await import("./quests.server");
-    return await processActiveTimePingImpl(context.userId, data.questKey, data.pingToken);
+    const { processActiveTimePingImpl, claimActiveTimeRewardImpl } = await import("./quests.server");
+    const result = await processActiveTimePingImpl(context.userId, data.questKey, data.pingToken);
+    
+    // Auto-claim if target reached
+    if (result.success && result.canClaim) {
+      try {
+        const claimResult = await claimActiveTimeRewardImpl(context.userId, data.questKey);
+        if (claimResult.success) {
+          return { ...result, autoClaimed: true };
+        }
+      } catch (err) {
+        console.error("[active-time] Auto-claim failed:", err);
+      }
+    }
+    
+    return result;
   });
 
 /**

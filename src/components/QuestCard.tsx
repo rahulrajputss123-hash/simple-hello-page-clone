@@ -10,6 +10,7 @@ import {
   type QuestCardQuest,
   type QuestSessionView,
 } from "@/lib/quest-view";
+import { ActiveTimeProgress } from "@/components/ActiveTimeProgress";
 
 // Re-exported so existing importers of these types keep working. Type-only, so
 // this does not reintroduce a non-component runtime export.
@@ -28,6 +29,13 @@ type QuestCardProps = {
    */
   onOpenDetails: () => void;
   onLocked: () => void;
+  activeTimeQuestKey?: string | null;
+  activeTimeProgress?: { ping_token: string; total_seconds: number; today_seconds: number } | null;
+  activeTimeTracking?: {
+    isTracking: boolean;
+    isPaused: boolean;
+    showStillHerePrompt: boolean;
+  };
 };
 
 const CARD_W = 240;
@@ -67,6 +75,8 @@ export const QuestCard = memo(function QuestCard({
   lockLabel,
   onOpenDetails,
   onLocked,
+  activeTimeProgress,
+  activeTimeTracking,
 }: QuestCardProps) {
   const locked = Boolean(quest.is_locked);
   const accent = locked
@@ -388,31 +398,43 @@ export const QuestCard = memo(function QuestCard({
 
         {/* progress */}
         <div data-testid={`quest-progress-${quest.key}`}>
-          <div className="flex items-baseline justify-between gap-2">
-            <span
-              className="text-[11px] font-semibold [font-variant-numeric:tabular-nums]"
-              style={{ color: INK }}
-              data-testid={`quest-progress-text-${quest.key}`}
-            >
-              {progress} / {total}
-            </span>
-            <span
-              className="text-[11px] font-medium"
-              style={{ color: INK_FAINT }}
-              data-testid={`quest-remaining-${quest.key}`}
-            >
-              {credited ? "Completed" : `${remaining} more`}
-            </span>
-          </div>
-          <div
-            className="mt-2 h-1.5 w-full overflow-hidden rounded-full"
-            style={{ background: TRACK }}
-          >
-            <div
-              className="h-full rounded-full transition-[width] duration-500 ease-out"
-              style={{ width: `${progressPercent}%`, background: accent.bar }}
+          {quest.quest_type === "active_time" && activeTimeProgress ? (
+            <ActiveTimeProgress
+              totalMinutes={activeTimeProgress.total_seconds / 60}
+              targetMinutes={quest.target_minutes ?? 30}
+              todayMinutes={activeTimeProgress.today_seconds / 60}
+              dailyCapMinutes={quest.daily_cap_minutes ?? 120}
+              isPaused={activeTimeTracking?.isPaused ?? false}
             />
-          </div>
+          ) : (
+            <>
+              <div className="flex items-baseline justify-between gap-2">
+                <span
+                  className="text-[11px] font-semibold [font-variant-numeric:tabular-nums]"
+                  style={{ color: INK }}
+                  data-testid={`quest-progress-text-${quest.key}`}
+                >
+                  {progress} / {total}
+                </span>
+                <span
+                  className="text-[11px] font-medium"
+                  style={{ color: INK_FAINT }}
+                  data-testid={`quest-remaining-${quest.key}`}
+                >
+                  {credited ? "Completed" : `${remaining} more`}
+                </span>
+              </div>
+              <div
+                className="mt-2 h-1.5 w-full overflow-hidden rounded-full"
+                style={{ background: TRACK }}
+              >
+                <div
+                  className="h-full rounded-full transition-[width] duration-500 ease-out"
+                  style={{ width: `${progressPercent}%`, background: accent.bar }}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <p

@@ -13,6 +13,7 @@ import {
 } from "@/lib/quest-view";
 import { useCheckinHeartbeat } from "@/hooks/useCheckinHeartbeat";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ActiveTimeProgress } from "@/components/ActiveTimeProgress";
 import { useServerFn } from "@tanstack/react-start";
 
 /**
@@ -31,6 +32,8 @@ export function QuestDetailsDialog({
   onOpenChange,
   onContinue,
   isSubmitting,
+  activeTimeQuestKey,
+  activeTimeProgress,
 }: {
   quest: QuestCardQuest | null;
   /** Active session for this quest, used to show existing progress. */
@@ -40,6 +43,8 @@ export function QuestDetailsDialog({
   onOpenChange: (open: boolean) => void;
   onContinue: () => void;
   isSubmitting?: boolean;
+  activeTimeQuestKey?: string | null;
+  activeTimeProgress?: { ping_token: string; total_seconds: number; today_seconds: number } | null;
 }) {
   const accent = quest ? QUEST_ACCENTS[quest.quest_type] : null;
   const view = quest ? deriveQuestView(quest, active, credited) : null;
@@ -387,14 +392,24 @@ export function QuestDetailsDialog({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Your progress
             </p>
-            <p className="text-sm leading-relaxed">
-              <span className="font-semibold [font-variant-numeric:tabular-nums]">
-                {view.progress} / {view.total}
-              </span>{" "}
-              <span className="text-muted-foreground">
-                complete — {view.remaining} more to finish.
-              </span>
-            </p>
+            {quest.quest_type === "active_time" && activeTimeProgress ? (
+              <ActiveTimeProgress
+                totalMinutes={activeTimeProgress.total_seconds / 60}
+                targetMinutes={quest.target_minutes ?? 30}
+                todayMinutes={activeTimeProgress.today_seconds / 60}
+                dailyCapMinutes={quest.daily_cap_minutes ?? 120}
+                isPaused={false}
+              />
+            ) : (
+              <p className="text-sm leading-relaxed">
+                <span className="font-semibold [font-variant-numeric:tabular-nums]">
+                  {view.progress} / {view.total}
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  complete — {view.remaining} more to finish.
+                </span>
+              </p>
+            )}
           </section>
         )}
 

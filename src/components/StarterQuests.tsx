@@ -17,9 +17,12 @@ import {
   startShortlinkStep,
   ensureCheckinSession,
   updateUserTimezone,
+  getActiveTimeQuestKey,
 } from "@/lib/quests.functions";
 import { formatLockReason } from "@/lib/lock-state";
 import { isNativePlatform } from "@/lib/platform";
+import { useActiveTimeTracking } from "@/hooks/useActiveTimeTracking";
+import { ActiveTimeStillHereDialog } from "@/components/ActiveTimeStillHereDialog";
 
 // Lazy-load dialog (only shown on click)
 const QuestDetailsDialog = lazy(() =>
@@ -40,6 +43,7 @@ export function StarterQuests() {
   const openLocker = useServerFn(startLockerQuest);
   const ensureSession = useServerFn(ensureCheckinSession);
   const setTimezone = useServerFn(updateUserTimezone);
+  const fetchActiveTimeKey = useServerFn(getActiveTimeQuestKey);
 
   const quests = useQuery({
     queryKey: ["quests-active"],
@@ -63,6 +67,47 @@ export function StarterQuests() {
       return (data ?? []) as unknown as QuestSessionView[];
     },
   });
+
+  // Get active time quest key if user has one in progress
+  const activeTimeQuestKey = useQuery({
+    queryKey: ["active-time-quest-key", session?.user.id],
+    enabled: Boolean(session),
+    queryFn: () => fetchActiveTimeKey({}),
+    staleTime: 30_000, // Cache for 30s
+    select: (data) => data.questKey,
+  });
+
+  // Get initial token from active time progress
+  const activeTimeProgress = useQuery({
+    queryKey: ["active-time-progress", activeTimeQuestKey.data],
+    enabled: Boolean(activeTimeQuestKey.data),
+    queryFn: async () => {
+      if (!activeTimeQuestKey.data) return null;
+      const { data } = await supabase
+        .from("quest_active_time_progress")
+        .select("ping_token, total_seconds, today_seconds")
+        .eq("user_id", session!.user.id)
+        .eq("quest_key", activeTimeQuestKey.data)
+        .maybeSingle();
+      return data;
+    },
+    staleTime: 10_000,
+  });
+
+  // Mount active time tracking
+  const activeTimeTracking = useActiveTimeTracking(
+    activeTimeQuestKey.data || null,
+    activeTimeProgress.data?.ping_token || null,
+  );
+
+  // Auto-start tracking when quest becomes active
+  useEffect(() => {
+    if (activeTimeQuestKey.data && !activeTimeTracking.isTracking) {
+      activeTimeTracking.startTracking();
+    } else if (!activeTimeQuestKey.data && activeTimeTracking.isTracking) {
+      activeTimeTracking.stopTracking();
+    }
+  }, [activeTimeQuestKey.data]);
 
   // Detect and update browser timezone on first load
   useEffect(() => {
@@ -312,6 +357,13 @@ export function StarterQuests() {
                 lockLabel={lockLabel}
                 onLocked={createLockedHandler(lockLabel)}
                 onOpenDetails={createOpenDetailsHandler(quest.key)}
+                activeTimeQuestKey={activeTimeQuestKey.data}
+                activeTimeProgress={
+                  quest.quest_type === "active_time" ? activeTimeProgress.data : undefined
+                }
+                activeTimeTracking={
+                  quest.quest_type === "active_time" ? activeTimeTracking : undefined
+                }
               />
             );
           })}
@@ -327,9 +379,19 @@ export function StarterQuests() {
             onOpenChange={(open) => !open && setPendingQuest(null)}
             onContinue={handleContinue}
             isSubmitting={Boolean(pendingQuest) && busy === pendingQuest?.key}
+            activeTimeQuestKey={activeTimeQuestKey.data}
+            activeTimeProgress={
+              pendingQuest?.quest_type === "active_time" ? activeTimeProgress.data : undefined
+            }
           />
         </Suspense>
       )}
+
+      {/* Active Time "Still Here?" Dialog */}
+      <ActiveTimeStillHereDialog
+        open={activeTimeTracking.showStillHerePrompt}
+        onConfirm={activeTimeTracking.confirmStillHere}
+      />
     </>
   );
 }
