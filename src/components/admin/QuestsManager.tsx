@@ -107,6 +107,10 @@ type FormState = {
   timedStepSeconds: string;
   timedCheckpointSeconds: string;
   timedMaxFailedTaps: string;
+  // Active Time quest fields
+  targetMinutes: string;
+  dailyCapMinutes: string;
+  graceMinutes: string;
 };
 
 /**
@@ -212,6 +216,10 @@ const emptyForm = (): FormState => ({
   timedStepSeconds: "60",
   timedCheckpointSeconds: "10",
   timedMaxFailedTaps: "2",
+  // Active Time quest defaults
+  targetMinutes: "30",
+  dailyCapMinutes: "120",
+  graceMinutes: "10",
 });
 
 export function QuestsManager() {
@@ -333,6 +341,14 @@ export function QuestsManager() {
                 timedCheckpointSeconds: Number(state.timedCheckpointSeconds) || 10,
                 timedMaxFailedTaps: Number(state.timedMaxFailedTaps) || 2,
                 stepRewards: state.timedSteps.map((s) => Number(s.reward) || 0),
+              }
+            : {}),
+          // Active Time quest fields
+          ...(state.questType === "active_time"
+            ? {
+                targetMinutes: Number(state.targetMinutes) || 30,
+                dailyCapMinutes: Number(state.dailyCapMinutes) || 120,
+                graceMinutes: Number(state.graceMinutes) || 10,
               }
             : {}),
         },
@@ -462,6 +478,13 @@ export function QuestsManager() {
       timedCheckpointSeconds: String((quest as any).timed_checkpoint_seconds ?? 10),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       timedMaxFailedTaps: String((quest as any).timed_max_failed_taps ?? 2),
+      // Active Time quest fields
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      targetMinutes: String((quest as any).target_minutes ?? 30),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      dailyCapMinutes: String((quest as any).daily_cap_minutes ?? 120),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      graceMinutes: String((quest as any).grace_minutes ?? 10),
     });
 
   const { noLinksYet, filledLockerUrls } = form
@@ -490,7 +513,11 @@ export function QuestsManager() {
                 : form.questType === "timed_ptc"
                   ? form.timedSteps.length > 0 &&
                     form.timedSteps.every((s) => Number(s.reward) > 0)
-                  : form.questType === "feed_ptc" ||
+                  : form.questType === "active_time"
+                    ? Number(form.targetMinutes) > 0 &&
+                      Number(form.dailyCapMinutes) > 0 &&
+                      Number(form.graceMinutes) > 0
+                    : form.questType === "feed_ptc" ||
                       form.questType === "feed_shortlink" ||
                       form.questType === "feed_article"
                     ? form.feedProviderIds.length > 0 && Number(form.stepsCount) > 0
@@ -531,7 +558,15 @@ export function QuestsManager() {
                               : form.questType === "timed_ptc" &&
                                   !form.timedSteps.every((s) => Number(s.reward) > 0)
                                 ? "All timed PTC steps must have a reward > 0"
-                                : (form.questType === "feed_ptc" ||
+                                : form.questType === "active_time" && Number(form.targetMinutes) <= 0
+                                  ? "Active time quest must have target minutes > 0"
+                                  : form.questType === "active_time" &&
+                                      Number(form.dailyCapMinutes) <= 0
+                                    ? "Active time quest must have daily cap > 0"
+                                    : form.questType === "active_time" &&
+                                        Number(form.graceMinutes) <= 0
+                                      ? "Active time quest must have grace minutes > 0"
+                                      : (form.questType === "feed_ptc" ||
                                       form.questType === "feed_shortlink" ||
                                       form.questType === "feed_article") &&
                                     form.feedProviderIds.length === 0
@@ -763,6 +798,7 @@ export function QuestsManager() {
                         "feed_shortlink",
                         "feed_article",
                         "timed_ptc",
+                        "active_time",
                       ] as const
                     ).map((type) => (
                       <Button
@@ -798,7 +834,9 @@ export function QuestsManager() {
                                         ? "Top Shortlinks"
                                         : type === "feed_article"
                                           ? "Top Articles"
-                                          : "Timed PTC"}
+                                          : type === "timed_ptc"
+                                            ? "Timed PTC"
+                                            : "Active Time"}
                       </Button>
                     ))}
                   </div>
@@ -1841,6 +1879,79 @@ export function QuestsManager() {
                         <li>After max failed taps, timer resumes (no-fill fallback)</li>
                         <li>Step rewards credited immediately, completion bonus at end</li>
                         <li>Web only — hidden from native app users</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {form.questType === "active_time" && (
+                  <div className="space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Active Time quest: server-authoritative time tracking with ping validation,
+                      grace periods for offers, and daily caps.
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <Field label="Target minutes">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="600"
+                          value={form.targetMinutes}
+                          onChange={(e) => setForm({ ...form, targetMinutes: e.target.value })}
+                        />
+                      </Field>
+
+                      <Field label="Daily cap (minutes)">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="600"
+                          value={form.dailyCapMinutes}
+                          onChange={(e) => setForm({ ...form, dailyCapMinutes: e.target.value })}
+                        />
+                      </Field>
+
+                      <Field label="Grace minutes per offer">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="60"
+                          value={form.graceMinutes}
+                          onChange={(e) => setForm({ ...form, graceMinutes: e.target.value })}
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="rounded-lg border p-3 text-xs space-y-2">
+                      <p className="font-semibold">⏱️ Time Tracking Preview</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-muted-foreground">Target:</p>
+                          <p className="text-sm">{Number(form.targetMinutes) || 0} minutes</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Daily cap:</p>
+                          <p className="text-sm">{Number(form.dailyCapMinutes) || 0} minutes</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Reward when complete:</p>
+                        <p className="text-sm">{formatReward(Number(form.rewardAmount) || 0)}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-blue-500/40 bg-blue-500/5 p-3 text-xs">
+                      <p className="font-semibold text-blue-700 dark:text-blue-400">
+                        ℹ️ Active Time Quest Behavior
+                      </p>
+                      <ul className="mt-2 space-y-1 text-muted-foreground list-disc list-inside">
+                        <li>Client pings every 30s, server credits min(gap, 35s)</li>
+                        <li>One-time tokens prevent replay attacks</li>
+                        <li>Grace periods: 10min after offer click, max 3/hour</li>
+                        <li>24h cooldown per offer before grace reactivates</li>
+                        <li>Daily cap prevents excessive grinding</li>
+                        <li>Atomic reward payout via Postgres function</li>
                       </ul>
                     </div>
                   </div>

@@ -32,6 +32,7 @@ const questFormSchema = z
         "feed_shortlink",
         "feed_article",
         "timed_ptc",
+        "active_time",
       ])
       .default("ads"),
     adsRequired: z.number().int().min(0).max(500).default(0),
@@ -91,6 +92,10 @@ const questFormSchema = z
     timedStepSeconds: z.number().int().min(10).max(600).default(60),
     timedCheckpointSeconds: z.number().int().min(5).max(120).default(10),
     timedMaxFailedTaps: z.number().int().min(1).max(5).default(2),
+    // Active Time quest fields
+    targetMinutes: z.number().int().min(1).max(600).default(30),
+    dailyCapMinutes: z.number().int().min(1).max(600).default(120),
+    graceMinutes: z.number().int().min(1).max(60).default(10),
     isActive: z.boolean().default(true),
     sortOrder: z.number().int().min(0).max(9999).default(0),
     // 'first_withdrawal' needs no extra field — it reads profiles.lifetime_withdrawn.
@@ -700,4 +705,78 @@ export const listSdkProvidersForQuests = createServerFn({ method: "POST" })
 
     if (error) throw error;
     return data || [];
+  });
+
+// ========== Active Time Quest Functions ==========
+
+/**
+ * Process active time ping - server authoritative time tracking.
+ * Client sends ping every 30s, server credits min(gap, 35s) with <20s filter.
+ */
+export const processActiveTimePing = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+        pingToken: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { processActiveTimePingImpl } = await import("./quests.server");
+    return await processActiveTimePingImpl(context.userId, data.questKey, data.pingToken);
+  });
+
+/**
+ * Start active time grace period - called when user clicks an offer.
+ * Grace period allows 10min after offer click, max 3/hour, 24h cooldown per offer.
+ */
+export const startActiveTimeGrace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+        offerId: z.string().min(1).max(200),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { startActiveTimeGraceImpl } = await import("./quests.server");
+    return await startActiveTimeGraceImpl(context.userId, data.questKey, data.offerId);
+  });
+
+/**
+ * End active time grace period - called when user closes offer or grace expires.
+ */
+export const endActiveTimeGrace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { endActiveTimeGraceImpl } = await import("./quests.server");
+    return await endActiveTimeGraceImpl(context.userId, data.questKey);
+  });
+
+/**
+ * Claim active time quest reward - atomic Postgres function.
+ */
+export const claimActiveTimeReward = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { claimActiveTimeRewardImpl } = await import("./quests.server");
+    return await claimActiveTimeRewardImpl(context.userId, data.questKey);
   });
