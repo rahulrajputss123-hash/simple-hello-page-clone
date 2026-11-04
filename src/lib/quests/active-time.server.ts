@@ -452,7 +452,7 @@ export async function claimActiveTimeReward(
   db: DbClient,
   userId: string,
   questKey: string,
-): Promise<{ success: boolean; reason: string; accumulatedSeconds?: number }> {
+): Promise<{ success: boolean; reason: string; totalSeconds?: number }> {
   // Call atomic Postgres function (only marks as claimed, doesn't credit wallet)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any).rpc("claim_active_time_quest_reward", {
@@ -467,18 +467,18 @@ export async function claimActiveTimeReward(
 
   const result = data[0];
   
-  if (!result.success) {
+  if (!result.out_success) {
     return {
       success: false,
-      reason: result.reason,
-      accumulatedSeconds: result.accumulated_seconds,
+      reason: result.out_reason,
+      totalSeconds: result.out_total_seconds,
     };
   }
 
   // Success! Now credit wallet via the existing helper
   try {
     const { creditWallet } = await import("../coinquest.server");
-    const rewardAmount = Number(result.reward_amount);
+    const rewardAmount = Number(result.out_reward_amount);
     
     // Get quest label for description
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -564,7 +564,7 @@ export async function claimActiveTimeReward(
     return {
       success: true,
       reason: "claimed",
-      accumulatedSeconds: result.accumulated_seconds,
+      totalSeconds: result.out_total_seconds,
     };
   } catch (creditError) {
     console.error("[active-time] Wallet credit failed:", creditError);

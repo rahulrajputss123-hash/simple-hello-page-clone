@@ -65,14 +65,14 @@ const createMockDb = () => {
 
         if (!progress) {
           return {
-            data: [{ success: false, reason: "progress_not_found", reward_amount: 0, accumulated_seconds: 0 }],
+            data: [{ out_success: false, out_reason: "progress_not_found", out_reward_amount: 0, out_total_seconds: 0 }],
             error: null,
           };
         }
 
         if (progress.credited_at) {
           return {
-            data: [{ success: false, reason: "already_claimed", reward_amount: 0, accumulated_seconds: progress.accumulated_seconds }],
+            data: [{ out_success: false, out_reason: "already_claimed", out_reward_amount: 0, out_total_seconds: progress.total_seconds }],
             error: null,
           };
         }
@@ -80,9 +80,9 @@ const createMockDb = () => {
         const quest = mockData.quests.find((q: any) => q.key === params.p_quest_key);
         const targetSeconds = (quest?.target_minutes || 30) * 60;
 
-        if (progress.accumulated_seconds < targetSeconds) {
+        if (progress.total_seconds < targetSeconds) {
           return {
-            data: [{ success: false, reason: "target_not_reached", reward_amount: 0, accumulated_seconds: progress.accumulated_seconds }],
+            data: [{ out_success: false, out_reason: "target_not_reached", out_reward_amount: 0, out_total_seconds: progress.total_seconds }],
             error: null,
           };
         }
@@ -90,10 +90,10 @@ const createMockDb = () => {
         progress.credited_at = new Date().toISOString();
         return {
           data: [{
-            success: true,
-            reason: "claimed",
-            reward_amount: quest?.reward_amount || 1.0,
-            accumulated_seconds: progress.accumulated_seconds,
+            out_success: true,
+            out_reason: "claimed",
+            out_reward_amount: quest?.reward_amount || 1.0,
+            out_total_seconds: progress.total_seconds,
           }],
           error: null,
         };
@@ -137,7 +137,7 @@ describe("Active Time Quest - Ping Processing", () => {
     (mockDb as any)._mockData.progress.push({
       user_id: userId,
       quest_key: questKey,
-      accumulated_seconds: 100,
+      total_seconds: 100,
       today_seconds: 50,
       last_ping_at: lastPingAt,
       ping_token: "valid-token",
@@ -159,7 +159,7 @@ describe("Active Time Quest - Ping Processing", () => {
     (mockDb as any)._mockData.progress.push({
       user_id: userId,
       quest_key: questKey,
-      accumulated_seconds: 100,
+      total_seconds: 100,
       today_seconds: 50,
       last_ping_at: lastPingAt,
       ping_token: "valid-token",
@@ -178,7 +178,7 @@ describe("Active Time Quest - Ping Processing", () => {
     (mockDb as any)._mockData.progress.push({
       user_id: userId,
       quest_key: questKey,
-      accumulated_seconds: 100,
+      total_seconds: 100,
       today_seconds: 50,
       last_ping_at: new Date(Date.now() - 31_000).toISOString(),
       ping_token: "valid-token",
@@ -199,7 +199,7 @@ describe("Active Time Quest - Ping Processing", () => {
     (mockDb as any)._mockData.progress.push({
       user_id: userId,
       quest_key: questKey,
-      accumulated_seconds: 500,
+      total_seconds: 500,
       today_seconds: 119 * 60, // 119 minutes
       last_ping_at: lastPingAt,
       ping_token: "valid-token",
@@ -236,7 +236,7 @@ describe("Active Time Quest - Grace Periods", () => {
     (mockDb as any)._mockData.progress.push({
       user_id: userId,
       quest_key: questKey,
-      accumulated_seconds: 100,
+      total_seconds: 100,
       today_seconds: 50,
       last_ping_at: new Date().toISOString(),
       ping_token: "token-123",
@@ -328,7 +328,7 @@ describe("Active Time Quest - Reward Claim", () => {
     (mockDb as any)._mockData.progress.push({
       user_id: userId,
       quest_key: questKey,
-      accumulated_seconds: 30 * 60, // Exactly 30 minutes
+      total_seconds: 30 * 60, // Exactly 30 minutes
       today_seconds: 30 * 60,
       last_ping_at: new Date().toISOString(),
       ping_token: "token-123",
@@ -347,7 +347,7 @@ describe("Active Time Quest - Reward Claim", () => {
     (mockDb as any)._mockData.progress.push({
       user_id: userId,
       quest_key: questKey,
-      accumulated_seconds: 20 * 60, // Only 20 minutes
+      total_seconds: 20 * 60, // Only 20 minutes
       today_seconds: 20 * 60,
       last_ping_at: new Date().toISOString(),
       ping_token: "token-123",
@@ -366,7 +366,7 @@ describe("Active Time Quest - Reward Claim", () => {
     (mockDb as any)._mockData.progress.push({
       user_id: userId,
       quest_key: questKey,
-      accumulated_seconds: 30 * 60,
+      total_seconds: 30 * 60,
       today_seconds: 30 * 60,
       last_ping_at: new Date().toISOString(),
       ping_token: "token-123",

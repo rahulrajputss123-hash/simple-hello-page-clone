@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { getOfferwallMeSignedUrl, getTheoremReachSignedUrl, getToroxWallUrl, listSdkOfferwallProviders } from "@/lib/sdk-offerwall.functions";
+import { startActiveTimeGrace } from "@/lib/quests.functions";
 
 function buildOfferwallUrl(slug: string, appId: string, userId: string): string | null {
   if (slug === "mooffers") {
@@ -50,17 +51,20 @@ const OfferwallCard = memo(function OfferwallCard({
   url,
   slug,
   onImageError,
+  activeTimeQuestKey,
 }: {
   provider: { id: string; name: string; tagline: string; logoUrl: string | null };
   url: string | null;
   slug: string;
   onImageError: (id: string) => void;
+  activeTimeQuestKey?: string | null;
 }) {
   const [broken, setBroken] = useState(false);
   const [loading, setLoading] = useState(false);
   const fetchOfferwallMeUrl = useServerFn(getOfferwallMeSignedUrl);
   const fetchTheoremReachUrl = useServerFn(getTheoremReachSignedUrl);
   const fetchToroxUrl = useServerFn(getToroxWallUrl);
+  const startGrace = useServerFn(startActiveTimeGrace);
 
   const handleError = useCallback(() => {
     setBroken(true);
@@ -70,6 +74,18 @@ const OfferwallCard = memo(function OfferwallCard({
   const handleSignedUrlClick = useCallback(async (providerSlug: string) => {
     if (loading) return;
     setLoading(true);
+
+    // Start active time grace period if active time quest is running
+    if (activeTimeQuestKey) {
+      void startGrace({
+        data: {
+          questKey: activeTimeQuestKey,
+          offerId: provider.id,
+        },
+      }).catch((err) => {
+        console.warn("[active-time] Failed to start grace period:", err);
+      });
+    }
 
     // Open blank tab synchronously to avoid popup blockers
     const tab = window.open("", "_blank");
@@ -95,7 +111,7 @@ const OfferwallCard = memo(function OfferwallCard({
     } finally {
       setLoading(false);
     }
-  }, [fetchOfferwallMeUrl, fetchTheoremReachUrl, fetchToroxUrl, loading]);
+  }, [fetchOfferwallMeUrl, fetchTheoremReachUrl, fetchToroxUrl, loading, activeTimeQuestKey, startGrace, provider.id]);
 
   return (
     <article
@@ -152,7 +168,7 @@ const OfferwallCard = memo(function OfferwallCard({
   );
 });
 
-export function OfferwallSlot({ limit }: { limit?: number }) {
+export function OfferwallSlot({ limit, activeTimeQuestKey }: { limit?: number; activeTimeQuestKey?: string | null }) {
   const { session } = useAuth();
   const fetchProviders = useServerFn(listSdkOfferwallProviders);
 
@@ -194,6 +210,7 @@ export function OfferwallSlot({ limit }: { limit?: number }) {
             url={url}
             slug={provider.slug}
             onImageError={handleImageError}
+            activeTimeQuestKey={activeTimeQuestKey}
           />
         );
       })}

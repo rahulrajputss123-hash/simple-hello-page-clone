@@ -2,7 +2,7 @@ import { Progress } from "@/components/ui/progress";
 import { Clock, Pause } from "lucide-react";
 
 type ActiveTimeProgressProps = {
-  accumulatedMinutes: number;
+  totalMinutes: number;
   targetMinutes: number;
   todayMinutes?: number;
   dailyCapMinutes?: number;
@@ -11,17 +11,17 @@ type ActiveTimeProgressProps = {
 
 /**
  * Progress bar for active time quests.
- * Shows minutes accumulated / target with optional daily cap indicator.
+ * Shows minutes completed / target with optional daily cap indicator.
  */
 export function ActiveTimeProgress({
-  accumulatedMinutes,
+  totalMinutes,
   targetMinutes,
   todayMinutes,
   dailyCapMinutes,
   isPaused = false,
 }: ActiveTimeProgressProps) {
-  const progressPercent = Math.min(100, (accumulatedMinutes / targetMinutes) * 100);
-  const isComplete = accumulatedMinutes >= targetMinutes;
+  const progressPercent = Math.min(100, (totalMinutes / targetMinutes) * 100);
+  const isComplete = totalMinutes >= targetMinutes;
   const isDailyCapped = todayMinutes !== undefined && dailyCapMinutes !== undefined && todayMinutes >= dailyCapMinutes;
 
   return (
@@ -30,7 +30,7 @@ export function ActiveTimeProgress({
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground" />
           <span className="text-muted-foreground">
-            {Math.floor(accumulatedMinutes)} / {targetMinutes} min
+            {Math.floor(totalMinutes)} / {targetMinutes} min
           </span>
           {isPaused && (
             <div className="flex items-center gap-1 text-xs text-orange-500">

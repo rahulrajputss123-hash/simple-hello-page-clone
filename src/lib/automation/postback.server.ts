@@ -1449,5 +1449,31 @@ export async function processSdkPostback(req: PostbackRequest): Promise<Postback
     });
   }
 
+  // --- Active Time Grace Period End -----------------------------------------
+  // End any active grace period for active_time quests when a conversion succeeds.
+  // This is best-effort and should not block the postback.
+  try {
+    const { endActiveTimeGraceImpl } = await import("../quests.server");
+    const { data: activeQuests } = await supabaseAdmin
+      .from("quests")
+      .select("key")
+      .eq("quest_type", "active_time")
+      .eq("is_active", true);
+    
+    if (activeQuests && activeQuests.length > 0) {
+      // Try to end grace for all active time quests
+      await Promise.all(
+        activeQuests.map((quest) =>
+          endActiveTimeGraceImpl(userId, quest.key).catch((err) => {
+            console.warn(`[active-time] Failed to end grace for ${quest.key}:`, err);
+          })
+        )
+      );
+    }
+  } catch (error) {
+    // Grace period end failure should not block the postback
+    console.warn("[active-time] Failed to end grace periods:", error);
+  }
+
   return { ok: true, status: "credited", reward, conversionId: claim.data.id };
 }
