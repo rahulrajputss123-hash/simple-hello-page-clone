@@ -106,10 +106,10 @@ async function fetchOfferwallMe(
   // Read credentials from environment (DB row only for enabled/status/currency)
   const apiKey = process.env.OFFERWALLME_API_KEY;
   const bearerToken = process.env.OFFERWALLME_BEARER_TOKEN;
-  const secret = process.env.OFFERWALLME_SECRET;
+  const secret = process.env.OFFERWALLME_SECRET_KEY;
 
   if (!apiKey || !secret) {
-    console.error("[feed] Offerwall.me missing env vars: OFFERWALLME_API_KEY, OFFERWALLME_SECRET");
+    console.error("[feed] Offerwall.me missing env vars: OFFERWALLME_API_KEY, OFFERWALLME_SECRET_KEY");
     throw new Error("Offerwall.me credentials not configured");
   }
 
@@ -217,6 +217,7 @@ async function fetchBitcoTasks(
 ): Promise<FeedItem[]> {
   // Read credentials from environment (DB row only for enabled/status/currency)
   const apiKey = process.env.BITCOTASKS_API_KEY;
+  const bearerToken = process.env.BITCOTASKS_BEARER;
 
   if (!apiKey) {
     console.error("[feed] BitcoTasks missing env var: BITCOTASKS_API_KEY");
@@ -234,11 +235,16 @@ async function fetchBitcoTasks(
 
   console.log(`[feed] Fetching BitcoTasks ${kind}: https://bitcotasks.com/${endpoint}/***`);
 
-  const response = await fetch(url, {
-    headers: {
-      "User-UA": context.userAgent,
-    },
-  });
+  const headers: Record<string, string> = {
+    "User-UA": context.userAgent,
+  };
+  
+  // Add bearer token if configured (may be required for some endpoints)
+  if (bearerToken) {
+    headers.Authorization = `Bearer ${bearerToken}`;
+  }
+
+  const response = await fetch(url, { headers });
 
   if (!response.ok) {
     throw new Error(`BitcoTasks ${kind} failed: ${response.status}`);
