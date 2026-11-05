@@ -6,6 +6,7 @@
  */
 
 import { createHash, createHmac } from "crypto";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export type SurveyNetwork = "cpxresearch" | "theoremreach" | "timewall";
 
@@ -18,6 +19,14 @@ export type Survey = {
   rating?: number; // 0-5 scale
   conversionRate?: number; // 0-100 percentage
   entryLink: string;
+  quotaIds?: number[]; // TheoremReach quota_ids
+};
+
+export type NetworkStatus = {
+  network: SurveyNetwork;
+  ok: boolean;
+  count: number;
+  reason?: string;
 };
 
 export type SurveyFeedParams = {
@@ -31,8 +40,14 @@ export type SurveyFeedParams = {
   maxLoi?: number;
 };
 
+export type SurveyFeedResult = {
+  surveys: Survey[];
+  networks: NetworkStatus[];
+};
+
 type CachedFeed = {
   surveys: Survey[];
+  networks: NetworkStatus[];
   cachedAt: number;
 };
 
@@ -43,45 +58,71 @@ const CACHE_TTL = 120 * 1000; // 120 seconds
 /**
  * Fetch surveys from all allowed networks and merge into one list.
  */
-export async function fetchSurveyFeed(params: SurveyFeedParams): Promise<Survey[]> {
+export async function fetchSurveyFeed(params: SurveyFeedParams): Promise<SurveyFeedResult> {
   const cacheKey = `${params.userId}:${params.allowedNetworks.join(",")}`;
   const cached = feedCache.get(cacheKey);
   
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
-    return filterSurveys(cached.surveys, params);
+    return {
+      surveys: filterSurveys(cached.surveys, params),
+      networks: cached.networks,
+    };
   }
 
   const allSurveys: Survey[] = [];
+  const networks: NetworkStatus[] = [];
 
   // Fetch from each allowed network in parallel
   const promises = params.allowedNetworks.map(async (network) => {
     try {
+      let surveys: Survey[];
       switch (network) {
         case "cpxresearch":
-          return await fetchCPXSurveys(params);
+          surveys = await fetchCPXSurveys(params);
+          break;
         case "theoremreach":
-          return await fetchTheoremReachSurveys(params);
+          surveys = await fetchTheoremReachSurveys(params);
+          break;
         case "timewall":
-          return []; // Timewall has no list API, returns empty
+          surveys = []; // Timewall has no list API
+          break;
         default:
-          return [];
+          surveys = [];
       }
+      return { network, surveys, ok: true, reason: undefined };
     } catch (error) {
-      console.error(`[survey-feed] Failed to fetch from ${network}:`, error);
-      return [];
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error(`[survey-feed] ${network} failed:`, reason);
+      return { network, surveys: [], ok: false, reason };
     }
   });
 
   const results = await Promise.all(promises);
-  results.forEach((surveys) => allSurveys.push(...surveys));
+  
+  for (const result of results) {
+    allSurveys.push(...result.surveys);
+    networks.push({
+      network: result.network,
+      ok: result.ok,
+      count: result.surveys.length,
+      reason: result.reason,
+    });
+  }
 
-  // Cache the raw results
-  feedCache.set(cacheKey, {
-    surveys: allSurveys,
-    cachedAt: Date.now(),
-  });
+  // Don't cache empty or failed results
+  const hasData = allSurveys.length > 0 || networks.some(n => n.ok);
+  if (hasData) {
+    feedCache.set(cacheKey, {
+      surveys: allSurveys,
+      networks,
+      cachedAt: Date.now(),
+    });
+  }
 
-  return filterSurveys(allSurveys, params);
+  return {
+    surveys: filterSurveys(allSurveys, params),
+    networks,
+  };
 }
 
 /**
@@ -113,8 +154,7 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
   const secret = process.env.CPX_SECURE_HASH_SECRET;
 
   if (!appId || !secret) {
-    console.warn("[survey-feed] CPX credentials not configured");
-    return [];
+    throw new Error("Missing env CPX_APP_ID or CPX_SECURE_HASH_SECRET");
   }
 
   const secureHash = createHash("md5")
@@ -127,13 +167,15 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
   url.searchParams.set("subid_1", params.sessionId);
   url.searchParams.set("output_method", "api");
   url.searchParams.set("ip_user", params.ip);
-  url.searchParams.set("user_agent", encodeURIComponent(params.userAgent));
+  url.searchParams.set("user_agent", params.userAgent); // Pass raw user agent, searchParams handles encoding
   url.searchParams.set("limit", "12");
   url.searchParams.set("secure_hash", secureHash);
 
   const response = await fetch(url.toString());
+  
   if (!response.ok) {
-    throw new Error(`CPX API failed: ${response.status}`);
+    const body = await response.text().catch(() => "");
+    throw new Error(`HTTP ${response.status}${body ? `: ${body.substring(0, 100)}` : ""}`);
   }
 
   const data = await response.json();
@@ -147,69 +189,135 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
     loi: Number(s.loi || 0),
     rating: Number(s.statistics_rating_avg || 0),
     conversionRate: Number(s.conversion_rate || 0),
-    entryLink: s.href || "", // Always new design
+    entryLink: s.href || "",
   }));
 }
 
 /**
  * Fetch TheoremReach surveys.
  * 
- * GET https://api.theoremreach.com/api/publishers/v1/surveys
- * Params: api_key, user_id, ip, country_code, hash
- * Hash: base64url(HMAC-SHA1(secret, full URL without &hash=))
+ * GET https://theoremreach.com/api/v1/surveys
+ * Real response fields per docs:
+ * - campaign_id, quota_id, quota_ids[], rank, buyer_id
+ * - loi, cpi (USD, needs multiplier), incidence, attempts_count, completes_count
+ * - rating_count, average_rating, entry_link (UNSIGNED)
  * 
- * Note: DO NOT request include_question_info
+ * We must sign the entry_link ourselves before returning.
  */
 async function fetchTheoremReachSurveys(params: SurveyFeedParams): Promise<Survey[]> {
   const apiKey = process.env.THEOREMREACH_API_KEY;
   const secret = process.env.THEOREMREACH_SECRET;
 
   if (!apiKey || !secret) {
-    console.warn("[survey-feed] TheoremReach credentials not configured");
-    return [];
+    throw new Error("Missing env THEOREMREACH_API_KEY or THEOREMREACH_SECRET");
   }
 
-  // Build URL without hash first
-  const baseUrl = "https://api.theoremreach.com/api/publishers/v1/surveys";
+  // Validate country code
+  if (!/^[A-Z]{2}$/.test(params.countryCode)) {
+    throw new Error(`Invalid country code: ${params.countryCode}`);
+  }
+
+  // Get reward multiplier from provider settings
+  const { data: provider } = await supabaseAdmin
+    .from("sdk_offerwall_providers")
+    .select("reward_multiplier")
+    .eq("slug", "theoremreach")
+    .maybeSingle();
+
+  const rewardMultiplier = provider?.reward_multiplier ?? 0.8;
+
+  // Build URL for /surveys request (also needs signing)
+  const baseUrl = "https://theoremreach.com/api/v1/surveys";
   const url = new URL(baseUrl);
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("user_id", params.userId);
-  url.searchParams.set("ip", params.ip);
   url.searchParams.set("country_code", params.countryCode);
 
-  // Sign the full URL without hash param
+  // Sign the /surveys request URL
   const urlToSign = url.toString();
-  const signature = createHmac("sha1", secret)
-    .update(urlToSign)
-    .digest(); // Raw binary, not hex
-
-  // Base64url encoding: replace + with -, / with _, remove =
-  const hash = signature
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-
-  url.searchParams.set("hash", hash);
+  const requestHash = signTheoremReachUrl(urlToSign, secret);
+  url.searchParams.set("hash", requestHash);
 
   const response = await fetch(url.toString());
+  
   if (!response.ok) {
-    throw new Error(`TheoremReach API failed: ${response.status}`);
+    const body = await response.text().catch(() => "");
+    const reason = response.status === 401 
+      ? "HTTP 401 (Publisher API not enabled or bad hash)"
+      : response.status === 403
+      ? "HTTP 403"
+      : `HTTP ${response.status}`;
+    throw new Error(`${reason}${body ? `: ${body.substring(0, 100)}` : ""}`);
   }
 
   const data = await response.json();
   const surveys = data.surveys || [];
 
-  return surveys.map((s: any) => ({
-    id: String(s.id),
-    network: "theoremreach" as const,
-    title: s.title || s.name || `Survey ${s.id}`,
-    payoutUsd: Number(s.payout_usd || 0),
-    loi: Number(s.loi || 0),
-    rating: Number(s.rating || 0),
-    conversionRate: undefined,
-    entryLink: s.entry_link || "", // Already signed by TheoremReach
-  }));
+  if (surveys.length === 0) {
+    throw new Error("No surveys for this user/country");
+  }
+
+  return surveys.map((s: any) => {
+    const campaignId = s.campaign_id;
+    const loi = Number(s.loi || 0);
+    const cpi = Number(s.cpi || 0); // USD from TheoremReach
+    // NOTE: cpi semantics must be verified against real postback - may need adjustment
+    const payoutUsd = cpi * rewardMultiplier;
+    const rating = Number(s.average_rating || 0);
+    const quotaIds = Array.isArray(s.quota_ids) ? s.quota_ids : [];
+    
+    // Sign the entry_link
+    let entryLink = s.entry_link || "";
+    if (entryLink) {
+      entryLink = signTheoremReachEntryLink(entryLink, secret, params);
+    }
+
+    return {
+      id: String(campaignId),
+      network: "theoremreach" as const,
+      title: `${loi} min survey`,
+      payoutUsd,
+      loi,
+      rating,
+      entryLink,
+      quotaIds,
+    };
+  });
+}
+
+/**
+ * Sign a TheoremReach URL (for /surveys request or entry_link).
+ * Hash: base64url(HMAC-SHA1(secret, fullUrlWithoutHash))
+ */
+function signTheoremReachUrl(url: string, secret: string): string {
+  const signature = createHmac("sha1", secret)
+    .update(url)
+    .digest(); // Raw binary
+
+  // Base64url encoding: replace + with -, / with _, remove =
+  return signature
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+}
+
+/**
+ * Sign TheoremReach entry_link.
+ * entry_link already contains api_key, user_id, survey_id, quota_ids[].
+ * Optionally append demographics, then compute and append &hash=<hash> LAST.
+ */
+function signTheoremReachEntryLink(
+  entryLink: string,
+  secret: string,
+  params: SurveyFeedParams,
+): string {
+  // TODO: Optionally append &question_1[]=age / &question_2[]=100|101 / &postal_code if we have them
+  // For now, sign as-is
+  
+  const hash = signTheoremReachUrl(entryLink, secret);
+  const separator = entryLink.includes("?") ? "&" : "?";
+  return `${entryLink}${separator}hash=${hash}`;
 }
 
 /**
@@ -220,15 +328,4 @@ export function getTimewallWallUrl(userId: string): string {
   // This will use the existing buildOfferwallUrl logic for slug "timewall"
   // Implementation will be in the server function that calls this
   return ""; // Placeholder, actual URL built in handler
-}
-
-/**
- * Base64url encoding helper (for TheoremReach)
- */
-function base64url(input: Buffer): string {
-  return input
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
 }

@@ -528,7 +528,9 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context, request$ }) => {
+  .handler(async ({ data, context }) => {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const { detectIpFromRequest, detectCountryFromRequest } = await import("./offers/geo.server");
     const { getActiveQuestByKey } = await import("./quests.server");
     const { fetchSurveyFeed: fetchSurveyFeedImpl } = await import("./surveys/survey-feed.server");
 
@@ -542,20 +544,29 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
       throw new Error("Not a survey quest");
     }
 
-    // Extract IP and User-Agent from request
-    const headers = await request$.headers;
-    const ip =
-      headers.get("cf-connecting-ip") ||
-      headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      headers.get("x-real-ip") ||
-      "0.0.0.0";
-    const userAgent = headers.get("user-agent") || "Mozilla/5.0";
+    // Extract IP and User-Agent from request using proper getRequest()
+    const request = getRequest();
+    const ip = detectIpFromRequest();
+    const countryCode = detectCountryFromRequest();
+    const userAgent = request?.headers?.get("user-agent") || "Mozilla/5.0";
 
-    // Get country code from Cloudflare header or default
-    const countryCode = headers.get("cf-ipcountry") || "US";
+    // Require valid IP and country
+    if (!ip || !countryCode) {
+      return {
+        surveys: [],
+        networks: [
+          {
+            network: "system" as const,
+            ok: false,
+            count: 0,
+            reason: `Unable to determine ${!ip ? "IP address" : "country"}. Network targeting requires valid geo data.`,
+          },
+        ],
+      };
+    }
 
     // Fetch surveys from allowed networks
-    const surveys = await fetchSurveyFeedImpl({
+    const result = await fetchSurveyFeedImpl({
       userId: context.userId,
       sessionId: data.sessionId,
       ip,
@@ -566,7 +577,7 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
       maxLoi: quest.max_loi ?? undefined,
     });
 
-    return { surveys };
+    return result;
   });
 
 /**
