@@ -507,7 +507,10 @@ export function QuestsManager() {
           : form.questType === "checkin"
             ? Number(form.totalDays) > 0 && Number(form.totalDays) <= 365
             : form.questType === "network"
-              ? form.networkProviderIds.length > 0 && Number(form.requiredCount) > 0
+              ? form.networkProviderIds.length > 0 &&
+                Number(form.requiredCount) > 0 &&
+                Number(form.requiredCount) <= form.networkProviderIds.length &&
+                !form.day1AutoComplete // Block if day1AutoComplete is enabled
               : form.questType === "survey"
                 ? form.allowedNetworks.length > 0 && Number(form.requiredSurveys) > 0
                 : form.questType === "timed_ptc"
@@ -549,34 +552,39 @@ export function QuestsManager() {
                       ? "Network quest must have at least one provider selected"
                       : form.questType === "network" && Number(form.requiredCount) <= 0
                         ? "Network quest must require at least 1 completion"
-                        : form.questType === "survey" && form.allowedNetworks.length === 0
-                          ? "Survey quest must have at least one network selected"
-                          : form.questType === "survey" && Number(form.requiredSurveys) <= 0
-                            ? "Survey quest must require at least 1 survey"
-                            : form.questType === "timed_ptc" && form.timedSteps.length === 0
-                              ? "Timed PTC quest must have at least one step"
-                              : form.questType === "timed_ptc" &&
-                                  !form.timedSteps.every((s) => Number(s.reward) > 0)
-                                ? "All timed PTC steps must have a reward > 0"
-                                : form.questType === "active_time" && Number(form.targetMinutes) <= 0
-                                  ? "Active time quest must have target minutes > 0"
-                                  : form.questType === "active_time" &&
-                                      Number(form.dailyCapMinutes) <= 0
-                                    ? "Active time quest must have daily cap > 0"
-                                    : form.questType === "active_time" &&
-                                        Number(form.graceMinutes) <= 0
-                                      ? "Active time quest must have grace minutes > 0"
+                        : form.questType === "network" &&
+                            Number(form.requiredCount) > form.networkProviderIds.length
+                          ? "Required completions cannot exceed pool size"
+                          : form.questType === "network" && form.day1AutoComplete
+                            ? "Network quests cannot have Day-1 auto-complete enabled"
+                            : form.questType === "survey" && form.allowedNetworks.length === 0
+                              ? "Survey quest must have at least one network selected"
+                              : form.questType === "survey" && Number(form.requiredSurveys) <= 0
+                                ? "Survey quest must require at least 1 survey"
+                                : form.questType === "timed_ptc" && form.timedSteps.length === 0
+                                  ? "Timed PTC quest must have at least one step"
+                                  : form.questType === "timed_ptc" &&
+                                      !form.timedSteps.every((s) => Number(s.reward) > 0)
+                                    ? "All timed PTC steps must have a reward > 0"
+                                    : form.questType === "active_time" && Number(form.targetMinutes) <= 0
+                                      ? "Active time quest must have target minutes > 0"
+                                      : form.questType === "active_time" &&
+                                          Number(form.dailyCapMinutes) <= 0
+                                        ? "Active time quest must have daily cap > 0"
+                                        : form.questType === "active_time" &&
+                                            Number(form.graceMinutes) <= 0
+                                          ? "Active time quest must have grace minutes > 0"
+                                          : (form.questType === "feed_ptc" ||
+                                          form.questType === "feed_shortlink" ||
+                                          form.questType === "feed_article") &&
+                                        form.feedProviderIds.length === 0
+                                      ? "Feed quest must have at least one provider selected"
                                       : (form.questType === "feed_ptc" ||
-                                      form.questType === "feed_shortlink" ||
-                                      form.questType === "feed_article") &&
-                                    form.feedProviderIds.length === 0
-                                  ? "Feed quest must have at least one provider selected"
-                                  : (form.questType === "feed_ptc" ||
-                                        form.questType === "feed_shortlink" ||
-                                        form.questType === "feed_article") &&
-                                      Number(form.stepsCount) <= 0
-                                    ? "Feed quest must have at least 1 step"
-                                    : "";
+                                            form.questType === "feed_shortlink" ||
+                                            form.questType === "feed_article") &&
+                                          Number(form.stepsCount) <= 0
+                                        ? "Feed quest must have at least 1 step"
+                                        : "";
 
   const origin = typeof window !== "undefined" ? window.location.origin : "https://yourapp.com";
 
@@ -1086,7 +1094,7 @@ export function QuestsManager() {
                       </p>
                     </div>
                   </div>
-                ) : (
+                ) : form.questType === "shortlink" ? (
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">
                       Steps are completed in order. {SHORTLINK_MIN_STEPS} to {SHORTLINK_MAX_STEPS}{" "}
@@ -1178,7 +1186,7 @@ export function QuestsManager() {
                       />
                     </Field>
                   </div>
-                )}
+                ) : null}
 
                 {form.questType === "network" && (
                   <div className="space-y-4">
@@ -1245,6 +1253,22 @@ export function QuestsManager() {
                         </p>
                       </Field>
 
+                      <Field label="Step reward per provider ($)">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={form.stepReward}
+                          placeholder="0.10"
+                          onChange={(e) => setForm({ ...form, stepReward: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Extra reward per completed provider
+                        </p>
+                      </Field>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
                       <Field label="Min qualifying USD">
                         <Input
                           type="number"
@@ -1257,9 +1281,7 @@ export function QuestsManager() {
                           Filters micro-payouts (default: $0.01)
                         </p>
                       </Field>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-3">
                       <Field label="Token TTL (hours)">
                         <Input
                           type="number"
@@ -1272,20 +1294,46 @@ export function QuestsManager() {
                           Quest token expiry (default: 24h)
                         </p>
                       </Field>
-
-                      <Field label="Reward hold (hours)">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="720"
-                          value={form.rewardHoldHours}
-                          onChange={(e) => setForm({ ...form, rewardHoldHours: e.target.value })}
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Chargeback protection (default: 0)
-                        </p>
-                      </Field>
                     </div>
+
+                    <Field label="Reward hold (hours)">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="720"
+                        value={form.rewardHoldHours}
+                        onChange={(e) => setForm({ ...form, rewardHoldHours: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Chargeback protection (default: 0)
+                      </p>
+                    </Field>
+
+                    {/* Payout summary */}
+                    {(() => {
+                      const requiredCount = Number(form.requiredCount) || 3;
+                      const stepReward = Number(form.stepReward) || 0;
+                      const completionBonus = Number(form.rewardAmount) || 0;
+                      const totalStepRewards = requiredCount * stepReward;
+                      const totalPayout = totalStepRewards + completionBonus;
+
+                      return (
+                        <div className="rounded-lg bg-background p-2 text-xs">
+                          <p className="font-semibold">Payout summary:</p>
+                          <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                            <li>
+                              {requiredCount} providers × {formatReward(stepReward)} = {formatReward(totalStepRewards)}
+                            </li>
+                            {completionBonus > 0 && (
+                              <li>Completion bonus: {formatReward(completionBonus)}</li>
+                            )}
+                            <li className="font-semibold text-primary">
+                              Total: {formatReward(totalPayout)}
+                            </li>
+                          </ul>
+                        </div>
+                      );
+                    })()}
 
                     <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
                       <p className="font-semibold text-amber-700 dark:text-amber-400">
