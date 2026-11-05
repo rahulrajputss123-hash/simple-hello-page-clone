@@ -553,11 +553,7 @@ function NetworkQuestProviderGrid({
         newWindow?.close();
         
         const errorMsg = "error" in result ? result.error : "Failed to open network";
-        toast({
-          title: "Could not open offerwall",
-          description: errorMsg,
-          variant: "destructive",
-        });
+        toast.error(errorMsg);
       }
 
       // Refetch progress after a delay
@@ -566,11 +562,7 @@ function NetworkQuestProviderGrid({
       }, 1000);
     } catch (error) {
       openedWindowRef.current?.close();
-      toast({
-        title: "Error opening network",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
+      toast.error(error instanceof Error ? error.message : "Unknown error");
     } finally {
       setOpening(null);
     }
