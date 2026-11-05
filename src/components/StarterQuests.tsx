@@ -233,6 +233,43 @@ export function StarterQuests() {
     onSettled: () => setBusy(null),
   });
 
+  const runFeedQuest = useMutation({
+    mutationFn: async ({ questKey, step }: { questKey: string; step: number }) => {
+      const { startFeedQuest, openFeedQuestStep } = await import("@/lib/quests.functions");
+      
+      // First call: create session if needed
+      if (step === 1) {
+        const session = await startFeedQuest({ data: { questKey } });
+        // Session created, now get step 1 URL
+        return openFeedQuestStep({ data: { questKey, step: 1 } });
+      }
+      
+      // Continue with existing session
+      return openFeedQuestStep({ data: { questKey, step } });
+    },
+    onSuccess: (result) => {
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.url) {
+        window.open(result.url, "_blank", "noopener,noreferrer");
+        toast.info("Complete the task — you'll be sent back automatically.");
+      } else if (result.completed) {
+        toast.success("Feed quest complete!");
+      } else {
+        toast.error("No URL available for this step.");
+      }
+      void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
+    },
+    onError: (error: Error) => {
+      if (error.message.includes("Not enough campaigns available")) {
+        toast.error("No campaigns available right now, try again later.");
+      } else {
+        toast.error(error.message || "Could not start this quest.");
+      }
+    },
+    onSettled: () => setBusy(null),
+  });
+
   /**
    * Session-derived runtime bits for a quest, so the card and handleContinue
    * always agree on which step comes next.
@@ -241,7 +278,15 @@ export function StarterQuests() {
     const active = sessions.data?.find((s) => s.quest_key === q.key && s.status === "started");
     const credited =
       sessions.data?.some((s) => s.quest_key === q.key && s.status === "credited") ?? false;
-    const total = q.quest_type === "shortlink" ? Math.max(1, q.shortlink_steps.length) : 1;
+    
+    // Feed quests use steps_count from the quest definition
+    const isFeedQuest = q.quest_type === "feed_ptc" || q.quest_type === "feed_shortlink" || q.quest_type === "feed_article";
+    const total = isFeedQuest 
+      ? (q.steps_count ?? 10)
+      : q.quest_type === "shortlink" 
+        ? Math.max(1, q.shortlink_steps.length) 
+        : 1;
+    
     const currentStep = Number(active?.current_step ?? 0);
     const nextStep = credited ? total : Math.min(currentStep + 1, total);
     return { active, credited, nextStep };
@@ -287,6 +332,8 @@ export function StarterQuests() {
       runShortlink.mutate({ questKey: q.key, step: nextStep });
     } else if (q.quest_type === "locker") {
       runLocker.mutate(q.key);
+    } else if (q.quest_type === "feed_ptc" || q.quest_type === "feed_shortlink" || q.quest_type === "feed_article") {
+      runFeedQuest.mutate({ questKey: q.key, step: nextStep });
     } else {
       runAd.mutate(q.key);
     }

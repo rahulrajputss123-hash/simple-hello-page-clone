@@ -394,6 +394,14 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     input.questType === "feed_shortlink" ||
     input.questType === "feed_article";
 
+  const feedKind = input.questType === "feed_ptc" 
+    ? "ptc" 
+    : input.questType === "feed_shortlink"
+      ? "shortlink"
+      : input.questType === "feed_article"
+        ? "article"
+        : null;
+
   const row = {
     key: input.key.trim(),
     label: input.label.trim(),
@@ -417,19 +425,19 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     required_count: input.questType === "network" ? input.requiredCount : 3,
     min_qualifying_usd: input.questType === "network" ? input.minQualifyingUsd : 0.01,
     reward_hold_hours: input.questType === "network" ? input.rewardHoldHours : 0,
-    feed_kind: isFeedQuest ? input.feedKind : null,
-    steps_count: isFeedQuest ? input.stepsCount : 10,
-    backup_count: isFeedQuest ? input.backupCount : 4,
-    feed_provider_ids: isFeedQuest ? input.feedProviderIds : [],
-    min_reward_usd: isFeedQuest ? input.minRewardUsd : 0,
-    min_completion_rate: isFeedQuest ? input.minCompletionRate : 50,
-    max_per_network: isFeedQuest ? input.maxPerNetwork : null,
-    blocked_domains: isFeedQuest ? input.blockedDomains : [],
+    feed_kind: feedKind,
+    steps_count: isFeedQuest ? (input.stepsCount ?? 10) : 10,
+    backup_count: isFeedQuest ? (input.backupCount ?? 4) : 4,
+    feed_provider_ids: isFeedQuest ? (input.feedProviderIds ?? []) : [],
+    min_reward_usd: isFeedQuest ? (input.minRewardUsd ?? 0) : 0,
+    min_completion_rate: isFeedQuest ? (input.minCompletionRate ?? 50) : 50,
+    max_per_network: isFeedQuest ? (input.maxPerNetwork ?? null) : null,
+    blocked_domains: isFeedQuest ? (input.blockedDomains ?? []) : [],
     token_ttl_hours:
       input.questType === "network"
         ? input.tokenTtlHours
         : isFeedQuest
-          ? input.tokenTtlHours
+          ? (input.tokenTtlHours ?? 48)
           : 24,
     timed_steps: input.questType === "timed_ptc" ? timedSteps : [],
     timed_step_seconds: input.questType === "timed_ptc" ? input.timedStepSeconds : 60,
