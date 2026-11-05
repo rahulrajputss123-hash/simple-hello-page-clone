@@ -1,9 +1,9 @@
 import { AlertTriangle, ArrowUpRight, Check, ExternalLink, Info, Loader2, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { AppBottomSheet } from "@/components/AppBottomSheet";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { formatReward } from "@/lib/format-reward";
 import { checkInToday, getNetworkQuestProgress, openQuestNetwork, fetchSurveyFeed, startSurveyQuest, getSurveyQuestProgress } from "@/lib/quests.functions";
 import {
@@ -505,7 +505,6 @@ function NetworkQuestProviderGrid({
   open: boolean;
 }) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const fetchProgress = useServerFn(getNetworkQuestProgress);
   const openNetwork = useServerFn(openQuestNetwork);
   const [opening, setOpening] = useState<string | null>(null);
