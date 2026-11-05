@@ -33,7 +33,8 @@ export type QuestRow = {
     | "feed_article"
     | "network"
     | "survey"
-    | "timed_ptc";
+    | "timed_ptc"
+    | "active_time";
   ads_required: number;
   /**
    * Completion bonus credited when the entire quest finishes.
@@ -116,6 +117,12 @@ export type QuestRow = {
   timed_checkpoint_seconds: number;
   /** Timed PTC quest: maximum allowed failed taps (1-5). */
   timed_max_failed_taps: number;
+  /** Active Time quest: target minutes to complete (1-600). */
+  target_minutes: number;
+  /** Active Time quest: daily cap in minutes (default 120 = 2 hours). */
+  daily_cap_minutes: number;
+  /** Active Time quest: grace period minutes per offer (default 10). */
+  grace_minutes: number;
   is_active: boolean;
   sort_order: number;
   /** 'first_withdrawal' unlocks once profiles.lifetime_withdrawn > 0. */
@@ -168,6 +175,9 @@ function normalize(row: QuestRow): QuestRow {
     timed_step_seconds: Number(row.timed_step_seconds ?? 60),
     timed_checkpoint_seconds: Number(row.timed_checkpoint_seconds ?? 10),
     timed_max_failed_taps: Number(row.timed_max_failed_taps ?? 2),
+    target_minutes: Number(row.target_minutes ?? 30),
+    daily_cap_minutes: Number(row.daily_cap_minutes ?? 120),
+    grace_minutes: Number(row.grace_minutes ?? 10),
     sort_order: Number(row.sort_order ?? 0),
     lock_type: (row.lock_type ?? "none") as QuestRow["lock_type"],
     unlock_at: row.unlock_at ?? null,
@@ -271,7 +281,14 @@ export type QuestFormInput = {
   key: string;
   label: string;
   icon: string;
-  questType: "ads" | "shortlink" | "locker" | "checkin" | "network" | "timed_ptc";
+  questType:
+    | "ads"
+    | "shortlink"
+    | "locker"
+    | "checkin"
+    | "network"
+    | "timed_ptc"
+    | "active_time";
   adsRequired: number;
   rewardAmount: number;
   /** Default step reward (overridden by stepRewards array if present) */
@@ -315,6 +332,12 @@ export type QuestFormInput = {
   timedCheckpointSeconds: number;
   /** Timed PTC: maximum allowed failed taps (1-5) */
   timedMaxFailedTaps: number;
+  /** Active Time: target minutes to complete */
+  targetMinutes: number;
+  /** Active Time: daily cap in minutes */
+  dailyCapMinutes: number;
+  /** Active Time: grace period minutes per offer */
+  graceMinutes: number;
   isActive: boolean;
   sortOrder: number;
   lockType: "none" | "time" | "earning" | "first_withdrawal";
@@ -394,6 +417,9 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     timed_step_seconds: input.questType === "timed_ptc" ? input.timedStepSeconds : 60,
     timed_checkpoint_seconds: input.questType === "timed_ptc" ? input.timedCheckpointSeconds : 10,
     timed_max_failed_taps: input.questType === "timed_ptc" ? input.timedMaxFailedTaps : 2,
+    target_minutes: input.questType === "active_time" ? input.targetMinutes : 30,
+    daily_cap_minutes: input.questType === "active_time" ? input.dailyCapMinutes : 120,
+    grace_minutes: input.questType === "active_time" ? input.graceMinutes : 10,
     is_active: isActive,
     sort_order: input.sortOrder,
     lock_type: input.lockType,
@@ -2015,27 +2041,50 @@ export async function openQuestNetworkImpl(
 
 /**
  * Build offerwall URL with quest token as user ID.
- * Reuses the same logic as OfferwallSlot/buildOfferwallUrl.
+ * Mirrors the logic in OfferwallSlot/buildOfferwallUrl using correct provider schema.
  */
 async function buildQuestOfferwallUrl(token: string, provider: any): Promise<string> {
-  const providerKey = provider.key;
+  const slug = provider.slug;
+  const appId = provider.app_id;
 
-  // For Offerwall.me, use the signed URL generator
-  if (providerKey === "offerwall.me") {
+  // Simple URL builders (mooffers, affike, revtoo, gemiad, timewall, cpxresearch, adswedmedia)
+  if (slug === "mooffers") {
+    return `https://wall.mooffers.com/offerwall/${appId}?uid=${encodeURIComponent(token)}`;
+  }
+  if (slug === "affike") {
+    return `https://affike.com/offerwall/${appId}/${encodeURIComponent(token)}`;
+  }
+  if (slug === "revtoo") {
+    return `https://revtoo.com/offerwall/${appId}/${encodeURIComponent(token)}`;
+  }
+  if (slug === "gemiad") {
+    return `https://gemiwall.com/${appId}/${encodeURIComponent(token)}`;
+  }
+  if (slug === "timewall") {
+    return `https://timewall.io/users/login?oid=${appId}&uid=${encodeURIComponent(token)}`;
+  }
+  if (slug === "cpxresearch") {
+    return `https://offers.cpx-research.com/index.php?app_id=${appId}&ext_user_id=${encodeURIComponent(token)}`;
+  }
+  if (slug === "adswedmedia") {
+    return `https://adswedmedia.com/offer/${appId}/${encodeURIComponent(token)}`;
+  }
+
+  // Signed URL providers (offerwallme, theoremreach, torox)
+  if (slug === "offerwallme") {
     const { getOfferwallMeSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
     return getOfferwallMeSignedUrlImpl(token);
   }
+  if (slug === "theoremreach") {
+    const { getTheoremReachSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
+    return getTheoremReachSignedUrlImpl(token);
+  }
+  if (slug === "torox") {
+    const { getToroxWallUrlImpl } = await import("./sdk-offerwall/admin.server");
+    return getToroxWallUrlImpl(token);
+  }
 
-  // For other providers, construct URL with token as user ID
-  // This matches the logic in OfferwallSlot/buildOfferwallUrl
-  let url = provider.url ?? "";
-
-  // Replace placeholders
-  url = url.replace("{USER_ID}", encodeURIComponent(token));
-  url = url.replace("{PUBID}", encodeURIComponent(provider.api_key ?? ""));
-  url = url.replace("{API_KEY}", encodeURIComponent(provider.api_key ?? ""));
-
-  return url;
+  throw new Error(`Unsupported provider slug: ${slug}`);
 }
 
 /**
@@ -2140,3 +2189,35 @@ export async function getActiveQuestByKey(userId: string, key: string): Promise<
 }
 
 export { startFeedQuestImpl, openFeedQuestStepImpl } from "./quests/feed-quests.server";
+
+// ========== Active Time Quest Functions ==========
+import {
+  processActiveTimePing,
+  startActiveTimeGrace,
+  endActiveTimeGrace,
+  claimActiveTimeReward,
+} from "./quests/active-time.server";
+
+export async function processActiveTimePingImpl(
+  userId: string,
+  questKey: string,
+  pingToken: string,
+) {
+  return processActiveTimePing(db, userId, questKey, pingToken);
+}
+
+export async function startActiveTimeGraceImpl(
+  userId: string,
+  questKey: string,
+  offerId: string,
+) {
+  return startActiveTimeGrace(db, userId, questKey, offerId);
+}
+
+export async function endActiveTimeGraceImpl(userId: string, questKey: string) {
+  return endActiveTimeGrace(db, userId, questKey);
+}
+
+export async function claimActiveTimeRewardImpl(userId: string, questKey: string) {
+  return claimActiveTimeReward(db, userId, questKey);
+}

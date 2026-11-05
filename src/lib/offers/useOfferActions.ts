@@ -8,6 +8,7 @@ import { getToroxClickUrl } from "@/lib/offers/torox.functions";
 import { appendAffSub4 } from "@/lib/offers/click-url";
 import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/adapters/torox.server";
 import { useAuth } from "@/lib/auth";
+import { startActiveTimeGrace } from "@/lib/quests.functions";
 
 export type OfferActionData = {
   id: string;
@@ -19,6 +20,7 @@ export type OfferActionData = {
 
 export function useOfferActions(
   onSuccess?: (offerId: string, type: "start" | "submit" | "claim") => void,
+  activeTimeQuestKey?: string | null,
 ) {
   const queryClient = useQueryClient();
   const { session } = useAuth();
@@ -27,10 +29,24 @@ export function useOfferActions(
   const submitProof = useServerFn(submitOfferProof);
   const trackClick = useServerFn(trackOfferClick);
   const getToroxUrl = useServerFn(getToroxClickUrl);
+  const startGrace = useServerFn(startActiveTimeGrace);
 
   const startMutation = useMutation({
     mutationFn: async (offer: OfferActionData) => {
       const result = await startClaim({ data: { offerId: offer.id } });
+      
+      // Start active time grace period if active time quest is running
+      if (activeTimeQuestKey) {
+        void startGrace({
+          data: {
+            questKey: activeTimeQuestKey,
+            offerId: offer.id,
+          },
+        }).catch((err) => {
+          console.warn("[active-time] Failed to start grace period:", err);
+        });
+      }
+      
       return { result, offer };
     },
     onSuccess: async ({ offer }) => {
@@ -102,6 +118,18 @@ export function useOfferActions(
       // Track click first
       if (input.hasClickUrl) {
         void trackClick({ data: { offerId: input.offerId } }).catch(() => {});
+        
+        // Start active time grace period if active time quest is running
+        if (activeTimeQuestKey) {
+          void startGrace({
+            data: {
+              questKey: activeTimeQuestKey,
+              offerId: input.offerId,
+            },
+          }).catch((err) => {
+            console.warn("[active-time] Failed to start grace period:", err);
+          });
+        }
       }
       
       // Special handling for Torox

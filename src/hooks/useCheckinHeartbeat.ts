@@ -71,7 +71,7 @@ export function useCheckinHeartbeat({
     setState((prev) => ({ ...prev, isPinging: true }));
 
     try {
-      const result = await pingActiveTime({ questKey });
+      const result = await pingActiveTime({ data: { questKey } });
 
       if (!result.success) {
         console.warn('[Checkin Heartbeat] Ping failed:', result.error);
