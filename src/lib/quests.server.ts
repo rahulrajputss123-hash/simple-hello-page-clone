@@ -549,7 +549,7 @@ export async function creditStepReward(
       quest_key: questKey,
       step_index: stepIndex,
       amount: roundedAmount, // Store rounded amount
-      metadata: metadata || null,
+      metadata: metadata || {}, // NOT NULL, default to empty object
     });
 
     // If unique constraint violation, step already credited
