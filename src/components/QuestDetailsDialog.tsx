@@ -738,7 +738,7 @@ function SurveyQuestFeed({
   }, [open, credited, sessionId, quest.key, startQuest]);
 
   // Fetch survey feed
-  const { data: feedData, refetch: refetchFeed, isLoading } = useQuery({
+  const { data: feedData, refetch: refetchFeed, isLoading, error: feedError } = useQuery({
     queryKey: ["survey-feed", quest.key, sessionId],
     queryFn: () => fetchFeed({ questKey: quest.key, sessionId: sessionId! }),
     enabled: open && !credited && Boolean(sessionId),
@@ -801,6 +801,7 @@ function SurveyQuestFeed({
   };
 
   const surveys = feedData?.surveys ?? [];
+  const networks = feedData?.networks ?? [];
   const completed = progress?.completed ?? 0;
   const required = progress?.required ?? quest.required_surveys ?? 5;
 
@@ -821,6 +822,28 @@ function SurveyQuestFeed({
           />
         </div>
       </section>
+
+      {/* Network Status (show errors if any) */}
+      {networks.length > 0 && networks.some(n => !n.ok || n.reason) && (
+        <section className="space-y-1">
+          {networks.map((network) => (
+            network.reason && (
+              <div key={network.network} className="text-xs text-muted-foreground">
+                <span className="capitalize">{network.network}</span>: {network.reason}
+              </div>
+            )
+          ))}
+        </section>
+      )}
+
+      {/* Feed Error */}
+      {feedError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+          <p className="text-sm text-destructive">
+            {feedError instanceof Error ? feedError.message : "Failed to load surveys"}
+          </p>
+        </div>
+      )}
 
       {/* Survey Feed */}
       <section className="space-y-3">
