@@ -79,7 +79,7 @@ export async function fetchFeed(
   }
 
   switch (provider.key) {
-    case "offerwall.me":
+    case "offerwallme":
       return fetchOfferwallMe(kind, provider, context);
     case "bitcotasks":
       return fetchBitcoTasks(kind, provider, context);
@@ -103,8 +103,14 @@ async function fetchOfferwallMe(
   provider: FeedProvider,
   context: FeedContext,
 ): Promise<FeedItem[]> {
-  if (!provider.api_key || !provider.secret) {
-    throw new Error("Offerwall.me requires api_key and secret");
+  // Read credentials from environment (DB row only for enabled/status/currency)
+  const apiKey = process.env.OFFERWALLME_API_KEY;
+  const bearerToken = process.env.OFFERWALLME_BEARER_TOKEN;
+  const secret = process.env.OFFERWALLME_SECRET;
+
+  if (!apiKey || !secret) {
+    console.error("[feed] Offerwall.me missing env vars: OFFERWALLME_API_KEY, OFFERWALLME_SECRET");
+    throw new Error("Offerwall.me credentials not configured");
   }
 
   // Article not supported
@@ -117,16 +123,16 @@ async function fetchOfferwallMe(
   
   // Generate signed identity (48h expiry)
   const expiryMs = Date.now() + 48 * 60 * 60 * 1000;
-  const message = `offerwall-user-v1\n${provider.api_key}\n${context.userRef}\n${expiryMs}`;
-  const signature = createHmac("sha256", provider.secret)
+  const message = `offerwall-user-v1\n${apiKey}\n${context.userRef}\n${expiryMs}`;
+  const signature = createHmac("sha256", secret)
     .update(message)
     .digest("hex");
 
   const url = new URL(`https://offerwall.me/${endpoint}`);
-  url.searchParams.set("api", provider.api_key);
+  url.searchParams.set("api", apiKey);
   url.searchParams.set("id", context.userRef);
   url.searchParams.set("ip", context.ip);
-  url.searchParams.set("token", provider.bearer_token ?? "");
+  url.searchParams.set("token", bearerToken ?? "");
   url.searchParams.set("country", context.country);
   url.searchParams.set("identityExpires", expiryMs.toString());
   url.searchParams.set("identitySignature", signature);
@@ -164,7 +170,7 @@ async function fetchOfferwallMe(
         }
 
         return {
-          source: "offerwall.me",
+          source: "offerwallme",
           campaignId,
           title: item.title ?? "PTC Ad",
           rewardRaw: parseFloat(item.reward) || 0,
@@ -180,7 +186,7 @@ async function fetchOfferwallMe(
     return data
       .filter((item: any) => (item.remaining_views ?? 0) > 0)
       .map((item: any) => ({
-        source: "offerwall.me",
+        source: "offerwallme",
         campaignId: String(item.id ?? ""),
         title: item.name ?? "Shortlink",
         rewardRaw: parseFloat(item.reward) || 0,
@@ -209,15 +215,12 @@ async function fetchBitcoTasks(
   provider: FeedProvider,
   context: FeedContext,
 ): Promise<FeedItem[]> {
-  // Skip BitcoTasks if not configured (owner adds manually from admin)
-  if (!provider.api_key || !provider.bearer_token) {
-    console.warn("[feed] BitcoTasks requires api_key and bearer_token - skipping (add from admin panel)");
-    return [];
-  }
+  // Read credentials from environment (DB row only for enabled/status/currency)
+  const apiKey = process.env.BITCOTASKS_API_KEY;
 
-  if (!provider.currency_per_usd || provider.currency_per_usd <= 0) {
-    console.warn("[feed] BitcoTasks has invalid currency_per_usd - skipping (configure in admin panel)");
-    return [];
+  if (!apiKey) {
+    console.error("[feed] BitcoTasks missing env var: BITCOTASKS_API_KEY");
+    throw new Error("BitcoTasks credentials not configured");
   }
 
   const endpoints = {
@@ -227,13 +230,12 @@ async function fetchBitcoTasks(
   };
 
   const endpoint = endpoints[kind];
-  const url = `https://bitcotasks.com/${endpoint}/${provider.api_key}/${context.userRef}/${context.ip}`;
+  const url = `https://bitcotasks.com/${endpoint}/${apiKey}/${context.userRef}/${context.ip}`;
 
   console.log(`[feed] Fetching BitcoTasks ${kind}: https://bitcotasks.com/${endpoint}/***`);
 
   const response = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${provider.bearer_token}`,
       "User-UA": context.userAgent,
     },
   });

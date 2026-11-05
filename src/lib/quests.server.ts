@@ -1217,14 +1217,12 @@ async function getOrCreateCheckinSession(
         user_id: userId,
         quest_key: quest.key,
         quest_type: "checkin",
-        quest_label: quest.label,
         reward_amount: quest.reward_amount,
         ads_required: quest.total_days ?? 3, // Required NOT NULL field
         status: "started",
         started_at: new Date().toISOString(),
         session_token: sessionToken,
         timezone: userTimezone, // Lock timezone in session
-        metadata: { locked_timezone: userTimezone }, // Also store in metadata for backward compat
       } as any)
       .select("*")
       .single();
