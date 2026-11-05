@@ -740,8 +740,9 @@ function SurveyQuestFeed({
   // Start quest session when dialog opens
   useEffect(() => {
     if (open && !credited && !sessionId) {
-      const result = await startQuest({ data: { questKey: quest.key } });
-      setSessionId(result.sessionId);
+      startQuest({ data: { questKey: quest.key } })
+        .then((result) => setSessionId(result.sessionId))
+        .catch((err) => console.error("Failed to start survey quest:", err));
     }
   }, [open, credited, sessionId, quest.key, startQuest]);
 
