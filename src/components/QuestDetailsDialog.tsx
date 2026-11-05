@@ -47,7 +47,7 @@ export function QuestDetailsDialog({
   activeTimeQuestKey?: string | null;
   activeTimeProgress?: { ping_token: string; total_seconds: number; today_seconds: number } | null;
 }) {
-  const accent = quest ? QUEST_ACCENTS[quest.quest_type] : null;
+  const accent = quest ? (QUEST_ACCENTS[quest.quest_type] ?? QUEST_ACCENTS.ads) : null;
   const view = quest ? deriveQuestView(quest, active, credited) : null;
   const started = Boolean(view && view.progress > 0);
   const [checkinSubmitting, setCheckinSubmitting] = useState(false);

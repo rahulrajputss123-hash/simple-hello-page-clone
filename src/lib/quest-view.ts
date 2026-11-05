@@ -169,6 +169,16 @@ export const QUEST_ACCENTS: Record<QuestRow["quest_type"], QuestAccent> = {
     tileShadow: "rgba(234,88,12,0.32)",
     bar: "linear-gradient(90deg, #FB923C, #EA580C)",
   },
+  active_time: {
+    label: "Active Time",
+    icon: Timer,
+    wash: "rgba(99,102,241,0.10)",
+    badgeBg: "rgba(99,102,241,0.12)",
+    badgeInk: "#3730A3",
+    tile: "linear-gradient(145deg, #818CF8 0%, #6366F1 100%)",
+    tileShadow: "rgba(99,102,241,0.32)",
+    bar: "linear-gradient(90deg, #818CF8, #6366F1)",
+  },
 };
 
 export const LOCKED_ACCENT: QuestAccent = {
@@ -283,6 +293,23 @@ export function deriveQuestView(
         total === 1
           ? "Check in today and get rewarded!"
           : `Check in for ${total} days and build your streak!`,
+    };
+  }
+
+  if (quest.quest_type === "active_time") {
+    // Active Time quest: accumulate minutes of active app usage
+    const total = Math.max(1, quest.target_minutes ?? 30);
+    // Progress comes from activeTimeProgress prop passed from parent
+    // For now, show 0 progress as this needs special handling
+    const progress = credited ? total : 0;
+
+    return {
+      total,
+      progress,
+      remaining: Math.max(0, total - progress),
+      nextStep: Math.min(progress + 1, total),
+      progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
+      description: `Stay active for ${total} ${total === 1 ? "minute" : "minutes"} and get rewarded!`,
     };
   }
 
