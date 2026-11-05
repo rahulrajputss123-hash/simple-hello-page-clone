@@ -89,27 +89,18 @@ export async function startFeedQuestImpl(
     return { success: false, reason: "unavailable" };
   }
 
-  // Normalize providers
+  // Normalize providers (credentials from env, DB only has enabled/status/currency)
   const feedProviders: FeedProvider[] = providers.map((p: any) => ({
     id: p.id,
     key: p.slug,
     name: p.name,
-    api_key: p.extra_config?.api_key || null,
-    bearer_token: p.extra_config?.bearer_token || null,
-    secret: p.secret_refs?.secret || null,
+    api_key: null, // Read from env in adapters
+    bearer_token: null,
+    secret: null,
     currency_per_usd: Number(p.currency_per_usd ?? 1),
     enabled: p.enabled,
     status: p.status,
-  })).filter((p: FeedProvider) => {
-    // Skip BitcoTasks if not configured or invalid currency
-    if (p.key === "bitcotasks") {
-      if (!p.api_key || !p.bearer_token || p.currency_per_usd <= 0) {
-        console.warn(`[feed-quest] Skipping bitcotasks (not configured or invalid currency_per_usd)`);
-        return false;
-      }
-    }
-    return p.currency_per_usd > 0;
-  });
+  })).filter((p: FeedProvider) => p.currency_per_usd > 0);
 
   if (feedProviders.length === 0) {
     console.warn(`[feed-quest] No valid providers after filtering for quest ${questKey}`);

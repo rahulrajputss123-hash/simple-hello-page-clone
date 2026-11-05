@@ -398,7 +398,8 @@ export const getNetworkQuestProgress = createServerFn({ method: "POST" })
 export const startFeedQuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ questKey: z.string() }).parse(input))
-  .handler(async ({ context, data: { questKey }, request$ }) => {
+  .handler(async ({ context, data: { questKey } }) => {
+    const { getRequest } = await import("@tanstack/react-start/server");
     const { getActiveQuestByKey, startFeedQuestImpl } = await import("./quests.server");
     const db = supabaseAdmin as never;
 
@@ -411,7 +412,8 @@ export const startFeedQuest = createServerFn({ method: "POST" })
       throw new Error("Not a feed quest");
     }
 
-    const result = await startFeedQuestImpl(db, context.user.id, questKey, quest, request$);
+    const request = getRequest();
+    const result = await startFeedQuestImpl(db, context.user.id, questKey, quest, request);
 
     if (!result.success) {
       throw new Error(
@@ -432,7 +434,8 @@ export const openFeedQuestStep = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ questKey: z.string(), step: z.number().int().min(1) }).parse(input),
   )
-  .handler(async ({ context, data: { questKey, step }, request$ }) => {
+  .handler(async ({ context, data: { questKey, step } }) => {
+    const { getRequest } = await import("@tanstack/react-start/server");
     const { getActiveQuestByKey, openFeedQuestStepImpl } = await import("./quests.server");
     const db = supabaseAdmin as never;
 
@@ -451,7 +454,7 @@ export const openFeedQuestStep = createServerFn({ method: "POST" })
       questKey,
       step,
       quest,
-      request$,
+      getRequest(),
     );
 
     if (result.error) {

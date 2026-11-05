@@ -154,7 +154,11 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
   const secret = process.env.CPX_SECURE_HASH_SECRET;
 
   if (!appId || !secret) {
-    throw new Error("Missing env CPX_APP_ID or CPX_SECURE_HASH_SECRET");
+    const missing = [];
+    if (!appId) missing.push("CPX_APP_ID");
+    if (!secret) missing.push("CPX_SECURE_HASH_SECRET");
+    console.error(`[survey-feed] CPX missing env vars: ${missing.join(", ")}`);
+    throw new Error(`Missing env: ${missing.join(", ")}`);
   }
 
   const secureHash = createHash("md5")
@@ -209,7 +213,11 @@ async function fetchTheoremReachSurveys(params: SurveyFeedParams): Promise<Surve
   const secret = process.env.THEOREMREACH_SECRET;
 
   if (!apiKey || !secret) {
-    throw new Error("Missing env THEOREMREACH_API_KEY or THEOREMREACH_SECRET");
+    const missing = [];
+    if (!apiKey) missing.push("THEOREMREACH_API_KEY");
+    if (!secret) missing.push("THEOREMREACH_SECRET");
+    console.error(`[survey-feed] TheoremReach missing env vars: ${missing.join(", ")}`);
+    throw new Error(`Missing env: ${missing.join(", ")}`);
   }
 
   // Validate country code

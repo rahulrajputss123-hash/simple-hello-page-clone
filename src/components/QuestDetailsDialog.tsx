@@ -740,16 +740,15 @@ function SurveyQuestFeed({
   // Start quest session when dialog opens
   useEffect(() => {
     if (open && !credited && !sessionId) {
-      startQuest({ questKey: quest.key })
-        .then((result) => setSessionId(result.sessionId))
-        .catch((err) => console.error("Failed to start survey quest:", err));
+      const result = await startQuest({ data: { questKey: quest.key } });
+      setSessionId(result.sessionId);
     }
   }, [open, credited, sessionId, quest.key, startQuest]);
 
   // Fetch survey feed
   const { data: feedData, refetch: refetchFeed, isLoading, error: feedError } = useQuery({
     queryKey: ["survey-feed", quest.key, sessionId],
-    queryFn: () => fetchFeed({ questKey: quest.key, sessionId: sessionId! }),
+    queryFn: () => fetchFeed({ data: { questKey: quest.key, sessionId: sessionId! } }),
     enabled: open && !credited && Boolean(sessionId),
     staleTime: 120_000, // 120s cache
     refetchInterval: 120_000, // Refresh every 120s
