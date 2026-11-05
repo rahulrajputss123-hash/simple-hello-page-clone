@@ -83,7 +83,7 @@ export const QuestCard = memo(function QuestCard({
     ? LOCKED_ACCENT
     : credited
       ? CREDITED_ACCENT
-      : QUEST_ACCENTS[quest.quest_type];
+      : (QUEST_ACCENTS[quest.quest_type] ?? QUEST_ACCENTS.ads);
   const TileIcon = accent.icon;
 
   const { total, progress, remaining, nextStep, progressPercent, description } = deriveQuestView(
