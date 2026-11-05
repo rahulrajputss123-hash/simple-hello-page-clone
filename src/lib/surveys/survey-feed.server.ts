@@ -200,7 +200,7 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
 /**
  * Fetch TheoremReach surveys.
  * 
- * GET https://theoremreach.com/api/v1/surveys
+ * GET https://api.theoremreach.com/api/publishers/v1/surveys
  * Real response fields per docs:
  * - campaign_id, quota_id, quota_ids[], rank, buyer_id
  * - loi, cpi (USD, needs multiplier), incidence, attempts_count, completes_count
@@ -234,8 +234,8 @@ async function fetchTheoremReachSurveys(params: SurveyFeedParams): Promise<Surve
 
   const rewardMultiplier = provider?.reward_multiplier ?? 0.8;
 
-  // Build URL for /surveys request (also needs signing)
-  const baseUrl = "https://theoremreach.com/api/v1/surveys";
+  // Build URL for /surveys request (use correct Publisher API v1 endpoint)
+  const baseUrl = "https://api.theoremreach.com/api/publishers/v1/surveys";
   const url = new URL(baseUrl);
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("user_id", params.userId);
