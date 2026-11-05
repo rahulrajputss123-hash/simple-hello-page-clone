@@ -314,7 +314,12 @@ export function QuestsManager() {
           state.questType === "feed_shortlink" ||
           state.questType === "feed_article"
             ? {
-                feedKind: state.feedKind,
+                feedKind:
+                  state.questType === "feed_ptc"
+                    ? "ptc"
+                    : state.questType === "feed_shortlink"
+                      ? "shortlink"
+                      : "article",
                 stepsCount: Number(state.stepsCount) || 10,
                 backupCount: Number(state.backupCount) || 4,
                 feedProviderIds: state.feedProviderIds,

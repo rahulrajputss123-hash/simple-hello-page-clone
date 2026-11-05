@@ -90,7 +90,11 @@ export function QuestDetailsDialog({
               ? quest.required_active_seconds === 0
                 ? "Check In"
                 : "Keep App Open"
-              : "Complete Locker";
+              : quest.quest_type === "feed_ptc" ||
+                  quest.quest_type === "feed_shortlink" ||
+                  quest.quest_type === "feed_article"
+                ? "Start"
+                : "Complete Locker";
 
   const handleCheckinTap = async () => {
     if (!quest || quest.required_active_seconds !== 0) return;
@@ -207,6 +211,17 @@ export function QuestDetailsDialog({
                   }
                   return formatReward(totalStepRewards + quest.reward_amount);
                 }
+                if (quest.quest_type === "feed_ptc" || quest.quest_type === "feed_shortlink" || quest.quest_type === "feed_article") {
+                  // Feed quests: sum all step rewards + completion bonus
+                  const stepsCount = quest.steps_count ?? 10;
+                  const baseReward = quest.step_reward ?? 0;
+                  const customRewards = quest.step_rewards ?? [];
+                  let totalStepRewards = 0;
+                  for (let i = 0; i < stepsCount; i++) {
+                    totalStepRewards += customRewards[i] !== undefined ? customRewards[i] : baseReward;
+                  }
+                  return formatReward(totalStepRewards + quest.reward_amount);
+                }
                 // Step-based quests: show total reward
                 const stepCount = quest.quest_type === "shortlink" 
                   ? quest.shortlink_steps.length 
@@ -245,7 +260,7 @@ export function QuestDetailsDialog({
           </section>
         )}
 
-        {view && (quest.quest_type === "shortlink" || quest.quest_type === "locker") && (
+        {view && (quest.quest_type === "shortlink" || quest.quest_type === "locker" || quest.quest_type === "feed_ptc" || quest.quest_type === "feed_shortlink" || quest.quest_type === "feed_article") && (
           <section className="space-y-2" data-testid="quest-details-rewards">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Rewards
@@ -253,7 +268,9 @@ export function QuestDetailsDialog({
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
               <ul className="space-y-1.5">
                 {(() => {
-                  const stepCount = view.total;
+                  const stepCount = quest.quest_type === "feed_ptc" || quest.quest_type === "feed_shortlink" || quest.quest_type === "feed_article"
+                    ? quest.steps_count ?? 10
+                    : view.total;
                   const baseReward = quest.step_reward ?? 0;
                   const customRewards = quest.step_rewards ?? [];
                   const completionBonus = quest.reward_amount;
