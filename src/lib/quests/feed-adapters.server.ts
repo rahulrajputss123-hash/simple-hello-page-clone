@@ -146,7 +146,13 @@ async function fetchOfferwallMe(
   });
 
   if (!response.ok) {
-    throw new Error(`Offerwall.me ${kind} failed: ${response.status}`);
+    const errorBody = await response.text().catch(() => "Unable to read response body");
+    // Mask any API keys or secrets in the error body
+    const maskedBody = errorBody
+      .replace(new RegExp(apiKey, 'g'), '***API_KEY***')
+      .replace(new RegExp(secret, 'g'), '***SECRET***');
+    console.error(`[feed] Offerwall.me ${kind} HTTP ${response.status}:`, maskedBody);
+    throw new Error(`Offerwall.me ${kind} failed: HTTP ${response.status}`);
   }
 
   const json = await response.json();
@@ -248,12 +254,15 @@ async function fetchBitcoTasks(
   const response = await fetch(url, { headers });
 
   if (!response.ok) {
-    throw new Error(`BitcoTasks ${kind} failed: ${response.status}`);
+    const errorBody = await response.text().catch(() => "Unable to read response body");
+    console.error(`[feed] BitcoTasks ${kind} HTTP ${response.status}:`, errorBody);
+    throw new Error(`BitcoTasks ${kind} failed: HTTP ${response.status}`);
   }
 
   const json = await response.json();
 
   if (json.status !== "200") {
+    console.error(`[feed] BitcoTasks ${kind} API error:`, json.message ?? "Unknown error");
     throw new Error(`BitcoTasks ${kind} error: ${json.message ?? "Unknown error"}`);
   }
 
