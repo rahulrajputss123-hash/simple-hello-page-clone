@@ -178,6 +178,7 @@ export function StarterQuests() {
       void queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
     },
     onError: (error: Error) => {
+      console.error(error);
       if (error.message === "ADS_NOT_AVAILABLE") {
         toast.error("Ads are not available yet, try again later.");
       } else {
@@ -205,7 +206,10 @@ export function StarterQuests() {
       }
       void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
     },
-    onError: (error: Error) => toast.error(error.message || "Could not start this step."),
+    onError: (error: Error) => {
+      console.error(error);
+      toast.error(error.message || "Could not start this step.");
+    },
     onSettled: () => setBusy(null),
   });
 
@@ -229,7 +233,10 @@ export function StarterQuests() {
       }
       void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
     },
-    onError: (error: Error) => toast.error(error.message || "Could not open this locker."),
+    onError: (error: Error) => {
+      console.error(error);
+      toast.error(error.message || "Could not open this locker.");
+    },
     onSettled: () => setBusy(null),
   });
 
@@ -261,6 +268,7 @@ export function StarterQuests() {
       void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
     },
     onError: (error: Error) => {
+      console.error(error);
       if (error.message.includes("Not enough campaigns available")) {
         toast.error("No campaigns available right now, try again later.");
       } else {
