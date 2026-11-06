@@ -239,6 +239,7 @@ async function fetchTheoremReachSurveys(params: SurveyFeedParams): Promise<Surve
   const url = new URL(baseUrl);
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("user_id", params.userId);
+  url.searchParams.set("ip", params.ip); // Required by TheoremReach API
   url.searchParams.set("country_code", params.countryCode);
 
   // Sign the /surveys request URL

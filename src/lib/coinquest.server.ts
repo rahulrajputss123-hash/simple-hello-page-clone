@@ -2668,9 +2668,8 @@ export async function getMaintenanceStatusImpl(ctx: RequestContext) {
 // Public maintenance check (no auth required)
 export async function checkMaintenanceStatusImpl(ctx: RequestContext) {
   try {
-    const { createAnonClient } = await import("@/integrations/supabase/auth-middleware");
-    const supabase = await createAnonClient(ctx);
-    const { data: result } = await supabase.rpc("get_maintenance_status");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: result } = await supabaseAdmin.rpc("get_maintenance_status");
     return (result as { enabled: boolean; message?: string }) || { enabled: false, message: "" };
   } catch (error) {
     // FAIL OPEN: if status call errors, return enabled=false
