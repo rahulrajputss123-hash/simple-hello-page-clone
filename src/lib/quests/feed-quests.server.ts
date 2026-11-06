@@ -45,7 +45,11 @@ export function extractUserContext(request: Request): {
     request.headers.get("cf-connecting-ip") || // Cloudflare
     request.headers.get("x-forwarded-for")?.split(",")[0].trim() || // Proxy
     request.headers.get("x-real-ip") || // Nginx
-    "127.0.0.1";
+    "";
+  
+  if (!ip) {
+    throw new Error("Cannot determine user IP address");
+  }
   
   const country = 
     request.headers.get("cf-ipcountry") || // Cloudflare
