@@ -90,6 +90,7 @@ export const QuestCard = memo(function QuestCard({
     quest,
     active,
     credited,
+    activeTimeProgress,
   );
 
   // Calculate total reward for step-based quests

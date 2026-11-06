@@ -404,7 +404,7 @@ export const startFeedQuest = createServerFn({ method: "POST" })
       const { getActiveQuestByKey, startFeedQuestImpl } = await import("./quests.server");
       const db = supabaseAdmin as never;
 
-      const quest = await getActiveQuestByKey(context.user.id, questKey);
+      const quest = await getActiveQuestByKey(context.userId, questKey);
       if (!quest) {
         throw new Error("Quest not found or not unlocked");
       }
@@ -414,7 +414,7 @@ export const startFeedQuest = createServerFn({ method: "POST" })
       }
 
       const request = getRequest();
-      const result = await startFeedQuestImpl(db, context.user.id, questKey, quest, request);
+      const result = await startFeedQuestImpl(db, context.userId, questKey, quest, request);
 
       if (!result.success) {
         throw new Error(
@@ -445,7 +445,7 @@ export const openFeedQuestStep = createServerFn({ method: "POST" })
       const { getActiveQuestByKey, openFeedQuestStepImpl } = await import("./quests.server");
       const db = supabaseAdmin as never;
 
-      const quest = await getActiveQuestByKey(context.user.id, questKey);
+      const quest = await getActiveQuestByKey(context.userId, questKey);
       if (!quest) {
         throw new Error("Quest not found or not unlocked");
       }
@@ -456,7 +456,7 @@ export const openFeedQuestStep = createServerFn({ method: "POST" })
 
       const result = await openFeedQuestStepImpl(
         db,
-        context.user.id,
+        context.userId,
         questKey,
         step,
         quest,
@@ -487,7 +487,7 @@ export const getFeedQuestProgress = createServerFn({ method: "POST" })
     const { data: session } = await db
       .from("quest_sessions")
       .select("id, feed_snapshot, status")
-      .eq("user_id", context.user.id)
+      .eq("user_id", context.userId)
       .eq("quest_key", questKey)
       .eq("status", "started")
       .order("created_at", { ascending: false })

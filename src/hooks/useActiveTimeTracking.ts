@@ -82,6 +82,8 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
       return;
     }
 
+    console.log("[active-time] Sending ping for quest:", questKey);
+
     try {
       const result = await pingFn({
         data: {
@@ -91,6 +93,7 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
       });
 
       if (result.success && result.nextToken) {
+        console.log("[active-time] Ping successful, time credited");
         setState((prev) => ({
           ...prev,
           pingToken: result.nextToken,
@@ -154,6 +157,8 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
   const startTracking = useCallback(() => {
     if (!questKey) return;
 
+    console.log("[active-time] Starting tracking for quest:", questKey);
+
     setState((prev) => ({
       ...prev,
       isTracking: true,
@@ -174,6 +179,8 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
       clearInterval(stillHereIntervalRef.current);
     }
     stillHereIntervalRef.current = setInterval(checkStillHere, 60_000); // Check every minute
+
+    console.log("[active-time] Tracking started, will ping every 30s");
   }, [questKey, sendPing, checkStillHere]);
 
   // Stop tracking

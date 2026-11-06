@@ -217,6 +217,7 @@ export function deriveQuestView(
   quest: QuestCardQuest,
   active: QuestSessionView | undefined,
   credited: boolean,
+  activeTimeProgress?: { total_seconds: number; today_seconds: number } | null,
 ): QuestView {
   if (quest.quest_type === "survey") {
     // Survey quest: complete N surveys from allowed networks
@@ -299,16 +300,15 @@ export function deriveQuestView(
   if (quest.quest_type === "active_time") {
     // Active Time quest: accumulate minutes of active app usage
     const total = Math.max(1, quest.target_minutes ?? 30);
-    // Progress comes from activeTimeProgress prop passed from parent
-    // For now, show 0 progress as this needs special handling
-    const progress = credited ? total : 0;
+    const progressMinutes = activeTimeProgress ? activeTimeProgress.total_seconds / 60 : 0;
+    const progress = credited ? total : Math.min(total, Math.floor(progressMinutes));
 
     return {
       total,
       progress,
       remaining: Math.max(0, total - progress),
       nextStep: Math.min(progress + 1, total),
-      progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
+      progressPercent: Math.min(100, Math.max(0, (progressMinutes / Math.max(1, total)) * 100)),
       description: `Stay active for ${total} ${total === 1 ? "minute" : "minutes"} and get rewarded!`,
     };
   }
