@@ -1948,15 +1948,21 @@ export async function openQuestNetworkImpl(
   }
 
   // Get provider
-  const { data: provider } = await db
+  const { data: provider, error: providerError } = await db
     .from("sdk_offerwall_providers")
     .select("*")
     .eq("id", providerId)
-    .eq("is_enabled", true)
+    .eq("enabled", true) // Column is "enabled", not "is_enabled"
     .maybeSingle();
 
+  if (providerError) {
+    console.error(`[network quest] Provider query error for ${providerId}:`, providerError);
+    return { error: `Provider lookup failed: ${providerError.message}` };
+  }
+
   if (!provider) {
-    return { unavailable: true };
+    console.error(`[network quest] Provider ${providerId} not found or not enabled`);
+    return { error: "Provider not available or not enabled" };
   }
 
   // Get or create active session
@@ -2058,8 +2064,9 @@ export async function openQuestNetworkImpl(
     const url = await buildQuestOfferwallUrl(token, provider);
     return { url };
   } catch (err) {
-    console.error("[network quest] Failed to build URL:", err);
-    return { error: "Failed to build offerwall URL" };
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("[network quest] Failed to build URL for provider", provider.slug, ":", errorMessage, err);
+    return { error: `Failed to open ${provider.name}: ${errorMessage}` };
   }
 }
 
