@@ -7,6 +7,28 @@
 
 import { createHmac } from "crypto";
 
+/**
+ * Generate Offerwall.me signed identity.
+ * Used by both feed fetch and signed URL generation to ensure consistency.
+ * 
+ * @param apiKey - Offerwall.me API key
+ * @param userRef - User reference/ID
+ * @param expiresSeconds - Expiry timestamp in SECONDS (not ms)
+ * @param secret - HMAC secret key
+ * @returns HMAC-SHA256 hex signature
+ */
+export function generateOfferwallMeSignature(
+  apiKey: string,
+  userRef: string,
+  expiresSeconds: number,
+  secret: string,
+): string {
+  const message = `offerwall-user-v1\n${apiKey}\n${userRef}\n${expiresSeconds}`;
+  return createHmac("sha256", secret)
+    .update(message)
+    .digest("hex");
+}
+
 export type FeedKind = "ptc" | "shortlink" | "article";
 
 export type FeedContext = {
@@ -96,7 +118,8 @@ export async function fetchFeed(
  * Shortlink: GET https://offerwall.me/slapi.php
  * Article: Not supported
  * 
- * Uses signed identity: HMAC-SHA256(secret, "offerwall-user-v1\nAPIKEY\nUSERREF\nEXPIRY")
+ * Uses signed identity: HMAC-SHA256(secret, "offerwall-user-v1\nAPIKEY\nUSERREF\nEXPIRES")
+ * IMPORTANT: EXPIRES must be in SECONDS, not milliseconds
  */
 async function fetchOfferwallMe(
   kind: FeedKind,
@@ -121,12 +144,9 @@ async function fetchOfferwallMe(
 
   const endpoint = kind === "ptc" ? "api.php" : "slapi.php";
   
-  // Generate signed identity (48h expiry)
-  const expiryMs = Date.now() + 48 * 60 * 60 * 1000;
-  const message = `offerwall-user-v1\n${apiKey}\n${context.userRef}\n${expiryMs}`;
-  const signature = createHmac("sha256", secret)
-    .update(message)
-    .digest("hex");
+  // Generate signed identity (48h expiry) - use SECONDS not milliseconds
+  const expiresSeconds = Math.floor(Date.now() / 1000) + 48 * 3600;
+  const signature = generateOfferwallMeSignature(apiKey, context.userRef, expiresSeconds, secret);
 
   const url = new URL(`https://offerwall.me/${endpoint}`);
   url.searchParams.set("api", apiKey);
@@ -134,7 +154,7 @@ async function fetchOfferwallMe(
   url.searchParams.set("ip", context.ip);
   url.searchParams.set("token", bearerToken ?? "");
   url.searchParams.set("country", context.country);
-  url.searchParams.set("identityExpires", expiryMs.toString());
+  url.searchParams.set("identityExpires", expiresSeconds.toString());
   url.searchParams.set("identitySignature", signature);
 
   console.log(`[feed] Fetching Offerwall.me ${kind}: ${url.origin}${url.pathname}`);
