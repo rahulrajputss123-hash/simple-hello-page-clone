@@ -9,7 +9,7 @@ export default defineConfig({
     pool: 'forks', // Use forks instead of threads to inherit env vars
     env: {
       BITCOTASKS_API_KEY: 'ly1j8t2vzuae1yr93w6j9xyc9el368',
-      BITCOTASKS_BEARER: 'ly1j8t2vzuae1yr93w6j9xyc9el368',
+      BITCOTASKS_BEARER: '0c501a231a8781bf9ba2bb45249101a9fe6afcf65cb753995bdc0825aeabe03f',
       BITCOTASKS_SECRET: '3b92c8f6e76f5f4e8a44029d767b44e0',
       OFFERWALLME_API_KEY: 'QHvPl1a7Rl8BdLSLh6MLDpTEJpN1a1',
       OFFERWALLME_SECRET_KEY: 'kgQ4xBE8AVLYxL5RFtVLiPXapFMsG6Oo',
