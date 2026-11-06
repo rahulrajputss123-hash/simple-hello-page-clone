@@ -64,7 +64,7 @@ export const adswedMediaAdapter: OfferProviderAdapter = {
   slug: "adswedmedia",
   providerType: "cpa",
 
-  validateConfig() {
+  validateConfig(config) {
     if (!process.env["ADSWEDMEDIA_SITE_KEY"] || !process.env["ADSWEDMEDIA_SITE_SECRET"]) {
       return "ADSWEDMEDIA_SITE_KEY and ADSWEDMEDIA_SITE_SECRET must be configured on the server.";
     }

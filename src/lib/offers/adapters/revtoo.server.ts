@@ -83,7 +83,7 @@ export const revtooAdapter: OfferProviderAdapter = {
   slug: "revtoo",
   providerType: "cpa",
 
-  validateConfig() {
+  validateConfig(config) {
     if (!process.env["REVTOO_API_KEY"]) {
       return "REVTOO_API_KEY is not configured on the server.";
     }

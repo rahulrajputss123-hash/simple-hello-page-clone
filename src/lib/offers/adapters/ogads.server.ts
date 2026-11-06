@@ -54,7 +54,7 @@ export const ogAdsAdapter: OfferProviderAdapter = {
   slug: "ogads",
   providerType: "cpa",
 
-  validateConfig() {
+  validateConfig(config) {
     if (!process.env["OGADS_API_KEY"]) {
       return "OGADS_API_KEY is not configured on the server.";
     }

@@ -140,7 +140,7 @@ export const toroxAdapter: OfferProviderAdapter = {
   slug: "torox",
   providerType: "cpa",
 
-  validateConfig(provider) {
+  validateConfig(config) {
     const sourceId = (process.env["TOROX_FEED_SOURCE_ID"] ?? "").trim();
     const token = (process.env["TOROX_FEED_TOKEN"] ?? "").trim();
 

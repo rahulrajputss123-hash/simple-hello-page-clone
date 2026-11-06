@@ -46,7 +46,7 @@ export const adblueMediaAdapter: OfferProviderAdapter = {
   slug: "adbluemedia",
   providerType: "cpa",
 
-  validateConfig() {
+  validateConfig(config) {
     if (!process.env["ADBLUEMEDIA_API_KEY"]) {
       return "ADBLUEMEDIA_API_KEY is not configured on the server.";
     }

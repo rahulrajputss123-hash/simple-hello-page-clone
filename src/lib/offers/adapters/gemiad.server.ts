@@ -103,10 +103,9 @@ export const gemiAdAdapter: OfferProviderAdapter = {
   slug: "gemiad",
   providerType: "cpa",
 
-  validateConfig(provider) {
-    const cfg = (provider.sync_config ?? {}) as Record<string, unknown>;
-    const placementId = String(cfg["placement_id"] ?? "").trim();
-    const apiKey = String(cfg["api_key"] ?? "").trim();
+  validateConfig(config) {
+    const placementId = String(config["placement_id"] ?? "").trim();
+    const apiKey = String(config["api_key"] ?? "").trim();
 
     if (!placementId) {
       return "GemiAd placement_id is not configured in sync_config.";
