@@ -36,6 +36,7 @@ export type FeedContext = {
   ip: string; // User's real IP
   country: string; // ISO country code
   userAgent: string; // User's browser User-Agent
+  ipSource?: string; // Where the IP came from (for debugging)
 };
 
 export type FeedItem = {
@@ -144,9 +145,12 @@ async function fetchOfferwallMe(
 
   const endpoint = kind === "ptc" ? "api.php" : "slapi.php";
   
-  // Generate signed identity (48h expiry) - use SECONDS not milliseconds
-  const expiresSeconds = Math.floor(Date.now() / 1000) + 48 * 3600;
+  // Generate signed identity with LONGER expiry (7 days) - use SECONDS not milliseconds
+  // Server may reject if expires is too far in future, but 7 days should be safe
+  const expiresSeconds = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
   const signature = generateOfferwallMeSignature(apiKey, context.userRef, expiresSeconds, secret);
+
+  console.log(`[feed] Offerwall.me ${kind}: expires in ${7 * 24} hours (${expiresSeconds})`);
 
   const url = new URL(`https://offerwall.me/${endpoint}`);
   url.searchParams.set("api", apiKey);
@@ -262,7 +266,7 @@ async function fetchBitcoTasks(
 
   console.log(`[feed] BitcoTasks ${kind} request:`);
   console.log(`[feed]   URL: https://bitcotasks.com/${endpoint}/***/${context.userRef.substring(0, 8)}.../${context.ip}`);
-  console.log(`[feed]   IP source: ${(context as any).ipSource ?? "unknown"}`);
+  console.log(`[feed]   IP source: ${context.ipSource ?? "not-tracked"}`);
   console.log(`[feed]   User-Agent: ${context.userAgent.substring(0, 60)}${context.userAgent.length > 60 ? "..." : ""}`);
   console.log(`[feed]   Bearer token: ${bearerToken ? "present" : "MISSING"}`);
 
@@ -298,9 +302,17 @@ async function fetchBitcoTasks(
 
   const json = await response.json();
 
-  if (json.status !== "200") {
+  // BitcoTasks returns status: "200" for success, or status: "success" when no campaigns
+  // Both are valid responses - only fail on actual error status
+  if (json.status !== "200" && json.status !== "success") {
     console.error(`[feed] BitcoTasks ${kind} API error:`, json.message ?? "Unknown error");
     throw new Error(`BitcoTasks ${kind} error: ${json.message ?? "Unknown error"}`);
+  }
+
+  // If status is "success" but no data, return empty array (not an error)
+  if (json.status === "success" && (!json.data || json.data.length === 0)) {
+    console.log(`[feed] BitcoTasks ${kind}: No campaigns available (status: success, empty data)`);
+    return [];
   }
 
   const data = json.data ?? [];

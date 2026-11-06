@@ -31,6 +31,7 @@ export type QuestSessionView = {
   checkin_days?: Array<{
     local_date: string;
     active_seconds?: number;
+    last_ping_at?: string | null;
     completed_at?: string | null;
   }>;
   // Network quest progress
@@ -309,7 +310,7 @@ export function deriveQuestView(
       remaining: Math.max(0, total - progress),
       nextStep: Math.min(progress + 1, total),
       progressPercent: Math.min(100, Math.max(0, (progressMinutes / Math.max(1, total)) * 100)),
-      description: `Stay active for ${total} ${total === 1 ? "minute" : "minutes"} and get rewarded!`,
+      description: `Stay active in the app for ${total} ${total === 1 ? "minute" : "minutes"} to earn your reward!`,
     };
   }
 

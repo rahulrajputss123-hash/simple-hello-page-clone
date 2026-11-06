@@ -11,6 +11,7 @@ import {
   type QuestSessionView,
 } from "@/lib/quest-view";
 import { ActiveTimeProgress } from "@/components/ActiveTimeProgress";
+import { QuestTimer, CheckinDayDots, NextDayCountdown } from "@/components/QuestTimer";
 
 // Re-exported so existing importers of these types keep working. Type-only, so
 // this does not reintroduce a non-component runtime export.
@@ -226,14 +227,14 @@ export const QuestCard = memo(function QuestCard({
                 ? "Continue"
                 : "Start Quest"
               : quest.quest_type === "checkin"
-                ? progress > 0
-                  ? "Continue Streak"
-                  : "Start Streak"
+                ? "Tracking..."
                 : quest.quest_type === "network"
                   ? progress > 0
                     ? "Continue"
                     : "Start Quest"
-                  : quest.quest_type === "feed_ptc" ||
+                  : quest.quest_type === "active_time"
+                    ? "Tracking..."
+                    : quest.quest_type === "feed_ptc" ||
                       quest.quest_type === "feed_shortlink" ||
                       quest.quest_type === "feed_article"
                     ? progress > 0
@@ -352,48 +353,86 @@ export const QuestCard = memo(function QuestCard({
 
         <div className="min-h-3 flex-1" />
 
-        {/* checkin day chips */}
+        {/* checkin quest: day dots + timer */}
         {quest.quest_type === "checkin" && !credited && !locked ? (
-          <div
-            className="mb-3 flex flex-wrap gap-1.5"
-            data-testid={`quest-checkin-days-${quest.key}`}
-          >
-            {Array.from({ length: total }, (_, i) => {
-              const dayNumber = i + 1;
-              const completedDay = active?.checkin_days?.find(
-                (d, idx) => idx === i && d.completed_at,
-              );
-              const isToday = i === progress && !completedDay;
-              const isFuture = i > progress;
+          <div className="mb-3 space-y-2.5" data-testid={`quest-checkin-status-${quest.key}`}>
+            {/* Day Dots */}
+            <CheckinDayDots
+              totalDays={total}
+              completedDays={progress}
+              currentDay={progress + 1}
+            />
+            
+            {/* Timer for today's active time requirement */}
+            {(() => {
+              const todayDay = active?.checkin_days?.find((d, idx) => idx === progress);
+              const todayRequired = quest.required_active_seconds ?? 0;
+              
+              if (!todayDay && todayRequired > 0) {
+                // Day not started yet
+                return (
+                  <div className="text-center text-xs text-muted-foreground">
+                    Keep app open for {Math.floor(todayRequired / 60)}m
+                  </div>
+                );
+              }
+              
+              if (todayDay && !todayDay.completed_at && todayRequired > 0) {
+                // Day in progress with timer
+                return (
+                  <QuestTimer
+                    activeSeconds={todayDay.active_seconds ?? 0}
+                    requiredSeconds={todayRequired}
+                    completed={false}
+                    paused={false}
+                    lastPingAt={todayDay.last_ping_at ? new Date(todayDay.last_ping_at).getTime() : null}
+                    compact={true}
+                  />
+                );
+              }
+              
+              if (todayDay?.completed_at) {
+                // Today is complete
+                return null; // CheckinDayDots shows completion
+              }
+              
+              // Instant check-in (no active time requirement)
+              return null;
+            })()}
+            
+            {/* Next day countdown */}
+            {progress < total && progress > 0 && (() => {
+              const lastDay = active?.checkin_days?.[progress - 1];
+              if (lastDay?.completed_at) {
+                const completedAt = new Date(lastDay.completed_at);
+                const nextDayUnlock = new Date(completedAt);
+                nextDayUnlock.setDate(nextDayUnlock.getDate() + 1);
+                nextDayUnlock.setHours(0, 0, 0, 0); // Start of next day
+                
+                const now = new Date();
+                if (now < nextDayUnlock) {
+                  return <NextDayCountdown unlocksAt={nextDayUnlock} />;
+                }
+              }
+              return null;
+            })()}
+          </div>
+        ) : null}
 
-              return (
-                <div
-                  key={i}
-                  className="flex h-7 min-w-[2rem] items-center justify-center rounded-md px-2 text-[11px] font-semibold transition-all"
-                  style={
-                    completedDay
-                      ? {
-                          background: accent.tile,
-                          color: "#FFFFFF",
-                          boxShadow: `0 2px 6px ${accent.tileShadow}`,
-                        }
-                      : isToday
-                        ? {
-                            background: accent.badgeBg,
-                            color: accent.badgeInk,
-                            border: `1px solid ${accent.badgeInk}33`,
-                          }
-                        : {
-                            background: TRACK,
-                            color: INK_FAINT,
-                          }
-                  }
-                  data-testid={`quest-day-${quest.key}-${dayNumber}`}
-                >
-                  {completedDay ? "✓" : dayNumber}
-                </div>
-              );
-            })}
+        {/* active_time quest: timer */}
+        {quest.quest_type === "active_time" && activeTimeProgress && !credited && !locked ? (
+          <div className="mb-3" data-testid={`quest-active-time-status-${quest.key}`}>
+            <QuestTimer
+              activeSeconds={activeTimeProgress.total_seconds}
+              requiredSeconds={(quest.target_minutes ?? 30) * 60}
+              completed={false}
+              paused={activeTimeTracking?.isPaused ?? false}
+              dailyCapReached={
+                activeTimeProgress.today_seconds >= (quest.daily_cap_minutes ?? 120) * 60
+              }
+              credited={credited}
+              compact={true}
+            />
           </div>
         ) : null}
 

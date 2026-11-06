@@ -122,7 +122,9 @@ export function QuestDetailsDialog({
       onOpenChange={onOpenChange}
       title={quest.label}
       footer={
-        quest?.quest_type === "network" || quest?.quest_type === "active_time" ? (
+        quest?.quest_type === "network" || 
+        quest?.quest_type === "active_time" || 
+        quest?.quest_type === "checkin" ? (
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -140,40 +142,16 @@ export function QuestDetailsDialog({
             >
               Cancel
             </Button>
-            {quest?.quest_type === "checkin" ? (
-              quest.required_active_seconds === 0 ? (
-                <Button
-                  variant="jade"
-                  className="flex-1"
-                  onClick={handleCheckinTap}
-                  disabled={checkinSubmitting || !quest || credited}
-                  data-testid="quest-details-checkin"
-                >
-                  {ctaLabel}
-                </Button>
-              ) : (
-                <Button
-                  variant="jade"
-                  className="flex-1"
-                  disabled
-                  data-testid="quest-details-active"
-                >
-                  <Play className="mr-1 size-3.5" />
-                  {Math.floor(heartbeat.activeSeconds)}s / {heartbeat.requiredSeconds}s
-                </Button>
-              )
-            ) : (
-              <Button
-                variant="jade"
-                className="flex-1"
-                onClick={onContinue}
-                disabled={isSubmitting || !quest}
-                data-testid="quest-details-continue"
-              >
-                {ctaLabel}
-                <ArrowUpRight className="ml-1 size-3.5" />
-              </Button>
-            )}
+            <Button
+              variant="jade"
+              className="flex-1"
+              onClick={onContinue}
+              disabled={isSubmitting || !quest}
+              data-testid="quest-details-continue"
+            >
+              {ctaLabel}
+              <ArrowUpRight className="ml-1 size-3.5" />
+            </Button>
           </div>
         )
       }
