@@ -40,25 +40,58 @@ export function extractUserContext(request: Request): {
   ip: string;
   country: string;
   userAgent: string;
+  ipSource: string; // For debugging
 } {
-  const ip = 
-    request.headers.get("cf-connecting-ip") || // Cloudflare
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() || // Proxy
-    request.headers.get("x-real-ip") || // Nginx
-    "";
+  let ip = "";
+  let ipSource = "none";
+  
+  // Try Cloudflare first
+  const cfIp = request.headers.get("cf-connecting-ip");
+  if (cfIp) {
+    ip = cfIp.trim();
+    ipSource = "cf-connecting-ip";
+  }
+  
+  // Try X-Forwarded-For (take first IP, strip port)
+  if (!ip) {
+    const xffIp = request.headers.get("x-forwarded-for");
+    if (xffIp) {
+      const firstIp = xffIp.split(",")[0].trim();
+      // Strip port if present (e.g., "198.51.100.1:8080" -> "198.51.100.1")
+      ip = firstIp.split(":")[0];
+      ipSource = "x-forwarded-for";
+    }
+  }
+  
+  // Try X-Real-IP
+  if (!ip) {
+    const xRealIp = request.headers.get("x-real-ip");
+    if (xRealIp) {
+      ip = xRealIp.trim();
+      ipSource = "x-real-ip";
+    }
+  }
   
   if (!ip) {
+    console.error("[feed] IP extraction failed - no valid headers found");
+    console.error("[feed] Available headers:", {
+      cfConnecting: request.headers.get("cf-connecting-ip") ?? "null",
+      xForwardedFor: request.headers.get("x-forwarded-for") ?? "null",
+      xRealIp: request.headers.get("x-real-ip") ?? "null",
+    });
     throw new Error("Cannot determine user IP address");
   }
+  
+  console.log(`[feed] Extracted IP: ${ip} from ${ipSource}`);
   
   const country = 
     request.headers.get("cf-ipcountry") || // Cloudflare
     request.headers.get("x-country-code") || // Generic
     "US";
   
-  const userAgent = request.headers.get("user-agent") || "Mozilla/5.0";
+  const userAgent = request.headers.get("user-agent") || "Mozilla/5.0 (Unknown)";
   
-  return { ip, country, userAgent };
+  return { ip, country, userAgent, ipSource };
 }
 
 /**
