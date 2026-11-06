@@ -1987,7 +1987,6 @@ export async function openQuestNetworkImpl(
         user_id: userId,
         quest_key: questKey,
         quest_type: "network",
-        quest_label: normalizedQuest.label,
         reward_amount: normalizedQuest.reward_amount,
         ads_required: 0, // Not used for network quests
         status: "started",

@@ -246,7 +246,7 @@ export function StarterQuests() {
       
       // First call: create session if needed
       if (step === 1) {
-        const session = await startFeedQuest({ data: { questKey } });
+        const questSession = await startFeedQuest({ data: { questKey } }); // Renamed to avoid shadowing
         // Session created, now get step 1 URL
         return openFeedQuestStep({ data: { questKey, step: 1 } });
       }
