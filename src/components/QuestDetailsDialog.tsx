@@ -600,29 +600,33 @@ function NetworkQuestProviderGrid({
   const providers = progress?.providers ?? [];
   const doneCount = progress?.done ?? 0;
   const required = progress?.required ?? requiredCount;
+  const totalNetworks = providers.length;
 
   return (
     <>
       {/* Providers section */}
       <section className="space-y-2" data-testid="quest-details-network-providers">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Complete offers from {required} {required === 1 ? "network" : "networks"}
+          Complete 1 offer in any {required} {required === 1 ? "network" : "networks"}
         </p>
         
         <div className="grid grid-cols-2 gap-2">
           {providers.map((provider) => {
             const isDone = provider.done;
             const isOpening = opening === provider.providerId;
+            const isNotNeeded = !isDone && doneCount >= required;
 
             return (
               <button
                 key={provider.providerId}
-                onClick={() => !isDone && handleProviderClick(provider.providerId)}
-                disabled={isDone || isOpening || credited}
+                onClick={() => !isDone && !isNotNeeded && handleProviderClick(provider.providerId)}
+                disabled={isDone || isOpening || credited || isNotNeeded}
                 className={`
                   relative flex min-h-[80px] flex-col items-center justify-center gap-2 rounded-xl border p-3 transition-all
                   ${isDone 
                     ? "border-primary/30 bg-primary/10 cursor-default" 
+                    : isNotNeeded
+                    ? "border-border/50 bg-muted/30 opacity-60 cursor-default"
                     : "border-primary/20 bg-background hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
                   }
                   ${isOpening ? "opacity-50" : ""}
@@ -646,9 +650,20 @@ function NetworkQuestProviderGrid({
                 </span>
 
                 {isDone && (
-                  <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
-                    <Check className="h-3 w-3" strokeWidth={3} />
-                  </div>
+                  <>
+                    <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    </div>
+                    <span className="absolute bottom-1 text-[10px] font-semibold text-primary">
+                      Done
+                    </span>
+                  </>
+                )}
+
+                {isNotNeeded && (
+                  <span className="absolute bottom-1 text-[10px] font-medium text-muted-foreground">
+                    Not needed
+                  </span>
                 )}
 
                 {isOpening && (
@@ -661,12 +676,9 @@ function NetworkQuestProviderGrid({
           })}
         </div>
 
-        <div className="rounded-lg border border-primary/20 bg-primary/5 p-2 text-center text-sm">
-          <span className="font-semibold [font-variant-numeric:tabular-nums]">
-            {doneCount} / {required}
-          </span>
-          <span className="text-muted-foreground"> networks completed</span>
-        </div>
+        <p className="text-center text-xs text-muted-foreground">
+          Pick any {required} of these {totalNetworks} networks. 1 completed offer per network counts.
+        </p>
       </section>
 
       {/* Rewards section */}
@@ -676,14 +688,16 @@ function NetworkQuestProviderGrid({
         </p>
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
           <ul className="space-y-1.5">
-            <li className="flex items-center justify-between gap-2">
-              <span>Per-network reward</span>
-              <span className="font-semibold tabular-nums">
-                {formatReward(baseReward)} × {required}
-              </span>
-            </li>
+            {baseReward > 0 && (
+              <li className="flex items-center justify-between gap-2">
+                <span>Per-network reward</span>
+                <span className="font-semibold tabular-nums">
+                  {formatReward(baseReward)} × {required}
+                </span>
+              </li>
+            )}
             {completionBonus > 0 && (
-              <li className="flex items-center justify-between gap-2 border-t border-primary/20 pt-1.5">
+              <li className={`flex items-center justify-between gap-2 ${baseReward > 0 ? "border-t border-primary/20 pt-1.5" : ""}`}>
                 <span>Completion bonus</span>
                 <span className="font-semibold tabular-nums">
                   {formatReward(completionBonus)}
@@ -706,8 +720,7 @@ function NetworkQuestProviderGrid({
         <Info className="size-4 shrink-0" />
         <span>
           Tap a network above to open its offerwall. Complete an <strong>offer, survey, or task</strong> inside the network.
-          PTC and shortlinks may not count if below the minimum payout threshold ($
-          {(quest.min_qualifying_usd ?? 0.01).toFixed(2)}).
+          Choose an offer that pays at least <strong>${(quest.min_qualifying_usd ?? 0.01).toFixed(2)}</strong> so it counts.
         </span>
       </section>
     </>
