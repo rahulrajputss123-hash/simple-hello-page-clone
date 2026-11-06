@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BottomNav } from "./BottomNav";
 import { RoleSwitcher } from "./marketplace/RoleSwitcher";
 import { useRole } from "@/lib/marketplace/role";
+import { QuestTracking } from "./QuestTracking";
 
 export function BrandMark({ className = "" }: { className?: string }) {
   return (
@@ -215,6 +216,7 @@ export function AppShell({
 }) {
   return (
     <div className={`min-h-screen bg-background pb-24 ${bgClass}`}>
+      <QuestTracking />
       <AppHeader {...(subtitle ? { subtitle } : {})} home={home} />
       <main className={`mx-auto w-full max-w-lg px-4 py-4 ${mainClass}`}>{children}</main>
       {!hideNav && <BottomNav />}

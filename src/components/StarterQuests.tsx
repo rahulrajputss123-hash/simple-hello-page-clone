@@ -60,7 +60,7 @@ export function StarterQuests() {
         .select(
           `
           *,
-          checkin_days:quest_checkin_days(local_date, active_seconds, completed_at)
+          checkin_days:quest_checkin_days(local_date, active_seconds, last_ping_at, completed_at)
         `,
         )
         .order("started_at", { ascending: false });
