@@ -49,7 +49,7 @@ export function QuestDetailsDialog({
   activeTimeProgress?: { ping_token: string; total_seconds: number; today_seconds: number } | null;
 }) {
   const accent = quest ? (QUEST_ACCENTS[quest.quest_type] ?? QUEST_ACCENTS.ads) : null;
-  const view = quest ? deriveQuestView(quest, active, credited) : null;
+  const view = quest ? deriveQuestView(quest, active, credited, activeTimeProgress) : null;
   const started = Boolean(view && view.progress > 0);
   const [checkinSubmitting, setCheckinSubmitting] = useState(false);
 
@@ -95,7 +95,11 @@ export function QuestDetailsDialog({
                   quest.quest_type === "feed_shortlink" ||
                   quest.quest_type === "feed_article"
                 ? "Start"
-                : "Complete Locker";
+                : quest.quest_type === "active_time"
+                  ? credited
+                    ? "Reward Credited"
+                    : "Claim Reward"
+                  : "Complete Locker";
 
   const handleCheckinTap = async () => {
     if (!quest || quest.required_active_seconds !== 0) return;
@@ -118,7 +122,7 @@ export function QuestDetailsDialog({
       onOpenChange={onOpenChange}
       title={quest.label}
       footer={
-        quest?.quest_type === "network" ? (
+        quest?.quest_type === "network" || quest?.quest_type === "active_time" ? (
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -489,19 +493,81 @@ export function QuestDetailsDialog({
           />
         )}
 
-        <section
-          className="space-y-1 rounded-xl border border-destructive/30 bg-destructive/5 p-3"
-          data-testid="quest-details-rules"
-        >
-          <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-destructive">
-            <AlertTriangle className="size-3.5" />
-            Before you start
-          </p>
-          <p className="text-sm leading-relaxed text-destructive">
-            Complete the required action fully — closing early won&apos;t count. No VPN, no multiple
-            accounts and no emulators, or the reward may be withheld.
-          </p>
-        </section>
+        {/* Active Time quest: progress and status */}
+        {quest.quest_type === "active_time" && (
+          <>
+            {/* Progress display */}
+            {activeTimeProgress && (
+              <section className="space-y-2" data-testid="quest-details-active-time-progress">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Your Progress
+                </p>
+                <ActiveTimeProgress
+                  totalMinutes={activeTimeProgress.total_seconds / 60}
+                  targetMinutes={quest.target_minutes ?? 30}
+                  todayMinutes={activeTimeProgress.today_seconds / 60}
+                  dailyCapMinutes={quest.daily_cap_minutes ?? 120}
+                />
+              </section>
+            )}
+
+            {/* Status */}
+            {activeTimeQuestKey && !credited && (
+              <section className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                <p className="flex items-center gap-2 text-sm font-medium text-primary">
+                  <Timer className="size-4" />
+                  Tracking is on
+                </p>
+                <p className="mt-1 text-xs text-primary/80">
+                  Time is being counted while you use the app
+                </p>
+              </section>
+            )}
+
+            {/* Claim/Credited state */}
+            {view && view.progress >= view.total && (
+              <section className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-center">
+                <p className="text-sm font-semibold text-primary">
+                  {credited ? "Reward Credited!" : "Ready to Claim"}
+                </p>
+                <p className="mt-1 text-xs text-primary/80">
+                  {credited
+                    ? `You earned ${formatReward(quest.reward_amount)}`
+                    : `${formatReward(quest.reward_amount)} waiting for you`}
+                </p>
+              </section>
+            )}
+
+            {/* Instructions */}
+            <section
+              className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-primary"
+              data-testid="quest-details-active-time-info"
+            >
+              <Info className="size-4 shrink-0" />
+              <span>
+                Keep the app open and active. Time keeps counting for{" "}
+                <strong>{quest.grace_minutes ?? 10} minutes</strong> after you open an offer. VPN,
+                multiple accounts or emulators may get the reward withheld.
+              </span>
+            </section>
+          </>
+        )}
+
+        {quest.quest_type !== "active_time" && quest.quest_type !== "checkin" && (
+          <section
+            className="space-y-1 rounded-xl border border-destructive/30 bg-destructive/5 p-3"
+            data-testid="quest-details-rules"
+          >
+            <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-destructive">
+              <AlertTriangle className="size-3.5" />
+              Before you start
+            </p>
+            <p className="text-sm leading-relaxed text-destructive">
+              Complete the required action fully — closing early won&apos;t count. No VPN, no multiple
+              accounts and no emulators, or the reward may be withheld.
+            </p>
+          </section>
+        )}
       </div>
     </AppBottomSheet>
   );
