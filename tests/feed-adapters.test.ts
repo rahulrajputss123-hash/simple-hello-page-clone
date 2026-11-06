@@ -1,12 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from "vitest";
 import { fetchFeed } from "../src/lib/quests/feed-adapters.server";
 import type { FeedProvider, FeedContext } from "../src/lib/quests/feed-adapters.server";
-
-// Mock environment variables
-vi.stubEnv("BITCOTASKS_API_KEY", "test_bitcotasks_key");
-vi.stubEnv("OFFERWALLME_API_KEY", "test_offerwallme_key");
-vi.stubEnv("OFFERWALLME_BEARER_TOKEN", "test_bearer");
-vi.stubEnv("OFFERWALLME_SECRET_KEY", "test_secret");
 
 describe("Feed Adapters", () => {
   const mockContext: FeedContext = {
@@ -15,6 +9,22 @@ describe("Feed Adapters", () => {
     country: "US",
     userAgent: "Mozilla/5.0",
   };
+
+  // Store original env vars
+  const originalEnv = { ...process.env };
+
+  beforeAll(() => {
+    // Set environment variables for all tests
+    process.env.BITCOTASKS_API_KEY = "test_bitcotasks_key";
+    process.env.OFFERWALLME_API_KEY = "test_offerwallme_key";
+    process.env.OFFERWALLME_BEARER_TOKEN = "test_bearer";
+    process.env.OFFERWALLME_SECRET_KEY = "test_secret";
+  });
+
+  afterAll(() => {
+    // Restore original env vars
+    process.env = originalEnv;
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
