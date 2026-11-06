@@ -224,7 +224,10 @@ export const toroxAdapter: OfferProviderAdapter = {
 
     const seen = new Set<string>();
     const offers: NormalizedOffer[] = [];
-    const userCountry = context.country ?? "US";
+    
+    // When context is undefined (admin sync), skip geo filtering and return full catalog
+    // Same behavior as adswedmedia adapter
+    const userCountry = context?.country?.toUpperCase() ?? null;
 
     for (const item of campaigns) {
       // Try multiple field names for ID
@@ -256,10 +259,10 @@ export const toroxAdapter: OfferProviderAdapter = {
       const countriesRaw = item.countries ?? item.geo ?? item.country;
       const countries = parseCountries(countriesRaw);
       
-      // Filter by user country if countries are specified
-      if (countries.length > 0) {
+      // Filter by user country only if context provided (admin sync gets full catalog)
+      if (userCountry && countries.length > 0) {
         const hasAll = countries.some((c) => c === "ALL" || c === "*");
-        const hasUserCountry = countries.includes(userCountry.toUpperCase());
+        const hasUserCountry = countries.includes(userCountry);
         if (!hasAll && !hasUserCountry) continue;
       }
 
