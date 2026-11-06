@@ -154,6 +154,7 @@ async function fetchOfferwallMe(
 
   if (kind === "ptc") {
     return data
+      .filter((item: any) => item != null)
       .map((item: any) => {
         // Extract campaign ID from url query param "1"
         let campaignId = "";
@@ -184,7 +185,7 @@ async function fetchOfferwallMe(
   } else {
     // Shortlink
     return data
-      .filter((item: any) => (item.remaining_views ?? 0) > 0)
+      .filter((item: any) => item != null && (item.remaining_views ?? 0) > 0)
       .map((item: any) => ({
         source: "offerwallme",
         campaignId: String(item.id ?? ""),
@@ -259,19 +260,21 @@ async function fetchBitcoTasks(
   const data = json.data ?? [];
 
   if (kind === "ptc") {
-    return data.map((item: any) => ({
-      source: "bitcotasks",
-      campaignId: String(item.id ?? ""),
-      title: item.title ?? "PTC Ad",
-      rewardRaw: parseFloat(item.reward) || 0,
-      rewardUsd: (parseFloat(item.reward) || 0) / provider.currency_per_usd,
-      durationSeconds: parseInt(item.duration) || 0,
-      url: item.url ?? "",
-      raw: item,
-    }));
+    return data
+      .filter((item: any) => item != null)
+      .map((item: any) => ({
+        source: "bitcotasks",
+        campaignId: String(item.id ?? ""),
+        title: item.title ?? "PTC Ad",
+        rewardRaw: parseFloat(item.reward) || 0,
+        rewardUsd: (parseFloat(item.reward) || 0) / provider.currency_per_usd,
+        durationSeconds: parseInt(item.duration) || 0,
+        url: item.url ?? "",
+        raw: item,
+      }));
   } else if (kind === "shortlink") {
     return data
-      .filter((item: any) => (item.available ?? 0) > 0)
+      .filter((item: any) => item != null && (item.available ?? 0) > 0)
       .map((item: any) => ({
         source: "bitcotasks",
         campaignId: String(item.id ?? ""),
@@ -286,7 +289,7 @@ async function fetchBitcoTasks(
   } else {
     // Article
     return data
-      .filter((item: any) => (item.available ?? 0) > 0)
+      .filter((item: any) => item != null && (item.available ?? 0) > 0)
       .map((item: any) => ({
         source: "bitcotasks",
         campaignId: String(item.id ?? ""),
