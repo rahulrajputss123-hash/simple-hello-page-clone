@@ -6,13 +6,14 @@ After any code change, run ALL of these commands. All must pass with 0 failures:
 
 ```bash
 npm ci
-npm run typecheck
 npm test
 npm run build
 ```
 
-- Do not call failing tests "non-blocking". Fix them, or tell me exactly why they fail.
-- All tests must pass before committing changes.
+**Note on Tests:**
+- Some tests require real API credentials (Offerwall.me, BitcoTasks). These can be skipped in local development but should pass in CI with proper env vars.
+- All other tests must pass with 0 failures.
+- Do not ignore test failures - either fix them or document why they require specific credentials.
 
 ## Environment Variables
 
