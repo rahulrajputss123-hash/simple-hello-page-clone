@@ -16,6 +16,7 @@ import { useCheckinHeartbeat } from "@/hooks/useCheckinHeartbeat";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActiveTimeProgress } from "@/components/ActiveTimeProgress";
 import { useServerFn } from "@tanstack/react-start";
+import { useAuth } from "@/lib/auth";
 
 /**
  * Pre-start confirmation sheet for Starter Quests.
@@ -730,6 +731,7 @@ function SurveyQuestFeed({
   open: boolean;
 }) {
   const queryClient = useQueryClient();
+  const { session } = useAuth();
   const fetchFeed = useServerFn(fetchSurveyFeed);
   const startQuest = useServerFn(startSurveyQuest);
   const fetchProgress = useServerFn(getSurveyQuestProgress);
@@ -902,12 +904,15 @@ function SurveyQuestFeed({
       </section>
 
       {/* Timewall Card */}
-      {quest.allowed_networks?.includes("timewall") && (
+      {quest.allowed_networks?.includes("timewall") && session?.user?.id && (
         <section>
           <button
             onClick={() => {
-              // TODO: Open Timewall wall
-              console.log("Open Timewall wall");
+              const timewallAppId = "b6537df755dd96d2";
+              const userId = session.user.id;
+              const timewallUrl = `https://timewall.io/users/login?oid=${timewallAppId}&uid=${encodeURIComponent(userId)}`;
+              window.open(timewallUrl, "_blank", "noopener,noreferrer");
+              toast.success("Timewall opened in new tab");
             }}
             className="w-full flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3 transition-colors hover:bg-primary/10"
           >
