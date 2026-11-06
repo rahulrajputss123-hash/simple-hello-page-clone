@@ -145,12 +145,12 @@ async function fetchOfferwallMe(
 
   const endpoint = kind === "ptc" ? "api.php" : "slapi.php";
   
-  // Generate signed identity with LONGER expiry (7 days) - use SECONDS not milliseconds
-  // Server may reject if expires is too far in future, but 7 days should be safe
-  const expiresSeconds = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
+  // Generate signed identity with 1 HOUR expiry (3600 seconds)
+  // Must match the pattern in getOfferwallMeSignedUrlImpl
+  const expiresSeconds = Math.floor(Date.now() / 1000) + 3600;
   const signature = generateOfferwallMeSignature(apiKey, context.userRef, expiresSeconds, secret);
 
-  console.log(`[feed] Offerwall.me ${kind}: expires in ${7 * 24} hours (${expiresSeconds})`);
+  console.log(`[feed] Offerwall.me ${kind}: expires in 1 hour (${expiresSeconds})`);
 
   const url = new URL(`https://offerwall.me/${endpoint}`);
   url.searchParams.set("api", apiKey);
@@ -302,16 +302,28 @@ async function fetchBitcoTasks(
 
   const json = await response.json();
 
-  // BitcoTasks returns status: "200" for success, or status: "success" when no campaigns
-  // Both are valid responses - only fail on actual error status
-  if (json.status !== "200" && json.status !== "success") {
-    console.error(`[feed] BitcoTasks ${kind} API error:`, json.message ?? "Unknown error");
-    throw new Error(`BitcoTasks ${kind} error: ${json.message ?? "Unknown error"}`);
+  // BitcoTasks returns different status codes:
+  // - status: "200" with data[] = success with campaigns
+  // - status: "success" with empty/no data = success but no campaigns available
+  // - HTTP 200 with data[] (no status field) = success (some endpoints)
+  // Only treat as error if status is explicitly an error code AND not a success message
+  
+  const hasData = json.data && Array.isArray(json.data) && json.data.length > 0;
+  const isSuccessStatus = json.status === "200" || json.status === "success";
+  const isSuccessMessage = json.message === "success" || !json.message;
+  
+  // If HTTP 200 and has data, it's success regardless of status field
+  if (response.ok && hasData) {
+    console.log(`[feed] BitcoTasks ${kind}: ${json.data.length} campaigns available`);
   }
-
-  // If status is "success" but no data, return empty array (not an error)
-  if (json.status === "success" && (!json.data || json.data.length === 0)) {
-    console.log(`[feed] BitcoTasks ${kind}: No campaigns available (status: success, empty data)`);
+  // If status is explicitly not success AND message is not success, it's an error
+  else if (!isSuccessStatus && !isSuccessMessage && json.status) {
+    console.error(`[feed] BitcoTasks ${kind} API error:`, json.message ?? json.status ?? "Unknown error");
+    throw new Error(`BitcoTasks ${kind} error: ${json.message ?? json.status ?? "Unknown error"}`);
+  }
+  // If no data available, return empty array (not an error)
+  else if (!hasData) {
+    console.log(`[feed] BitcoTasks ${kind}: No campaigns available (status: ${json.status ?? "none"}, message: ${json.message ?? "none"})`);
     return [];
   }
 
@@ -388,8 +400,9 @@ export function rankAndFilterFeed(
     blockedDomains: string[];
   },
 ): { steps: FeedItem[]; backups: FeedItem[] } {
-  // Filter by min reward
-  let filtered = items.filter((item) => item.rewardUsd >= options.minRewardUsd);
+  // DON'T filter by min reward - use it only for ordering/prioritization
+  // Bug fix: min_reward_usd should not remove campaigns, only affect ranking
+  let filtered = items;
 
   // Filter by completion rate (shortlink only)
   if (options.kind === "shortlink") {

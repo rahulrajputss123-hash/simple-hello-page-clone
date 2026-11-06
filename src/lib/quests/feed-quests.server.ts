@@ -179,10 +179,24 @@ export async function startFeedQuestImpl(
     blockedDomains: quest.blocked_domains,
   });
 
-  // Check if we have enough steps
+  // Check if we have enough steps (including backups)
+  const totalAvailable = steps.length + backups.length;
+  
   if (steps.length < quest.steps_count) {
-    console.warn(`[feed-quest] Only ${steps.length}/${quest.steps_count} steps available for quest ${questKey}`);
-    return { success: false, reason: "unavailable" };
+    // Use backups if available
+    const needed = quest.steps_count - steps.length;
+    const canUseBackups = Math.min(needed, backups.length);
+    
+    if (canUseBackups > 0) {
+      console.log(`[feed-quest] Using ${canUseBackups} backups to fill ${needed} missing steps for quest ${questKey}`);
+      steps.push(...backups.splice(0, canUseBackups));
+    }
+    
+    // Still not enough after using backups?
+    if (steps.length < quest.steps_count) {
+      console.warn(`[feed-quest] Only ${steps.length}/${quest.steps_count} steps available (even after backups) for quest ${questKey}`);
+      return { success: false, reason: "unavailable" };
+    }
   }
 
   // Build snapshot (DON'T include URLs - they'll be regenerated with step tokens)
@@ -218,6 +232,7 @@ export async function startFeedQuestImpl(
       status: "started",
       started_at: new Date().toISOString(),
       feed_snapshot: snapshot,
+      ads_required: quest.ads_required ?? 0, // Bug fix: set ads_required from quest (default 0)
     })
     .select("id")
     .single();
