@@ -6,7 +6,7 @@ import type { FeedProvider, FeedContext } from "../src/lib/quests/feed-adapters.
 vi.stubEnv("BITCOTASKS_API_KEY", "test_bitcotasks_key");
 vi.stubEnv("OFFERWALLME_API_KEY", "test_offerwallme_key");
 vi.stubEnv("OFFERWALLME_BEARER_TOKEN", "test_bearer");
-vi.stubEnv("OFFERWALLME_SECRET", "test_secret");
+vi.stubEnv("OFFERWALLME_SECRET_KEY", "test_secret");
 
 describe("Feed Adapters", () => {
   const mockContext: FeedContext = {

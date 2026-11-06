@@ -245,7 +245,10 @@ export function QuestsManager() {
     void queryClient.invalidateQueries({ queryKey: ["admin-quests"] });
     void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
   };
-  const onError = (error: Error) => toast.error(error.message);
+  const onError = (error: Error) => {
+    console.error(error);
+    toast.error(error.message);
+  };
 
   const saveAction = useMutation({
     mutationFn: (state: FormState) =>

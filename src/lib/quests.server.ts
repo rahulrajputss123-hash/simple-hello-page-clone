@@ -569,7 +569,7 @@ export async function creditStepReward(
         "quest_step",
         `Quest step ${stepIndex} — ${questLabel}`,
         "earned",
-        `quest_step_${sessionId}_${stepIndex}`,
+        null, // reference_id must be UUID or null, not a string
       );
       return roundedAmount;
     } catch (creditError) {
