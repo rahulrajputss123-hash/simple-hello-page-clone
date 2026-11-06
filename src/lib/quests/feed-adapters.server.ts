@@ -260,7 +260,11 @@ async function fetchBitcoTasks(
   const endpoint = endpoints[kind];
   const url = `https://bitcotasks.com/${endpoint}/${apiKey}/${context.userRef}/${context.ip}`;
 
-  console.log(`[feed] Fetching BitcoTasks ${kind}: https://bitcotasks.com/${endpoint}/***`);
+  console.log(`[feed] BitcoTasks ${kind} request:`);
+  console.log(`[feed]   URL: https://bitcotasks.com/${endpoint}/***/${context.userRef.substring(0, 8)}.../${context.ip}`);
+  console.log(`[feed]   IP source: ${(context as any).ipSource ?? "unknown"}`);
+  console.log(`[feed]   User-Agent: ${context.userAgent.substring(0, 60)}${context.userAgent.length > 60 ? "..." : ""}`);
+  console.log(`[feed]   Bearer token: ${bearerToken ? "present" : "MISSING"}`);
 
   const headers: Record<string, string> = {
     "User-UA": context.userAgent,
@@ -273,9 +277,22 @@ async function fetchBitcoTasks(
 
   const response = await fetch(url, { headers });
 
+  console.log(`[feed] BitcoTasks ${kind} response: HTTP ${response.status}`);
+
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "Unable to read response body");
     console.error(`[feed] BitcoTasks ${kind} HTTP ${response.status}:`, errorBody);
+    
+    // Provide helpful error messages
+    if (response.status === 401) {
+      if (errorBody.includes("Unauthorized 1")) {
+        console.error("[feed] BitcoTasks auth error: Missing or invalid User-UA header");
+      } else if (errorBody.includes("Unauthorized 2")) {
+        console.error("[feed] BitcoTasks auth error: Bearer token is invalid or API key needs whitelisting");
+        console.error("[feed] Please verify BITCOTASKS_BEARER matches the token in your BitcoTasks dashboard");
+      }
+    }
+    
     throw new Error(`BitcoTasks ${kind} failed: HTTP ${response.status}`);
   }
 
