@@ -4,29 +4,24 @@ import type { NormalizedOffer, OfferCategory, OfferProviderAdapter } from "../pr
  * Torox Offer Feed adapter (Partner API - CPA network).
  * 
  * API: GET {TOROX_API_BASE}/partner/campaigns?source_id={ID}&token={TOKEN}&goals=all
- * Default base: https://api.wall.torox.io (staging: https://api.wall.stage.torox.io)
- * Rate limit: Up to 5s response time
+ * Default base: https://api.wall.torox.io
+ * 
+ * Response: Bare JSON array (also tolerates {offers:[...]} / {data:[...]})
+ * Shape: { offerId, name, description, payout (USD), geos, os, image, verticalNames, events, ... }
  * 
  * Security:
  * - source_id and token required on every request
  * - Token is server-only (never exposed to client)
  * 
  * Click URLs:
- * - Must be generated per-user at click time via separate API call
+ * - Must be generated per-user at click time via /partner/user/click API
  * - Cannot be cached or reused across users/sessions
- * - Stored as sentinel `torox://campaign/{id}` in cached offers
- * - Real URL fetched via getToroxClickUrl server function at click time
+ * - Stored as sentinel `torox://campaign/{offerId}` in cached offers
+ * - Real URL fetched at click time by getToroxClickUrl server function
  * 
- * Fields expected (defensive mapping, as sample response not available):
- * - id | campaign_id | offer_id: Campaign identifier
- * - name | title: Display title
- * - description | desc: Offer description
- * - payout | amount | price: USD payout (number or string)
- * - image | icon | logo | creative: Image URL
- * - countries | geo | country: Array or comma-separated string
- * - devices | os | platform: Device targeting
- * - category | type | vertical: Category classification
- * - events | goals: Array of per-event payouts (for multi-step)
+ * Gambling Exclusion:
+ * - sync_config.exclude_real_money_gambling (default true)
+ * - Skips offers with "casino", "gambling", "betting", or "poker" in verticalNames
  */
 
 const DEFAULT_API_BASE = "https://api.wall.torox.io";
@@ -34,106 +29,141 @@ const DEFAULT_API_BASE = "https://api.wall.torox.io";
 // Torox click URLs use a sentinel pattern since they must be generated per-user
 export const TOROX_CLICK_URL_SENTINEL = "torox://campaign/";
 
-type ToroxCampaign = {
-  id?: string | number;
-  campaign_id?: string | number;
-  offer_id?: string | number;
-  name?: string;
-  title?: string;
-  description?: string;
-  desc?: string;
-  payout?: string | number;
-  amount?: string | number;
-  price?: string | number;
+type ToroxOffer = {
+  offerId: number;
+  name: string;
+  description: string;
+  callToAction?: string;
+  disclaimer?: string;
+  payoutType?: "CPA" | "CPE";
+  payout: number; // USD
+  amount?: number; // Virtual currency (IGNORE)
+  geos?: string; // Single country or comma list
+  os?: "web" | "ios" | "android";
+  packageId?: string;
+  landingUrl?: string; // NEVER use as click URL (no tracking)
   image?: string;
-  icon?: string;
-  logo?: string;
-  creative?: string;
-  countries?: string[] | string;
-  geo?: string[] | string;
-  country?: string[] | string;
-  devices?: string[] | string;
-  os?: string[] | string;
-  platform?: string[] | string;
-  category?: string;
-  type?: string;
-  vertical?: string;
+  coverImage?: string;
+  verticalNames?: string;
+  pinned?: boolean;
+  promoted?: boolean;
+  completions?: number;
+  rating?: number;
   events?: Array<{
-    name?: string;
-    payout?: string | number;
-  }>;
-  goals?: Array<{
-    name?: string;
-    payout?: string | number;
+    eventId: number;
+    orderId: number;
+    eventName: string;
+    payout: number; // USD
+    amount?: number; // Virtual currency (IGNORE)
+    timeframeMin?: number;
+    timeframeMax?: number | null;
   }>;
 };
 
 type ToroxResponse =
-  | {
-      campaigns?: ToroxCampaign[];
-      [key: string]: unknown;
-    }
-  | ToroxCampaign[]
-  | unknown;
+  | ToroxOffer[]
+  | { offers: ToroxOffer[] }
+  | { data: ToroxOffer[] }
+  | { campaigns: ToroxOffer[] };
 
-function stripHtml(value: string): string {
-  return value.replace(/<[^>]*>/g, "").trim();
+/**
+ * Decode HTML entities and strip tags.
+ * Handles common entities: &amp; &lt; &gt; &quot; &#039; &uuml; &ndash; &egrave; etc.
+ */
+function decodeAndStrip(value: string): string {
+  let decoded = value
+    // Named entities
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&ndash;/g, "–")
+    .replace(/&mdash;/g, "—")
+    .replace(/&uuml;/g, "ü")
+    .replace(/&egrave;/g, "è")
+    .replace(/&eacute;/g, "é")
+    .replace(/&agrave;/g, "à")
+    .replace(/&aacute;/g, "á")
+    // Numeric entities &#NNN;
+    .replace(/&#(\d+);/g, (_match, num) => String.fromCharCode(parseInt(num, 10)))
+    // Hex entities &#xHHH;
+    .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex) => String.fromCharCode(parseInt(hex, 16)));
+  
+  // Strip HTML tags
+  decoded = decoded.replace(/<[^>]*>/g, "");
+  
+  return decoded.trim();
 }
 
-function mapCategory(rawCategory: string | undefined): OfferCategory | null {
-  const cat = (rawCategory ?? "").toLowerCase();
+/**
+ * Parse Torox geos field: single country or comma-separated list.
+ * Empty or "ALL" = everywhere.
+ */
+function parseGeos(geos: string | undefined): string[] {
+  if (!geos) return [];
   
-  // Confident matches only
-  if (cat.includes("game")) return "game";
-  if (cat.includes("app")) return "app_install";
-  if (cat.includes("survey")) return "survey";
-  if (cat.includes("sign") || cat.includes("register")) return "signup";
-  if (cat.includes("click")) return "click";
-  if (cat.includes("install")) return "app_install";
+  const str = geos.trim().toUpperCase();
+  if (!str || str === "ALL") return [];
+  
+  return str
+    .split(",")
+    .map((c) => c.trim())
+    .filter((c) => c.length > 0);
+}
+
+/**
+ * Normalize Torox os to standard device names.
+ */
+function normalizeDevice(os: string | undefined): string {
+  if (!os) return "web";
+  const lower = os.toLowerCase();
+  if (lower === "web") return "web";
+  if (lower === "ios") return "ios";
+  if (lower === "android") return "android";
+  return "web";
+}
+
+/**
+ * Map Torox verticalNames to OfferCategory.
+ * Real Money Casino -> null (excluded by default)
+ * Strategy/Gaming -> game
+ */
+function mapCategory(verticalNames: string | undefined): OfferCategory | null {
+  if (!verticalNames) return null;
+  
+  const lower = verticalNames.toLowerCase();
+  
+  // Skip gambling categories
+  if (lower.includes("casino") || lower.includes("gambling") || 
+      lower.includes("betting") || lower.includes("poker")) {
+    return null;
+  }
+  
+  // Gaming categories
+  if (lower.includes("gaming") || lower.includes("strategy") || 
+      lower.includes("game")) {
+    return "game";
+  }
   
   return null;
 }
 
-function parseCountries(value: string[] | string | undefined): string[] {
-  if (!value) return [];
+/**
+ * Check if offer should be excluded due to gambling content.
+ */
+function isGamblingOffer(verticalNames: string | undefined): boolean {
+  if (!verticalNames) return false;
   
-  if (Array.isArray(value)) {
-    return value.map((c) => String(c).trim().toUpperCase()).filter((c) => c.length > 0);
-  }
-  
-  // Comma-separated string
-  const str = String(value).trim();
-  if (!str) return [];
-  
-  return str
-    .split(",")
-    .map((c) => c.trim().toUpperCase())
-    .filter((c) => c.length > 0);
-}
-
-function normalizeDevice(dev: string): string {
-  const lower = dev.toLowerCase();
-  if (lower === "desktop" || lower === "web") return "web";
-  if (lower === "android") return "android";
-  if (lower === "ios" || lower === "iphone" || lower === "ipad") return "ios";
-  return lower;
-}
-
-function parseDevices(value: string[] | string | undefined): string[] {
-  if (!value) return [];
-  
-  if (Array.isArray(value)) {
-    return value.map((d) => normalizeDevice(String(d))).filter((d) => d.length > 0);
-  }
-  
-  // Comma-separated string
-  const str = String(value).trim();
-  if (!str) return [];
-  
-  return str
-    .split(",")
-    .map((d) => normalizeDevice(d.trim()))
-    .filter((d) => d.length > 0);
+  const lower = verticalNames.toLowerCase();
+  return (
+    lower.includes("casino") ||
+    lower.includes("gambling") ||
+    lower.includes("betting") ||
+    lower.includes("poker")
+  );
 }
 
 export const toroxAdapter: OfferProviderAdapter = {
@@ -161,6 +191,9 @@ export const toroxAdapter: OfferProviderAdapter = {
     if (!sourceId || !token) {
       throw new Error("TOROX_FEED_SOURCE_ID or TOROX_FEED_TOKEN not configured.");
     }
+
+    // Get exclude_real_money_gambling flag (default true)
+    const excludeGambling = provider.sync_config?.exclude_real_money_gambling ?? true;
 
     const url = new URL(`${apiBase}/partner/campaigns`);
     url.searchParams.set("source_id", sourceId);
@@ -203,115 +236,165 @@ export const toroxAdapter: OfferProviderAdapter = {
       throw new Error(`Torox returned non-JSON: ${text.slice(0, 300)}`);
     }
 
-    // Defensive: try to find campaigns array
-    let campaigns: ToroxCampaign[] = [];
+    // Extract offers array from various response shapes
+    let rawOffers: ToroxOffer[] = [];
     
     if (Array.isArray(parsed)) {
-      campaigns = parsed;
-    } else if (parsed && typeof parsed === "object" && "campaigns" in parsed) {
-      if (Array.isArray(parsed.campaigns)) {
-        campaigns = parsed.campaigns;
+      // Bare array (most common)
+      rawOffers = parsed;
+    } else if (parsed && typeof parsed === "object") {
+      if ("offers" in parsed && Array.isArray(parsed.offers)) {
+        rawOffers = parsed.offers;
+      } else if ("data" in parsed && Array.isArray(parsed.data)) {
+        rawOffers = parsed.data;
+      } else if ("campaigns" in parsed && Array.isArray(parsed.campaigns)) {
+        rawOffers = parsed.campaigns;
       }
     }
 
-    // If we couldn't find campaigns, throw an error with response shape for debugging
-    if (!campaigns.length) {
+    if (rawOffers.length === 0) {
       const keys = parsed && typeof parsed === "object" ? Object.keys(parsed).join(", ") : "none";
       throw new Error(
-        `Torox API returned no recognizable campaigns. Top-level keys: ${keys}. First 300 chars: ${text.slice(0, 300)}`,
+        `Torox API returned no offers. Top-level keys: ${keys}. First 300 chars: ${text.slice(0, 300)}`,
       );
     }
+
+    // Track skip reasons for debugging
+    const skipReasons = {
+      missingId: 0,
+      missingName: 0,
+      invalidPayout: 0,
+      gamblingExcluded: 0,
+      geoExcluded: 0,
+    };
 
     const seen = new Set<string>();
     const offers: NormalizedOffer[] = [];
     
     // When context is undefined (admin sync), skip geo filtering and return full catalog
-    // Same behavior as adswedmedia adapter
     const userCountry = context?.country?.toUpperCase() ?? null;
 
-    for (const item of campaigns) {
-      // Try multiple field names for ID
-      const externalOfferId = String(
-        item.id ?? item.campaign_id ?? item.offer_id ?? "",
-      ).trim();
-      
-      // Try multiple field names for title
-      const title = String(item.name ?? item.title ?? "").trim();
-      
-      // Try multiple field names for payout
-      const payoutRaw = item.payout ?? item.amount ?? item.price ?? 0;
-      const payout = Number.parseFloat(String(payoutRaw)) || 0;
+    for (const item of rawOffers) {
+      // Must have offerId
+      if (!item.offerId) {
+        skipReasons.missingId++;
+        continue;
+      }
 
-      // Skip invalid offers
-      if (!externalOfferId || !title || payout <= 0) continue;
+      const externalOfferId = String(item.offerId);
+      
+      // Must have name
+      if (!item.name || !item.name.trim()) {
+        skipReasons.missingName++;
+        continue;
+      }
+
+      // Must have valid payout
+      const payout = Number(item.payout);
+      if (!payout || payout <= 0) {
+        skipReasons.invalidPayout++;
+        continue;
+      }
+
+      // Skip duplicates
       if (seen.has(externalOfferId)) continue;
       seen.add(externalOfferId);
 
-      // Try multiple field names for description
-      const description = stripHtml(String(item.description ?? item.desc ?? "").trim());
+      // Exclude gambling offers if configured
+      if (excludeGambling && isGamblingOffer(item.verticalNames)) {
+        skipReasons.gamblingExcluded++;
+        continue;
+      }
 
-      // Try multiple field names for image
-      const icon = String(
-        item.image ?? item.icon ?? item.logo ?? item.creative ?? "",
-      ).trim();
-
-      // Parse countries (empty or 'ALL' = everywhere)
-      const countriesRaw = item.countries ?? item.geo ?? item.country;
-      const countries = parseCountries(countriesRaw);
+      // Parse countries (empty or "ALL" = everywhere)
+      const countries = parseGeos(item.geos);
       
       // Filter by user country only if context provided (admin sync gets full catalog)
       if (userCountry && countries.length > 0) {
-        const hasAll = countries.some((c) => c === "ALL" || c === "*");
-        const hasUserCountry = countries.includes(userCountry);
-        if (!hasAll && !hasUserCountry) continue;
-      }
-
-      // Parse devices
-      const devicesRaw = item.devices ?? item.os ?? item.platform;
-      const devices = parseDevices(devicesRaw);
-
-      // Parse category (confident matches only)
-      const categoryRaw = item.category ?? item.type ?? item.vertical;
-      const category = mapCategory(categoryRaw);
-
-      // Extract requirements from events/goals
-      const eventsArray = item.events ?? item.goals ?? [];
-      const requirements = eventsArray
-        .map((evt) => stripHtml(String(evt.name ?? "").trim()))
-        .filter((name) => name.length > 0)
-        .join(" → ");
-
-      // Calculate total payout for multi-event campaigns
-      let totalPayout = payout;
-      if (eventsArray.length > 0) {
-        const eventPayouts = eventsArray
-          .map((evt) => Number.parseFloat(String(evt.payout ?? 0)))
-          .filter((p) => !isNaN(p) && p > 0);
-        if (eventPayouts.length > 0) {
-          totalPayout = Math.max(payout, ...eventPayouts, eventPayouts.reduce((sum, p) => sum + p, 0));
+        if (!countries.includes(userCountry)) {
+          skipReasons.geoExcluded++;
+          continue;
         }
       }
+
+      // Decode HTML entities and strip tags from description
+      const description = decodeAndStrip(item.description || "");
+
+      // Build requirements from callToAction + disclaimer
+      const requirements: string[] = [];
+      if (item.callToAction) {
+        requirements.push(decodeAndStrip(item.callToAction));
+      }
+      if (item.disclaimer) {
+        requirements.push(decodeAndStrip(item.disclaimer));
+      }
+
+      // Handle events (multi-step offers)
+      let stepRewards: Array<{ step: string; reward: number }> = [];
+      if (item.events && item.events.length > 0) {
+        // Sort by orderId
+        const sortedEvents = [...item.events].sort((a, b) => a.orderId - b.orderId);
+        
+        stepRewards = sortedEvents.map((evt) => ({
+          step: decodeAndStrip(evt.eventName),
+          reward: Number(evt.payout) || 0,
+        })).filter((sr) => sr.step && sr.reward > 0);
+      }
+
+      // Icon: prefer image (https only), fallback to coverImage
+      let icon = "";
+      if (item.image && item.image.startsWith("https://")) {
+        icon = item.image;
+      } else if (item.coverImage && item.coverImage.startsWith("https://")) {
+        icon = item.coverImage;
+      }
+
+      // Device
+      const device = normalizeDevice(item.os);
+
+      // Category
+      const category = mapCategory(item.verticalNames);
+
+      // Featured status
+      const isFeatured = item.promoted || item.pinned || false;
 
       // Click URL sentinel (real URL generated per-user at click time)
       const clickUrl = `${TOROX_CLICK_URL_SENTINEL}${externalOfferId}`;
 
       offers.push({
         externalOfferId,
-        title,
+        title: decodeAndStrip(item.name.trim()),
         description,
-        requirements,
+        requirements: requirements.join(" | "),
         icon,
         clickUrl,
-        networkPayout: totalPayout,
+        networkPayout: payout,
         countries,
-        devices,
+        devices: [device],
         category,
+        isFeatured,
+        stepRewards: stepRewards.length > 0 ? stepRewards : undefined,
         raw: item,
       });
     }
 
-    if (!offers.length) {
-      throw new Error("Torox API returned campaigns but none passed filtering.");
+    if (offers.length === 0) {
+      // Provide detailed skip reasons
+      const reasons = Object.entries(skipReasons)
+        .filter(([_, count]) => count > 0)
+        .map(([reason, count]) => `${reason}: ${count}`)
+        .join(", ");
+      
+      const firstItemKeys = rawOffers.length > 0 && typeof rawOffers[0] === "object"
+        ? Object.keys(rawOffers[0]).join(", ")
+        : "none";
+
+      throw new Error(
+        `Torox API returned ${rawOffers.length} offers but none passed filtering. ` +
+        `Skip reasons: ${reasons || "none"}. ` +
+        `First item keys: ${firstItemKeys}. ` +
+        `Config: excludeGambling=${excludeGambling}, userCountry=${userCountry ?? "none"}`
+      );
     }
 
     return offers;
