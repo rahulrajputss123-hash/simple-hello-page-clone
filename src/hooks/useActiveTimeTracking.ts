@@ -26,6 +26,8 @@ type TrackerState = {
  * - Resumes tracking on any activity
  */
 export function useActiveTimeTracking(questKey: string | null, initialToken: string | null = null) {
+  console.log("[useActiveTimeTracking] Hook mounted:", { questKey, initialToken });
+  
   const [state, setState] = useState<TrackerState>({
     isTracking: false,
     isPaused: false,
@@ -45,10 +47,16 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
   // Record user activity
   const recordActivity = useCallback(() => {
     const now = Date.now();
+    const wasInactive = now - lastActivityRef.current > INACTIVITY_THRESHOLD_MS;
     lastActivityRef.current = now;
+
+    if (wasInactive) {
+      console.log("[active-time] Activity detected after inactivity");
+    }
 
     // Resume if paused
     if (state.isPaused) {
+      console.log("[active-time] Resuming from pause");
       setState((prev) => ({
         ...prev,
         isPaused: false,
@@ -59,6 +67,7 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
 
     // Dismiss still-here prompt if showing
     if (state.showStillHerePrompt) {
+      console.log("[active-time] Dismissing still-here prompt");
       setState((prev) => ({
         ...prev,
         showStillHerePrompt: false,
@@ -69,7 +78,8 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
 
   // Send ping to server
   const sendPing = useCallback(async () => {
-    if (!questKey || !state.pingToken) {
+    if (!questKey) {
+      console.log("[active-time] Skipping ping - no questKey");
       return;
     }
 
@@ -82,15 +92,20 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
       return;
     }
 
-    console.log("[active-time] Sending ping for quest:", questKey);
+    // For first ping (no token yet), server will create progress row and return token
+    const pingToken = state.pingToken || "00000000-0000-0000-0000-000000000000"; // Dummy UUID for first ping
+
+    console.log("[active-time] Sending ping for quest:", questKey, { hasToken: !!state.pingToken, timeSinceActivity });
 
     try {
       const result = await pingFn({
         data: {
           questKey,
-          pingToken: state.pingToken,
+          pingToken,
         },
       });
+
+      console.log("[active-time] Ping response:", { success: result.success, reason: result.reason, hasNextToken: !!result.nextToken });
 
       if (result.success && result.nextToken) {
         console.log("[active-time] Ping successful, time credited");
@@ -167,6 +182,9 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
 
     lastActivityRef.current = Date.now();
     lastStillHereCheckRef.current = Date.now();
+
+    // Send first ping immediately to create progress row
+    void sendPing();
 
     // Start ping interval
     if (pingIntervalRef.current) {

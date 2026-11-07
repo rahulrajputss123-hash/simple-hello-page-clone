@@ -166,7 +166,9 @@ export async function processActiveTimePing(
   }
 
   // Verify token (required after first ping)
-  if (progress.last_ping_token && lastToken !== progress.last_ping_token) {
+  // Allow null or dummy token for first ping
+  const isFirstPing = !progress.last_ping_token;
+  if (!isFirstPing && lastToken !== progress.last_ping_token) {
     return {
       success: false,
       reason: "invalid_token",

@@ -60,6 +60,13 @@ export function QuestTracking() {
     select: (data) => data.questKey,
   });
 
+  // Log when active time quest is found
+  useEffect(() => {
+    if (activeTimeQuestKey.data) {
+      console.log("[QuestTracking] Active time quest found for user:", activeTimeQuestKey.data);
+    }
+  }, [activeTimeQuestKey.data]);
+
   // Get initial token from active time progress
   const activeTimeProgress = useQuery({
     queryKey: ["active-time-progress", activeTimeQuestKey.data],
@@ -72,6 +79,7 @@ export function QuestTracking() {
         .eq("user_id", session!.user.id)
         .eq("quest_key", activeTimeQuestKey.data)
         .maybeSingle();
+      console.log("[QuestTracking] Active time progress fetched:", data);
       return data;
     },
     staleTime: 10_000,
