@@ -566,6 +566,43 @@ async function processQuestTokenPostback(
   // Convert to USD
   const usd = convertSdkCurrency(provider, currencyAmount);
 
+  // ========== CRITICAL: Wrap all quest processing in try/catch ==========
+  // If ANY error occurs after marking conversion as quest_absorbed, we must
+  // fall back to normal wallet credit to avoid losing the user's reward.
+  try {
+    return await processQuestLogic();
+  } catch (error) {
+    // Quest processing failed - fallback to normal wallet credit
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    await logAutomation({
+      eventType: "quest_automation",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversion.id,
+      message: `Quest processing failed - falling back to normal wallet credit: ${errorMessage}`,
+      context: { 
+        questKey: session.quest_key, 
+        sessionId: session.id, 
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+    });
+    
+    // Update conversion status back to pending so it goes through normal pipeline
+    await supabaseAdmin
+      .from("sdk_offerwall_conversions")
+      .update({ status: "pending", reject_reason: null })
+      .eq("id", conversion.id);
+    
+    // Credit through normal reward pipeline
+    return await creditNormalReward(provider, req, parsed, auth, userId, conversion.id, currencyAmount);
+  }
+
+  // Inner function containing all quest processing logic
+  async function processQuestLogic() {
   // ========== BRANCH: Feed Quest vs Network Quest ==========
   if (tokenData.kind === "feed") {
     // FEED QUEST: Steps are sequential, tracked by step_index
@@ -1064,6 +1101,7 @@ async function processQuestTokenPostback(
   }
 
   return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
+  } // End of processQuestLogic inner function
 }
 
 /**

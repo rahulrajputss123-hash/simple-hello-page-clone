@@ -270,18 +270,23 @@ export async function openFeedQuestStepImpl(
     return { error: "Invalid quest type" };
   }
 
-  // Get active session
+  // Get session (allow any status - user may want to review completed quests)
   const { data: session } = await db
     .from("quest_sessions")
     .select("id, feed_snapshot, status")
     .eq("user_id", userId)
     .eq("quest_key", questKey)
-    .eq("status", "started")
     .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (!session) {
-    return { error: "No active session" };
+    return { error: "No session found for this quest" };
+  }
+
+  // Only allow opening steps for active sessions
+  if (session.status !== "started") {
+    return { error: `Quest is ${session.status}. Cannot open new steps.` };
   }
 
   const snapshot = session.feed_snapshot as FeedSnapshot;
