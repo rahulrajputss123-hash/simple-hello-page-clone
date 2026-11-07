@@ -984,6 +984,21 @@ async function processQuestTokenPostback(
     context: { questKey: session.quest_key, usd, stepIndex },
   });
 
+  // Update current_step on quest_sessions to reflect network progress
+  // Count all network completions for this session (handles idempotent postbacks)
+  const { data: networkCompletions } = await db
+    .from("quest_network_completions")
+    .select("id")
+    .eq("session_id", session.id)
+    .eq("kind", "network");
+  
+  const networkStepCount = (networkCompletions || []).length;
+  
+  await db
+    .from("quest_sessions")
+    .update({ current_step: networkStepCount })
+    .eq("id", session.id);
+
   // Credit step reward
   const stepRewardAmount = normalizedQuest.step_rewards?.[stepIndex - 1] ?? normalizedQuest.step_reward ?? 0;
   if (stepRewardAmount > 0) {
