@@ -61,19 +61,26 @@ describe("Feed Quest Ranking", () => {
     expect(steps[2].durationSeconds).toBe(45);
   });
 
-  it("should filter by min_reward_usd", () => {
+  it("should NOT filter by min_reward_usd (bug fix: use for ordering only)", () => {
     const { steps } = rankAndFilterFeed(mockItems, {
       kind: "ptc",
       stepsCount: 10,
       backupCount: 0,
-      minRewardUsd: 0.75,
+      minRewardUsd: 0.75, // This should NOT remove campaigns
       minCompletionRate: 0,
       maxPerNetwork: null,
       blockedDomains: [],
     });
 
-    expect(steps.length).toBe(1);
+    // Bug fix: min_reward_usd should NOT filter campaigns
+    // All 3 campaigns should be present, sorted by reward DESC, then duration ASC
+    expect(steps.length).toBe(3);
     expect(steps[0].rewardUsd).toBe(1.00);
+    // Items 2 and 3 both have 0.50 reward, sorted by duration (15 < 45)
+    expect(steps[1].rewardUsd).toBe(0.50);
+    expect(steps[1].durationSeconds).toBe(15);
+    expect(steps[2].rewardUsd).toBe(0.50);
+    expect(steps[2].durationSeconds).toBe(45);
   });
 
   it("should filter by blocked_domains", () => {

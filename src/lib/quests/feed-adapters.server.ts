@@ -146,11 +146,12 @@ async function fetchOfferwallMe(
   const endpoint = kind === "ptc" ? "api.php" : "slapi.php";
   
   // Generate signed identity with 1 HOUR expiry (3600 seconds)
-  // Must match the pattern in getOfferwallMeSignedUrlImpl
-  const expiresSeconds = Math.floor(Date.now() / 1000) + 3600;
-  const signature = generateOfferwallMeSignature(apiKey, context.userRef, expiresSeconds, secret);
+  // Must match the pattern in getOfferwallMeSignedUrlImpl from admin.server.ts
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const identityExpires = nowSeconds + 3600; // 1 hour from now
+  const signature = generateOfferwallMeSignature(apiKey, context.userRef, identityExpires, secret);
 
-  console.log(`[feed] Offerwall.me ${kind}: expires in 1 hour (${expiresSeconds})`);
+  console.log(`[feed] Offerwall.me ${kind}: identity expires at ${identityExpires} (now: ${nowSeconds}, TTL: 3600s)`);
 
   const url = new URL(`https://offerwall.me/${endpoint}`);
   url.searchParams.set("api", apiKey);
@@ -158,7 +159,7 @@ async function fetchOfferwallMe(
   url.searchParams.set("ip", context.ip);
   url.searchParams.set("token", bearerToken ?? "");
   url.searchParams.set("country", context.country);
-  url.searchParams.set("identityExpires", expiresSeconds.toString());
+  url.searchParams.set("identityExpires", identityExpires.toString());
   url.searchParams.set("identitySignature", signature);
 
   console.log(`[feed] Fetching Offerwall.me ${kind}: ${url.origin}${url.pathname}`);
@@ -266,7 +267,7 @@ async function fetchBitcoTasks(
 
   console.log(`[feed] BitcoTasks ${kind} request:`);
   console.log(`[feed]   URL: https://bitcotasks.com/${endpoint}/***/${context.userRef.substring(0, 8)}.../${context.ip}`);
-  console.log(`[feed]   IP source: ${context.ipSource ?? "not-tracked"}`);
+  console.log(`[feed]   IP source: ${context.ipSource ?? "unknown"}`);
   console.log(`[feed]   User-Agent: ${context.userAgent.substring(0, 60)}${context.userAgent.length > 60 ? "..." : ""}`);
   console.log(`[feed]   Bearer token: ${bearerToken ? "present" : "MISSING"}`);
 

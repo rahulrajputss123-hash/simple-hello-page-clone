@@ -150,6 +150,7 @@ export async function startFeedQuestImpl(
     ip: context.ip,
     country: context.country,
     userAgent: context.userAgent,
+    ipSource: context.ipSource, // Pass through for logging
   };
 
   const allItems: FeedItem[] = [];
@@ -223,16 +224,20 @@ export async function startFeedQuestImpl(
     })),
   ];
 
-  // Create session with snapshot
+  // Create session with snapshot - include ALL NOT NULL columns
   const { data: session, error: sessionError } = await db
     .from("quest_sessions")
     .insert({
       user_id: userId,
       quest_key: questKey,
+      quest_type: "feed",
+      current_step: 0,
+      ads_required: quest.ads_required ?? 0,
+      ads_watched: 0,
+      reward_amount: quest.reward_amount,
       status: "started",
       started_at: new Date().toISOString(),
       feed_snapshot: snapshot,
-      ads_required: quest.ads_required ?? 0, // Bug fix: set ads_required from quest (default 0)
     })
     .select("id")
     .single();
