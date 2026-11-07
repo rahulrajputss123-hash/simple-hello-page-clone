@@ -869,7 +869,7 @@ async function processQuestTokenPostback(
     stepIndex = (existingCompletions || []).length + 1;
 
     // Try to insert with this step_index
-    const { error: completionError } = await db
+    const { data: insertedCompletion, error: completionError } = await db
       .from("quest_network_completions")
       .insert({
         session_id: session.id,
@@ -878,9 +878,11 @@ async function processQuestTokenPostback(
         step_index: stepIndex,
         kind: "network",
         amount_usd: usd,
-      });
+      })
+      .select()
+      .maybeSingle();
 
-    if (!completionError) {
+    if (!completionError && insertedCompletion) {
       completionInserted = true;
       break;
     }
