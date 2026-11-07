@@ -750,13 +750,15 @@ export const getActiveTimeQuestKey = createServerFn({ method: "POST" })
       .select("key, target_minutes")
       .eq("quest_type", "active_time")
       .eq("is_active", true)
+      .order("created_at", { ascending: true }) // Pick oldest first if multiple exist
+      .limit(1)
       .maybeSingle();
     
     if (!quest) {
       return { questKey: null };
     }
     
-    // Check if user has started this quest and hasn't completed it yet
+    // Check if user has completed this quest
     const { data: progress } = await db
       .from("quest_active_time_progress")
       .select("total_seconds, credited_at")
@@ -764,11 +766,20 @@ export const getActiveTimeQuestKey = createServerFn({ method: "POST" })
       .eq("quest_key", quest.key)
       .maybeSingle();
     
-    // Return key only if quest is in progress (started but not completed)
-    if (progress && !progress.credited_at && progress.total_seconds < quest.target_minutes * 60) {
+    // Return quest key if:
+    // 1. User has no progress yet (new user, quest available)
+    // 2. User has progress but hasn't completed or claimed it yet
+    if (!progress) {
+      // New user - quest is available
       return { questKey: quest.key };
     }
     
+    // User has progress - check if incomplete
+    if (!progress.credited_at && progress.total_seconds < quest.target_minutes * 60) {
+      return { questKey: quest.key };
+    }
+    
+    // Already completed/claimed
     return { questKey: null };
   });
 
