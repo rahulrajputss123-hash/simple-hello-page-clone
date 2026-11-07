@@ -32,6 +32,13 @@ export function appendAffSub4(
   userId: string | null | undefined,
   externalOfferId?: string | null,
 ): string | null {
+  // SAFETY: Quest tokens must NEVER be used in normal offer clicks
+  // Quest tokens (format: "q_" + random chars) are only for quest-specific offer opens
+  if (userId?.startsWith("q_")) {
+    console.error(`[click-url] Quest token blocked in normal offer click: ${userId.slice(0, 10)}...`);
+    return null;
+  }
+
   // Torox: sentinel pattern, handled in useOfferActions via getToroxClickUrl
   if (providerSlug === "torox") {
     // This function should never be called with torox URLs in production,
