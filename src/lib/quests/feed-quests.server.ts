@@ -281,6 +281,7 @@ export async function openFeedQuestStepImpl(
     .maybeSingle();
 
   if (!session) {
+    console.error(`[feed-quest] No session found: questKey=${questKey}, userId=${userId}`);
     return { error: "No session found for this quest" };
   }
 
