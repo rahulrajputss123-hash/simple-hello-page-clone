@@ -1,4 +1,4 @@
-import { Check, Loader2, LockKeyhole } from "lucide-react";
+import { Check, Loader2, LockKeyhole, Clock } from "lucide-react";
 import { memo } from "react";
 
 import { formatReward } from "@/lib/format-reward";
@@ -11,7 +11,7 @@ import {
   type QuestSessionView,
 } from "@/lib/quest-view";
 import { ActiveTimeProgress } from "@/components/ActiveTimeProgress";
-import { QuestTimer, CheckinDayDots, NextDayCountdown } from "@/components/QuestTimer";
+import { QuestTimer, CheckinDayDotsCompact, CompactTimer, NextDayCountdown } from "@/components/QuestTimer";
 
 // Re-exported so existing importers of these types keep working. Type-only, so
 // this does not reintroduce a non-component runtime export.
@@ -352,100 +352,86 @@ export const QuestCard = memo(function QuestCard({
 
         <div className="flex-1" />
 
-        {/* checkin quest: day dots + timer */}
+        {/* checkin quest: compact day dots + status line */}
         {quest.quest_type === "checkin" && !credited && !locked ? (
-          <div className="mb-4 space-y-3" data-testid={`quest-checkin-status-${quest.key}`}>
-            {/* Day Dots */}
-            <CheckinDayDots
+          <div className="mb-3 space-y-2" data-testid={`quest-checkin-status-${quest.key}`}>
+            {/* Compact Day Dots */}
+            <CheckinDayDotsCompact
               totalDays={total}
               completedDays={progress}
               currentDay={progress + 1}
             />
             
-            {/* Timer for today's active time requirement */}
+            {/* Single status line: timer OR unlock countdown, never both */}
             {(() => {
               const todayDay = active?.checkin_days?.find((d, idx) => idx === progress);
               const todayRequired = quest.required_active_seconds ?? 0;
               
-              if (!todayDay && todayRequired > 0) {
-                // Day not started yet
-                return (
-                  <div className="text-center text-xs text-muted-foreground">
-                    Keep app open for {Math.floor(todayRequired / 60)}m
-                  </div>
-                );
+              // Check if today is complete and next day is locked
+              if (todayDay?.completed_at && progress < total) {
+                const completedAt = new Date(todayDay.completed_at);
+                const nextDayUnlock = new Date(completedAt);
+                nextDayUnlock.setDate(nextDayUnlock.getDate() + 1);
+                nextDayUnlock.setHours(0, 0, 0, 0);
+                
+                const now = new Date();
+                if (now < nextDayUnlock) {
+                  // Show unlock countdown
+                  const diff = nextDayUnlock.getTime() - now.getTime();
+                  const hours = Math.floor(diff / (1000 * 60 * 60));
+                  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                  const nextDayNum = progress + 2; // progress is 0-indexed, so +2 for next day number
+                  return (
+                    <p className="text-center text-[10px] text-gray-500">
+                      Day {nextDayNum} unlocks tonight at 12:00 AM ({hours}h {minutes}m)
+                    </p>
+                  );
+                }
               }
               
+              // Show live timer if today is in progress
               if (todayDay && !todayDay.completed_at && todayRequired > 0) {
-                // Day in progress with timer
                 return (
-                  <QuestTimer
-                    activeSeconds={todayDay.active_seconds ?? 0}
-                    requiredSeconds={todayRequired}
-                    completed={false}
-                    paused={false}
-                    lastPingAt={todayDay.last_ping_at ? new Date(todayDay.last_ping_at).getTime() : null}
-                    compact={true}
+                  <CompactTimer
+                    currentSeconds={todayDay.active_seconds ?? 0}
+                    targetSeconds={todayRequired}
+                    status={undefined}
                   />
                 );
               }
               
-              if (todayDay?.completed_at) {
-                // Today is complete
-                return null; // CheckinDayDots shows completion
-              }
-              
-              // Instant check-in (no active time requirement)
               return null;
             })()}
             
-            {/* Next day countdown */}
-            {progress < total && progress > 0 && (() => {
-              const lastDay = active?.checkin_days?.[progress - 1];
-              if (lastDay?.completed_at) {
-                const completedAt = new Date(lastDay.completed_at);
-                const nextDayUnlock = new Date(completedAt);
-                nextDayUnlock.setDate(nextDayUnlock.getDate() + 1);
-                nextDayUnlock.setHours(0, 0, 0, 0); // Start of next day
-                
-                const now = new Date();
-                if (now < nextDayUnlock) {
-                  return <NextDayCountdown unlocksAt={nextDayUnlock} />;
-                }
-              }
-              return null;
-            })()}
+            {/* Single progress line: "1 of 3 days" */}
+            <p className="text-center text-[10px] text-gray-600">
+              {progress} of {total} days
+            </p>
           </div>
         ) : null}
 
-        {/* active_time quest: timer */}
+        {/* active_time quest: compact stopwatch + status */}
         {quest.quest_type === "active_time" && activeTimeProgress && !credited && !locked ? (
-          <div className="mb-3" data-testid={`quest-active-time-status-${quest.key}`}>
-            <QuestTimer
-              activeSeconds={activeTimeProgress.total_seconds}
-              requiredSeconds={(quest.target_minutes ?? 30) * 60}
-              completed={false}
-              paused={activeTimeTracking?.isPaused ?? false}
-              dailyCapReached={
-                activeTimeProgress.today_seconds >= (quest.daily_cap_minutes ?? 120) * 60
+          <div className="mb-3 space-y-2" data-testid={`quest-active-time-status-${quest.key}`}>
+            <CompactTimer
+              currentSeconds={activeTimeProgress.total_seconds}
+              targetSeconds={(quest.target_minutes ?? 30) * 60}
+              status={
+                activeTimeTracking?.isPaused
+                  ? "Paused"
+                  : activeTimeProgress.today_seconds >= (quest.daily_cap_minutes ?? 120) * 60
+                    ? "Daily cap reached"
+                    : credited
+                      ? "Credited"
+                      : "Tracking"
               }
-              credited={credited}
-              compact={true}
             />
           </div>
         ) : null}
 
-        {/* progress */}
-        <div data-testid={`quest-progress-${quest.key}`}>
-          {quest.quest_type === "active_time" && activeTimeProgress ? (
-            <ActiveTimeProgress
-              totalMinutes={activeTimeProgress.total_seconds / 60}
-              targetMinutes={quest.target_minutes ?? 30}
-              todayMinutes={activeTimeProgress.today_seconds / 60}
-              dailyCapMinutes={quest.daily_cap_minutes ?? 120}
-              isPaused={activeTimeTracking?.isPaused ?? false}
-            />
-          ) : (
+        {/* progress - hide for checkin/active_time (shown in compact sections above) */}
+        {quest.quest_type !== "checkin" && quest.quest_type !== "active_time" && (
+          <div data-testid={`quest-progress-${quest.key}`}>
             <>
               <div className="flex items-baseline justify-between gap-2">
                 <span
@@ -473,46 +459,62 @@ export const QuestCard = memo(function QuestCard({
                 />
               </div>
             </>
-          )}
-        </div>
+          </div>
+        )}
 
-        <p
-          className="mt-2 line-clamp-1 text-[10px] leading-tight"
-          style={{ color: INK_FAINT }}
-          data-testid={`quest-detail-${quest.key}`}
-        >
-          {detail}
-          <span className="sr-only"> — {summary}</span>
-        </p>
+        {/* Detail text - hide for checkin/active_time (shown in compact sections) */}
+        {quest.quest_type !== "checkin" && quest.quest_type !== "active_time" && (
+          <p
+            className="mt-2 line-clamp-1 text-[10px] leading-tight"
+            style={{ color: INK_FAINT }}
+            data-testid={`quest-detail-${quest.key}`}
+          >
+            {detail}
+            <span className="sr-only"> — {summary}</span>
+          </p>
+        )}
 
-        {/* CTA — jade for every category, so colour stays a category signal only */}
-        <button
-          type="button"
-          className="mt-2.5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[11px] text-[13px] font-semibold transition-[filter,background-color] duration-200 disabled:cursor-not-allowed enabled:hover:brightness-[1.12] [&_svg]:size-4"
-          style={
-            credited
-              ? { background: "rgba(16,163,113,0.12)", color: "#0A6B4A" }
-              : locked
-                ? { background: "#F3F5F4", color: INK_FAINT }
-                : {
-                    background: INK,
-                    color: "#FFFFFF",
-                    boxShadow: "0 1px 2px rgba(11,43,40,0.18)",
-                  }
-          }
-          disabled={busy || credited}
-          onClick={locked ? onLocked : onOpenDetails}
-          data-testid={actionTestId}
-        >
-          {busy ? (
-            <Loader2 className="animate-spin" />
-          ) : locked ? (
-            <LockKeyhole />
-          ) : credited ? (
-            <Check />
-          ) : null}
-          {ctaText}
-        </button>
+        {/* CTA - status pill for checkin/active_time, button for others */}
+        {quest.quest_type === "checkin" || quest.quest_type === "active_time" ? (
+          // Status pill - no button, whole card opens details
+          <div
+            className="mt-2.5 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg text-[11px] font-medium"
+            style={{ background: "rgba(16,163,113,0.08)", color: "#059669" }}
+            data-testid={actionTestId}
+          >
+            <Clock className="size-3.5" />
+            {quest.quest_type === "checkin" ? "Tracking Progress" : "Tracking Active Time"}
+          </div>
+        ) : (
+          // Regular button for other quest types
+          <button
+            type="button"
+            className="mt-2.5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[11px] text-[13px] font-semibold transition-[filter,background-color] duration-200 disabled:cursor-not-allowed enabled:hover:brightness-[1.12] [&_svg]:size-4"
+            style={
+              credited
+                ? { background: "rgba(16,163,113,0.12)", color: "#0A6B4A" }
+                : locked
+                  ? { background: "#F3F5F4", color: INK_FAINT }
+                  : {
+                      background: INK,
+                      color: "#FFFFFF",
+                      boxShadow: "0 1px 2px rgba(11,43,40,0.18)",
+                    }
+            }
+            disabled={busy || credited}
+            onClick={locked ? onLocked : onOpenDetails}
+            data-testid={actionTestId}
+          >
+            {busy ? (
+              <Loader2 className="animate-spin" />
+            ) : locked ? (
+              <LockKeyhole />
+            ) : credited ? (
+              <Check />
+            ) : null}
+            {ctaText}
+          </button>
+        )}
       </div>
 
       {inactive ? null : (
