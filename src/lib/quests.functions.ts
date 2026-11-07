@@ -490,7 +490,7 @@ export const getFeedQuestProgress = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .eq("quest_key", questKey)
       .eq("status", "started")
-      .order("created_at", { ascending: false })
+      .order("started_at", { ascending: false })
       .maybeSingle();
 
     if (!session) {
@@ -688,7 +688,7 @@ export const getSurveyQuestProgress = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .eq("quest_key", data.questKey)
       .in("status", ["started", "verified"])
-      .order("created_at", { ascending: false })
+      .order("started_at", { ascending: false })
       .maybeSingle();
 
     if (!session) {

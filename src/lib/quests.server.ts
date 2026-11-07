@@ -137,7 +137,7 @@ export type QuestRow = {
 };
 
 // Use shared normalize function from quest-normalize.ts
-const normalize = normalizeQuest;
+export const normalize = normalizeQuest;
 
 /**
  * Both figures the lock rules depend on, in one round trip.

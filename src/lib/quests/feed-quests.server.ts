@@ -276,7 +276,7 @@ export async function openFeedQuestStepImpl(
     .select("id, feed_snapshot, status")
     .eq("user_id", userId)
     .eq("quest_key", questKey)
-    .order("created_at", { ascending: false })
+    .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 

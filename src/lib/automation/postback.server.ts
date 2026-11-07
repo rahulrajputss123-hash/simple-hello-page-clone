@@ -791,7 +791,7 @@ async function processQuestTokenPostback(
       if (sessionUpdate?.status === "verified") {
         try {
           const { finishQuestSession } = await import("../quests.server");
-          await finishQuestSession(userId, session.id, normalizedQuest);
+          await finishQuestSession(userId, session.id, normalizedQuest.reward_amount, `Feed Quest: ${normalizedQuest.label}`);
           
           await logAutomation({
             eventType: "quest_automation",
