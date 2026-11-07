@@ -355,7 +355,7 @@ export const QuestCard = memo(function QuestCard({
 
         {/* checkin quest: day dots + timer */}
         {quest.quest_type === "checkin" && !credited && !locked ? (
-          <div className="mb-3 space-y-2.5" data-testid={`quest-checkin-status-${quest.key}`}>
+          <div className="mb-4 space-y-3" data-testid={`quest-checkin-status-${quest.key}`}>
             {/* Day Dots */}
             <CheckinDayDots
               totalDays={total}
@@ -478,7 +478,7 @@ export const QuestCard = memo(function QuestCard({
         </div>
 
         <p
-          className="mt-2 line-clamp-1 text-[10px] leading-none"
+          className="mt-3 line-clamp-1 text-[10px] leading-[1.3]"
           style={{ color: INK_FAINT }}
           data-testid={`quest-detail-${quest.key}`}
         >
