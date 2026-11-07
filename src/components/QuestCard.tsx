@@ -478,7 +478,7 @@ export const QuestCard = memo(function QuestCard({
         </div>
 
         <p
-          className="mt-3 line-clamp-1 text-[10px] leading-[1.3]"
+          className="mt-2 line-clamp-1 text-[10px] leading-tight"
           style={{ color: INK_FAINT }}
           data-testid={`quest-detail-${quest.key}`}
         >
@@ -489,7 +489,7 @@ export const QuestCard = memo(function QuestCard({
         {/* CTA — jade for every category, so colour stays a category signal only */}
         <button
           type="button"
-          className="mt-3.5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[11px] text-[13px] font-semibold transition-[filter,background-color] duration-200 disabled:cursor-not-allowed enabled:hover:brightness-[1.12] [&_svg]:size-4"
+          className="mt-2.5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[11px] text-[13px] font-semibold transition-[filter,background-color] duration-200 disabled:cursor-not-allowed enabled:hover:brightness-[1.12] [&_svg]:size-4"
           style={
             credited
               ? { background: "rgba(16,163,113,0.12)", color: "#0A6B4A" }
