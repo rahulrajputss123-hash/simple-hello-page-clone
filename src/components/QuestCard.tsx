@@ -40,7 +40,6 @@ type QuestCardProps = {
 };
 
 const CARD_W = 240;
-const CARD_H = 340;
 
 /** Display font already loaded in __root.tsx — geometric, for premium onboarding only. */
 const DISPLAY_FONT = '"Manrope", "Inter", ui-sans-serif, system-ui, sans-serif';
@@ -271,8 +270,8 @@ export const QuestCard = memo(function QuestCard({
       className="group relative shrink-0 snap-start overflow-hidden transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1"
       style={{
         width: CARD_W,
-        height: CARD_H,
         minWidth: CARD_W,
+        minHeight: 340,
         borderRadius: 18,
         background: "#FFFFFF",
         border: `1px solid ${HAIRLINE}`,
@@ -323,7 +322,7 @@ export const QuestCard = memo(function QuestCard({
 
         {/* icon tile — the single place category colour is fully saturated */}
         <div
-          className="mt-4 grid place-items-center transition-transform duration-300 group-hover:scale-[1.04]"
+          className="mt-4 shrink-0 grid place-items-center transition-transform duration-300 group-hover:scale-[1.04]"
           style={{
             width: 44,
             height: 44,
@@ -337,21 +336,21 @@ export const QuestCard = memo(function QuestCard({
         </div>
 
         <h3
-          className="mt-3.5 line-clamp-1 text-[17px] font-bold leading-tight tracking-[-0.01em]"
+          className="mt-3.5 shrink-0 line-clamp-1 text-[17px] font-bold leading-tight tracking-[-0.01em]"
           style={{ color: INK, fontFamily: DISPLAY_FONT }}
           data-testid={`quest-title-${quest.key}`}
         >
           {quest.label}
         </h3>
         <p
-          className={`mt-1.5 text-[12px] leading-[1.45] ${quest.quest_type === 'checkin' ? 'line-clamp-1' : 'line-clamp-2'}`}
+          className="mt-1.5 shrink-0 line-clamp-2 text-[12px] leading-[1.45]"
           style={{ color: INK_SOFT }}
           data-testid={`quest-description-${quest.key}`}
         >
           {description}
         </p>
 
-        <div className="min-h-1 flex-1" />
+        <div className="flex-1" />
 
         {/* checkin quest: day dots + timer */}
         {quest.quest_type === "checkin" && !credited && !locked ? (
