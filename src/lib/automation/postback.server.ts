@@ -12,6 +12,7 @@ import {
 } from "../sdk-offerwall/types";
 import { getSdkAdapter } from "../sdk-offerwall/registry.server";
 import { logAutomation } from "./logs.server";
+import { normalizeQuest } from "../quest-normalize";
 
 export type PostbackResult = {
   ok: boolean;
@@ -539,8 +540,7 @@ async function processQuestTokenPostback(
     return await creditNormalReward(provider, req, parsed, auth, userId, conversion.id, currencyAmount);
   }
 
-  const { normalize } = await import("../quests.server");
-  const normalizedQuest = normalize(quest);
+  const normalizedQuest = normalizeQuest(quest);
   const shouldCreditWallet = quest.credit_offer_reward === true;
 
   // Log the quest conversion with credit_offer_reward status
