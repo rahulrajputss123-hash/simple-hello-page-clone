@@ -344,14 +344,20 @@ export const QuestCard = memo(function QuestCard({
           {quest.label}
         </h3>
         <p
-          className="mt-1.5 line-clamp-2 text-[12px] leading-[1.45]"
-          style={{ color: INK_SOFT }}
+          className="mt-1.5 text-[12px] leading-[1.45]"
+          style={{ 
+            color: INK_SOFT,
+            display: '-webkit-box',
+            WebkitLineClamp: quest.quest_type === 'checkin' ? 1 : 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
+          }}
           data-testid={`quest-description-${quest.key}`}
         >
           {description}
         </p>
 
-        <div className="min-h-3 flex-1" />
+        <div className="min-h-2 flex-1" />
 
         {/* checkin quest: day dots + timer */}
         {quest.quest_type === "checkin" && !credited && !locked ? (
