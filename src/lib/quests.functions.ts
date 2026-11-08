@@ -794,13 +794,14 @@ export const processActiveTimePing = createServerFn({ method: "POST" })
     z
       .object({
         questKey: z.string().min(1).max(40),
-        pingToken: z.string().uuid(),
+        pingToken: z.string().nullable(),
+        isActive: z.boolean().default(true),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { processActiveTimePingImpl, claimActiveTimeRewardImpl } = await import("./quests.server");
-    const result = await processActiveTimePingImpl(context.userId, data.questKey, data.pingToken);
+    const result = await processActiveTimePingImpl(context.userId, data.questKey, data.pingToken, data.isActive);
     
     // Auto-claim if target reached
     if (result.success && result.canClaim) {

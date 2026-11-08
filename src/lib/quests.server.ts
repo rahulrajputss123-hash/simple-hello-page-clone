@@ -2183,9 +2183,10 @@ import {
 export async function processActiveTimePingImpl(
   userId: string,
   questKey: string,
-  pingToken: string,
+  pingToken: string | null,
+  isActive: boolean = true,
 ) {
-  return processActiveTimePing(db, userId, questKey, pingToken);
+  return processActiveTimePing(db, userId, questKey, pingToken, isActive);
 }
 
 export async function startActiveTimeGraceImpl(

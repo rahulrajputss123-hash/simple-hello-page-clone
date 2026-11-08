@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { processActiveTimePing } from "@/lib/quests.functions";
+import { activeTimeTokenStore } from "@/lib/active-time-token-store";
 
 const PING_INTERVAL_MS = 30_000; // 30 seconds
 const INACTIVITY_THRESHOLD_MS = 60_000; // 60 seconds
 const STILL_HERE_INTERVAL_MS = 600_000; // 10 minutes
+const INVALID_TOKEN_WAIT_MS = 30_000; // 30 seconds before retrying after invalid_token
 
 type TrackerState = {
   isTracking: boolean;
@@ -13,21 +15,23 @@ type TrackerState = {
   lastPingAt: number | null;
   pingToken: string | null;
   error: string | null;
+  waitingForResync: boolean;
 };
 
 /**
  * Hook for active time quest tracking.
  * 
  * Behavior:
- * - Pings server every 30s if user was active in last 60s
+ * - Pings server every 30s with isActive flag based on recent user activity
+ * - If user inactive for 60s, sends isActive=false (no time credited but keeps chain)
  * - Detects activity via mouse/keyboard/touch/scroll
  * - Shows "Still here?" prompt every 10min if inactive
- * - Pauses tracking if user doesn't respond to prompt within 60s
- * - Resumes tracking on any activity
+ * - Token stored in global store + sessionStorage for navigation persistence
+ * - On invalid_token: waits 30s, server resyncs after 120s of no pings
  * 
  * DEBUG LOGGING: All events logged to console and visible in ?debug=1 panel
  */
-export function useActiveTimeTracking(questKey: string | null, initialToken: string | null = null) {
+export function useActiveTimeTracking(questKey: string | null) {
   const debug = typeof window !== 'undefined' && window.location.search.includes('debug=1');
   
   const log = (msg: string, data?: any) => {
@@ -47,7 +51,10 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
     }
   };
   
-  log('Hook mounted', { questKey, hasInitialToken: !!initialToken });
+  // Restore token from global store
+  const initialToken = questKey ? activeTimeTokenStore.getToken(questKey) : null;
+  
+  log('Hook mounted', { questKey, hasStoredToken: !!initialToken });
   
   const [state, setState] = useState<TrackerState>({
     isTracking: false,
@@ -56,6 +63,7 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
     lastPingAt: null,
     pingToken: initialToken,
     error: null,
+    waitingForResync: false,
   });
 
   const lastActivityRef = useRef<number>(Date.now());
@@ -104,25 +112,33 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
       return;
     }
 
-    const now = Date.now();
-    const timeSinceActivity = now - lastActivityRef.current;
-
-    // Skip ping if user inactive for > 60s
-    if (timeSinceActivity > INACTIVITY_THRESHOLD_MS) {
-      log("Skipping ping - user inactive", { timeSinceActivity });
+    if (state.waitingForResync) {
+      log("Skipping ping - waiting for resync after invalid_token");
       return;
     }
 
-    // For first ping (no token yet), server will create progress row and return token
-    const pingToken = state.pingToken || "00000000-0000-0000-0000-000000000000"; // Dummy UUID for first ping
+    const now = Date.now();
+    const timeSinceActivity = now - lastActivityRef.current;
+    const isActive = timeSinceActivity <= INACTIVITY_THRESHOLD_MS;
 
-    log("Sending ping", { questKey, hasToken: !!state.pingToken, timeSinceActivity });
+    // Always send ping, but set isActive=false if user is idle
+    // This maintains the token chain but doesn't credit time
+    const pingToken = state.pingToken;
+
+    log("Sending ping", { 
+      questKey, 
+      hasToken: !!pingToken, 
+      timeSinceActivity, 
+      isActive,
+      tokenPreview: pingToken?.slice(0, 8) || 'null',
+    });
 
     try {
       const result = await pingFn({
         data: {
           questKey,
           pingToken,
+          isActive,
         },
       });
 
@@ -132,15 +148,45 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
         hasNextToken: !!result.nextToken,
         totalSeconds: result.totalSeconds,
         todaySeconds: result.todaySeconds,
+        nextTokenPreview: result.nextToken?.slice(0, 8) || 'null',
       });
 
+      // Handle invalid_token: wait 30s, server will resync after 120s
+      if (!result.success && result.reason === 'invalid_token') {
+        log("Invalid token - waiting 30s before retry, server will resync");
+        setState((prev) => ({
+          ...prev,
+          waitingForResync: true,
+          error: 'invalid_token_wait',
+        }));
+        
+        // Wait 30s then clear the flag
+        setTimeout(() => {
+          log("Resync wait complete - will retry next ping");
+          setState((prev) => ({
+            ...prev,
+            waitingForResync: false,
+            error: null,
+          }));
+        }, INVALID_TOKEN_WAIT_MS);
+        
+        return;
+      }
+
       if (result.success && result.nextToken) {
-        log("Ping successful, time credited");
+        log("Ping successful", { credited: result.reason });
+        
+        // Store token in global store
+        if (questKey) {
+          activeTimeTokenStore.setToken(questKey, result.nextToken);
+        }
+        
         setState((prev) => ({
           ...prev,
           pingToken: result.nextToken,
           lastPingAt: now,
           error: null,
+          waitingForResync: false,
         }));
       } else {
         log("Ping failed", { reason: result.reason });
@@ -156,7 +202,7 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
         error: error instanceof Error ? error.message : "network_error",
       }));
     }
-  }, [questKey, state.pingToken, pingFn]);
+  }, [questKey, state.pingToken, state.waitingForResync, pingFn]);
 
   // Check if we should show "Still here?" prompt
   const checkStillHere = useCallback(() => {
@@ -237,6 +283,8 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
 
   // Stop tracking
   const stopTracking = useCallback(() => {
+    log("Stopping tracking");
+    
     setState((prev) => ({
       ...prev,
       isTracking: false,
@@ -253,6 +301,8 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
       clearInterval(stillHereIntervalRef.current);
       stillHereIntervalRef.current = null;
     }
+    
+    // Keep token in store for next session
   }, []);
 
   // Set up activity listeners

@@ -35,8 +35,8 @@ type GraceResult = {
  * @param db - Supabase client (service role)
  * @param userId - Authenticated user ID
  * @param questKey - Quest key
- * @param lastToken - Token from previous ping
- * @param interactionProof - Unused (for future)
+ * @param lastToken - Token from previous ping (null on first ping)
+ * @param isActive - Whether user is actively interacting (false = idle, no credit)
  * @returns Ping result with next token and progress
  */
 export async function processActiveTimePing(
@@ -44,21 +44,21 @@ export async function processActiveTimePing(
   userId: string,
   questKey: string,
   lastToken: string | null,
-  interactionProof?: string,
+  isActive: boolean = true,
 ): Promise<PingResult> {
   const userShort = userId.slice(0, 8);
-  const tokenShort = lastToken?.slice(0, 8) || 'none';
+  const tokenShort = lastToken?.slice(0, 8) || 'null';
   
-  console.log(`[active-time] PING user=${userShort} quest=${questKey} token=${tokenShort}`);
+  console.log(`[active-time] PING user=${userShort} quest=${questKey} token=${tokenShort} active=${isActive}`);
 
   try {
-    // Call atomic Postgres function
+    // Call atomic Postgres function with service-role client
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (db as any).rpc("ping_active_time", {
       p_user_id: userId,
       p_quest_key: questKey,
-      p_ping_token: lastToken || "00000000-0000-0000-0000-000000000000",
-      p_is_active: true,
+      p_ping_token: lastToken,
+      p_is_active: isActive,
     });
 
     if (error) {
@@ -73,7 +73,7 @@ export async function processActiveTimePing(
 
     const result = data[0];
     
-    console.log(`[active-time] RESULT user=${userShort} success=${result.success} total=${result.total_seconds}s reason=${result.reason}`);
+    console.log(`[active-time] RESULT user=${userShort} success=${result.success} total=${result.total_seconds}s reason=${result.reason} nextToken=${result.next_token?.slice(0, 8) || 'null'}`);
 
     return {
       success: result.success,
