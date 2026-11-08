@@ -416,6 +416,7 @@ export const QuestCard = memo(function QuestCard({
             <CompactTimer
               currentSeconds={activeTimeProgress.total_seconds}
               targetSeconds={(quest.target_minutes ?? 30) * 60}
+              isLive={true}
               status={
                 activeTimeTracking?.isPaused
                   ? "Paused"

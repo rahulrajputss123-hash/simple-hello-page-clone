@@ -202,31 +202,58 @@ export function CheckinDayDotsCompact({
 
 /**
  * Compact timer for check-in and active_time cards.
- * Shows just mm:ss / target with thin progress bar below.
+ * Shows mm:ss / target with thin progress bar below.
+ * Ticks locally every second for active_time quests.
  */
 export function CompactTimer({
   currentSeconds,
   targetSeconds,
   status,
+  isLive = false,
 }: {
   currentSeconds: number;
   targetSeconds: number;
   status?: string;
+  /** If true, timer ticks locally every second (for active_time) */
+  isLive?: boolean;
 }) {
+  // Local tick state - increments every second for live timers
+  const [localTick, setLocalTick] = useState(0);
+
+  // Reset local tick when server data updates
+  useEffect(() => {
+    setLocalTick(0);
+  }, [currentSeconds]);
+
+  // Increment local tick every second if live
+  useEffect(() => {
+    if (!isLive) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setLocalTick((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isLive]);
+
+  const displaySeconds = isLive ? Math.min(currentSeconds + localTick, targetSeconds) : currentSeconds;
+
   const formatTime = (totalSeconds: number): string => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const progressPercent = Math.min(100, (currentSeconds / targetSeconds) * 100);
+  const progressPercent = Math.min(100, (displaySeconds / targetSeconds) * 100);
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-center gap-1.5 text-xs">
         <Clock className="size-3.5 text-emerald-600" />
         <span className="font-mono font-semibold text-emerald-600">
-          {formatTime(currentSeconds)}
+          {formatTime(displaySeconds)}
         </span>
         <span className="text-gray-400">/</span>
         <span className="font-mono text-gray-600">{formatTime(targetSeconds)}</span>
