@@ -1,23 +1,16 @@
 /**
  * Active Time Quest - Server-authoritative time tracking
  * 
- * Rules:
- * - Client pings every ~30s with interaction proof
- * - Server credits min(ping_gap, 35s) to prevent clock manipulation
- * - Ignore pings <20s apart (too frequent)
- * - One-time tokens prevent replay attacks
- * - Grace periods for offer clicks (count background time up to 10min)
- * - Daily cap on counted seconds (default 2h)
- * - Atomic reward payout via Postgres function
+ * Now uses atomic Postgres function ping_active_time() for:
+ * - INSERT-or-UPDATE with SELECT FOR UPDATE lock
+ * - Token chain validation
+ * - Credit calculation (min(gap, 35s) or grace)
+ * - Daily cap enforcement
+ * 
+ * This eliminates race conditions and simplifies the code.
  */
 
-import { createHash, randomBytes } from "crypto";
 import type { DbClient } from "../quests.server";
-
-const MIN_PING_INTERVAL_SEC = 20;
-const MAX_CREDIT_PER_PING_SEC = 35;
-const MAX_GRACE_WINDOWS_PER_HOUR = 3;
-const GRACE_OFFER_COOLDOWN_HOURS = 24;
 
 type PingResult = {
   success: boolean;
@@ -37,20 +30,13 @@ type GraceResult = {
 };
 
 /**
- * Generate a cryptographically secure one-time ping token
- */
-function generatePingToken(): string {
-  return randomBytes(24).toString("base64url");
-}
-
-/**
- * Process an active time ping from the client
+ * Process an active time ping - calls atomic Postgres function
  * 
  * @param db - Supabase client (service role)
  * @param userId - Authenticated user ID
  * @param questKey - Quest key
- * @param lastToken - Token from previous ping (required after first ping)
- * @param interactionProof - Client-side interaction hash (unused, for future verification)
+ * @param lastToken - Token from previous ping
+ * @param interactionProof - Unused (for future)
  * @returns Ping result with next token and progress
  */
 export async function processActiveTimePing(
@@ -60,248 +46,53 @@ export async function processActiveTimePing(
   lastToken: string | null,
   interactionProof?: string,
 ): Promise<PingResult> {
-  const now = new Date();
+  const userShort = userId.slice(0, 8);
+  const tokenShort = lastToken?.slice(0, 8) || 'none';
+  
+  console.log(`[active-time] PING user=${userShort} quest=${questKey} token=${tokenShort}`);
 
-  // Get quest configuration
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: quest, error: questError } = await (db as any)
-    .from("quests")
-    .select("target_minutes, daily_cap_minutes, grace_minutes, is_active")
-    .eq("key", questKey)
-    .eq("quest_type", "active_time")
-    .maybeSingle();
-
-  if (questError) {
-    console.error("[active-time] Quest query error:", questError);
-    throw new Error(`Failed to fetch quest: ${questError.message}`);
-  }
-
-  if (!quest) {
-    return {
-      success: false,
-      reason: "quest_not_found",
-      nextToken: null,
-      totalSeconds: 0,
-      todaySeconds: 0,
-      targetSeconds: 0,
-      progressPercent: 0,
-      canClaim: false,
-    };
-  }
-
-  if (!quest.is_active) {
-    return {
-      success: false,
-      reason: "quest_inactive",
-      nextToken: null,
-      totalSeconds: 0,
-      todaySeconds: 0,
-      targetSeconds: 0,
-      progressPercent: 0,
-      canClaim: false,
-    };
-  }
-
-  const targetSeconds = (quest.target_minutes || 60) * 60;
-  const dailyCapSeconds = (quest.daily_cap_minutes || 120) * 60;
-
-  // Get progress record - throw on error, don't treat as "not found"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let { data: progress, error: progressError } = await (db as any)
-    .from("quest_active_time_progress")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("quest_key", questKey)
-    .maybeSingle();
-
-  if (progressError) {
-    console.error("[active-time] Progress query error:", progressError);
-    throw new Error(`Failed to fetch progress: ${progressError.message}`);
-  }
-
-  // Initialize progress if first ping
-  if (!progress) {
-    const newToken = generatePingToken();
-    console.log(`[active-time] FIRST PING user=${userId} quest=${questKey} creating progress row`);
-    
+  try {
+    // Call atomic Postgres function
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: created, error: insertError } = await (db as any)
-      .from("quest_active_time_progress")
-      .insert({
-        user_id: userId,
-        quest_key: questKey,
-        total_seconds: 0,
-        today_seconds: 0,
-        today_date: now.toISOString().split("T")[0],
-        last_ping_at: now.toISOString(),
-        last_ping_token: newToken,
-      })
-      .select()
-      .single();
+    const { data, error } = await (db as any).rpc("ping_active_time", {
+      p_user_id: userId,
+      p_quest_key: questKey,
+      p_ping_token: lastToken || "00000000-0000-0000-0000-000000000000",
+      p_is_active: true,
+    });
 
-    if (insertError) {
-      // If insert fails due to race condition (duplicate), fetch and continue
-      if (insertError.code === "23505") {
-        console.log("[active-time] Race condition on insert, fetching existing row");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: existing } = await (db as any)
-          .from("quest_active_time_progress")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("quest_key", questKey)
-          .single();
-        
-        if (existing) {
-          progress = existing;
-          // Fall through to update logic below
-        } else {
-          throw new Error("Failed to create or fetch progress row");
-        }
-      } else {
-        console.error("[active-time] Insert error:", insertError);
-        throw new Error(`Failed to create progress: ${insertError.message}`);
-      }
-    } else {
-      console.log(`[active-time] CREATED user=${userId} quest=${questKey} total=0 today=0 token=${newToken.slice(0, 8)}...`);
-      return {
-        success: true,
-        nextToken: newToken,
-        totalSeconds: 0,
-        todaySeconds: 0,
-        targetSeconds,
-        progressPercent: 0,
-        canClaim: false,
-      };
+    if (error) {
+      console.error(`[active-time] RPC ERROR user=${userShort}:`, error);
+      throw new Error(`Ping RPC failed: ${error.message}`);
     }
-  }
 
-  // Check if already claimed
-  if (progress.credited_at) {
-    return {
-      success: false,
-      reason: "already_claimed",
-      nextToken: null,
-      totalSeconds: progress.total_seconds,
-      todaySeconds: progress.today_seconds,
-      targetSeconds,
-      progressPercent: Math.min(100, (progress.total_seconds / targetSeconds) * 100),
-      canClaim: false,
-    };
-  }
-
-  // Verify token (required after first ping)
-  // Allow null or dummy token for first ping
-  const isFirstPing = !progress.last_ping_token;
-  if (!isFirstPing && lastToken !== progress.last_ping_token) {
-    return {
-      success: false,
-      reason: "invalid_token",
-      nextToken: null,
-      totalSeconds: progress.total_seconds,
-      todaySeconds: progress.today_seconds,
-      targetSeconds,
-      progressPercent: Math.min(100, (progress.total_seconds / targetSeconds) * 100),
-      canClaim: progress.total_seconds >= targetSeconds,
-    };
-  }
-
-  // Check ping interval (prevent too-frequent pings)
-  const lastPingAt = progress.last_ping_at ? new Date(progress.last_ping_at) : null;
-  if (lastPingAt) {
-    const secondsSinceLastPing = (now.getTime() - lastPingAt.getTime()) / 1000;
-    if (secondsSinceLastPing < MIN_PING_INTERVAL_SEC) {
-      // Too soon, return current state without updating
-      return {
-        success: false,
-        reason: "ping_too_frequent",
-        nextToken: progress.last_ping_token,
-        totalSeconds: progress.total_seconds,
-        todaySeconds: progress.today_seconds,
-        targetSeconds,
-        progressPercent: Math.min(100, (progress.total_seconds / targetSeconds) * 100),
-        canClaim: progress.total_seconds >= targetSeconds,
-      };
+    if (!data || data.length === 0) {
+      console.error(`[active-time] RPC returned no data for user=${userShort}`);
+      throw new Error("Ping returned no data");
     }
-  }
 
-  // Calculate seconds to credit
-  let secondsToCredit = 0;
-  if (lastPingAt) {
-    const gapSeconds = (now.getTime() - lastPingAt.getTime()) / 1000;
+    const result = data[0];
     
-    // Check if in grace period (can credit background time)
-    const graceUntil = progress.grace_until ? new Date(progress.grace_until) : null;
-    if (graceUntil && now <= graceUntil && gapSeconds > MAX_CREDIT_PER_PING_SEC) {
-      // In grace: credit up to grace_until
-      const graceRemaining = (graceUntil.getTime() - lastPingAt.getTime()) / 1000;
-      secondsToCredit = Math.floor(Math.min(gapSeconds, graceRemaining));
-    } else {
-      // Normal mode: credit min(gap, 35s)
-      secondsToCredit = Math.floor(Math.min(gapSeconds, MAX_CREDIT_PER_PING_SEC));
-    }
+    console.log(`[active-time] RESULT user=${userShort} success=${result.success} total=${result.total_seconds}s reason=${result.reason}`);
+
+    return {
+      success: result.success,
+      reason: result.reason,
+      nextToken: result.next_token,
+      totalSeconds: result.total_seconds,
+      todaySeconds: result.today_seconds,
+      targetSeconds: result.target_seconds,
+      progressPercent: Math.min(100, (result.total_seconds / result.target_seconds) * 100),
+      canClaim: result.can_claim,
+    };
+  } catch (error) {
+    console.error(`[active-time] EXCEPTION user=${userShort}:`, error);
+    throw error;
   }
-
-  // Reset daily counter if new day
-  const todayDate = now.toISOString().split("T")[0];
-  let todaySeconds = progress.today_seconds;
-  if (progress.today_date !== todayDate) {
-    todaySeconds = 0;
-  }
-
-  // Apply daily cap
-  if (todaySeconds + secondsToCredit > dailyCapSeconds) {
-    secondsToCredit = Math.max(0, dailyCapSeconds - todaySeconds);
-  }
-
-  // Update progress
-  const prevTotalSeconds = progress.total_seconds;
-  const newTotalSeconds = progress.total_seconds + secondsToCredit;
-  const newTodaySeconds = todaySeconds + secondsToCredit;
-  const newToken = generatePingToken();
-
-  console.log(`[active-time] PING user=${userId} quest=${questKey} prev=${prevTotalSeconds}s credit=${secondsToCredit}s new=${newTotalSeconds}s`);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: updateError } = await (db as any)
-    .from("quest_active_time_progress")
-    .update({
-      total_seconds: newTotalSeconds,
-      today_seconds: newTodaySeconds,
-      today_date: todayDate,
-      last_ping_at: now.toISOString(),
-      last_ping_token: newToken,
-      updated_at: now.toISOString(),
-    })
-    .eq("user_id", userId)
-    .eq("quest_key", questKey);
-
-  if (updateError) {
-    console.error("[active-time] Update error:", updateError);
-    throw new Error(`Failed to update progress: ${updateError.message}`);
-  }
-
-  console.log(`[active-time] UPDATED user=${userId} quest=${questKey} total=${newTotalSeconds}s today=${newTodaySeconds}s token=${newToken.slice(0, 8)}...`);
-
-  return {
-    success: true,
-    nextToken: newToken,
-    totalSeconds: newTotalSeconds,
-    todaySeconds: newTodaySeconds,
-    targetSeconds,
-    progressPercent: Math.min(100, (newTotalSeconds / targetSeconds) * 100),
-    canClaim: newTotalSeconds >= targetSeconds,
-  };
 }
 
 /**
  * Start a grace period when user clicks an offer/survey
- * Allows counting background time while completing offer
- * 
- * @param db - Supabase client (service role)
- * @param userId - Authenticated user ID
- * @param questKey - Quest key
- * @param offerId - Offer/provider identifier
- * @returns Grace result with expiry time
  */
 export async function startActiveTimeGrace(
   db: DbClient,
@@ -350,16 +141,15 @@ export async function startActiveTimeGrace(
   
   let graceCount = progress.grace_count_hour || 0;
   if (!graceHourStart || graceHourStart < hourStart) {
-    // Reset counter (new hour)
     graceCount = 0;
   }
 
-  if (graceCount >= MAX_GRACE_WINDOWS_PER_HOUR) {
+  if (graceCount >= 3) {
     return { success: false, reason: "grace_limit_reached", graceUntil: null };
   }
 
-  // Check per-offer cooldown (same offer gets no grace for 24h)
-  const cooldownStart = new Date(now.getTime() - GRACE_OFFER_COOLDOWN_HOURS * 60 * 60 * 1000);
+  // Check per-offer cooldown (24h)
+  const cooldownStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: recentGrace } = await (db as any)
     .from("quest_active_time_grace_history")
@@ -409,12 +199,7 @@ export async function startActiveTimeGrace(
 }
 
 /**
- * End grace period early (when offer postback arrives)
- * 
- * @param db - Supabase client (service role)
- * @param userId - Authenticated user ID
- * @param questKey - Quest key
- * @param offerId - Offer/provider identifier that completed
+ * End grace period early
  */
 export async function endActiveTimeGrace(
   db: DbClient,
@@ -433,10 +218,9 @@ export async function endActiveTimeGrace(
     .maybeSingle();
 
   if (!progress || progress.grace_offer_id !== offerId) {
-    return; // No active grace for this offer
+    return;
   }
 
-  // Clear grace period
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (db as any)
     .from("quest_active_time_progress")
@@ -448,7 +232,6 @@ export async function endActiveTimeGrace(
     .eq("user_id", userId)
     .eq("quest_key", questKey);
 
-  // Update grace history
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (db as any)
     .from("quest_active_time_grace_history")
@@ -464,19 +247,14 @@ export async function endActiveTimeGrace(
 }
 
 /**
- * Claim active time quest reward (atomic, pays exactly once)
- * 
- * @param db - Supabase client (service role)
- * @param userId - Authenticated user ID
- * @param questKey - Quest key
- * @returns Claim result
+ * Claim active time quest reward
  */
 export async function claimActiveTimeReward(
   db: DbClient,
   userId: string,
   questKey: string,
 ): Promise<{ success: boolean; reason: string; totalSeconds?: number }> {
-  // Call atomic Postgres function (only marks as claimed, doesn't credit wallet)
+  // Call atomic Postgres function
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any).rpc("claim_active_time_quest_reward", {
     p_user_id: userId,
@@ -498,12 +276,11 @@ export async function claimActiveTimeReward(
     };
   }
 
-  // Success! Now credit wallet via the existing helper
+  // Credit wallet
   try {
     const { creditWallet } = await import("../coinquest.server");
     const rewardAmount = Number(result.out_reward_amount);
     
-    // Get quest label for description
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: quest } = await (db as any)
       .from("quests")
@@ -513,7 +290,7 @@ export async function claimActiveTimeReward(
     
     const questLabel = quest?.label || questKey;
     
-    // Find or create quest session
+    // Find or create session
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let { data: session } = await (db as any)
       .from("quest_sessions")
@@ -524,7 +301,6 @@ export async function claimActiveTimeReward(
       .order("started_at", { ascending: false })
       .maybeSingle();
     
-    // Create session if none exists
     if (!session) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: newSession, error: sessionError } = await (db as any)
@@ -540,8 +316,8 @@ export async function claimActiveTimeReward(
         .single();
       
       if (sessionError) {
-        console.error("[active-time] Failed to create session:", sessionError);
-        // Rollback credited_at flag
+        console.error("[active-time] Session create failed:", sessionError);
+        // Rollback
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (db as any)
           .from("quest_active_time_progress")
@@ -556,24 +332,21 @@ export async function claimActiveTimeReward(
     
     const sessionId = session.id as string;
     
-    // Credit wallet using the standard helper
     await creditWallet(
       userId,
       rewardAmount,
       "quest",
       `Active time — ${questLabel}`,
       "earned",
-      sessionId, // reference_id = session_id for idempotency
+      sessionId,
     );
     
-    // Mark session as credited
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (db as any)
       .from("quest_sessions")
       .update({ status: "credited", credited_at: new Date().toISOString() })
       .eq("id", sessionId);
     
-    // Send notification
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (db as any)
       .from("notifications")
@@ -592,7 +365,7 @@ export async function claimActiveTimeReward(
   } catch (creditError) {
     console.error("[active-time] Wallet credit failed:", creditError);
     
-    // Rollback credited_at flag so user can retry
+    // Rollback
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (db as any)
       .from("quest_active_time_progress")
