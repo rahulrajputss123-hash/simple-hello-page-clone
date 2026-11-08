@@ -24,9 +24,30 @@ type TrackerState = {
  * - Shows "Still here?" prompt every 10min if inactive
  * - Pauses tracking if user doesn't respond to prompt within 60s
  * - Resumes tracking on any activity
+ * 
+ * DEBUG LOGGING: All events logged to console and visible in ?debug=1 panel
  */
 export function useActiveTimeTracking(questKey: string | null, initialToken: string | null = null) {
-  console.log("[useActiveTimeTracking] Hook mounted:", { questKey, initialToken });
+  const debug = typeof window !== 'undefined' && window.location.search.includes('debug=1');
+  
+  const log = (msg: string, data?: any) => {
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, 12);
+    console.log(`[${timestamp}] [active-time]`, msg, data || '');
+    
+    if (debug && typeof window !== 'undefined') {
+      const panel = document.getElementById('active-time-debug') || (() => {
+        const p = document.createElement('div');
+        p.id = 'active-time-debug';
+        p.style.cssText = 'position:fixed;top:10px;right:10px;background:black;color:lime;padding:10px;max-height:400px;overflow-y:auto;font-family:monospace;font-size:11px;z-index:99999;max-width:400px;';
+        document.body.appendChild(p);
+        return p;
+      })();
+      panel.innerHTML += `<div>[${timestamp}] ${msg} ${JSON.stringify(data || '')}</div>`;
+      panel.scrollTop = panel.scrollHeight;
+    }
+  };
+  
+  log('Hook mounted', { questKey, hasInitialToken: !!initialToken });
   
   const [state, setState] = useState<TrackerState>({
     isTracking: false,
@@ -51,12 +72,12 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
     lastActivityRef.current = now;
 
     if (wasInactive) {
-      console.log("[active-time] Activity detected after inactivity");
+      log("Activity detected after inactivity");
     }
 
     // Resume if paused
     if (state.isPaused) {
-      console.log("[active-time] Resuming from pause");
+      log("Resuming from pause");
       setState((prev) => ({
         ...prev,
         isPaused: false,
@@ -67,7 +88,7 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
 
     // Dismiss still-here prompt if showing
     if (state.showStillHerePrompt) {
-      console.log("[active-time] Dismissing still-here prompt");
+      log("Dismissing still-here prompt");
       setState((prev) => ({
         ...prev,
         showStillHerePrompt: false,
@@ -79,7 +100,7 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
   // Send ping to server
   const sendPing = useCallback(async () => {
     if (!questKey) {
-      console.log("[active-time] Skipping ping - no questKey");
+      log("Skipping ping - no questKey");
       return;
     }
 
@@ -88,14 +109,14 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
 
     // Skip ping if user inactive for > 60s
     if (timeSinceActivity > INACTIVITY_THRESHOLD_MS) {
-      console.log("[active-time] Skipping ping - user inactive");
+      log("Skipping ping - user inactive", { timeSinceActivity });
       return;
     }
 
     // For first ping (no token yet), server will create progress row and return token
     const pingToken = state.pingToken || "00000000-0000-0000-0000-000000000000"; // Dummy UUID for first ping
 
-    console.log("[active-time] Sending ping for quest:", questKey, { hasToken: !!state.pingToken, timeSinceActivity });
+    log("Sending ping", { questKey, hasToken: !!state.pingToken, timeSinceActivity });
 
     try {
       const result = await pingFn({
@@ -105,10 +126,16 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
         },
       });
 
-      console.log("[active-time] Ping response:", { success: result.success, reason: result.reason, hasNextToken: !!result.nextToken });
+      log("Ping response", { 
+        success: result.success, 
+        reason: result.reason, 
+        hasNextToken: !!result.nextToken,
+        totalSeconds: result.totalSeconds,
+        todaySeconds: result.todaySeconds,
+      });
 
       if (result.success && result.nextToken) {
-        console.log("[active-time] Ping successful, time credited");
+        log("Ping successful, time credited");
         setState((prev) => ({
           ...prev,
           pingToken: result.nextToken,
@@ -116,14 +143,14 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
           error: null,
         }));
       } else {
-        console.error("[active-time] Ping failed:", result.reason);
+        log("Ping failed", { reason: result.reason });
         setState((prev) => ({
           ...prev,
           error: result.reason || "ping_failed",
         }));
       }
     } catch (error) {
-      console.error("[active-time] Ping error:", error);
+      log("Ping error", { error: error instanceof Error ? error.message : String(error) });
       setState((prev) => ({
         ...prev,
         error: error instanceof Error ? error.message : "network_error",
@@ -170,9 +197,12 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
 
   // Start tracking
   const startTracking = useCallback(() => {
-    if (!questKey) return;
+    if (!questKey) {
+      log("Cannot start - no questKey");
+      return;
+    }
 
-    console.log("[active-time] Starting tracking for quest:", questKey);
+    log("Starting tracking", { questKey });
 
     setState((prev) => ({
       ...prev,
@@ -184,13 +214,17 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
     lastStillHereCheckRef.current = Date.now();
 
     // Send first ping immediately to create progress row
+    log("Sending first ping immediately");
     void sendPing();
 
     // Start ping interval
     if (pingIntervalRef.current) {
       clearInterval(pingIntervalRef.current);
     }
-    pingIntervalRef.current = setInterval(sendPing, PING_INTERVAL_MS);
+    pingIntervalRef.current = setInterval(() => {
+      log("Interval tick - checking if should ping");
+      sendPing();
+    }, PING_INTERVAL_MS);
 
     // Start still-here check interval
     if (stillHereIntervalRef.current) {
@@ -198,7 +232,7 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
     }
     stillHereIntervalRef.current = setInterval(checkStillHere, 60_000); // Check every minute
 
-    console.log("[active-time] Tracking started, will ping every 30s");
+    log("Tracking started", { pingIntervalMs: PING_INTERVAL_MS });
   }, [questKey, sendPing, checkStillHere]);
 
   // Stop tracking
@@ -225,14 +259,22 @@ export function useActiveTimeTracking(questKey: string | null, initialToken: str
   useEffect(() => {
     if (!state.isTracking) return;
 
+    log("Setting up activity listeners");
+
     const events = ["mousedown", "keydown", "touchstart", "scroll", "wheel"];
+    
+    const handler = () => {
+      recordActivity();
+    };
+    
     events.forEach((event) => {
-      window.addEventListener(event, recordActivity, { passive: true });
+      window.addEventListener(event, handler, { passive: true });
     });
 
     return () => {
+      log("Removing activity listeners");
       events.forEach((event) => {
-        window.removeEventListener(event, recordActivity);
+        window.removeEventListener(event, handler);
       });
     };
   }, [state.isTracking, recordActivity]);
