@@ -75,7 +75,7 @@ export function QuestTracking() {
       if (!activeTimeQuestKey.data) return null;
       const { data } = await supabase
         .from("quest_active_time_progress")
-        .select("ping_token, total_seconds, today_seconds")
+        .select("last_ping_token, total_seconds, today_seconds")
         .eq("user_id", session!.user.id)
         .eq("quest_key", activeTimeQuestKey.data)
         .maybeSingle();
