@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 import { supabase } from "@/integrations/supabase/client";
 import { RoleProvider } from "@/lib/marketplace/role";
+import { ActiveTimeProvider } from "@/contexts/ActiveTimeContext";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -18,7 +19,9 @@ export const Route = createFileRoute("/_authenticated")({
   },
   component: () => (
     <RoleProvider>
-      <Outlet />
+      <ActiveTimeProvider>
+        <Outlet />
+      </ActiveTimeProvider>
     </RoleProvider>
   ),
 });
