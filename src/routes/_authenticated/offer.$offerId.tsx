@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfferDetailsView } from "@/components/OfferDetailsView";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/States";
@@ -113,18 +114,20 @@ function OfferDetailsPage() {
   }
 
   return (
-    <AppShell hideNav>
-      <div className="mb-4">
-        <button
-          onClick={handleBack}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary"
-          data-testid="offer-details-back"
-        >
-          <ArrowLeft className="size-4" />
-          Back
-        </button>
-      </div>
-      <OfferDetailsView offer={offer} />
-    </AppShell>
+    <ErrorBoundary>
+      <AppShell hideNav>
+        <div className="mb-4">
+          <button
+            onClick={handleBack}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary"
+            data-testid="offer-details-back"
+          >
+            <ArrowLeft className="size-4" />
+            Back
+          </button>
+        </div>
+        <OfferDetailsView offer={offer} />
+      </AppShell>
+    </ErrorBoundary>
   );
 }
