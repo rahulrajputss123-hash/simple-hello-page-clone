@@ -123,7 +123,7 @@ export function QuestTracking() {
   // Mount active time tracking
   const activeTimeTracking = useActiveTimeTracking(
     activeTimeQuestKey.data || null,
-    activeTimeProgress.data?.ping_token || null,
+    activeTimeProgress.data?.last_ping_token || null,
   );
 
   // Auto-start active time tracking when quest becomes active

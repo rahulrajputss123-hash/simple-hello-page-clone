@@ -71,7 +71,12 @@ export async function processActiveTimePing(
     .eq("quest_type", "active_time")
     .maybeSingle();
 
-  if (questError || !quest) {
+  if (questError) {
+    console.error("[active-time] Quest query error:", questError);
+    throw new Error(`Failed to fetch quest: ${questError.message}`);
+  }
+
+  if (!quest) {
     return {
       success: false,
       reason: "quest_not_found",
@@ -100,7 +105,7 @@ export async function processActiveTimePing(
   const targetSeconds = (quest.target_minutes || 60) * 60;
   const dailyCapSeconds = (quest.daily_cap_minutes || 120) * 60;
 
-  // Get or create progress record
+  // Get progress record - throw on error, don't treat as "not found"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let { data: progress, error: progressError } = await (db as any)
     .from("quest_active_time_progress")
@@ -110,23 +115,17 @@ export async function processActiveTimePing(
     .maybeSingle();
 
   if (progressError) {
-    return {
-      success: false,
-      reason: "database_error",
-      nextToken: null,
-      totalSeconds: 0,
-      todaySeconds: 0,
-      targetSeconds,
-      progressPercent: 0,
-      canClaim: false,
-    };
+    console.error("[active-time] Progress query error:", progressError);
+    throw new Error(`Failed to fetch progress: ${progressError.message}`);
   }
 
   // Initialize progress if first ping
   if (!progress) {
     const newToken = generatePingToken();
+    console.log(`[active-time] FIRST PING user=${userId} quest=${questKey} creating progress row`);
+    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: created } = await (db as any)
+    const { data: created, error: insertError } = await (db as any)
       .from("quest_active_time_progress")
       .insert({
         user_id: userId,
@@ -140,15 +139,40 @@ export async function processActiveTimePing(
       .select()
       .single();
 
-    return {
-      success: true,
-      nextToken: newToken,
-      totalSeconds: 0,
-      todaySeconds: 0,
-      targetSeconds,
-      progressPercent: 0,
-      canClaim: false,
-    };
+    if (insertError) {
+      // If insert fails due to race condition (duplicate), fetch and continue
+      if (insertError.code === "23505") {
+        console.log("[active-time] Race condition on insert, fetching existing row");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: existing } = await (db as any)
+          .from("quest_active_time_progress")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("quest_key", questKey)
+          .single();
+        
+        if (existing) {
+          progress = existing;
+          // Fall through to update logic below
+        } else {
+          throw new Error("Failed to create or fetch progress row");
+        }
+      } else {
+        console.error("[active-time] Insert error:", insertError);
+        throw new Error(`Failed to create progress: ${insertError.message}`);
+      }
+    } else {
+      console.log(`[active-time] CREATED user=${userId} quest=${questKey} total=0 today=0 token=${newToken.slice(0, 8)}...`);
+      return {
+        success: true,
+        nextToken: newToken,
+        totalSeconds: 0,
+        todaySeconds: 0,
+        targetSeconds,
+        progressPercent: 0,
+        canClaim: false,
+      };
+    }
   }
 
   // Check if already claimed
@@ -230,9 +254,12 @@ export async function processActiveTimePing(
   }
 
   // Update progress
+  const prevTotalSeconds = progress.total_seconds;
   const newTotalSeconds = progress.total_seconds + secondsToCredit;
   const newTodaySeconds = todaySeconds + secondsToCredit;
   const newToken = generatePingToken();
+
+  console.log(`[active-time] PING user=${userId} quest=${questKey} prev=${prevTotalSeconds}s credit=${secondsToCredit}s new=${newTotalSeconds}s`);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: updateError } = await (db as any)
@@ -249,17 +276,11 @@ export async function processActiveTimePing(
     .eq("quest_key", questKey);
 
   if (updateError) {
-    return {
-      success: false,
-      reason: "update_failed",
-      nextToken: progress.last_ping_token,
-      totalSeconds: progress.total_seconds,
-      todaySeconds: progress.today_seconds,
-      targetSeconds,
-      progressPercent: Math.min(100, (progress.total_seconds / targetSeconds) * 100),
-      canClaim: progress.total_seconds >= targetSeconds,
-    };
+    console.error("[active-time] Update error:", updateError);
+    throw new Error(`Failed to update progress: ${updateError.message}`);
   }
+
+  console.log(`[active-time] UPDATED user=${userId} quest=${questKey} total=${newTotalSeconds}s today=${newTodaySeconds}s token=${newToken.slice(0, 8)}...`);
 
   return {
     success: true,

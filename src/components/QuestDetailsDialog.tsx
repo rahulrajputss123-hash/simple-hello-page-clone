@@ -46,7 +46,7 @@ export function QuestDetailsDialog({
   onContinue: () => void;
   isSubmitting?: boolean;
   activeTimeQuestKey?: string | null;
-  activeTimeProgress?: { ping_token: string; total_seconds: number; today_seconds: number } | null;
+  activeTimeProgress?: { last_ping_token: string; total_seconds: number; today_seconds: number } | null;
 }) {
   const accent = quest ? (QUEST_ACCENTS[quest.quest_type] ?? QUEST_ACCENTS.ads) : null;
   const view = quest ? deriveQuestView(quest, active, credited, activeTimeProgress) : null;

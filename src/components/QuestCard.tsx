@@ -31,7 +31,7 @@ type QuestCardProps = {
   onOpenDetails: () => void;
   onLocked: () => void;
   activeTimeQuestKey?: string | null;
-  activeTimeProgress?: { ping_token: string; total_seconds: number; today_seconds: number } | null;
+  activeTimeProgress?: { last_ping_token: string; total_seconds: number; today_seconds: number } | null;
   activeTimeTracking?: {
     isTracking: boolean;
     isPaused: boolean;

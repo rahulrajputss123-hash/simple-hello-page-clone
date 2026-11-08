@@ -85,7 +85,7 @@ export function StarterQuests() {
       if (!activeTimeQuestKey.data) return null;
       const { data } = await supabase
         .from("quest_active_time_progress")
-        .select("ping_token, total_seconds, today_seconds")
+        .select("last_ping_token, total_seconds, today_seconds")
         .eq("user_id", session!.user.id)
         .eq("quest_key", activeTimeQuestKey.data)
         .maybeSingle();
@@ -97,7 +97,7 @@ export function StarterQuests() {
   // Mount active time tracking
   const activeTimeTracking = useActiveTimeTracking(
     activeTimeQuestKey.data || null,
-    activeTimeProgress.data?.ping_token || null,
+    activeTimeProgress.data?.last_ping_token || null,
   );
 
   // Auto-start tracking when quest becomes active

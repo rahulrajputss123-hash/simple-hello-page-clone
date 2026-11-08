@@ -73,7 +73,7 @@
    ORDER BY created_at DESC 
    LIMIT 1;
    ```
-   **Expected**: Row exists with `total_seconds = 0`, `ping_token` is NOT null
+   **Expected**: Row exists with `total_seconds = 0`, `last_ping_token` is NOT null
 
 6. **Wait 30 seconds**, tap/scroll the page, check console for next ping:
    ```
