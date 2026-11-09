@@ -24,11 +24,11 @@ const getToroxClickUrlSchema = z.object({
   offerId: z.string().uuid(),
 });
 
-export const getToroxClickUrl = createServerFn("POST")
+export const getToroxClickUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => getToroxClickUrlSchema.parse(input))
+  .inputValidator((input: unknown) => getToroxClickUrlSchema.parse(input))
   .handler(async ({ data: { offerId }, context }) => {
-    const userId = context.session.user.id;
+    const userId = context.userId;
 
     // 1. Load offer and verify it's Torox
     const offerQuery = await supabaseAdmin
