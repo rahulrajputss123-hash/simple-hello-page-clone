@@ -113,6 +113,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             <p className="mt-1 break-words">
               <span className="font-medium">Message:</span> {error.message}
             </p>
+            {(() => {
+              const preloadError = sessionStorage.getItem("last-preload-error");
+              if (preloadError) {
+                return (
+                  <p className="mt-1 break-words">
+                    <span className="font-medium">Preload Error:</span> {preloadError}
+                  </p>
+                );
+              }
+              return null;
+            })()}
           </div>
         </details>
       </div>
@@ -179,13 +190,10 @@ const NATIVE_PROBE = `try{var c=window.Capacitor;if(c&&(typeof c.isNativePlatfor
 function RootShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Handle Vite preload errors
-    const handlePreloadError = (event: Event) => {
-      event.preventDefault();
-      const hasReloaded = sessionStorage.getItem(RELOAD_GUARD_KEY);
-      if (!hasReloaded) {
-        sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
-        window.location.reload();
-      }
+    const handlePreloadError = (event: any) => {
+      console.error("[preloadError]", event.payload);
+      const errorMessage = String(event.payload?.message ?? event.payload);
+      sessionStorage.setItem("last-preload-error", errorMessage);
     };
 
     window.addEventListener("vite:preloadError", handlePreloadError);
