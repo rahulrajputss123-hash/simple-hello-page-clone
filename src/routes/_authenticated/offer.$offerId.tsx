@@ -11,15 +11,6 @@ import { getOfferById } from "@/lib/offers.functions";
 import type { FeaturedOffer } from "@/lib/offers/feed-cache.server";
 
 export const Route = createFileRoute("/_authenticated/offer/$offerId")({
-  head: ({ loaderData }) => ({
-    meta: [
-      { title: `${loaderData?.title ?? "Offer"} — CashGPT` },
-      {
-        name: "description",
-        content: loaderData?.description ?? "Complete this offer to earn rewards.",
-      },
-    ],
-  }),
   component: OfferDetailsPage,
 });
 
