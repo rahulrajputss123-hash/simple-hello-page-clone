@@ -12,7 +12,7 @@ import type { FeaturedOffer } from "@/lib/offers/feed-cache.server";
 
 export const Route = createFileRoute("/_authenticated/offer/$offerId")({
   component: OfferDetailsPage,
-  // Fixed: Removed head function that was accessing undefined loaderData
+  // BUILD: 2024-11-09-FIX - Removed head function that accessed undefined loaderData
 });
 
 function OfferDetailsPage() {
