@@ -83,6 +83,8 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const localTickIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const stillHereIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isPingingRef = useRef<boolean>(false); // Guard against simultaneous pings
+  const hasStartedRef = useRef<boolean>(false); // Guard against double start
   
   const pingFn = useServerFn(processActiveTimePing);
 
@@ -125,8 +127,9 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
       return;
     }
 
-    if (state.waitingForResync) {
-      log("Skipping ping - waiting for resync");
+    // Guard: never send simultaneous pings
+    if (isPingingRef.current) {
+      log("Skipping ping - already in flight");
       return;
     }
 
@@ -136,13 +139,15 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
 
     const pingToken = activeTimeTokenStore.getToken(state.questKey);
 
-    log("Sending ping", { 
+    log("📡 PING", { 
+      time: new Date().toISOString(),
       questKey: state.questKey,
       hasToken: !!pingToken, 
-      timeSinceActivity, 
-      isActive,
       tokenPreview: pingToken?.slice(0, 8) || 'null',
+      isActive,
     });
+
+    isPingingRef.current = true;
 
     try {
       const result = await pingFn({
@@ -153,46 +158,36 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
         },
       });
 
-      log("Ping response", { 
+      log("✅ PING RESULT", { 
+        time: new Date().toISOString(),
         success: result.success, 
         reason: result.reason, 
-        hasNextToken: !!result.nextToken,
-        serverTotalSeconds: result.totalSeconds,
-        todaySeconds: result.todaySeconds,
-        nextTokenPreview: result.nextToken?.slice(0, 8) || 'null',
+        total_seconds: result.totalSeconds,
+        next_token: result.nextToken ? 'YES' : 'NO',
       });
 
-      // Handle invalid_token
+      // Handle invalid_token: KEEP pinging with same token, don't stop loop
       if (!result.success && result.reason === 'invalid_token') {
-        log("Invalid token - waiting 30s before retry");
+        log("⚠️  Invalid token - will retry in 30s (server resyncs after 120s)");
         setState((prev) => prev ? {
           ...prev,
-          waitingForResync: true,
           error: 'invalid_token_wait',
         } : null);
-        
-        setTimeout(() => {
-          log("Resync wait complete");
-          setState((prev) => prev ? {
-            ...prev,
-            waitingForResync: false,
-            error: null,
-          } : null);
-        }, INVALID_TOKEN_WAIT_MS);
-        
+        // DON'T stop the interval, keep pinging
         return;
       }
 
-      if (result.success && result.nextToken) {
-        log("Ping successful - syncing with server", { 
-          serverTotal: result.totalSeconds,
-          localTotal: state.totalSeconds 
-        });
-        
-        // Store token
+      // Store token ONLY if non-empty, otherwise keep previous token
+      if (result.nextToken) {
         activeTimeTokenStore.setToken(state.questKey, result.nextToken);
-        
-        // Overwrite local value with server value
+        log("💾 Stored new token", { preview: result.nextToken.slice(0, 8) });
+      } else if (!result.success) {
+        log("⚠️  No next_token in response - keeping previous token");
+        // Keep the token we have, don't overwrite with null
+      }
+
+      // Update state with server values
+      if (result.success) {
         setState((prev) => prev ? {
           ...prev,
           totalSeconds: result.totalSeconds,
@@ -202,21 +197,22 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
           progressPercent: Math.min(100, (result.totalSeconds / result.targetSeconds) * 100),
           lastServerSync: now,
           error: null,
-          waitingForResync: false,
         } : null);
       } else {
-        log("Ping failed", { reason: result.reason });
+        log("❌ Ping not successful", { reason: result.reason });
         setState((prev) => prev ? {
           ...prev,
           error: result.reason || "ping_failed",
         } : null);
       }
     } catch (error) {
-      log("Ping error", { error: error instanceof Error ? error.message : String(error) });
+      log("💥 PING ERROR", { error: error instanceof Error ? error.message : String(error) });
       setState((prev) => prev ? {
         ...prev,
         error: error instanceof Error ? error.message : "network_error",
       } : null);
+    } finally {
+      isPingingRef.current = false;
     }
   }, [state, pingFn]);
 
@@ -275,21 +271,24 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
 
   // Start tracking
   const startTracking = useCallback(async (questKey: string) => {
-    log("Starting tracking", { questKey });
+    log("🚀 startTracking called", { questKey, hasStarted: hasStartedRef.current });
 
-    // Check if already tracking this quest
-    if (state?.questKey === questKey && state.isTracking) {
-      log("Already tracking this quest");
+    // Guard: only start once per app load
+    if (hasStartedRef.current && state?.questKey === questKey) {
+      log("⚠️  Already started for this quest - ignoring");
       return;
     }
 
     // Stop previous tracking if different quest
     if (state && state.questKey !== questKey) {
-      log("Stopping previous quest tracking");
+      log("Switching quests - stopping previous");
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
       if (localTickIntervalRef.current) clearInterval(localTickIntervalRef.current);
       if (stillHereIntervalRef.current) clearInterval(stillHereIntervalRef.current);
+      hasStartedRef.current = false;
     }
+
+    hasStartedRef.current = true;
 
     // Initialize state with zeros, will fetch from server immediately
     setState({
@@ -310,31 +309,36 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
     lastActivityRef.current = Date.now();
     lastStillHereCheckRef.current = Date.now();
 
-    // Send first ping immediately to get initial state
-    log("Sending first ping to fetch initial state");
-    setTimeout(() => sendPing(), 100);
+    // Send first ping ONCE after 100ms (not immediately to avoid double ping)
+    log("⏱️  Scheduling first ping in 100ms");
+    setTimeout(() => {
+      if (hasStartedRef.current) {
+        log("📡 Sending first ping now");
+        sendPing();
+      }
+    }, 100);
 
-    // Start ping interval (server sync)
+    // Start ping interval (server sync every 30s)
     if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
     pingIntervalRef.current = setInterval(() => {
-      log("Ping interval tick");
+      log("⏰ Interval tick - sending ping");
       sendPing();
     }, PING_INTERVAL_MS);
 
-    // Start local tick interval (UI display)
+    // Start local tick interval (UI display every 1s)
     if (localTickIntervalRef.current) clearInterval(localTickIntervalRef.current);
     localTickIntervalRef.current = setInterval(tickLocal, LOCAL_TICK_INTERVAL_MS);
 
-    // Start still-here check
+    // Start still-here check (every 60s)
     if (stillHereIntervalRef.current) clearInterval(stillHereIntervalRef.current);
     stillHereIntervalRef.current = setInterval(checkStillHere, 60_000);
 
-    log("Tracking started", { questKey });
+    log("✅ Tracking started", { questKey, pingInterval: PING_INTERVAL_MS });
   }, [state, sendPing, tickLocal, checkStillHere]);
 
   // Stop tracking
   const stopTracking = useCallback(() => {
-    log("Stopping tracking");
+    log("🛑 Stopping tracking");
     
     setState((prev) => prev ? {
       ...prev,
@@ -357,6 +361,9 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
       clearInterval(stillHereIntervalRef.current);
       stillHereIntervalRef.current = null;
     }
+
+    hasStartedRef.current = false;
+    isPingingRef.current = false;
   }, []);
 
   // Confirm still here
