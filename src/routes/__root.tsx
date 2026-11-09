@@ -18,6 +18,7 @@ import { ViewedOfferProvider } from "@/lib/viewed-offer";
 import { SplashScreen } from "@/components/SplashScreen";
 import { Toaster } from "@/components/ui/sonner";
 import { MaintenanceCheck } from "@/components/MaintenanceCheck";
+import { ErudaLoader } from "@/components/ErudaLoader";
 
 function NotFoundComponent() {
   return (
@@ -55,8 +56,21 @@ function isChunkLoadError(error: Error): boolean {
 const RELOAD_GUARD_KEY = "chunk-reload-attempted";
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
   const router = useRouter();
+  const routerState = useRouterState();
+
+  // Log full error details to console for debugging
+  useEffect(() => {
+    console.error("🚨 Root ErrorComponent caught error:", {
+      error,
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      url: window.location.href,
+      pathname: routerState.location.pathname,
+      route: routerState.matches?.[routerState.matches.length - 1]?.routeId,
+    });
+  }, [error, routerState]);
 
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
@@ -106,13 +120,28 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
             Technical details
           </summary>
-          <div className="mt-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
+          <div className="mt-2 space-y-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
             <p>
               <span className="font-medium">Error:</span> {error.name}
             </p>
-            <p className="mt-1 break-words">
+            <p className="break-words">
               <span className="font-medium">Message:</span> {error.message}
             </p>
+            <p className="break-words">
+              <span className="font-medium">URL:</span> {window.location.href}
+            </p>
+            <p className="break-words">
+              <span className="font-medium">Route:</span>{" "}
+              {routerState.matches?.[routerState.matches.length - 1]?.routeId || "unknown"}
+            </p>
+            {error.stack && (
+              <div>
+                <p className="font-medium">Stack:</p>
+                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-[10px]">
+                  {error.stack}
+                </pre>
+              </div>
+            )}
           </div>
         </details>
       </div>
@@ -222,6 +251,7 @@ function RootComponent() {
           </MaintenanceCheck>
         </ViewedOfferProvider>
         <Toaster position="top-center" />
+        <ErudaLoader />
       </AuthProvider>
     </QueryClientProvider>
   );
