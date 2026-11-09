@@ -34,8 +34,14 @@ const ActiveTimeContext = createContext<ActiveTimeContextValue | null>(null);
 
 export function useActiveTime() {
   const context = useContext(ActiveTimeContext);
+  // Return a safe default if provider not mounted (e.g., during SSR or in unauthenticated routes)
   if (!context) {
-    throw new Error("useActiveTime must be used within ActiveTimeProvider");
+    return {
+      state: null,
+      startTracking: () => {},
+      stopTracking: () => {},
+      confirmStillHere: () => {},
+    };
   }
   return context;
 }
