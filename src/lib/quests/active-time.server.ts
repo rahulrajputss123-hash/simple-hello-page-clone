@@ -49,21 +49,30 @@ export async function processActiveTimePing(
   const userShort = userId.slice(0, 8);
   const tokenShort = lastToken?.slice(0, 8) || 'null';
   
+  const params = {
+    p_user_id: userId,
+    p_quest_key: questKey,
+    p_ping_token: lastToken,
+    p_is_active: isActive,
+  };
+  
   console.log(`[active-time] PING user=${userShort} quest=${questKey} token=${tokenShort} active=${isActive}`);
+  console.log(`[active-time] RPC params:`, JSON.stringify(params, null, 2));
 
   try {
     // Call atomic Postgres function with service-role client
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (db as any).rpc("ping_active_time", {
-      p_user_id: userId,
-      p_quest_key: questKey,
-      p_ping_token: lastToken,
-      p_is_active: isActive,
-    });
+    const { data, error } = await (db as any).rpc("ping_active_time", params);
 
     if (error) {
-      console.error(`[active-time] RPC ERROR user=${userShort}:`, error);
-      throw new Error(`Ping RPC failed: ${error.message}`);
+      console.error(`[active-time] RPC ERROR user=${userShort}:`, {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        params: params,
+      });
+      throw new Error(`Ping RPC failed: ${error.code} - ${error.message}${error.hint ? ` (${error.hint})` : ''}`);
     }
 
     if (!data || data.length === 0) {
@@ -73,7 +82,7 @@ export async function processActiveTimePing(
 
     const result = data[0];
     
-    console.log(`[active-time] RESULT user=${userShort} success=${result.success} total=${result.total_seconds}s reason=${result.reason} nextToken=${result.next_token?.slice(0, 8) || 'null'}`);
+    console.log(`[active-time] SUCCESS user=${userShort} reason=${result.reason} total=${result.total_seconds}s today=${result.today_seconds}s nextToken=${result.next_token?.slice(0, 8) || 'null'}`);
 
     return {
       success: result.success,
