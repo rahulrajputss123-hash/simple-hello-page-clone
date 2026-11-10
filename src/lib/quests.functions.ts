@@ -819,6 +819,43 @@ export const processActiveTimePing = createServerFn({ method: "POST" })
   });
 
 /**
+ * Get quest active time progress - read initial state from DB
+ */
+export const getQuestActiveTimeProgress = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const db = createSupabaseServiceClient();
+    
+    const { data: progress, error } = await db
+      .from("quest_active_time_progress")
+      .select("total_seconds, today_seconds, today_date, target_seconds:quests!inner(target_minutes)")
+      .eq("user_id", context.userId)
+      .eq("quest_key", data.questKey)
+      .single();
+    
+    if (error || !progress) {
+      return null;
+    }
+    
+    // Extract target_minutes from nested quests object
+    const targetMinutes = (progress as any).target_seconds?.target_minutes || 120;
+    
+    return {
+      totalSeconds: progress.total_seconds,
+      todaySeconds: progress.today_seconds,
+      todayDate: progress.today_date,
+      targetSeconds: targetMinutes * 60,
+    };
+  });
+
+/**
  * Start active time grace period - called when user clicks an offer.
  * Grace period allows 10min after offer click, max 3/hour, 24h cooldown per offer.
  */

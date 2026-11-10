@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { processActiveTimePing } from "@/lib/quests.functions";
+import { processActiveTimePing, getQuestActiveTimeProgress } from "@/lib/quests.functions";
 import { activeTimeTokenStore } from "@/lib/active-time-token-store";
 
 const PING_INTERVAL_MS = 30_000; // 30 seconds
@@ -86,7 +86,12 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
   const isPingingRef = useRef<boolean>(false); // Guard against simultaneous pings
   const hasStartedRef = useRef<boolean>(false); // Guard against double start
   
+  // FIX 1: Keep latest values in refs to avoid stale closures
+  const questKeyRef = useRef<string | null>(null);
+  const sendPingRef = useRef<(() => Promise<void>) | null>(null);
+  
   const pingFn = useServerFn(processActiveTimePing);
+  const getProgressFn = useServerFn(getQuestActiveTimeProgress);
 
   // Record user activity
   const recordActivity = useCallback(() => {
@@ -121,9 +126,12 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
   }, [state?.isPaused, state?.showStillHerePrompt]);
 
   // Send ping to server
+  // FIX 1: Read questKey from ref to avoid stale closure
   const sendPing = useCallback(async () => {
-    if (!state) {
-      log("Skipping ping - no state");
+    const currentQuestKey = questKeyRef.current;
+    
+    if (!currentQuestKey) {
+      log("Skipping ping - no quest key in ref");
       return;
     }
 
@@ -137,11 +145,10 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
     const timeSinceActivity = now - lastActivityRef.current;
     const isActive = timeSinceActivity <= INACTIVITY_THRESHOLD_MS;
 
-    const pingToken = activeTimeTokenStore.getToken(state.questKey);
+    const pingToken = activeTimeTokenStore.getToken(currentQuestKey);
 
-    log("📡 PING", { 
-      time: new Date().toISOString(),
-      questKey: state.questKey,
+    log("[active-time] ping sent", { 
+      questKey: currentQuestKey,
       hasToken: !!pingToken, 
       tokenPreview: pingToken?.slice(0, 8) || 'null',
       isActive,
@@ -152,57 +159,59 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
     try {
       const result = await pingFn({
         data: {
-          questKey: state.questKey,
+          questKey: currentQuestKey,
           pingToken,
           isActive,
         },
       });
 
-      log("✅ PING RESULT", { 
-        time: new Date().toISOString(),
+      log("[active-time] ping result", { 
         success: result.success, 
         reason: result.reason, 
-        total_seconds: result.totalSeconds,
-        next_token: result.nextToken ? 'YES' : 'NO',
+        total: result.totalSeconds,
       });
 
-      // Handle invalid_token: KEEP pinging with same token, don't stop loop
-      if (!result.success && result.reason === 'invalid_token') {
-        log("⚠️  Invalid token - will retry in 30s (server resyncs after 120s)");
-        setState((prev) => prev ? {
-          ...prev,
-          error: 'invalid_token_wait',
-        } : null);
-        // DON'T stop the interval, keep pinging
-        return;
-      }
-
-      // Store token ONLY if non-empty, otherwise keep previous token
+      // Store token if provided (wrapped in try/catch)
       if (result.nextToken) {
-        activeTimeTokenStore.setToken(state.questKey, result.nextToken);
-        log("💾 Stored new token", { preview: result.nextToken.slice(0, 8) });
-      } else if (!result.success) {
-        log("⚠️  No next_token in response - keeping previous token");
-        // Keep the token we have, don't overwrite with null
+        try {
+          activeTimeTokenStore.setToken(currentQuestKey, result.nextToken);
+          log("💾 Stored new token", { preview: result.nextToken.slice(0, 8) });
+        } catch (err) {
+          log("⚠️ Failed to store token", { error: err });
+        }
       }
 
-      // Update state with server values
-      if (result.success) {
-        setState((prev) => prev ? {
-          ...prev,
-          totalSeconds: result.totalSeconds,
-          todaySeconds: result.todaySeconds,
-          targetSeconds: result.targetSeconds,
-          canClaim: result.canClaim,
-          progressPercent: Math.min(100, (result.totalSeconds / result.targetSeconds) * 100),
-          lastServerSync: now,
-          error: null,
-        } : null);
+      // FIX 2: Apply totalSeconds/todaySeconds/targetSeconds from ALL responses except quest_not_found
+      if (result.reason !== 'quest_not_found') {
+        setState((prev) => {
+          if (!prev) return null;
+          
+          const newState = {
+            ...prev,
+            totalSeconds: result.totalSeconds,
+            todaySeconds: result.todaySeconds,
+            targetSeconds: result.targetSeconds,
+            canClaim: result.canClaim,
+            progressPercent: Math.min(100, (result.totalSeconds / result.targetSeconds) * 100),
+            lastServerSync: now,
+          };
+
+          // Clear error only on success
+          if (result.success) {
+            newState.error = null;
+          } else if (result.reason === 'invalid_token') {
+            newState.error = 'invalid_token_wait';
+          } else {
+            newState.error = result.reason || "ping_failed";
+          }
+
+          return newState;
+        });
       } else {
-        log("❌ Ping not successful", { reason: result.reason });
+        // quest_not_found - set error but don't update totals
         setState((prev) => prev ? {
           ...prev,
-          error: result.reason || "ping_failed",
+          error: 'quest_not_found',
         } : null);
       }
     } catch (error) {
@@ -214,7 +223,10 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
     } finally {
       isPingingRef.current = false;
     }
-  }, [state, pingFn]);
+  }, [pingFn]);
+
+  // Update sendPingRef on every render to avoid stale closure
+  sendPingRef.current = sendPing;
 
   // Local tick - increment UI display every second
   const tickLocal = useCallback(() => {
@@ -274,13 +286,13 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
     log("🚀 startTracking called", { questKey, hasStarted: hasStartedRef.current });
 
     // Guard: only start once per app load
-    if (hasStartedRef.current && state?.questKey === questKey) {
+    if (hasStartedRef.current && questKeyRef.current === questKey) {
       log("⚠️  Already started for this quest - ignoring");
       return;
     }
 
     // Stop previous tracking if different quest
-    if (state && state.questKey !== questKey) {
+    if (questKeyRef.current && questKeyRef.current !== questKey) {
       log("Switching quests - stopping previous");
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
       if (localTickIntervalRef.current) clearInterval(localTickIntervalRef.current);
@@ -289,40 +301,78 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
     }
 
     hasStartedRef.current = true;
+    questKeyRef.current = questKey; // FIX 1: Set questKey in ref
 
-    // Initialize state with zeros, will fetch from server immediately
+    // FIX 2: Read initial state from quest_active_time_progress before first ping
+    let initialTotal = 0;
+    let initialToday = 0;
+    let initialTarget = 7200; // 2 hours default
+    
+    try {
+      log("📖 Reading initial progress from DB");
+      const progressResult = await getProgressFn({ data: { questKey } });
+      
+      if (progressResult) {
+        log("Found existing progress", progressResult);
+        
+        initialTotal = progressResult.totalSeconds;
+        initialTarget = progressResult.targetSeconds;
+        
+        // Check if today_date is today in UTC
+        const nowUtc = new Date();
+        const todayUtc = new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth(), nowUtc.getUTCDate()));
+        const progressDate = new Date(progressResult.todayDate + 'T00:00:00Z');
+        
+        if (progressDate.getTime() === todayUtc.getTime()) {
+          initialToday = progressResult.todaySeconds;
+          log("Today's date matches - using today_seconds", { initialToday });
+        } else {
+          initialToday = 0;
+          log("Today's date differs - resetting today_seconds to 0");
+        }
+      } else {
+        log("No existing progress found - starting from 0");
+      }
+    } catch (error) {
+      log("⚠️ Failed to read initial progress", { error });
+      // Continue with zeros
+    }
+
+    // Initialize state with values from DB
     setState({
       questKey,
-      totalSeconds: 0,
-      todaySeconds: 0,
-      targetSeconds: 7200, // 2 hours default, will update from server
-      canClaim: false,
+      totalSeconds: initialTotal,
+      todaySeconds: initialToday,
+      targetSeconds: initialTarget,
+      canClaim: initialTotal >= initialTarget,
       isTracking: true,
       isPaused: false,
       showStillHerePrompt: false,
       error: null,
       waitingForResync: false,
       lastServerSync: null,
-      progressPercent: 0,
+      progressPercent: Math.min(100, (initialTotal / initialTarget) * 100),
     });
 
     lastActivityRef.current = Date.now();
     lastStillHereCheckRef.current = Date.now();
 
-    // Send first ping ONCE after 100ms (not immediately to avoid double ping)
+    // FIX 1: Send first ping using sendPingRef after 100ms
     log("⏱️  Scheduling first ping in 100ms");
     setTimeout(() => {
-      if (hasStartedRef.current) {
+      if (hasStartedRef.current && sendPingRef.current) {
         log("📡 Sending first ping now");
-        sendPing();
+        sendPingRef.current();
       }
     }, 100);
 
-    // Start ping interval (server sync every 30s)
+    // FIX 1: Start ping interval using sendPingRef (server sync every 30s)
     if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
     pingIntervalRef.current = setInterval(() => {
-      log("⏰ Interval tick - sending ping");
-      sendPing();
+      if (sendPingRef.current) {
+        log("⏰ Interval tick - sending ping");
+        sendPingRef.current();
+      }
     }, PING_INTERVAL_MS);
 
     // Start local tick interval (UI display every 1s)
@@ -333,8 +383,8 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
     if (stillHereIntervalRef.current) clearInterval(stillHereIntervalRef.current);
     stillHereIntervalRef.current = setInterval(checkStillHere, 60_000);
 
-    log("✅ Tracking started", { questKey, pingInterval: PING_INTERVAL_MS });
-  }, [state, sendPing, tickLocal, checkStillHere]);
+    log("✅ Tracking started", { questKey, initialTotal, initialToday, initialTarget, pingInterval: PING_INTERVAL_MS });
+  }, [tickLocal, checkStillHere, getProgressFn]);
 
   // Stop tracking
   const stopTracking = useCallback(() => {

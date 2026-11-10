@@ -1,9 +1,9 @@
 /**
  * Global token store for Active Time Quest
  * 
- * Stores the ping token both in memory (for fast access) and sessionStorage
- * (for persistence across navigation). This ensures the token chain is maintained
- * even when the user navigates between pages.
+ * Stores the ping token both in memory (for fast access) and localStorage
+ * (for persistence across app restarts). This ensures the token chain is maintained
+ * even when the user closes and reopens the app.
  */
 
 const STORAGE_KEY = 'active_time_ping_token';
@@ -13,17 +13,17 @@ class ActiveTimeTokenStore {
   private questKey: string | null = null;
 
   constructor() {
-    // Restore from sessionStorage on init
+    // Restore from localStorage on init
     if (typeof window !== 'undefined') {
       try {
-        const stored = sessionStorage.getItem(STORAGE_KEY);
+        const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
           this.token = parsed.token;
           this.questKey = parsed.questKey;
         }
       } catch (err) {
-        console.error('[token-store] Failed to restore from sessionStorage:', err);
+        console.error('[token-store] Failed to restore from localStorage:', err);
       }
     }
   }
@@ -45,16 +45,16 @@ class ActiveTimeTokenStore {
     this.questKey = questKey;
     this.token = token;
 
-    // Persist to sessionStorage
+    // Persist to localStorage
     if (typeof window !== 'undefined') {
       try {
         if (token) {
-          sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ questKey, token }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ questKey, token }));
         } else {
-          sessionStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_KEY);
         }
       } catch (err) {
-        console.error('[token-store] Failed to save to sessionStorage:', err);
+        console.error('[token-store] Failed to save to localStorage:', err);
       }
     }
   }
@@ -68,7 +68,11 @@ class ActiveTimeTokenStore {
       this.questKey = null;
       
       if (typeof window !== 'undefined') {
-        sessionStorage.removeItem(STORAGE_KEY);
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (err) {
+          console.error('[token-store] Failed to remove from localStorage:', err);
+        }
       }
     }
   }
