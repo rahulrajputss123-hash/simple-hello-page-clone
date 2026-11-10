@@ -129,7 +129,7 @@ describe("Torox Adapter - Real API Shape", () => {
     expect(offer.networkPayout).toBe(2.50);
     expect(offer.countries).toEqual(["US", "IN", "GB"]);
     expect(offer.devices).toEqual(["android"]);
-    expect(offer.category).toBe("game");
+    expect(offer.category).toBe("Games");
     expect(offer.isFeatured).toBe(false);
     expect(offer.clickUrl).toBe("torox://campaign/19661248");
     expect(offer.icon).toBe("https://static.offertoro.com/image2.png");
