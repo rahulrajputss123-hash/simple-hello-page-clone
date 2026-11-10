@@ -42,6 +42,8 @@ export type NormalizedOffer = {
   title: string;
   description?: string;
   requirements?: string;
+  /** What users must NOT do (VPN, fake data, etc.). Stored in not_allowed field. */
+  notAllowed?: string;
   icon?: string;
   /**
    * Artwork the provider sent inline as a base64 `data:` URI instead of a URL.
@@ -63,6 +65,8 @@ export type NormalizedOffer = {
   sortOrder?: number;
   /** Adapter-derived category (null when we couldn't map the provider's own id). */
   category?: OfferCategory | null;
+  /** Multi-step offer rewards (e.g., Torox events, GemiAd events). */
+  stepRewards?: Array<{ step: string; reward: number }>;
   /** Untouched provider payload, stored for debugging / future mapping. */
   raw?: unknown;
 };

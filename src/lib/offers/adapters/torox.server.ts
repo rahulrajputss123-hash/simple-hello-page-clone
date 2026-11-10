@@ -320,14 +320,11 @@ export const toroxAdapter: OfferProviderAdapter = {
       // Decode HTML entities and strip tags from description
       const description = decodeAndStrip(item.description || "");
 
-      // Build requirements from callToAction + disclaimer
-      const requirements: string[] = [];
-      if (item.callToAction) {
-        requirements.push(decodeAndStrip(item.callToAction));
-      }
-      if (item.disclaimer) {
-        requirements.push(decodeAndStrip(item.disclaimer));
-      }
+      // Store call-to-action in requirements
+      const requirements = item.callToAction ? decodeAndStrip(item.callToAction) : "";
+
+      // Store disclaimer in notAllowed
+      const notAllowed = item.disclaimer ? decodeAndStrip(item.disclaimer) : "";
 
       // Handle events (multi-step offers)
       let stepRewards: Array<{ step: string; reward: number }> = [];
@@ -365,7 +362,8 @@ export const toroxAdapter: OfferProviderAdapter = {
         externalOfferId,
         title: decodeAndStrip(item.name.trim()),
         description,
-        requirements: requirements.join(" | "),
+        requirements,
+        notAllowed,
         icon,
         clickUrl,
         networkPayout: payout,

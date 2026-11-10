@@ -201,6 +201,17 @@ export const gemiAdAdapter: OfferProviderAdapter = {
       // Extract requirements from events
       const requirements = extractRequirements(item);
 
+      // Extract step rewards from events
+      let stepRewards: Array<{ step: string; reward: number }> = [];
+      if (item.events && item.events.length > 0) {
+        stepRewards = item.events
+          .map((evt) => ({
+            step: stripHtml(evt.action?.en ?? ""),
+            reward: Number.parseFloat(String(evt.payout ?? "")) || 0,
+          }))
+          .filter((sr) => sr.step && sr.reward > 0);
+      }
+
       // Use icon first, fallback to banner
       const icon = String(item.icon ?? item.banner ?? "").trim();
 
@@ -219,6 +230,7 @@ export const gemiAdAdapter: OfferProviderAdapter = {
         countries,
         devices,
         category: mapCategory(item.category),
+        stepRewards: stepRewards.length > 0 ? stepRewards : undefined,
         raw: item,
       });
     }

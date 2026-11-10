@@ -35,6 +35,7 @@ function toRow(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) 
     title: offer.title,
     description: offer.description ?? "",
     requirements: offer.requirements ?? "",
+    not_allowed: offer.notAllowed ?? "",
     icon: offer.icon ?? "gift",
     click_url: offer.clickUrl,
     network_payout: offer.networkPayout,
