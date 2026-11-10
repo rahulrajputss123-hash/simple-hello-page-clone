@@ -1,16 +1,37 @@
 // Test setup file - runs before all tests
-// Set environment variables that tests need - REAL API KEYS
+// Read environment variables from process.env (not hardcoded)
+import { vi } from 'vitest';
 
-process.env.BITCOTASKS_API_KEY = "ly1j8t2vzuae1yr93w6j9xyc9el368";
-process.env.BITCOTASKS_BEARER = "0c501a231a8781bf9ba2bb45249101a9fe6afcf65cb753995bdc0825aeabe03f";
-process.env.BITCOTASKS_SECRET = "3b92c8f6e76f5f4e8a44029d767b44e0";
+// Read secrets from environment (CI should provide these)
+// Tests needing missing keys will skip, not fail
+const envKeys = [
+  'BITCOTASKS_API_KEY',
+  'BITCOTASKS_BEARER',
+  'BITCOTASKS_SECRET',
+  'OFFERWALLME_API_KEY',
+  'OFFERWALLME_SECRET_KEY',
+  'THEOREMREACH_API_KEY',
+  'THEOREMREACH_SECRET_KEY',
+  'SUPABASE_URL',
+  'SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+];
 
-process.env.OFFERWALLME_API_KEY = "QHvPl1a7Rl8BdLSLh6MLDpTEJpN1a1";
-process.env.OFFERWALLME_SECRET_KEY = "kgQ4xBE8AVLYxL5RFtVLiPXapFMsG6Oo";
+const isLiveTest = process.env.RUN_LIVE_TESTS === '1';
 
-process.env.THEOREMREACH_API_KEY = "7b65000d4265e318df10b30d7b42";
-process.env.THEOREMREACH_SECRET_KEY = "6e5c14b2bfb18b69a31b881938e6cac6c56ad679";
+if (isLiveTest) {
+  console.log('[TEST SETUP] Live API tests enabled - will make real network calls');
+} else {
+  console.log('[TEST SETUP] Unit tests - fetch will be mocked by default');
+  // Mock fetch globally for unit tests (tests can override if needed)
+  // This prevents accidental network calls in unit tests
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network calls are not allowed in unit tests. Use vi.mocked(fetch).mockResolvedValue() to mock responses.')));
+}
 
-console.log("[TEST SETUP] Environment variables configured with real API keys");
-
-
+// Check for missing keys (don't fail, just warn)
+const missingKeys = envKeys.filter(key => !process.env[key]);
+if (missingKeys.length > 0) {
+  console.warn(`[TEST SETUP] Missing env vars: ${missingKeys.join(', ')} - tests requiring these will skip`);
+} else {
+  console.log('[TEST SETUP] All required environment variables present');
+}

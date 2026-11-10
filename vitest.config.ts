@@ -7,22 +7,44 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
     pool: 'forks', // Use forks instead of threads to inherit env vars
-    env: {
-      BITCOTASKS_API_KEY: 'ly1j8t2vzuae1yr93w6j9xyc9el368',
-      BITCOTASKS_BEARER: '0c501a231a8781bf9ba2bb45249101a9fe6afcf65cb753995bdc0825aeabe03f',
-      BITCOTASKS_SECRET: '3b92c8f6e76f5f4e8a44029d767b44e0',
-      OFFERWALLME_API_KEY: 'QHvPl1a7Rl8BdLSLh6MLDpTEJpN1a1',
-      OFFERWALLME_SECRET_KEY: 'kgQ4xBE8AVLYxL5RFtVLiPXapFMsG6Oo',
-      OFFERWALLME_BEARER_TOKEN: 'QHvPl1a7Rl8BdLSLh6MLDpTEJpN1a1',
-      THEOREMREACH_API_KEY: '7b65000d4265e318df10b30d7b42',
-      THEOREMREACH_SECRET_KEY: '6e5c14b2bfb18b69a31b881938e6cac6c56ad679',
-    },
+    testTimeout: 10000,
+    hookTimeout: 10000,
+    teardownTimeout: 10000,
+    // Unit tests only: src/**/*.test.ts and explicit unit tests in tests/
+    include: [
+      'src/**/*.test.ts',
+      'tests/offer-adapters.test.ts',
+      'tests/feed-adapters.test.ts',
+      'tests/torox-postback.test.ts',
+      'tests/postback-complete.test.ts',
+      'tests/quest-postback-money-safety.test.ts',
+      'tests/offerwall-signature.test.ts',
+      'tests/theoremreach-signing.test.ts',
+      'tests/questsmanager-validation.test.ts',
+      'tests/gemiad-validate-config.test.ts',
+      'tests/torox-adapter-no-context.test.ts',
+      'tests/quest-network-postback-fixtures.test.ts',
+      'tests/feed-quest-production-fixes.test.ts',
+      'tests/quest-server-fn-fixes.test.ts',
+      'tests/feed-auth-errors.test.ts',
+      'tests/quest-token-isolation.test.ts',
+      'tests/feed-quest-context-fix.test.ts',
+      'tests/feed-quest-persistence.test.ts',
+      'tests/quest-network-adswedmedia.test.ts',
+      'tests/marketplace/razorpay.server.test.ts',
+    ],
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
       '**/.{idea,git,cache,output,temp}/**',
       '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
       'src/lib/marketplace/pricing.test.ts', // Not a proper test suite (console-based script)
+      '**/*.spec.ts', // Playwright E2E tests
+      'tests/*-real-test.test.ts', // Live API tests
+      'tests/*-e2e.test.ts', // E2E tests
+      'tests/bitcotasks-new-bearer.test.ts', // Live API test
+      'tests/network-quest-unique-provider.test.ts', // Live API test
+      'verify-network-progress.test.ts', // Live E2E test
     ],
   },
   resolve: {

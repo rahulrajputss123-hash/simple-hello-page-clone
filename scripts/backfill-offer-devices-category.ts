@@ -2,10 +2,21 @@
  * One-time backfill script to populate devices and category fields for existing offers
  * from their raw_payload data using the same adapter logic.
  * 
- * Run with: bun run scripts/backfill-offer-devices-category.ts
+ * Run with: 
+ * - Dry run (default): bun run scripts/backfill-offer-devices-category.ts
+ * - Apply changes: bun run scripts/backfill-offer-devices-category.ts --apply
  */
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
+const DRY_RUN = !process.argv.includes('--apply');
+
+if (DRY_RUN) {
+  console.log("🔍 DRY RUN MODE - No changes will be written to database");
+  console.log("To apply changes, run with --apply flag\n");
+} else {
+  console.log("✍️  APPLY MODE - Changes will be written to database\n");
+}
 
 const OFFER_CATEGORIES = [
   "App Install",
@@ -270,20 +281,28 @@ async function backfillOffers() {
         }
 
         if (needsUpdate) {
-          const { error: updateError } = await supabaseAdmin
-            .from("offers")
-            .update(update)
-            .eq("id", offer.id);
-
-          if (updateError) {
-            console.error(`  Error updating offer ${offer.id}:`, updateError);
-            errorCount++;
-          } else {
+          if (DRY_RUN) {
             totalUpdated++;
             const parts: string[] = [];
             if (update.devices) parts.push(`devices: ${JSON.stringify(update.devices)}`);
             if (update.category) parts.push(`category: ${update.category}`);
-            console.log(`  ✓ Updated offer ${offer.id} (${providerSlug}): ${parts.join(", ")}`);
+            console.log(`  [DRY RUN] Would update offer ${offer.id} (${providerSlug}): ${parts.join(", ")}`);
+          } else {
+            const { error: updateError } = await supabaseAdmin
+              .from("offers")
+              .update(update)
+              .eq("id", offer.id);
+
+            if (updateError) {
+              console.error(`  Error updating offer ${offer.id}:`, updateError);
+              errorCount++;
+            } else {
+              totalUpdated++;
+              const parts: string[] = [];
+              if (update.devices) parts.push(`devices: ${JSON.stringify(update.devices)}`);
+              if (update.category) parts.push(`category: ${update.category}`);
+              console.log(`  ✓ Updated offer ${offer.id} (${providerSlug}): ${parts.join(", ")}`);
+            }
           }
         }
       } catch (err) {

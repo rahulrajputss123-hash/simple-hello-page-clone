@@ -43,3 +43,6 @@ credentials.json
 *.keystore
 keystore.b64
 test-qropay-webhook.ts
+
+# Test artifacts archive
+archive/
