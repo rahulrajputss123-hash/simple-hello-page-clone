@@ -831,21 +831,37 @@ export const getQuestActiveTimeProgress = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const db = createSupabaseServiceClient();
-    
-    const { data: progress, error } = await db
+    // 1. Read progress from quest_active_time_progress (no FK to quests)
+    const { data: progress, error: progressError } = await supabaseAdmin
       .from("quest_active_time_progress")
-      .select("total_seconds, today_seconds, today_date, target_seconds:quests!inner(target_minutes)")
+      .select("total_seconds, today_seconds, today_date")
       .eq("user_id", context.userId)
       .eq("quest_key", data.questKey)
-      .single();
+      .maybeSingle();
     
-    if (error || !progress) {
+    if (progressError) {
+      console.error("[getQuestActiveTimeProgress] DB error:", progressError);
+      throw new Error(`Failed to load progress: ${progressError.message}`);
+    }
+    
+    if (!progress) {
+      // No progress row yet - user hasn't started quest
       return null;
     }
     
-    // Extract target_minutes from nested quests object
-    const targetMinutes = (progress as any).target_seconds?.target_minutes || 120;
+    // 2. Read target_minutes from quests table separately
+    const { data: quest, error: questError } = await supabaseAdmin
+      .from("quests")
+      .select("target_minutes")
+      .eq("key", data.questKey)
+      .maybeSingle();
+    
+    if (questError) {
+      console.error("[getQuestActiveTimeProgress] Quest lookup error:", questError);
+      throw new Error(`Failed to load quest config: ${questError.message}`);
+    }
+    
+    const targetMinutes = quest?.target_minutes ?? 120; // Default 2 hours
     
     return {
       totalSeconds: progress.total_seconds,

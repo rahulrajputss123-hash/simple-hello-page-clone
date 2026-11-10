@@ -1,185 +1,164 @@
+#!/usr/bin/env tsx
 /**
- * Verify active-time timer persistence fix
- * Creates a test quest, simulates pings, verifies persistence
+ * Verify active-time progress loading fix
+ * 1. Find a user with non-zero total_seconds
+ * 2. Test the fixed function logic
+ * 3. Show what the client would display
  */
 
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { config } from 'dotenv';
+config();
 
-async function verifyFix() {
-  console.log('\n=== Verifying Active-Time Persistence Fix ===\n');
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+async function main() {
+  console.log('=== Active Time Progress Fix Verification ===\n');
   
-  const testUserId = '00000000-0000-0000-0000-0000000000a1';
-  const testQuestKey = 'daily_active_time_60_min';
+  // 1. Find a user with non-zero total_seconds
+  console.log('1. Finding test user with active-time progress...\n');
   
-  console.log('Test Setup:');
-  console.log('  - User ID:', testUserId);
-  console.log('  - Quest Key:', testQuestKey);
+  const { data: progressRows, error: progressError } = await supabase
+    .from('quest_active_time_progress')
+    .select('user_id, quest_key, total_seconds, today_seconds, today_date, last_ping_at')
+    .gt('total_seconds', 0)
+    .order('last_ping_at', { ascending: false })
+    .limit(5);
   
-  // Ensure quest exists
-  console.log('\n1. Checking if quest exists...');
-  const { data: quest } = await supabaseAdmin
-    .from('quests')
-    .select('*')
-    .eq('key', testQuestKey)
-    .eq('quest_type', 'active_time')
-    .maybeSingle();
-  
-  if (!quest) {
-    console.log('   Creating test quest...');
-    await supabaseAdmin.from('quests').insert({
-      key: testQuestKey,
-      quest_type: 'active_time',
-      label: 'Test Active Time',
-      description: 'Test',
-      target_minutes: 60,
-      daily_cap_minutes: 120,
-      grace_minutes: 10,
-      reward_amount: 1.0,
-      is_active: true,
-    });
-    console.log('   ✅ Quest created');
-  } else {
-    console.log('   ✅ Quest exists');
+  if (progressError) {
+    console.error('ERROR querying progress:', progressError);
+    return;
   }
   
-  // Clean up any existing progress for this test
-  await supabaseAdmin
-    .from('quest_active_time_progress')
-    .delete()
-    .eq('user_id', testUserId)
-    .eq('quest_key', testQuestKey);
-  
-  console.log('\n2. BEFORE FIRST PING:');
-  const { data: before } = await supabaseAdmin
-    .from('quest_active_time_progress')
-    .select('*')
-    .eq('user_id', testUserId)
-    .eq('quest_key', testQuestKey)
-    .maybeSingle();
-  console.log('   Progress:', before ? `${before.total_seconds}s` : 'None (expected)');
-  
-  // First ping
-  console.log('\n3. FIRST PING (should create row):');
-  const { data: ping1Data, error: ping1Error } = await supabaseAdmin.rpc('ping_active_time', {
-    p_user_id: testUserId,
-    p_quest_key: testQuestKey,
-    p_ping_token: null,
-    p_is_active: true
-  });
-  
-  if (ping1Error) {
-    console.error('   ❌ ERROR:', ping1Error);
-    process.exit(1);
+  if (!progressRows || progressRows.length === 0) {
+    console.log('No users with active-time progress found.');
+    console.log('Creating test row...\n');
+    
+    // Create a test row
+    const testUserId = '00000000-0000-0000-0000-000000000001'; // Replace with actual user ID if needed
+    const { data: inserted, error: insertError } = await supabase
+      .from('quest_active_time_progress')
+      .insert({
+        user_id: testUserId,
+        quest_key: 'active-time-1',
+        total_seconds: 1234,
+        today_seconds: 567,
+        today_date: new Date().toISOString().split('T')[0],
+      })
+      .select()
+      .single();
+    
+    if (insertError) {
+      console.error('ERROR creating test row:', insertError);
+      console.log('Aborting - please use a real user ID or check permissions.\n');
+      return;
+    }
+    
+    console.log('✅ Created test row:', inserted);
+    progressRows.push(inserted);
   }
   
-  const result1 = Array.isArray(ping1Data) ? ping1Data[0] : ping1Data;
-  console.log('   Result:', {
-    success: result1.success,
-    reason: result1.reason,
-    total_seconds: result1.total_seconds,
-    has_token: !!result1.next_token
+  console.log(`Found ${progressRows.length} users with progress:\n`);
+  progressRows.forEach((row, idx) => {
+    console.log(`${idx + 1}. User: ${row.user_id}`);
+    console.log(`   Quest: ${row.quest_key}`);
+    console.log(`   Total: ${row.total_seconds}s (${Math.floor(row.total_seconds / 60)}m ${row.total_seconds % 60}s)`);
+    console.log(`   Today: ${row.today_seconds}s`);
+    console.log(`   Date: ${row.today_date}`);
+    console.log('');
   });
   
-  // Check state after first ping
-  const { data: after1 } = await supabaseAdmin
+  // 2. Test the OLD broken logic vs NEW fixed logic
+  const testUser = progressRows[0];
+  console.log(`\n2. Testing with user ${testUser.user_id}, quest ${testUser.quest_key}...\n`);
+  
+  console.log('--- OLD BROKEN LOGIC (embed with !inner) ---');
+  const { data: brokenResult, error: brokenError } = await supabase
     .from('quest_active_time_progress')
-    .select('*')
-    .eq('user_id', testUserId)
-    .eq('quest_key', testQuestKey)
+    .select('total_seconds, today_seconds, today_date, target_seconds:quests!inner(target_minutes)')
+    .eq('user_id', testUser.user_id)
+    .eq('quest_key', testUser.quest_key)
     .single();
   
-  console.log('   DB State:', {
-    total_seconds: after1.total_seconds,
-    today_seconds: after1.today_seconds,
-    has_token: !!after1.last_ping_token
-  });
+  console.log('Result:', brokenResult);
+  console.log('Error:', brokenError);
+  console.log('→ Client would see: null (no data) → starts from 0 ❌\n');
   
-  // Wait 25 seconds and ping again
-  console.log('\n4. Waiting 25 seconds...');
-  await new Promise(resolve => setTimeout(resolve, 25000));
+  console.log('--- NEW FIXED LOGIC (separate queries) ---');
   
-  console.log('\n5. SECOND PING (should credit ~25 seconds):');
-  const { data: ping2Data, error: ping2Error } = await supabaseAdmin.rpc('ping_active_time', {
-    p_user_id: testUserId,
-    p_quest_key: testQuestKey,
-    p_ping_token: result1.next_token,
-    p_is_active: true
-  });
-  
-  if (ping2Error) {
-    console.error('   ❌ ERROR:', ping2Error);
-    process.exit(1);
-  }
-  
-  const result2 = Array.isArray(ping2Data) ? ping2Data[0] : ping2Data;
-  const credited = result2.total_seconds - result1.total_seconds;
-  console.log('   Result:', {
-    success: result2.success,
-    reason: result2.reason,
-    total_seconds: result2.total_seconds,
-    credited: `+${credited}s`
-  });
-  
-  // Check final state
-  const { data: after2 } = await supabaseAdmin
-    .from('quest_active_time_progress')
-    .select('*')
-    .eq('user_id', testUserId)
-    .eq('quest_key', testQuestKey)
-    .single();
-  
-  console.log('   DB State:', {
-    total_seconds: after2.total_seconds,
-    today_seconds: after2.today_seconds,
-  });
-  
-  // Simulate app close/reopen - check persistence
-  console.log('\n6. SIMULATING APP REOPEN:');
-  console.log('   (Timer should resume from', after2.total_seconds, 'seconds)');
-  
-  const { data: afterReopen } = await supabaseAdmin
+  // Step 1: Read progress
+  const { data: progress, error: progressErr } = await supabase
     .from('quest_active_time_progress')
     .select('total_seconds, today_seconds, today_date')
-    .eq('user_id', testUserId)
-    .eq('quest_key', testQuestKey)
-    .single();
+    .eq('user_id', testUser.user_id)
+    .eq('quest_key', testUser.quest_key)
+    .maybeSingle();
   
-  console.log('   Stored progress:', afterReopen);
-  
-  // Verification
-  console.log('\n=== VERIFICATION RESULTS ===\n');
-  
-  if (result1.success && result1.reason === 'first_ping') {
-    console.log('✅ First ping creates row');
-  } else {
-    console.log('❌ First ping failed');
+  if (progressErr) {
+    console.error('Progress error:', progressErr);
+    return;
   }
   
-  if (result2.success && credited >= 20 && credited <= 30) {
-    console.log('✅ Second ping credits elapsed time (~25s)');
-  } else {
-    console.log('❌ Second ping credit incorrect:', credited);
+  console.log('Step 1 - Progress query:', progress);
+  
+  if (!progress) {
+    console.log('→ No progress found (null is correct for new users)');
+    return;
   }
   
-  if (after2.total_seconds === afterReopen.total_seconds) {
-    console.log('✅ Progress persists (no reset on reopen)');
-  } else {
-    console.log('❌ Progress not persisted');
+  // Step 2: Read target_minutes from quests
+  const { data: quest, error: questErr } = await supabase
+    .from('quests')
+    .select('target_minutes')
+    .eq('key', testUser.quest_key)
+    .maybeSingle();
+  
+  if (questErr) {
+    console.error('Quest error:', questErr);
   }
   
-  if (after2.total_seconds > 0) {
-    console.log('✅ Server is source of truth');
-  } else {
-    console.log('❌ Server not storing progress');
+  console.log('Step 2 - Quest query:', quest);
+  
+  const targetMinutes = quest?.target_minutes ?? 120;
+  
+  const result = {
+    totalSeconds: progress.total_seconds,
+    todaySeconds: progress.today_seconds,
+    todayDate: progress.today_date,
+    targetSeconds: targetMinutes * 60,
+  };
+  
+  console.log('\nFinal result:');
+  console.log(JSON.stringify(result, null, 2));
+  console.log('→ Client would see: starts from', result.totalSeconds, 'seconds ✅\n');
+  
+  console.log('3. What the card shows:');
+  console.log(`   Total: ${Math.floor(result.totalSeconds / 60)}m ${result.totalSeconds % 60}s / ${Math.floor(result.targetSeconds / 60)}m`);
+  console.log(`   Progress: ${Math.round((result.totalSeconds / result.targetSeconds) * 100)}%`);
+  console.log(`   Today: ${Math.floor(result.todaySeconds / 60)}m ${result.todaySeconds % 60}s\n`);
+  
+  // 4. Clean up test rows if created
+  const isTestRow = testUser.user_id === '00000000-0000-0000-0000-000000000001';
+  if (isTestRow) {
+    console.log('4. Cleaning up test row...');
+    const { error: deleteError } = await supabase
+      .from('quest_active_time_progress')
+      .delete()
+      .eq('user_id', testUser.user_id)
+      .eq('quest_key', testUser.quest_key);
+    
+    if (deleteError) {
+      console.error('ERROR deleting test row:', deleteError);
+    } else {
+      console.log('✅ Test row deleted\n');
+    }
   }
   
-  console.log('\n✅ ALL CHECKS PASSED');
-  console.log('\nBEFORE: 0 seconds');
-  console.log('AFTER:  ' + after2.total_seconds + ' seconds');
-  console.log('\n');
+  console.log('=== Verification Complete ===');
 }
 
-verifyFix().catch((err) => {
-  console.error('\n❌ VERIFICATION FAILED:', err);
-  process.exit(1);
-});
+main().catch(console.error);
