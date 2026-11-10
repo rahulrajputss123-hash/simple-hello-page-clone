@@ -225,14 +225,31 @@ export function CompactTimer({
     setLocalTick(0);
   }, [currentSeconds]);
 
-  // Increment local tick every second if live
+  // Reset local tick when document becomes visible (to sync with server on next ping)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setLocalTick(0);
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+  }, []);
+
+  // Increment local tick every second if live AND document is visible
   useEffect(() => {
     if (!isLive) {
       return;
     }
 
     const interval = setInterval(() => {
-      setLocalTick((prev) => prev + 1);
+      // Only tick if document is visible (app in foreground)
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        setLocalTick((prev) => prev + 1);
+      }
     }, 1000);
 
     return () => clearInterval(interval);

@@ -228,27 +228,12 @@ export function ActiveTimeProvider({ children }: { children: React.ReactNode }) 
   // Update sendPingRef on every render to avoid stale closure
   sendPingRef.current = sendPing;
 
-  // Local tick - increment UI display every second
+  // Local tick - REMOVED to prevent double counting
+  // The UI component (CompactTimer) handles local ticking for display
+  // This context only updates totalSeconds on ping responses from server
   const tickLocal = useCallback(() => {
-    setState((prev) => {
-      if (!prev || prev.isPaused) return prev;
-      
-      const now = Date.now();
-      const timeSinceActivity = now - lastActivityRef.current;
-      const isActive = timeSinceActivity <= INACTIVITY_THRESHOLD_MS;
-      
-      // Only increment if user is active
-      if (isActive && prev.totalSeconds < prev.targetSeconds) {
-        return {
-          ...prev,
-          totalSeconds: prev.totalSeconds + 1,
-          todaySeconds: prev.todaySeconds + 1,
-          progressPercent: Math.min(100, ((prev.totalSeconds + 1) / prev.targetSeconds) * 100),
-        };
-      }
-      
-      return prev;
-    });
+    // No-op - local ticking is handled by CompactTimer component
+    // Server pings every 30s update the state.totalSeconds
   }, []);
 
   // Check if we should show "Still here?" prompt
