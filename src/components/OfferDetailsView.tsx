@@ -43,6 +43,14 @@ function formatStepReward(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
+/**
+ * Normalize device for display: treat "desktop" as "web", capitalize first letter
+ */
+function displayDevice(device: string): string {
+  const normalized = device.toLowerCase() === "desktop" ? "web" : device.toLowerCase();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 export type OfferDetailsData = {
   id: string;
   external_offer_id?: string | null;
@@ -53,6 +61,9 @@ export type OfferDetailsData = {
   reward_amount: number;
   click_url?: string | null;
   provider_slug?: string | null;
+  provider_name?: string | null;
+  devices?: string[];
+  category?: string | null;
   is_limited_deal?: boolean;
   payout_mode?: "manual" | "manual_proof" | "auto_postback";
   image_url?: string | null;
@@ -61,7 +72,7 @@ export type OfferDetailsData = {
   // Claim status if user has one
   claim_status?: "started" | "pending" | "approved" | "rejected" | null;
   claim_reject_reason?: string | null;
-  // Steps extracted from raw_payload (affike/revtoo)
+  // Steps extracted from raw_payload (affike/revtoo/torox/gemiad)
   steps?: Array<{ label: string; usd: number }>;
   // Difficulty level (adswedmedia)
   difficulty?: string;
@@ -92,9 +103,13 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   // Steps display logic
   const steps = offer?.steps ?? [];
   const hasSteps = steps.length > 0;
-  const MAX_VISIBLE_STEPS = 6;
-  const hasMoreSteps = steps.length > 8;
+  const MAX_VISIBLE_STEPS = 8;
+  const hasMoreSteps = steps.length > MAX_VISIBLE_STEPS;
   const visibleSteps = hasMoreSteps && !showAllSteps ? steps.slice(0, MAX_VISIBLE_STEPS) : steps;
+
+  // Device labels: show "All devices" if empty, otherwise show chips
+  const devices = offer?.devices ?? [];
+  const deviceLabels = devices.length === 0 ? ["All devices"] : devices.map(displayDevice);
 
   const [proofPath, setProofPath] = useState<string | null>(null);
   const [proofName, setProofName] = useState<string | null>(null);
@@ -264,10 +279,40 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
               {offerDisplayBadge(offer) ?? formatReward(offer.reward_amount)}
             </p>
           )}
+          
+          {/* Provider, Category, and Devices */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {offer?.provider_name && (
+              <span
+                className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
+                data-testid="offer-details-provider"
+              >
+                {offer.provider_name}
+              </span>
+            )}
+            {offer?.category && (
+              <span
+                className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent-foreground"
+                data-testid="offer-details-category"
+              >
+                {offer.category}
+              </span>
+            )}
+            {deviceLabels.map((device) => (
+              <span
+                key={device}
+                className="rounded-full border border-border bg-background-alt px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                data-testid="offer-details-device"
+              >
+                {device}
+              </span>
+            ))}
+          </div>
+          
           {offer?.is_limited_deal && (
             <span
               data-testid="offer-details-deal-badge"
-              className="mt-1 inline-flex items-center gap-1 rounded-full bg-gold-gradient px-2 py-0.5 text-[10px] font-bold uppercase text-gold-foreground shadow-gold"
+              className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-gold-gradient px-2 py-0.5 text-[10px] font-bold uppercase text-gold-foreground shadow-gold"
             >
               Limited deal · one-time only
             </span>
@@ -316,6 +361,42 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
             <p className="text-sm leading-relaxed" data-testid="offer-details-description">
               {offer.description}
             </p>
+          </section>
+        )}
+
+        {/* Offer Info Section - Network, Category, Devices, Level */}
+        {(offer?.provider_name || offer?.category || deviceLabels.length > 0 || offer?.difficulty) && (
+          <section className="space-y-2 rounded-xl border border-border bg-background-alt p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <Info className="mr-1 inline size-3.5" />
+              Offer Details
+            </p>
+            <div className="space-y-1.5 text-sm">
+              {offer?.provider_name && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Network:</span>
+                  <span className="font-semibold">{offer.provider_name}</span>
+                </div>
+              )}
+              {offer?.category && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Category:</span>
+                  <span className="font-semibold">{offer.category}</span>
+                </div>
+              )}
+              {deviceLabels.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Devices:</span>
+                  <span className="font-semibold">{deviceLabels.join(", ")}</span>
+                </div>
+              )}
+              {offer?.difficulty && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Level:</span>
+                  <span className="font-semibold">{offer.difficulty}</span>
+                </div>
+              )}
+            </div>
           </section>
         )}
 

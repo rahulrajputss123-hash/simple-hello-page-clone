@@ -67,6 +67,8 @@ export type FeaturedOffer = {
   source: string;
   provider_id: string | null;
   provider_slug: string | null;
+  provider_name: string | null;
+  devices: string[];
   is_limited_deal: boolean;
   deal_group_id: string | null;
   actual_cost: number | null;
@@ -78,7 +80,7 @@ export type FeaturedOffer = {
   // User-specific claim status (only present when userId provided)
   claim_status?: "started" | "pending" | "approved" | "rejected" | null;
   claim_reject_reason?: string | null;
-  // Steps extracted from raw_payload (affike/revtoo only, for detail page)
+  // Steps extracted from raw_payload (affike/revtoo/torox/gemiad, for detail page)
   steps?: OfferStep[];
   // Difficulty level (adswedmedia only)
   difficulty?: string;
@@ -197,7 +199,30 @@ function stripHtml(text: string): string {
 }
 
 /**
- * Extract step-by-step breakdown from raw_payload for affike and revtoo.
+ * Decode HTML entities in text (for Torox eventName and similar fields).
+ */
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&ndash;/g, "–")
+    .replace(/&mdash;/g, "—")
+    .replace(/&uuml;/g, "ü")
+    .replace(/&egrave;/g, "è")
+    .replace(/&eacute;/g, "é")
+    .replace(/&agrave;/g, "à")
+    .replace(/&aacute;/g, "á")
+    .replace(/&#(\d+);/g, (_match, num) => String.fromCharCode(parseInt(num, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+/**
+ * Extract step-by-step breakdown from raw_payload for affike, revtoo, torox, and gemiad.
  * Returns null if steps should not be shown (no valid steps, single generic step, etc).
  */
 function extractStepsFromRawPayload(
@@ -210,6 +235,64 @@ function extractStepsFromRawPayload(
   if (!rawPayload || typeof rawPayload !== "object") return null;
   
   const payload = rawPayload as Record<string, unknown>;
+  const share = revenueShare ?? defaultRevenueShare;
+  
+  // torox: events = [{ eventId, orderId, eventName, payout, amount, timeframeMin, timeframeMax }]
+  if (providerSlug === "torox" && Array.isArray(payload.events)) {
+    const events = payload.events as Array<{
+      eventId?: number;
+      orderId?: number;
+      eventName?: string;
+      payout?: number;
+      amount?: number;
+      timeframeMin?: number;
+      timeframeMax?: number | null;
+    }>;
+    
+    if (events.length === 0) return null;
+    
+    // Sort by orderId
+    const sorted = [...events].sort((a, b) => (a.orderId ?? 0) - (b.orderId ?? 0));
+    
+    const steps: OfferStep[] = [];
+    for (const event of sorted) {
+      const label = decodeHtmlEntities(stripHtml(event.eventName || "")).trim();
+      const payout = Number(event.payout) || 0;
+      if (!label || payout <= 0) continue;
+      
+      const usd = payout * share;
+      steps.push({ label, usd });
+    }
+    
+    return steps.length > 0 ? steps : null;
+  }
+  
+  // gemiad: events = [{ action: { en }, payout }]
+  if (providerSlug === "gemiad" && Array.isArray(payload.events)) {
+    const events = payload.events as Array<{
+      action?: { en?: string };
+      payout?: string | number;
+    }>;
+    
+    if (events.length === 0) return null;
+    
+    const steps: OfferStep[] = [];
+    for (const event of events) {
+      const label = stripHtml(event.action?.en || "").trim();
+      const payout = Number(event.payout) || 0;
+      if (!label || payout <= 0) continue;
+      
+      const usd = payout * share;
+      steps.push({ label, usd });
+    }
+    
+    // If only one step with generic label, don't show steps
+    if (steps.length === 1 && steps[0].label.toLowerCase() === "complete the offer") {
+      return null;
+    }
+    
+    return steps.length > 0 ? steps : null;
+  }
   
   // affike: conversionEvents = [{ id, action, points }]
   if (providerSlug === "affike" && Array.isArray(payload.conversionEvents)) {
@@ -250,7 +333,6 @@ function extractStepsFromRawPayload(
       event_description?: string;
     }>;
     
-    const share = revenueShare ?? defaultRevenueShare;
     const steps: OfferStep[] = [];
     
     for (const event of events) {
@@ -565,24 +647,24 @@ export async function assembleFeaturedImpl(
     }
   }
 
-  // Load network offers and manual featured offers IN PARALLEL
+  // Load network offers and manual offers IN PARALLEL
   const [networkOffersData, manualRowsData] = await Promise.all([
-    // Network offers query
+    // Network offers query - JOIN offer_providers for provider name
     collected.size > 0
       ? supabaseAdmin
           .from("offers")
           .select(
-            "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual, push_to_bottom" +
+            "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, is_active, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual, push_to_bottom, devices, offer_providers!inner(name)" +
               imageCol(hasImageUrl),
           )
           .in("id", [...collected.keys()])
           .eq("is_active", true)
       : Promise.resolve({ data: [] }),
-    // Manual featured offers query
+    // Manual featured offers query - JOIN offer_providers for provider name
     supabaseAdmin
       .from("offers")
       .select(
-        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual" +
+        "id, title, description, requirements, not_allowed, icon, reward_amount, click_url, source, provider_id, external_offer_id, countries, admin_priority, sort_order, is_active, is_featured, expires_at, is_limited_deal, deal_group_id, actual_cost, payout_percentage, max_payout_cap, display_price, display_percent, payout_mode, category, category_manual, tags, tags_manual, devices, offer_providers(name)" +
           imageCol(hasImageUrl),
       )
       .eq("source", "manual")
@@ -616,6 +698,8 @@ export async function assembleFeaturedImpl(
       source: o.source,
       provider_id: o.provider_id,
       provider_slug: o.provider_id ? (slugByProviderId.get(o.provider_id) ?? null) : null,
+      provider_name: o.offer_providers?.name ?? null,
+      devices: Array.isArray(o.devices) ? o.devices : [],
       is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
       deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
       actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
@@ -689,6 +773,8 @@ export async function assembleFeaturedImpl(
       source: o.source,
       provider_id: o.provider_id,
       provider_slug: null,
+      provider_name: o.offer_providers?.name ?? null,
+      devices: Array.isArray(o.devices) ? o.devices : [],
       is_limited_deal: Boolean((o as { is_limited_deal?: boolean }).is_limited_deal),
       deal_group_id: (o as { deal_group_id?: string | null }).deal_group_id ?? null,
       actual_cost: (o as { actual_cost?: number | null }).actual_cost ?? null,
@@ -878,44 +964,32 @@ export async function getOfferByIdImpl(
 
   const { data: offer, error } = await supabaseAdmin
     .from("offers")
-    .select("*")
+    .select("*, offer_providers(slug, name, default_revenue_share)")
     .eq("id", offerId)
     .eq("is_active", true)
     .maybeSingle();
 
   if (error || !offer) return null;
 
-  // Fetch provider info if offer has a provider_id (for default_revenue_share)
-  let providerSlug: string | null = null;
-  let defaultRevenueShare = 0.6;
-  if (offer.provider_id) {
-    const { data: provider } = await supabaseAdmin
-      .from("offer_providers")
-      .select("slug, default_revenue_share")
-      .eq("id", offer.provider_id)
-      .maybeSingle();
-    if (provider) {
-      providerSlug = provider.slug;
-      defaultRevenueShare = Number(provider.default_revenue_share) || 0.6;
-    }
-  }
+  // Extract provider info from join
+  const providerData = (offer as any).offer_providers;
+  const providerSlug: string | null = providerData?.slug ?? null;
+  const providerName: string | null = providerData?.name ?? null;
+  const defaultRevenueShare = Number(providerData?.default_revenue_share ?? 0.6);
 
   // Strip HTML first for all text fields
   const strippedDescription = stripHtml(offer.description ?? "");
   const strippedRequirements = stripHtml(offer.requirements ?? "");
   const strippedNotAllowed = stripHtml(offer.not_allowed ?? "");
 
-  // Extract steps from raw_payload (only if requirements is empty/not manually set)
-  const hasManualRequirements = Boolean(strippedRequirements.trim());
-  const steps = !hasManualRequirements
-    ? extractStepsFromRawPayload(
-        providerSlug,
-        offer.raw_payload,
-        Number(offer.reward_amount),
-        offer.revenue_share ? Number(offer.revenue_share) : null,
-        defaultRevenueShare,
-      )
-    : null;
+  // Extract steps from raw_payload (torox, gemiad, affike, revtoo)
+  const steps = extractStepsFromRawPayload(
+    providerSlug,
+    offer.raw_payload,
+    Number(offer.reward_amount),
+    offer.revenue_share ? Number(offer.revenue_share) : null,
+    defaultRevenueShare,
+  );
 
   // Extract difficulty from raw_payload (adswedmedia only)
   let difficulty: string | undefined;
@@ -947,6 +1021,8 @@ export async function getOfferByIdImpl(
     source: "manual",
     provider_id: offer.provider_id,
     provider_slug: providerSlug,
+    provider_name: providerName,
+    devices: Array.isArray(offer.devices) ? offer.devices : [],
     is_limited_deal: offer.is_limited_deal ?? false,
     deal_group_id: offer.deal_group_id,
     actual_cost: offer.actual_cost ? Number(offer.actual_cost) : null,

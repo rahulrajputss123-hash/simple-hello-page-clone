@@ -1,4 +1,5 @@
 import type { NormalizedOffer, OfferCategory, OfferProviderAdapter } from "../provider-types";
+import { normalizeDevices } from "../normalize-devices";
 
 /**
  * GemiAd Offer Feed adapter (CPA network).
@@ -58,6 +59,10 @@ function stripHtml(value: string): string {
   return value.replace(/<[^>]*>/g, "").trim();
 }
 
+/**
+ * Map GemiAd category to OfferCategory.
+ * Per Part 2 C7: app -> App Install, web -> Trial, survey -> Survey, game -> Games, click -> null
+ */
 function mapCategory(gemiCategory: string | undefined): OfferCategory | null {
   const cat = (gemiCategory ?? "").toLowerCase();
   switch (cat) {
@@ -74,12 +79,6 @@ function mapCategory(gemiCategory: string | undefined): OfferCategory | null {
     default:
       return null;
   }
-}
-
-function mapDevice(gemiDevice: string): string {
-  const dev = gemiDevice.toLowerCase();
-  if (dev === "desktop") return "web";
-  return dev; // android, ios pass through
 }
 
 function extractRequirements(offer: GemiAdOffer): string {
@@ -195,8 +194,8 @@ export const gemiAdAdapter: OfferProviderAdapter = {
       // Normalize countries (uppercase)
       const countries = (item.country ?? []).map((c) => c.toUpperCase());
 
-      // Normalize devices
-      const devices = (item.device ?? []).map(mapDevice);
+      // Normalize devices using shared function
+      const devices = normalizeDevices(item.device ?? []);
 
       // Extract requirements from events
       const requirements = extractRequirements(item);

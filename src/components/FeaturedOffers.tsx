@@ -130,23 +130,34 @@ export function FeaturedOffers({
   return (
     <>
       <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
-        {visibleOffers.map((offer, index) => (
-          <OfferCard
-            key={offer.id}
-            id={offer.id}
-            title={offer.title}
-            description={offer.description}
-            reward_amount={offer.reward_amount}
-            image_url={offer.image_url}
-            tags={offer.tags}
-            is_limited_deal={offer.is_limited_deal}
-            display_price={offer.display_price}
-            display_percent={offer.display_percent}
-            claim_status={offer.claim_status}
-            isEager={index < 6}
-            isPriority={index < 3}
-          />
-        ))}
+        {visibleOffers.map((offer, index) => {
+          const handlePrefetch = () => {
+            // Prefetch offer details using cached data
+            queryClient.setQueryData(["offer", offer.id], offer);
+          };
+          
+          return (
+            <OfferCard
+              key={offer.id}
+              id={offer.id}
+              title={offer.title}
+              description={offer.description}
+              reward_amount={offer.reward_amount}
+              image_url={offer.image_url}
+              tags={offer.tags}
+              is_limited_deal={offer.is_limited_deal}
+              display_price={offer.display_price}
+              display_percent={offer.display_percent}
+              claim_status={offer.claim_status}
+              provider_name={offer.provider_name}
+              devices={offer.devices}
+              category={offer.category}
+              isEager={index < 6}
+              isPriority={index < 3}
+              onPrefetch={handlePrefetch}
+            />
+          );
+        })}
       </ul>
 
       {/* Sentinel for progressive loading - only render if more offers available */}

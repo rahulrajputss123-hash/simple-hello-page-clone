@@ -4,6 +4,7 @@ import type {
   OfferProviderAdapter,
   OfferCategory,
 } from "../provider-types";
+import { normalizeDevices } from "../normalize-devices";
 
 /**
  * AdBlueMedia multi-offer feed adapter.
@@ -107,6 +108,8 @@ export const adblueMediaAdapter: OfferProviderAdapter = {
         icon: String(item.network_icon ?? "").trim() || "gift",
         clickUrl,
         networkPayout: num(item.payout ?? item.user_payout),
+        // AdBlueMedia feed does not provide device/platform information
+        devices: [],
         category: categoryFromAdblueId(item.category_id ?? null),
         raw: item,
       });
@@ -117,19 +120,28 @@ export const adblueMediaAdapter: OfferProviderAdapter = {
 };
 
 /**
- * AdBlueMedia's numeric `category_id` mapped to our internal category enum.
- * The exact mapping should be verified against their publisher dashboard;
- * values below are best-guess and can be adjusted without a code redeploy
- * (admin can also override each offer's category via the Admin form).
- *
- * Unknown ids → null so the offer stays "uncategorized" (still shown under
- * "All Offers") rather than being tagged inaccurately.
+ * AdBlueMedia's `category_id` is a 24-character hex ID (not 1-9 as initially thought).
+ * Map actual hex IDs from their API to our internal categories.
+ * 
+ * TODO: Confirm category names from AdBlueMedia dashboard for unknown IDs.
+ * Unknown ids → null (offer stays uncategorized).
  */
 const ADBLUEMEDIA_CATEGORY_MAP: Record<string, OfferCategory | undefined> = {
+  // TODO: Replace with actual 24-char hex IDs from database query
+  // Run: psql $DATABASE_URL -f scripts/check-adbluemedia-categories.sql
+  // Then map each hex ID to its category name
+  
+  // Example format (replace with real IDs):
+  // "66f5d8e5a1b2c3d4e5f60001": "App Install",
+  // "66f5d911a1b2c3d4e5f60002": "Survey",
+  // "66f5d926a1b2c3d4e5f60003": "Trial",
+  // "66f5d962a1b2c3d4e5f60004": "Games",
+  
+  // Legacy numeric IDs (kept for backward compatibility, but likely not used):
   "1": "App Install",
   "2": "Survey",
   "3": "Trial",
-  "4": "Trial", // Sign-up / registration
+  "4": "Trial",
   "5": "Deals",
   "6": "Games",
   "7": "Link Locker",
@@ -137,7 +149,20 @@ const ADBLUEMEDIA_CATEGORY_MAP: Record<string, OfferCategory | undefined> = {
   "9": "Deals",
 };
 
+// Track unmapped category IDs for debugging
+const unmappedCategoryIds = new Set<string>();
+
 function categoryFromAdblueId(raw: string | null): OfferCategory | null {
   if (!raw) return null;
-  return ADBLUEMEDIA_CATEGORY_MAP[String(raw).trim()] ?? null;
+  
+  const trimmed = String(raw).trim();
+  const category = ADBLUEMEDIA_CATEGORY_MAP[trimmed];
+  
+  // Log unmapped IDs (only once per ID)
+  if (!category && !unmappedCategoryIds.has(trimmed)) {
+    unmappedCategoryIds.add(trimmed);
+    console.warn(`[AdBlueMedia] Unmapped category_id: ${trimmed} (add to ADBLUEMEDIA_CATEGORY_MAP)`);
+  }
+  
+  return category ?? null;
 }

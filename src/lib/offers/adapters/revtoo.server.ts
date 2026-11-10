@@ -4,6 +4,7 @@ import type {
   OfferProviderAdapter,
   OfferCategory,
 } from "../provider-types";
+import { normalizeDevices } from "../normalize-devices";
 
 /**
  * Revtoo CPA offer feed adapter.
@@ -79,25 +80,7 @@ function mapCategory(raw: string | undefined): OfferCategory | null {
   }
 }
 
-/**
- * Normalize Revtoo device strings to lowercase ["android", "ios", "web"].
- * Revtoo returns OS strings in various formats.
- */
-function normalizeDevices(devices: string[]): string[] {
-  const normalized = new Set<string>();
-  for (const d of devices) {
-    const lower = d.toLowerCase();
-    if (lower === "android" || lower.includes("android")) normalized.add("android");
-    else if (lower === "ios" || lower.includes("ios") || lower.includes("iphone") || lower.includes("ipad")) normalized.add("ios");
-    else if (lower === "web" || lower === "desktop" || lower.includes("desktop")) normalized.add("web");
-    else if (lower === "mobile") {
-      // Generic mobile -> add both android and ios
-      normalized.add("android");
-      normalized.add("ios");
-    }
-  }
-  return Array.from(normalized);
-}
+// Part 2 B4: Removed local normalizeDevices - now using shared function from normalize-devices.ts
 
 export const revtooAdapter: OfferProviderAdapter = {
   slug: "revtoo",

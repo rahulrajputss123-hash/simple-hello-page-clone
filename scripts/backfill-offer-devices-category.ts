@@ -8,6 +8,7 @@
  */
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { normalizeDevices } from "@/lib/offers/normalize-devices";
 
 const DRY_RUN = !process.argv.includes('--apply');
 
@@ -31,26 +32,8 @@ const OFFER_CATEGORIES = [
 type OfferCategory = (typeof OFFER_CATEGORIES)[number];
 
 /**
- * Normalize device strings to lowercase ["android", "ios", "web"]
- */
-function normalizeDevices(devices: string[]): string[] {
-  const normalized = new Set<string>();
-  for (const d of devices) {
-    const lower = d.toLowerCase();
-    if (lower === "android" || lower.includes("android")) normalized.add("android");
-    else if (lower === "ios" || lower.includes("ios") || lower.includes("iphone") || lower.includes("ipad")) normalized.add("ios");
-    else if (lower === "web" || lower === "desktop" || lower.includes("desktop")) normalized.add("web");
-    else if (lower === "mobile") {
-      // Generic mobile -> add both android and ios
-      normalized.add("android");
-      normalized.add("ios");
-    }
-  }
-  return Array.from(normalized);
-}
-
-/**
- * Extract devices from raw_payload based on provider slug
+ * Extract devices from raw_payload based on provider slug.
+ * Uses shared normalizeDevices function for consistency.
  */
 function extractDevicesFromRaw(providerSlug: string, raw: any): string[] {
   if (!raw || typeof raw !== "object") return [];
@@ -60,31 +43,30 @@ function extractDevicesFromRaw(providerSlug: string, raw: any): string[] {
       case "gemiad":
         // device: ["android", "ios", "desktop"]
         if (Array.isArray(raw.device)) {
-          const devices = raw.device.map((d: any) => {
-            const dev = String(d).toLowerCase();
-            if (dev === "desktop") return "web";
-            return dev;
-          });
-          return normalizeDevices(devices);
+          return normalizeDevices(raw.device.map((d: any) => String(d)));
         }
         break;
 
       case "torox":
         // os: "android" | "ios" | "web"
         if (raw.os) {
-          const dev = String(raw.os).toLowerCase();
-          if (dev === "android") return ["android"];
-          if (dev === "ios") return ["ios"];
-          return ["web"];
+          return normalizeDevices([String(raw.os)]);
         }
         break;
 
       case "revtoo":
-        // os: ["Android", "iOS"]
+        // os: ["Android", "iOS"] or ["*"] or ["All"] or null
+        // Handle ["*"], ["All"] as empty
         if (Array.isArray(raw.os)) {
-          return normalizeDevices(raw.os.map((o: any) => String(o)));
+          const devices = raw.os.map((o: any) => String(o));
+          // If os array contains "*" or "All", treat as empty
+          if (devices.some((d) => d === "*" || d.toLowerCase() === "all")) {
+            return [];
+          }
+          return normalizeDevices(devices);
         }
-        break;
+        // If os is null or not an array, return empty
+        return [];
 
       case "adswedmedia":
         // devices: ["Android", "iOS", "Web"]
@@ -96,11 +78,18 @@ function extractDevicesFromRaw(providerSlug: string, raw: any): string[] {
         break;
 
       case "affike":
-        // devices: ["Android", "iOS", "Web"]
+        // devices: ["Android", "iOS", "Web"] or ["*"] or ["All"] or null
+        // Handle ["*"], ["All"] as empty (offer available on all platforms)
         if (Array.isArray(raw.devices)) {
-          return normalizeDevices(raw.devices.map((d: any) => String(d)));
+          const devices = raw.devices.map((d: any) => String(d));
+          // If devices array contains "*" or "All", treat as empty
+          if (devices.some((d) => d === "*" || d.toLowerCase() === "all")) {
+            return [];
+          }
+          return normalizeDevices(devices);
         }
-        break;
+        // If devices is null or not an array, return empty
+        return [];
 
       case "ogads":
         // device: "Android,iOS,Desktop"
@@ -112,11 +101,11 @@ function extractDevicesFromRaw(providerSlug: string, raw: any): string[] {
 
       case "cpxresearch":
         // Surveys work on all devices
-        return ["android", "ios", "web"];
+        return normalizeDevices(["android", "ios", "web"]);
 
       case "adbluemedia":
-        // No device info in raw payload
-        break;
+        // No device info in raw payload - return empty array
+        return [];
     }
   } catch (err) {
     console.error(`Error extracting devices for ${providerSlug}:`, err);
@@ -153,11 +142,26 @@ function extractCategoryFromRaw(providerSlug: string, raw: any): OfferCategory |
         break;
 
       case "torox":
-        // verticalNames: "Gaming, Strategy"
+        // verticalNames: "Gaming, Strategy" or "Survey" or with packageId -> App Install
         if (raw.verticalNames) {
           const lower = String(raw.verticalNames).toLowerCase();
+          
+          // Survey categories
+          if (lower.includes("survey")) {
+            return "Survey";
+          }
+          
+          // Gaming categories
           if (lower.includes("gaming") || lower.includes("strategy") || lower.includes("game")) {
             return "Games";
+          }
+        }
+        
+        // App Install: mobile OS + packageId
+        if (raw.packageId && raw.os) {
+          const osLower = String(raw.os).toLowerCase();
+          if (osLower === "ios" || osLower === "android") {
+            return "App Install";
           }
         }
         break;

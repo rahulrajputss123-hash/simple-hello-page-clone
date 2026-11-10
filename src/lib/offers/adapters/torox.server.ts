@@ -1,4 +1,5 @@
 import type { NormalizedOffer, OfferCategory, OfferProviderAdapter } from "../provider-types";
+import { normalizeDevices } from "../normalize-devices";
 
 /**
  * Torox Offer Feed adapter (Partner API - CPA network).
@@ -115,37 +116,54 @@ function parseGeos(geos: string | undefined): string[] {
 }
 
 /**
- * Normalize Torox os to standard device names.
- */
-function normalizeDevice(os: string | undefined): string {
-  if (!os) return "web";
-  const lower = os.toLowerCase();
-  if (lower === "web") return "web";
-  if (lower === "ios") return "ios";
-  if (lower === "android") return "android";
-  return "web";
-}
-
-/**
  * Map Torox verticalNames to OfferCategory.
- * Real Money Casino -> null (excluded by default)
- * Strategy/Gaming -> Games
+ * Rules per Part 2 C6:
+ * - Gaming/Strategy -> Games
+ * - Survey verticals -> Survey
+ * - OS (ios/android) + packageId -> App Install
+ * - Real Money Casino -> null (excluded by default)
  */
-function mapCategory(verticalNames: string | undefined): OfferCategory | null {
-  if (!verticalNames) return null;
+function mapCategory(
+  verticalNames: string | undefined,
+  os: string | undefined,
+  packageId: string | undefined
+): OfferCategory | null {
+  if (!verticalNames) {
+    // No verticalNames but has packageId and mobile OS -> App Install
+    if (packageId && os) {
+      const lower = os.toLowerCase();
+      if (lower === "ios" || lower === "android") {
+        return "App Install";
+      }
+    }
+    return null;
+  }
   
   const lower = verticalNames.toLowerCase();
   
-  // Skip gambling categories
+  // Skip gambling categories (excluded by default config)
   if (lower.includes("casino") || lower.includes("gambling") || 
       lower.includes("betting") || lower.includes("poker")) {
     return null;
   }
   
-  // Gaming categories
+  // Survey categories
+  if (lower.includes("survey")) {
+    return "Survey";
+  }
+  
+  // Gaming categories (Gaming, Strategy, Game)
   if (lower.includes("gaming") || lower.includes("strategy") || 
       lower.includes("game")) {
     return "Games";
+  }
+  
+  // App Install: mobile OS + packageId
+  if (packageId && os) {
+    const osLower = os.toLowerCase();
+    if (osLower === "ios" || osLower === "android") {
+      return "App Install";
+    }
   }
   
   return null;
@@ -346,11 +364,11 @@ export const toroxAdapter: OfferProviderAdapter = {
         icon = item.coverImage;
       }
 
-      // Device
-      const device = normalizeDevice(item.os);
+      // Devices: use shared normalizeDevices with Torox os field
+      const devices = normalizeDevices(item.os ? [item.os] : []);
 
-      // Category
-      const category = mapCategory(item.verticalNames);
+      // Category: pass os and packageId for App Install detection
+      const category = mapCategory(item.verticalNames, item.os, item.packageId);
 
       // Featured status
       const isFeatured = item.promoted || item.pinned || false;
@@ -368,7 +386,7 @@ export const toroxAdapter: OfferProviderAdapter = {
         clickUrl,
         networkPayout: payout,
         countries,
-        devices: [device],
+        devices,
         category,
         isFeatured,
         stepRewards: stepRewards.length > 0 ? stepRewards : undefined,

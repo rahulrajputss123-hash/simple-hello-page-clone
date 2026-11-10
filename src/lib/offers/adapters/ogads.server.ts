@@ -1,4 +1,5 @@
 import type { NormalizedOffer, OfferProviderAdapter } from "../provider-types";
+import { normalizeDevices } from "../normalize-devices";
 
 /**
  * OGAds (lockerpreview) multi-offer feed adapter.
@@ -50,25 +51,7 @@ function splitList(value: unknown): string[] {
     .filter(Boolean);
 }
 
-/**
- * Normalize OGAds device strings to lowercase ["android", "ios", "web"].
- * OGAds returns: "Android", "iOS", "Desktop", "Mobile", etc.
- */
-function normalizeDevices(devices: string[]): string[] {
-  const normalized = new Set<string>();
-  for (const d of devices) {
-    const lower = d.toLowerCase();
-    if (lower.includes("android")) normalized.add("android");
-    else if (lower.includes("ios") || lower.includes("iphone") || lower.includes("ipad")) normalized.add("ios");
-    else if (lower.includes("desktop") || lower.includes("web")) normalized.add("web");
-    else if (lower.includes("mobile")) {
-      // Generic mobile -> add both android and ios
-      normalized.add("android");
-      normalized.add("ios");
-    }
-  }
-  return Array.from(normalized);
-}
+// Part 2 B4: Removed local normalizeDevices - now using shared function
 
 export const ogAdsAdapter: OfferProviderAdapter = {
   slug: "ogads",
