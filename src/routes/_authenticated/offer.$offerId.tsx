@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfferDetailsView } from "@/components/OfferDetailsView";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/States";
@@ -12,7 +13,37 @@ import type { FeaturedOffer } from "@/lib/offers/feed-cache.server";
 
 export const Route = createFileRoute("/_authenticated/offer/$offerId")({
   component: OfferDetailsPage,
-  // BUILD: 2024-11-09-FIX - Removed head function that accessed undefined loaderData
+  errorComponent: ({ error }) => {
+    console.error("[OfferDetailsRoute] Error:", error);
+    return (
+      <ErrorBoundary>
+        <AppShell hideNav>
+          <div className="flex min-h-screen flex-col items-center justify-center p-4">
+            <div className="w-full max-w-md space-y-4 text-center">
+              <div className="mx-auto grid size-16 place-items-center rounded-full bg-destructive/10">
+                <ArrowLeft className="size-8 text-destructive" />
+              </div>
+              <h1 className="text-2xl font-bold">Unable to load offer</h1>
+              <p className="text-sm text-muted-foreground">
+                This offer could not be loaded. Please try again or return to the offers page.
+              </p>
+              {process.env.NODE_ENV === "development" && error && (
+                <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left">
+                  <p className="text-xs font-mono text-destructive">{error.message}</p>
+                </div>
+              )}
+              <Link
+                to="/offers"
+                className="mx-auto block w-fit rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Back to offers
+              </Link>
+            </div>
+          </div>
+        </AppShell>
+      </ErrorBoundary>
+    );
+  },
 });
 
 function OfferDetailsPage() {
@@ -105,18 +136,20 @@ function OfferDetailsPage() {
   }
 
   return (
-    <AppShell hideNav>
-      <div className="mb-4">
-        <button
-          onClick={handleBack}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary"
-          data-testid="offer-details-back"
-        >
-          <ArrowLeft className="size-4" />
-          Back
-        </button>
-      </div>
-      <OfferDetailsView offer={offer} />
-    </AppShell>
+    <ErrorBoundary>
+      <AppShell hideNav>
+        <div className="mb-4">
+          <button
+            onClick={handleBack}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary"
+            data-testid="offer-details-back"
+          >
+            <ArrowLeft className="size-4" />
+            Back
+          </button>
+        </div>
+        <OfferDetailsView offer={offer} />
+      </AppShell>
+    </ErrorBoundary>
   );
 }

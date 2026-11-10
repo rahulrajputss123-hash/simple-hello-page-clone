@@ -150,6 +150,7 @@ export async function startFeedQuestImpl(
     ip: context.ip,
     country: context.country,
     userAgent: context.userAgent,
+    ipSource: context.ipSource, // Pass through for logging
   };
 
   const allItems: FeedItem[] = [];
@@ -179,10 +180,24 @@ export async function startFeedQuestImpl(
     blockedDomains: quest.blocked_domains,
   });
 
-  // Check if we have enough steps
+  // Check if we have enough steps (including backups)
+  const totalAvailable = steps.length + backups.length;
+  
   if (steps.length < quest.steps_count) {
-    console.warn(`[feed-quest] Only ${steps.length}/${quest.steps_count} steps available for quest ${questKey}`);
-    return { success: false, reason: "unavailable" };
+    // Use backups if available
+    const needed = quest.steps_count - steps.length;
+    const canUseBackups = Math.min(needed, backups.length);
+    
+    if (canUseBackups > 0) {
+      console.log(`[feed-quest] Using ${canUseBackups} backups to fill ${needed} missing steps for quest ${questKey}`);
+      steps.push(...backups.splice(0, canUseBackups));
+    }
+    
+    // Still not enough after using backups?
+    if (steps.length < quest.steps_count) {
+      console.warn(`[feed-quest] Only ${steps.length}/${quest.steps_count} steps available (even after backups) for quest ${questKey}`);
+      return { success: false, reason: "unavailable" };
+    }
   }
 
   // Build snapshot (DON'T include URLs - they'll be regenerated with step tokens)
@@ -209,12 +224,17 @@ export async function startFeedQuestImpl(
     })),
   ];
 
-  // Create session with snapshot
+  // Create session with snapshot - include ALL NOT NULL columns
   const { data: session, error: sessionError } = await db
     .from("quest_sessions")
     .insert({
       user_id: userId,
       quest_key: questKey,
+      quest_type: "feed",
+      current_step: 0,
+      ads_required: quest.ads_required ?? 0,
+      ads_watched: 0,
+      reward_amount: quest.reward_amount,
       status: "started",
       started_at: new Date().toISOString(),
       feed_snapshot: snapshot,
@@ -250,18 +270,24 @@ export async function openFeedQuestStepImpl(
     return { error: "Invalid quest type" };
   }
 
-  // Get active session
+  // Get session (allow any status - user may want to review completed quests)
   const { data: session } = await db
     .from("quest_sessions")
     .select("id, feed_snapshot, status")
     .eq("user_id", userId)
     .eq("quest_key", questKey)
-    .eq("status", "started")
-    .order("created_at", { ascending: false })
+    .order("started_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (!session) {
-    return { error: "No active session" };
+    console.error(`[feed-quest] No session found: questKey=${questKey}, userId=${userId}`);
+    return { error: "No session found for this quest" };
+  }
+
+  // Only allow opening steps for active sessions
+  if (session.status !== "started") {
+    return { error: `Quest is ${session.status}. Cannot open new steps.` };
   }
 
   const snapshot = session.feed_snapshot as FeedSnapshot;

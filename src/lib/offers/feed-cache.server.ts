@@ -821,14 +821,14 @@ export async function getOfferByIdImpl(
 ): Promise<FeaturedOffer | null> {
   const hasImageUrl = await offersHasImageUrl();
 
-  const { data: offer } = await supabaseAdmin
+  const { data: offer, error } = await supabaseAdmin
     .from("offers")
     .select("*")
     .eq("id", offerId)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
 
-  if (!offer) return null;
+  if (error || !offer) return null;
 
   // Fetch provider info if offer has a provider_id (for default_revenue_share)
   let providerSlug: string | null = null;
@@ -838,7 +838,7 @@ export async function getOfferByIdImpl(
       .from("offer_providers")
       .select("slug, default_revenue_share")
       .eq("id", offer.provider_id)
-      .single();
+      .maybeSingle();
     if (provider) {
       providerSlug = provider.slug;
       defaultRevenueShare = Number(provider.default_revenue_share) || 0.6;

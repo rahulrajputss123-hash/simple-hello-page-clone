@@ -87,6 +87,7 @@ type FormState = {
   minQualifyingUsd: string;
   tokenTtlHours: string;
   rewardHoldHours: string;
+  creditOfferReward: boolean;
   // Survey quest fields
   requiredSurveys: string;
   allowedNetworks: string[];
@@ -196,6 +197,7 @@ const emptyForm = (): FormState => ({
   minQualifyingUsd: "0.01",
   tokenTtlHours: "24",
   rewardHoldHours: "0",
+  creditOfferReward: false,
   // Survey quest defaults
   requiredSurveys: "5",
   allowedNetworks: ["cpxresearch", "theoremreach", "timewall"],
@@ -301,6 +303,7 @@ export function QuestsManager() {
                 minQualifyingUsd: Number(state.minQualifyingUsd) || 0.01,
                 tokenTtlHours: Number(state.tokenTtlHours) || 24,
                 rewardHoldHours: Number(state.rewardHoldHours) || 0,
+                creditOfferReward: state.creditOfferReward,
               }
             : {}),
           // Survey quest fields
@@ -336,6 +339,7 @@ export function QuestsManager() {
                       .filter(Boolean)
                   : [],
                 tokenTtlHours: Number(state.feedTokenTtlHours) || 48,
+                creditOfferReward: state.creditOfferReward,
               }
             : {}),
           // Timed PTC quest fields
@@ -432,6 +436,8 @@ export function QuestsManager() {
       tokenTtlHours: String((quest as any).token_ttl_hours ?? 24),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rewardHoldHours: String((quest as any).reward_hold_hours ?? 0),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      creditOfferReward: Boolean((quest as any).credit_offer_reward ?? false),
       // Survey quest fields
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       requiredSurveys: String((quest as any).required_surveys ?? 5),
@@ -1317,6 +1323,19 @@ export function QuestsManager() {
                       </p>
                     </Field>
 
+                    <Field label="Also credit normal offer reward">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={form.creditOfferReward}
+                          onCheckedChange={(checked) => setForm({ ...form, creditOfferReward: checked })}
+                        />
+                        <span className="text-sm">{form.creditOfferReward ? "Enabled" : "Disabled"}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        When enabled, users get BOTH quest progress AND normal wallet reward (with referral bonuses, task events, etc.)
+                      </p>
+                    </Field>
+
                     {/* Payout summary */}
                     {(() => {
                       const requiredCount = Number(form.requiredCount) || 3;
@@ -1689,6 +1708,19 @@ export function QuestsManager() {
                       />
                       <p className="text-xs text-muted-foreground mt-1">
                         Leave empty for no step rewards. Length should match steps count.
+                      </p>
+                    </Field>
+
+                    <Field label="Also credit normal offer reward">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={form.creditOfferReward}
+                          onCheckedChange={(checked) => setForm({ ...form, creditOfferReward: checked })}
+                        />
+                        <span className="text-sm">{form.creditOfferReward ? "Enabled" : "Disabled"}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        When enabled, users get BOTH quest progress AND normal wallet reward
                       </p>
                     </Field>
 

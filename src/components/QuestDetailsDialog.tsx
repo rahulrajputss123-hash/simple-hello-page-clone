@@ -46,7 +46,7 @@ export function QuestDetailsDialog({
   onContinue: () => void;
   isSubmitting?: boolean;
   activeTimeQuestKey?: string | null;
-  activeTimeProgress?: { ping_token: string; total_seconds: number; today_seconds: number } | null;
+  activeTimeProgress?: { last_ping_token: string; total_seconds: number; today_seconds: number } | null;
 }) {
   const accent = quest ? (QUEST_ACCENTS[quest.quest_type] ?? QUEST_ACCENTS.ads) : null;
   const view = quest ? deriveQuestView(quest, active, credited, activeTimeProgress) : null;
@@ -668,9 +668,9 @@ function NetworkQuestProviderGrid({
                 className={`
                   relative flex min-h-[80px] flex-col items-center justify-center gap-2 rounded-xl border p-3 transition-all
                   ${isDone 
-                    ? "border-primary/30 bg-primary/10 cursor-default" 
+                    ? "border-primary/30 bg-primary/10 opacity-80 cursor-default" 
                     : isNotNeeded
-                    ? "border-border/50 bg-muted/30 opacity-60 cursor-default"
+                    ? "border-border/50 bg-muted/30 opacity-40 cursor-default"
                     : "border-primary/20 bg-background hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
                   }
                   ${isOpening ? "opacity-50" : ""}
@@ -721,7 +721,7 @@ function NetworkQuestProviderGrid({
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          Pick any {required} of these {totalNetworks} networks. 1 completed offer per network counts.
+          Pick any {required} of these {totalNetworks} {totalNetworks === 1 ? "network" : "networks"}. 1 completed offer per network counts.
         </p>
       </section>
 
@@ -764,7 +764,9 @@ function NetworkQuestProviderGrid({
         <Info className="size-4 shrink-0" />
         <span>
           Tap a network above to open its offerwall. Complete an <strong>offer, survey, or task</strong> inside the network.
-          Choose an offer that pays at least <strong>${(quest.min_qualifying_usd ?? 0.01).toFixed(2)}</strong> so it counts.
+          {quest.min_qualifying_usd > 0 && (
+            <> Choose an offer that pays at least <strong>${quest.min_qualifying_usd.toFixed(2)}</strong> so it counts.</>
+          )}
         </span>
       </section>
     </>

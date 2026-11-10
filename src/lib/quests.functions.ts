@@ -490,7 +490,7 @@ export const getFeedQuestProgress = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .eq("quest_key", questKey)
       .eq("status", "started")
-      .order("created_at", { ascending: false })
+      .order("started_at", { ascending: false })
       .maybeSingle();
 
     if (!session) {
@@ -688,7 +688,7 @@ export const getSurveyQuestProgress = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .eq("quest_key", data.questKey)
       .in("status", ["started", "verified"])
-      .order("created_at", { ascending: false })
+      .order("started_at", { ascending: false })
       .maybeSingle();
 
     if (!session) {
@@ -750,13 +750,15 @@ export const getActiveTimeQuestKey = createServerFn({ method: "POST" })
       .select("key, target_minutes")
       .eq("quest_type", "active_time")
       .eq("is_active", true)
+      .order("created_at", { ascending: true }) // Pick oldest first if multiple exist
+      .limit(1)
       .maybeSingle();
     
     if (!quest) {
       return { questKey: null };
     }
     
-    // Check if user has started this quest and hasn't completed it yet
+    // Check if user has completed this quest
     const { data: progress } = await db
       .from("quest_active_time_progress")
       .select("total_seconds, credited_at")
@@ -764,11 +766,20 @@ export const getActiveTimeQuestKey = createServerFn({ method: "POST" })
       .eq("quest_key", quest.key)
       .maybeSingle();
     
-    // Return key only if quest is in progress (started but not completed)
-    if (progress && !progress.credited_at && progress.total_seconds < quest.target_minutes * 60) {
+    // Return quest key if:
+    // 1. User has no progress yet (new user, quest available)
+    // 2. User has progress but hasn't completed or claimed it yet
+    if (!progress) {
+      // New user - quest is available
       return { questKey: quest.key };
     }
     
+    // User has progress - check if incomplete
+    if (!progress.credited_at && progress.total_seconds < quest.target_minutes * 60) {
+      return { questKey: quest.key };
+    }
+    
+    // Already completed/claimed
     return { questKey: null };
   });
 
@@ -783,13 +794,14 @@ export const processActiveTimePing = createServerFn({ method: "POST" })
     z
       .object({
         questKey: z.string().min(1).max(40),
-        pingToken: z.string().uuid(),
+        pingToken: z.string().nullable(),
+        isActive: z.boolean().default(true),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { processActiveTimePingImpl, claimActiveTimeRewardImpl } = await import("./quests.server");
-    const result = await processActiveTimePingImpl(context.userId, data.questKey, data.pingToken);
+    const result = await processActiveTimePingImpl(context.userId, data.questKey, data.pingToken, data.isActive);
     
     // Auto-claim if target reached
     if (result.success && result.canClaim) {

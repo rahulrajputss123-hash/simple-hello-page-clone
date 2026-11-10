@@ -12,6 +12,7 @@ import {
 } from "../sdk-offerwall/types";
 import { getSdkAdapter } from "../sdk-offerwall/registry.server";
 import { logAutomation } from "./logs.server";
+import { normalizeQuest } from "../quest-normalize";
 
 export type PostbackResult = {
   ok: boolean;
@@ -189,6 +190,136 @@ async function recordRejection(
     context: { transactionId: fields.transactionId, params: req.params as JsonObject },
   });
   return { ok: false, status: fields.status, reason: fields.reason };
+}
+
+/**
+ * Credit normal wallet reward for a conversion (used as fallback when quest processing fails).
+ */
+async function creditNormalReward(
+  provider: SdkOfferwallProvider,
+  req: PostbackRequest,
+  parsed: { providerTransactionId: string; providerUserRef: string; providerOfferId?: string; currencyAmount: number; raw: JsonObject },
+  auth: { ok: boolean; reason?: string; signatureValid: boolean | null },
+  userId: string,
+  conversionId: string,
+  currencyAmount: number,
+): Promise<PostbackResult> {
+  const reward = convertSdkCurrency(provider, currencyAmount);
+
+  if (reward <= 0) {
+    await supabaseAdmin
+      .from("sdk_offerwall_conversions")
+      .update({
+        status: "rejected",
+        reject_reason: "zero_reward",
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", conversionId);
+    await logAutomation({
+      eventType: "sdk_postback",
+      status: "warning",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversionId,
+      message: "Conversion produced a zero reward",
+      context: { currencyAmount },
+    });
+    return { ok: false, status: "rejected", reason: "zero_reward" };
+  }
+
+  // Credit wallet
+  let credit: Awaited<ReturnType<typeof creditSdkConversionRpc>>;
+  try {
+    credit = await creditSdkConversionRpc({
+      conversionId,
+      reward,
+      description: `${provider.name} offerwall reward`,
+      allowRetry: false,
+    });
+  } catch (error) {
+    await supabaseAdmin
+      .from("sdk_offerwall_conversions")
+      .update({
+        status: "rejected",
+        reject_reason: "wallet_credit_failed",
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", conversionId);
+    await logAutomation({
+      eventType: "wallet_credit",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversionId,
+      message: error instanceof Error ? error.message : "Wallet credit failed",
+    });
+    return { ok: false, status: "rejected", reason: "wallet_credit_failed" };
+  }
+
+  if (!credit.credited) {
+    await logAutomation({
+      eventType: "wallet_credit",
+      status: "warning",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversionId,
+      message: `Conversion not credited: ${credit.reason ?? "unknown"}`,
+    });
+    return { ok: true, status: "duplicate", reason: credit.reason ?? "duplicate" };
+  }
+
+  await logAutomation({
+    eventType: "wallet_credit",
+    status: "success",
+    source: provider.slug,
+    providerId: provider.id,
+    userId,
+    referenceId: conversionId,
+    message: `Credited $${reward.toFixed(2)} from ${provider.name}`,
+    context: { currencyAmount, reward, transactionId: parsed.providerTransactionId },
+  });
+
+  // Referral automation
+  try {
+    await payReferralMilestone(userId, "earning", "Referral: friend's first earning");
+  } catch (error) {
+    await logAutomation({
+      eventType: "referral_automation",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      message: error instanceof Error ? error.message : "Referral automation failed",
+    });
+  }
+
+  // Task automation
+  try {
+    const { recordTaskEvent } = await import("../tasks/engine.server");
+    await recordTaskEvent({
+      userId,
+      eventType: "offerwall_earning",
+      eventKey: conversionId,
+      quantity: reward,
+      metadata: { providerId: provider.id },
+      providerId: provider.id,
+    });
+  } catch (error) {
+    await logAutomation({
+      eventType: "task_automation",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversionId,
+      message: error instanceof Error ? error.message : "Task event recording failed",
+    });
+  }
+
+  return { ok: true, status: "credited", reward, conversionId };
 }
 
 /**
@@ -379,19 +510,7 @@ async function processQuestTokenPostback(
     return { ok: true, status: "duplicate", reason: "duplicate" };
   }
 
-  await logAutomation({
-    eventType: "sdk_postback",
-    status: "success",
-    source: provider.slug,
-    providerId: provider.id,
-    userId,
-    referenceId: conversion.id,
-    message: `Quest conversion absorbed (no wallet credit): ${provider.name}`,
-    context: { currencyAmount, transactionId: transactionKey, questKey: session.quest_key },
-  });
-
-  // --- Quest progress tracking -------------------------------------------
-  // Get quest to check min_qualifying_usd and step rewards
+  // Get quest to check min_qualifying_usd, step rewards, and credit_offer_reward flag
   const { data: quest } = await db
     .from("quests")
     .select("*")
@@ -399,24 +518,91 @@ async function processQuestTokenPostback(
     .maybeSingle();
 
   if (!quest) {
+    // Quest not found - fallback to normal wallet credit to avoid user losing reward
     await logAutomation({
       eventType: "quest_automation",
       status: "error",
       source: provider.slug,
       providerId: provider.id,
       userId,
-      message: "Quest not found for absorbed conversion",
-      context: { questKey: session.quest_key },
+      referenceId: conversion.id,
+      message: "Quest not found - falling back to normal wallet credit",
+      context: { questKey: session.quest_key, sessionId: session.id, reason: "quest_not_found" },
     });
-    return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
+    
+    // Update conversion status to credited and process normal wallet credit
+    await supabaseAdmin
+      .from("sdk_offerwall_conversions")
+      .update({ status: "pending" })
+      .eq("id", conversion.id);
+    
+    // Fall through to normal credit logic below
+    return await creditNormalReward(provider, req, parsed, auth, userId, conversion.id, currencyAmount);
   }
 
-  const { normalize } = await import("../quests.server");
-  const normalizedQuest = normalize(quest);
+  const normalizedQuest = normalizeQuest(quest);
+  const shouldCreditWallet = quest.credit_offer_reward === true;
+
+  // Log the quest conversion with credit_offer_reward status
+  await logAutomation({
+    eventType: "sdk_postback",
+    status: "success",
+    source: provider.slug,
+    providerId: provider.id,
+    userId,
+    referenceId: conversion.id,
+    message: shouldCreditWallet 
+      ? `Quest conversion: tracking progress + crediting wallet (credit_offer_reward=true)`
+      : `Quest conversion: tracking progress only (credit_offer_reward=false)`,
+    context: { 
+      currencyAmount, 
+      transactionId: transactionKey, 
+      questKey: session.quest_key,
+      sessionId: session.id,
+      creditWallet: shouldCreditWallet,
+    },
+  });
 
   // Convert to USD
   const usd = convertSdkCurrency(provider, currencyAmount);
 
+  // ========== CRITICAL: Wrap all quest processing in try/catch ==========
+  // If ANY error occurs after marking conversion as quest_absorbed, we must
+  // fall back to normal wallet credit to avoid losing the user's reward.
+  try {
+    return await processQuestLogic();
+  } catch (error) {
+    // Quest processing failed - fallback to normal wallet credit
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    await logAutomation({
+      eventType: "quest_automation",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversion.id,
+      message: `Quest processing failed - falling back to normal wallet credit: ${errorMessage}`,
+      context: { 
+        questKey: session.quest_key, 
+        sessionId: session.id, 
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+    });
+    
+    // Update conversion status back to pending so it goes through normal pipeline
+    await supabaseAdmin
+      .from("sdk_offerwall_conversions")
+      .update({ status: "pending", reject_reason: null })
+      .eq("id", conversion.id);
+    
+    // Credit through normal reward pipeline
+    return await creditNormalReward(provider, req, parsed, auth, userId, conversion.id, currencyAmount);
+  }
+
+  // Inner function containing all quest processing logic
+  async function processQuestLogic() {
   // ========== BRANCH: Feed Quest vs Network Quest ==========
   if (tokenData.kind === "feed") {
     // FEED QUEST: Steps are sequential, tracked by step_index
@@ -475,33 +661,60 @@ async function processQuestTokenPostback(
     // If postback carries no campaign_id, rely on token alone (allowed)
 
     // Insert completion for this step
-    const { error: completionError } = await db
-      .from("quest_network_completions")
-      .insert({
-        session_id: session.id,
-        provider_id: provider.id,
-        conversion_id: conversion.id,
-        step_index: tokenData.step_index,
-        kind: "feed",
-        amount_usd: usd,
-      });
+    let completionError: any = null;
+    try {
+      const { error } = await db
+        .from("quest_network_completions")
+        .insert({
+          session_id: session.id,
+          provider_id: provider.id,
+          conversion_id: conversion.id,
+          step_index: tokenData.step_index,
+          kind: "feed",
+          amount_usd: usd,
+        });
+
+      if (error) {
+        if (error.code === "23505") {
+          // Duplicate step completion (idempotent)
+          await logAutomation({
+            eventType: "quest_automation",
+            status: "info",
+            source: provider.slug,
+            providerId: provider.id,
+            userId,
+            referenceId: conversion.id,
+            message: `Step ${tokenData.step_index} already completed (duplicate postback)`,
+            context: { questKey: session.quest_key, stepIndex: tokenData.step_index, sessionId: session.id },
+          });
+          return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
+        }
+        completionError = error;
+      }
+    } catch (error) {
+      completionError = error;
+    }
 
     if (completionError) {
-      if (completionError.code === "23505") {
-        // Duplicate step completion (idempotent)
-        await logAutomation({
-          eventType: "quest_automation",
-          status: "info",
-          source: provider.slug,
-          providerId: provider.id,
-          userId,
-          referenceId: conversion.id,
-          message: `Step ${tokenData.step_index} already completed (duplicate postback)`,
-          context: { questKey: session.quest_key, stepIndex: tokenData.step_index },
-        });
-        return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
-      }
-      throw completionError;
+      // Quest progress write failed - fallback to normal wallet credit
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "error",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversion.id,
+        message: `Failed to record quest completion - falling back to normal wallet credit: ${completionError instanceof Error ? completionError.message : "unknown"}`,
+        context: { questKey: session.quest_key, stepIndex: tokenData.step_index, sessionId: session.id, reason: "quest_write_failed" },
+      });
+      
+      // Update conversion status to pending and credit through normal pipeline
+      await supabaseAdmin
+        .from("sdk_offerwall_conversions")
+        .update({ status: "pending" })
+        .eq("id", conversion.id);
+      
+      return await creditNormalReward(provider, req, parsed, auth, userId, conversion.id, currencyAmount);
     }
 
     await logAutomation({
@@ -578,7 +791,7 @@ async function processQuestTokenPostback(
       if (sessionUpdate?.status === "verified") {
         try {
           const { finishQuestSession } = await import("../quests.server");
-          await finishQuestSession(userId, session.id, normalizedQuest);
+          await finishQuestSession(userId, session.id, normalizedQuest.reward_amount, `Feed Quest: ${normalizedQuest.label}`);
           
           await logAutomation({
             eventType: "quest_automation",
@@ -603,6 +816,28 @@ async function processQuestTokenPostback(
           });
         }
       }
+    }
+
+    // If credit_offer_reward is true, ALSO credit normal wallet reward
+    if (shouldCreditWallet) {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "info",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversion.id,
+        message: `Crediting normal wallet reward (credit_offer_reward=true)`,
+        context: { questKey: session.quest_key, sessionId: session.id, reason: "credit_offer_reward_enabled" },
+      });
+      
+      // Update conversion status to pending and credit through normal pipeline
+      await supabaseAdmin
+        .from("sdk_offerwall_conversions")
+        .update({ status: "pending" })
+        .eq("id", conversion.id);
+      
+      return await creditNormalReward(provider, req, parsed, auth, userId, conversion.id, currencyAmount);
     }
 
     return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
@@ -658,6 +893,8 @@ async function processQuestTokenPostback(
   // Try to insert completion with atomic step_index assignment (with retry)
   let stepIndex = 0;
   let completionInserted = false;
+  let lastCompletionError: any = null;
+  
   for (let attempt = 0; attempt < 5; attempt++) {
     // Count existing completions to determine next step_index
     const { data: existingCompletions } = await db
@@ -669,7 +906,7 @@ async function processQuestTokenPostback(
     stepIndex = (existingCompletions || []).length + 1;
 
     // Try to insert with this step_index
-    const { error: completionError } = await db
+    const { data: insertedCompletion, error: completionError } = await db
       .from("quest_network_completions")
       .insert({
         session_id: session.id,
@@ -678,9 +915,11 @@ async function processQuestTokenPostback(
         step_index: stepIndex,
         kind: "network",
         amount_usd: usd,
-      });
+      })
+      .select()
+      .maybeSingle();
 
-    if (!completionError) {
+    if (!completionError && insertedCompletion) {
       completionInserted = true;
       break;
     }
@@ -695,22 +934,25 @@ async function processQuestTokenPostback(
         userId,
         referenceId: conversion.id,
         message: "Provider already completed for this quest session",
-        context: { questKey: session.quest_key },
+        context: { questKey: session.quest_key, sessionId: session.id },
       });
       return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
     }
 
     // Step index collision - retry with recomputed index
     if (completionError.code === "23505") {
+      lastCompletionError = completionError;
       await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1))); // Backoff
       continue;
     }
 
-    // Other error
-    throw completionError;
+    // Other error - save and break
+    lastCompletionError = completionError;
+    break;
   }
 
   if (!completionInserted) {
+    // Quest progress write failed after retries - fallback to normal wallet credit
     await logAutomation({
       eventType: "quest_automation",
       status: "error",
@@ -718,10 +960,17 @@ async function processQuestTokenPostback(
       providerId: provider.id,
       userId,
       referenceId: conversion.id,
-      message: "Failed to insert network completion after retries",
-      context: { questKey: session.quest_key },
+      message: `Failed to insert network completion after retries - falling back to normal wallet credit: ${lastCompletionError instanceof Error ? lastCompletionError.message : "unknown"}`,
+      context: { questKey: session.quest_key, sessionId: session.id, reason: "quest_write_failed" },
     });
-    return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
+    
+    // Update conversion status to pending and credit through normal pipeline
+    await supabaseAdmin
+      .from("sdk_offerwall_conversions")
+      .update({ status: "pending" })
+      .eq("id", conversion.id);
+    
+    return await creditNormalReward(provider, req, parsed, auth, userId, conversion.id, currencyAmount);
   }
 
   await logAutomation({
@@ -734,6 +983,21 @@ async function processQuestTokenPostback(
     message: `Quest network completion recorded: ${provider.name} (step ${stepIndex})`,
     context: { questKey: session.quest_key, usd, stepIndex },
   });
+
+  // Update current_step on quest_sessions to reflect network progress
+  // Count all network completions for this session (handles idempotent postbacks)
+  const { data: networkCompletions } = await db
+    .from("quest_network_completions")
+    .select("id")
+    .eq("session_id", session.id)
+    .eq("kind", "network");
+  
+  const networkStepCount = (networkCompletions || []).length;
+  
+  await db
+    .from("quest_sessions")
+    .update({ current_step: networkStepCount })
+    .eq("id", session.id);
 
   // Credit step reward
   const stepRewardAmount = normalizedQuest.step_rewards?.[stepIndex - 1] ?? normalizedQuest.step_reward ?? 0;
@@ -829,7 +1093,30 @@ async function processQuestTokenPostback(
     });
   }
 
+  // If credit_offer_reward is true, ALSO credit normal wallet reward
+  if (shouldCreditWallet) {
+    await logAutomation({
+      eventType: "quest_automation",
+      status: "info",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversion.id,
+      message: `Crediting normal wallet reward (credit_offer_reward=true)`,
+      context: { questKey: session.quest_key, sessionId: session.id, reason: "credit_offer_reward_enabled" },
+    });
+    
+    // Update conversion status to pending and credit through normal pipeline
+    await supabaseAdmin
+      .from("sdk_offerwall_conversions")
+      .update({ status: "pending" })
+      .eq("id", conversion.id);
+    
+    return await creditNormalReward(provider, req, parsed, auth, userId, conversion.id, currencyAmount);
+  }
+
   return { ok: true, status: "credited", reason: "quest_absorbed", conversionId: conversion.id };
+  } // End of processQuestLogic inner function
 }
 
 /**

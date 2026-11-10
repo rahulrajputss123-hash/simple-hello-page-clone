@@ -21,7 +21,7 @@ import {
 } from "@/lib/quests.functions";
 import { formatLockReason } from "@/lib/lock-state";
 import { isNativePlatform } from "@/lib/platform";
-import { useActiveTimeTracking } from "@/hooks/useActiveTimeTracking";
+import { useActiveTime } from "@/contexts/ActiveTimeContext";
 import { ActiveTimeStillHereDialog } from "@/components/ActiveTimeStillHereDialog";
 
 // Lazy-load dialog (only shown on click)
@@ -85,7 +85,7 @@ export function StarterQuests() {
       if (!activeTimeQuestKey.data) return null;
       const { data } = await supabase
         .from("quest_active_time_progress")
-        .select("ping_token, total_seconds, today_seconds")
+        .select("last_ping_token, total_seconds, today_seconds")
         .eq("user_id", session!.user.id)
         .eq("quest_key", activeTimeQuestKey.data)
         .maybeSingle();
@@ -94,20 +94,15 @@ export function StarterQuests() {
     staleTime: 10_000,
   });
 
-  // Mount active time tracking
-  const activeTimeTracking = useActiveTimeTracking(
-    activeTimeQuestKey.data || null,
-    activeTimeProgress.data?.ping_token || null,
-  );
+  // Get active time tracking from context
+  const activeTime = useActiveTime();
 
   // Auto-start tracking when quest becomes active
   useEffect(() => {
-    if (activeTimeQuestKey.data && !activeTimeTracking.isTracking) {
-      activeTimeTracking.startTracking();
-    } else if (!activeTimeQuestKey.data && activeTimeTracking.isTracking) {
-      activeTimeTracking.stopTracking();
+    if (activeTimeQuestKey.data && !activeTime.state?.isTracking) {
+      activeTime.startTracking(activeTimeQuestKey.data);
     }
-  }, [activeTimeQuestKey.data]);
+  }, [activeTimeQuestKey.data, activeTime.state?.isTracking]);
 
   // Detect and update browser timezone on first load
   useEffect(() => {
@@ -117,7 +112,7 @@ export function StarterQuests() {
       try {
         const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         if (browserTimezone) {
-          await setTimezone({ timezone: browserTimezone });
+          await setTimezone({ data: { timezone: browserTimezone } });
         }
       } catch (err) {
         console.error("[timezone] Failed to detect/update:", err);
@@ -414,10 +409,25 @@ export function StarterQuests() {
                 onOpenDetails={createOpenDetailsHandler(quest.key)}
                 activeTimeQuestKey={activeTimeQuestKey.data}
                 activeTimeProgress={
-                  quest.quest_type === "active_time" ? activeTimeProgress.data : undefined
+                  quest.quest_type === "active_time" && activeTime.state
+                    ? {
+                        last_ping_token: '',
+                        total_seconds: activeTime.state.totalSeconds,
+                        today_seconds: activeTime.state.todaySeconds,
+                      }
+                    : undefined
                 }
                 activeTimeTracking={
-                  quest.quest_type === "active_time" ? activeTimeTracking : undefined
+                  quest.quest_type === "active_time" && activeTime.state
+                    ? {
+                        isTracking: activeTime.state.isTracking,
+                        isPaused: activeTime.state.isPaused,
+                        showStillHerePrompt: activeTime.state.showStillHerePrompt,
+                        lastPingAt: activeTime.state.lastServerSync,
+                        pingToken: null,
+                        error: activeTime.state.error,
+                      }
+                    : undefined
                 }
               />
             );
@@ -436,7 +446,13 @@ export function StarterQuests() {
             isSubmitting={Boolean(pendingQuest) && busy === pendingQuest?.key}
             activeTimeQuestKey={activeTimeQuestKey.data}
             activeTimeProgress={
-              pendingQuest?.quest_type === "active_time" ? activeTimeProgress.data : undefined
+              pendingQuest?.quest_type === "active_time" && activeTime.state
+                ? {
+                    last_ping_token: '',
+                    total_seconds: activeTime.state.totalSeconds,
+                    today_seconds: activeTime.state.todaySeconds,
+                  }
+                : undefined
             }
           />
         </Suspense>
@@ -444,8 +460,8 @@ export function StarterQuests() {
 
       {/* Active Time "Still Here?" Dialog */}
       <ActiveTimeStillHereDialog
-        open={activeTimeTracking.showStillHerePrompt}
-        onConfirm={activeTimeTracking.confirmStillHere}
+        open={activeTime.state?.showStillHerePrompt || false}
+        onConfirm={activeTime.confirmStillHere}
       />
     </>
   );

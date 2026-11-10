@@ -124,7 +124,7 @@ export const cpxResearchAdapter: OfferProviderAdapter = {
   slug: "cpxresearch",
   providerType: "survey",
 
-  validateConfig() {
+  validateConfig(config) {
     if (!process.env["CPX_APP_ID"] || !process.env["CPX_SECURE_HASH"]) {
       return "CPX_APP_ID and CPX_SECURE_HASH must be configured on the server.";
     }

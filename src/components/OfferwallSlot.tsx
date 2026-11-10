@@ -10,6 +10,13 @@ import { getOfferwallMeSignedUrl, getTheoremReachSignedUrl, getToroxWallUrl, lis
 import { startActiveTimeGrace } from "@/lib/quests.functions";
 
 function buildOfferwallUrl(slug: string, appId: string, userId: string): string | null {
+  // SAFETY: Quest tokens must NEVER be used in normal offerwall clicks
+  // Quest tokens (format: "q_" + random chars) are only for quest-specific network opens
+  if (userId.startsWith("q_")) {
+    console.error(`[offerwall] Quest token blocked in normal offerwall URL: ${userId.slice(0, 10)}...`);
+    return null;
+  }
+
   if (slug === "mooffers") {
     return `https://wall.mooffers.com/offerwall/${appId}?uid=${encodeURIComponent(userId)}`;
   }

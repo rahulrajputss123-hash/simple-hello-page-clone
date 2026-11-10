@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { useActiveTimeTracking } from "@/hooks/useActiveTimeTracking";
+import { useActiveTime } from "@/contexts/ActiveTimeContext";
 import { useCheckinHeartbeat } from "@/hooks/useCheckinHeartbeat";
 import { getActiveTimeQuestKey, updateUserTimezone } from "@/lib/quests.functions";
 import { ActiveTimeStillHereDialog } from "@/components/ActiveTimeStillHereDialog";
@@ -40,7 +40,7 @@ export function QuestTracking() {
         const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         if (browserTimezone) {
           console.log("[QuestTracking] Updating user timezone to:", browserTimezone);
-          await setTimezone({ timezone: browserTimezone });
+          await setTimezone({ data: { timezone: browserTimezone } });
         }
       } catch (err) {
         console.error("[QuestTracking] Failed to detect/update timezone:", err);
@@ -54,11 +54,18 @@ export function QuestTracking() {
   const activeTimeQuestKey = useQuery({
     queryKey: ["active-time-quest-key", session?.user.id],
     enabled: Boolean(session),
-    queryFn: () => fetchActiveTimeKey({}),
+    queryFn: () => fetchActiveTimeKey({ data: {} }),
     staleTime: 30_000, // Cache for 30s
     refetchInterval: 60_000, // Re-check every minute
     select: (data) => data.questKey,
   });
+
+  // Log when active time quest is found
+  useEffect(() => {
+    if (activeTimeQuestKey.data) {
+      console.log("[QuestTracking] Active time quest found for user:", activeTimeQuestKey.data);
+    }
+  }, [activeTimeQuestKey.data]);
 
   // Get initial token from active time progress
   const activeTimeProgress = useQuery({
@@ -68,10 +75,11 @@ export function QuestTracking() {
       if (!activeTimeQuestKey.data) return null;
       const { data } = await supabase
         .from("quest_active_time_progress")
-        .select("ping_token, total_seconds, today_seconds")
+        .select("last_ping_token, total_seconds, today_seconds")
         .eq("user_id", session!.user.id)
         .eq("quest_key", activeTimeQuestKey.data)
         .maybeSingle();
+      console.log("[QuestTracking] Active time progress fetched:", data);
       return data;
     },
     staleTime: 10_000,
@@ -112,39 +120,33 @@ export function QuestTracking() {
     refetchInterval: 60_000,
   });
 
-  // Mount active time tracking
-  const activeTimeTracking = useActiveTimeTracking(
-    activeTimeQuestKey.data || null,
-    activeTimeProgress.data?.ping_token || null,
-  );
+  // Get active time tracking from context
+  const activeTime = useActiveTime();
 
   // Auto-start active time tracking when quest becomes active
   useEffect(() => {
-    if (activeTimeQuestKey.data && !activeTimeTracking.isTracking) {
+    if (activeTimeQuestKey.data && !activeTime.state?.isTracking) {
       console.log("[QuestTracking] Starting active time tracking for:", activeTimeQuestKey.data);
-      activeTimeTracking.startTracking();
-    } else if (!activeTimeQuestKey.data && activeTimeTracking.isTracking) {
-      console.log("[QuestTracking] Stopping active time tracking");
-      activeTimeTracking.stopTracking();
+      activeTime.startTracking(activeTimeQuestKey.data);
     }
-  }, [activeTimeQuestKey.data]);
+  }, [activeTimeQuestKey.data, activeTime.state?.isTracking]);
 
   // Log active time tracking state changes
   useEffect(() => {
-    if (activeTimeTracking.isTracking) {
+    if (activeTime.state?.isTracking) {
       console.log("[QuestTracking] Active time tracking state:", {
-        isTracking: activeTimeTracking.isTracking,
-        isPaused: activeTimeTracking.isPaused,
-        showStillHerePrompt: activeTimeTracking.showStillHerePrompt,
-        lastPingAt: activeTimeTracking.lastPingAt,
-        error: activeTimeTracking.error,
+        isTracking: activeTime.state.isTracking,
+        isPaused: activeTime.state.isPaused,
+        showStillHerePrompt: activeTime.state.showStillHerePrompt,
+        totalSeconds: activeTime.state.totalSeconds,
+        error: activeTime.state.error,
       });
     }
   }, [
-    activeTimeTracking.isTracking,
-    activeTimeTracking.isPaused,
-    activeTimeTracking.showStillHerePrompt,
-    activeTimeTracking.lastPingAt,
+    activeTime.state?.isTracking,
+    activeTime.state?.isPaused,
+    activeTime.state?.showStillHerePrompt,
+    activeTime.state?.totalSeconds,
   ]);
 
   // Mount check-in heartbeat for first incomplete day
@@ -186,10 +188,10 @@ export function QuestTracking() {
   // Show "Still here?" dialog for active time
   return (
     <>
-      {activeTimeTracking.showStillHerePrompt && (
+      {activeTime.state?.showStillHerePrompt && (
         <ActiveTimeStillHereDialog
-          open={activeTimeTracking.showStillHerePrompt}
-          onConfirm={activeTimeTracking.confirmStillHere}
+          open={activeTime.state.showStillHerePrompt}
+          onConfirm={activeTime.confirmStillHere}
         />
       )}
     </>

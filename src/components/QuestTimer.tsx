@@ -152,10 +152,10 @@ export function QuestTimer({
 }
 
 /**
- * Checkin day indicator component.
- * Shows 3 dots representing the 3-day streak with today highlighted.
+ * Compact checkin day indicator - one row with colored dots and labels.
+ * Green = done, Orange = today, Grey = locked
  */
-export function CheckinDayDots({
+export function CheckinDayDotsCompact({
   totalDays,
   completedDays,
   currentDay,
@@ -165,31 +165,30 @@ export function CheckinDayDots({
   currentDay: number;
 }) {
   return (
-    <div className="flex items-center justify-center gap-2">
+    <div className="flex items-center justify-center gap-3">
       {Array.from({ length: totalDays }, (_, i) => {
         const dayNum = i + 1;
         const isCompleted = dayNum <= completedDays;
         const isCurrent = dayNum === currentDay;
-        const isFuture = dayNum > currentDay;
 
         return (
           <div key={i} className="flex flex-col items-center gap-1">
             <div
-              className={`size-3 rounded-full transition-all ${
+              className={`size-2.5 rounded-full ${
                 isCompleted
-                  ? "bg-emerald-600 ring-2 ring-emerald-200"
+                  ? "bg-emerald-500"
                   : isCurrent
-                    ? "bg-amber-500 ring-2 ring-amber-200 animate-pulse"
-                    : "bg-muted ring-1 ring-border"
+                    ? "bg-amber-500"
+                    : "bg-gray-300"
               }`}
             />
             <span
-              className={`text-[9px] font-medium ${
+              className={`text-[10px] font-medium ${
                 isCompleted
                   ? "text-emerald-600"
                   : isCurrent
                     ? "text-amber-600"
-                    : "text-muted-foreground"
+                    : "text-gray-400"
               }`}
             >
               Day {dayNum}
@@ -197,6 +196,80 @@ export function CheckinDayDots({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Compact timer for check-in and active_time cards.
+ * Shows mm:ss / target with thin progress bar below.
+ * Ticks locally every second for active_time quests.
+ */
+export function CompactTimer({
+  currentSeconds,
+  targetSeconds,
+  status,
+  isLive = false,
+}: {
+  currentSeconds: number;
+  targetSeconds: number;
+  status?: string;
+  /** If true, timer ticks locally every second (for active_time) */
+  isLive?: boolean;
+}) {
+  // Local tick state - increments every second for live timers
+  const [localTick, setLocalTick] = useState(0);
+
+  // Reset local tick when server data updates
+  useEffect(() => {
+    setLocalTick(0);
+  }, [currentSeconds]);
+
+  // Increment local tick every second if live
+  useEffect(() => {
+    if (!isLive) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setLocalTick((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isLive]);
+
+  const displaySeconds = isLive ? Math.min(currentSeconds + localTick, targetSeconds) : currentSeconds;
+
+  const formatTime = (totalSeconds: number): string => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const progressPercent = Math.min(100, (displaySeconds / targetSeconds) * 100);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-center gap-1.5 text-xs">
+        <Clock className="size-3.5 text-emerald-600" />
+        <span className="font-mono font-semibold text-emerald-600">
+          {formatTime(displaySeconds)}
+        </span>
+        <span className="text-gray-400">/</span>
+        <span className="font-mono text-gray-600">{formatTime(targetSeconds)}</span>
+      </div>
+      
+      {/* Thin progress bar */}
+      <div className="relative h-1 overflow-hidden rounded-full bg-gray-100">
+        <div
+          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-300"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+      
+      {status && (
+        <p className="text-center text-[10px] text-gray-500">{status}</p>
+      )}
     </div>
   );
 }
