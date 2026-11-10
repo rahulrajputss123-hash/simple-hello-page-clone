@@ -273,10 +273,28 @@ function extractStepsFromRawPayload(
   return null;
 }
 
+const OFFER_CATEGORIES = [
+  "App Install",
+  "Trial",
+  "Deals",
+  "Survey",
+  "Games",
+  "Link Locker",
+  "Shortlink",
+] as const;
+
 function offerRowFromNormalized(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) {
   const share = offer.revenueShare ?? provider.default_revenue_share;
-  // NOTE: countries/devices/is_featured/sort_order/expires_at are intentionally omitted so an
+  
+  // Validate and write category only if it's valid
+  const category = offer.category && OFFER_CATEGORIES.includes(offer.category as any)
+    ? offer.category
+    : null;
+  
+  // NOTE: countries/is_featured/sort_order/expires_at are intentionally omitted so an
   // existing offer row (possibly curated by an admin) is not clobbered on conflict update.
+  // devices and category ARE written now that they're normalized, but manual flags are
+  // respected (see refreshProviderCountry where manual overrides are stripped).
   return {
     source: "network",
     provider_id: provider.id,
@@ -289,6 +307,8 @@ function offerRowFromNormalized(provider: OfferProvider, offer: NormalizedOffer,
     network_payout: offer.networkPayout,
     revenue_share: share,
     reward_amount: computeUserReward(offer.networkPayout, share),
+    devices: offer.devices ?? [],
+    category,
     is_active: true,
     last_seen_at: seenAt,
     raw_payload: (offer.raw ?? null) as never,
@@ -350,19 +370,46 @@ async function refreshProviderCountry(
       ? await materializeInlineOfferImages(provider, limited, storedImages)
       : new Map<string, string>();
 
+    // Fetch existing manual-override flags so we never overwrite admin edits
+    const manualFlags = new Map<string, { categoryManual: boolean; tagsManual: boolean }>();
+    const PAGE_SIZE = 1000;
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data: page, error: pageError } = await supabaseAdmin
+        .from("offers")
+        .select("external_offer_id, category_manual, tags_manual")
+        .eq("provider_id", provider.id)
+        .range(from, from + PAGE_SIZE - 1);
+      if (pageError) throw pageError;
+      const rows = page ?? [];
+      for (const row of rows) {
+        if (!row.external_offer_id) continue;
+        manualFlags.set(row.external_offer_id, {
+          categoryManual: Boolean((row as { category_manual?: boolean }).category_manual),
+          tagsManual: Boolean((row as { tags_manual?: boolean }).tags_manual),
+        });
+      }
+      if (rows.length < PAGE_SIZE) break;
+    }
+
     const rows = limited.map((o) => {
-      const row = offerRowFromNormalized(provider, o, seenAt);
-      if (!hasImageUrl) return row;
-      // Precedence: a URL from the feed, then one we just uploaded, then whatever
-      // is already stored. That last fallback matters — this is a bulk upsert, so
-      // image_url is written for every row, and without it a sync where the feed
-      // has no image would null out a previously uploaded one.
-      const imageUrl =
-        imageUrlFromIcon(o.icon) ??
-        uploadedImages.get(o.externalOfferId) ??
-        storedImages.get(o.externalOfferId) ??
-        null;
-      return { ...row, image_url: imageUrl };
+      const row = offerRowFromNormalized(provider, o, seenAt) as Record<string, unknown>;
+      if (hasImageUrl) {
+        // Precedence: a URL from the feed, then one we just uploaded, then whatever
+        // is already stored. That last fallback matters — this is a bulk upsert, so
+        // image_url is written for every row, and without it a sync where the feed
+        // has no image would null out a previously uploaded one.
+        const imageUrl =
+          imageUrlFromIcon(o.icon) ??
+          uploadedImages.get(o.externalOfferId) ??
+          storedImages.get(o.externalOfferId) ??
+          null;
+        row.image_url = imageUrl;
+      }
+      // Strip category/tags if admin has manually set them
+      const flags = manualFlags.get(o.externalOfferId);
+      if (flags?.categoryManual) delete row["category"];
+      if (flags?.tagsManual) delete row["tags"];
+      return row;
     });
     const { data: upserted, error } = await supabaseAdmin
       .from("offers")
