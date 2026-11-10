@@ -149,9 +149,6 @@ export function FeaturedOffers({
               display_price={offer.display_price}
               display_percent={offer.display_percent}
               claim_status={offer.claim_status}
-              provider_name={offer.provider_name}
-              devices={offer.devices}
-              category={offer.category}
               isEager={index < 6}
               isPriority={index < 3}
               onPrefetch={handlePrefetch}

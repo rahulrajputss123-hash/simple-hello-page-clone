@@ -17,20 +17,9 @@ interface OfferCardProps {
   display_price: string | null;
   display_percent: number | null;
   claim_status?: "started" | "pending" | "approved" | "rejected" | null;
-  provider_name?: string | null;
-  devices?: string[];
-  category?: string | null;
   onPrefetch: () => void;
   isEager?: boolean; // First 6 cards
   isPriority?: boolean; // First 3 cards
-}
-
-/**
- * Normalize device for display: treat "desktop" as "web", capitalize first letter
- */
-function displayDevice(device: string): string {
-  const normalized = device.toLowerCase() === "desktop" ? "web" : device.toLowerCase();
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 /**
@@ -48,9 +37,6 @@ export const OfferCard = memo(function OfferCard({
   display_price,
   display_percent,
   claim_status,
-  provider_name,
-  devices = [],
-  category,
   onPrefetch,
   isEager = false,
   isPriority = false,
@@ -72,9 +58,6 @@ export const OfferCard = memo(function OfferCard({
   const statusText = claim_status === "started" ? "In progress" : "Pending";
   const statusColor =
     claim_status === "started" ? "bg-primary text-primary-foreground" : "bg-amber-500 text-white";
-
-  // Device labels: show "All devices" if empty, otherwise show chips
-  const deviceLabels = devices.length === 0 ? ["All devices"] : devices.map(displayDevice);
 
   return (
     <li
@@ -131,37 +114,8 @@ export const OfferCard = memo(function OfferCard({
         </div>
 
         <div className="flex flex-1 flex-col gap-0.5 p-2.5">
-          {/* Provider name + category chips */}
-          {(provider_name || category) && (
-            <div className="mb-1 flex flex-wrap items-center gap-1">
-              {provider_name && (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                  {provider_name}
-                </span>
-              )}
-              {category && (
-                <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
-                  {category}
-                </span>
-              )}
-            </div>
-          )}
-          
           <p className="truncate text-[13px] font-semibold leading-tight">{title}</p>
           <p className="truncate text-[11px] leading-snug text-muted-foreground">{description}</p>
-          
-          {/* Device chips */}
-          <div className="mt-1 flex flex-wrap gap-1">
-            {deviceLabels.map((device) => (
-              <span
-                key={device}
-                className="rounded-full border border-border bg-background-alt px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground"
-              >
-                {device}
-              </span>
-            ))}
-          </div>
-          
           <span
             className="text-amount mt-auto pt-1 text-base leading-none text-gold-dark"
             data-testid={`featured-offer-amount-${id}`}
