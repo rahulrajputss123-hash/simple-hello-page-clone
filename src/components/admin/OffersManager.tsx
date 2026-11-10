@@ -101,6 +101,8 @@ export function OffersManager() {
   const [search, setSearch] = useState("");
   const [providerId, setProviderId] = useState<string>("");
   const [country, setCountry] = useState("");
+  const [category, setCategory] = useState<string>("");
+  const [device, setDevice] = useState<string>("");
   const [form, setForm] = useState<FormState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AdminOffer | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -113,7 +115,7 @@ export function OffersManager() {
   });
 
   const offers = useQuery({
-    queryKey: ["admin-offers", source, status, search, providerId, country],
+    queryKey: ["admin-offers", source, status, search, providerId, country, category, device],
     queryFn: () =>
       fetchOffers({
         data: {
@@ -123,6 +125,8 @@ export function OffersManager() {
           ...(search.trim() ? { search: search.trim() } : {}),
           ...(providerId ? { providerId } : {}),
           ...(country.trim() ? { country: country.trim() } : {}),
+          ...(category ? { category } : {}),
+          ...(device ? { device } : {}),
         },
       }),
   });
@@ -389,6 +393,30 @@ export function OffersManager() {
               </option>
             ))}
           </select>
+          <select
+            className="h-9 rounded-xl border border-input bg-background px-2 text-sm min-w-[140px]"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          >
+            <option value="">All categories</option>
+            <option value="App Install">App Install</option>
+            <option value="Trial">Trial</option>
+            <option value="Deals">Deals</option>
+            <option value="Survey">Survey</option>
+            <option value="Games">Games</option>
+            <option value="Link Locker">Link Locker</option>
+            <option value="Shortlink">Shortlink</option>
+          </select>
+          <select
+            className="h-9 rounded-xl border border-input bg-background px-2 text-sm min-w-[120px]"
+            value={device}
+            onChange={(event) => setDevice(event.target.value)}
+          >
+            <option value="">All devices</option>
+            <option value="android">Android</option>
+            <option value="ios">iOS</option>
+            <option value="web">Web</option>
+          </select>
           <Input
             className="h-9 w-28"
             placeholder="GEO (US)"
@@ -449,6 +477,9 @@ export function OffersManager() {
                     ` · share ${Math.round(Number(offer.revenue_share) * 100)}%`}
                 </p>
                 <p className="text-xs text-muted-foreground">
+                  {(offer as { category?: string | null }).category && (
+                    <>Category {(offer as { category?: string }).category} · </>
+                  )}
                   GEO {offer.countries?.length ? offer.countries.join(", ") : "Any"} · Devices{" "}
                   {offer.devices?.length ? offer.devices.join(", ") : "Any"} · Priority{" "}
                   {offer.admin_priority} · Sort {offer.sort_order}

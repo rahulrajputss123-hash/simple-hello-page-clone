@@ -140,6 +140,8 @@ export async function listAdminOffersImpl(input: {
   status?: "all" | "active" | "inactive" | "featured" | "expired" | undefined;
   providerId?: string | undefined;
   country?: string | undefined;
+  category?: string | undefined;
+  device?: string | undefined;
   limit: number;
 }) {
   let q = supabaseAdmin
@@ -156,6 +158,8 @@ export async function listAdminOffersImpl(input: {
   if (input.providerId) q = q.eq("provider_id", input.providerId);
   if (input.search) q = q.ilike("title", `%${input.search}%`);
   if (input.country) q = q.contains("countries", [input.country.toUpperCase()]);
+  if (input.category) q = q.eq("category", input.category);
+  if (input.device) q = q.contains("devices", [input.device]);
   if (input.status === "active") q = q.eq("is_active", true);
   if (input.status === "inactive") q = q.eq("is_active", false);
   if (input.status === "featured") q = q.eq("is_featured", true);
