@@ -50,6 +50,26 @@ function splitList(value: unknown): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Normalize OGAds device strings to lowercase ["android", "ios", "web"].
+ * OGAds returns: "Android", "iOS", "Desktop", "Mobile", etc.
+ */
+function normalizeDevices(devices: string[]): string[] {
+  const normalized = new Set<string>();
+  for (const d of devices) {
+    const lower = d.toLowerCase();
+    if (lower.includes("android")) normalized.add("android");
+    else if (lower.includes("ios") || lower.includes("iphone") || lower.includes("ipad")) normalized.add("ios");
+    else if (lower.includes("desktop") || lower.includes("web")) normalized.add("web");
+    else if (lower.includes("mobile")) {
+      // Generic mobile -> add both android and ios
+      normalized.add("android");
+      normalized.add("ios");
+    }
+  }
+  return Array.from(normalized);
+}
+
 export const ogAdsAdapter: OfferProviderAdapter = {
   slug: "ogads",
   providerType: "cpa",
@@ -118,7 +138,7 @@ export const ogAdsAdapter: OfferProviderAdapter = {
         clickUrl,
         networkPayout: Number.parseFloat(String(item.payout ?? "")) || 0,
         countries: splitList(item.country),
-        devices: splitList(item.device),
+        devices: normalizeDevices(splitList(item.device)),
         category: null,
         raw: item,
       });

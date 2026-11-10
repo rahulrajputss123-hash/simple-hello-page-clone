@@ -111,7 +111,7 @@ export async function fetchCpxSurveys(ctx: CpxLiveContext): Promise<NormalizedOf
       clickUrl: href,
       networkPayout: Number.parseFloat(String(s.payout_publisher_usd ?? "")) || 0,
       countries: ["all"],
-      devices: ["all"],
+      devices: ["android", "ios", "web"],
       category: "Survey",
       raw: s,
     });

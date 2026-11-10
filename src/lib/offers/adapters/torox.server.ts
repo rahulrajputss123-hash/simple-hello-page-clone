@@ -129,7 +129,7 @@ function normalizeDevice(os: string | undefined): string {
 /**
  * Map Torox verticalNames to OfferCategory.
  * Real Money Casino -> null (excluded by default)
- * Strategy/Gaming -> game
+ * Strategy/Gaming -> Games
  */
 function mapCategory(verticalNames: string | undefined): OfferCategory | null {
   if (!verticalNames) return null;
@@ -145,7 +145,7 @@ function mapCategory(verticalNames: string | undefined): OfferCategory | null {
   // Gaming categories
   if (lower.includes("gaming") || lower.includes("strategy") || 
       lower.includes("game")) {
-    return "game";
+    return "Games";
   }
   
   return null;

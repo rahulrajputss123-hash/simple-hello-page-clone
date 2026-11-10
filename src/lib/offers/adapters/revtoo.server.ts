@@ -79,6 +79,26 @@ function mapCategory(raw: string | undefined): OfferCategory | null {
   }
 }
 
+/**
+ * Normalize Revtoo device strings to lowercase ["android", "ios", "web"].
+ * Revtoo returns OS strings in various formats.
+ */
+function normalizeDevices(devices: string[]): string[] {
+  const normalized = new Set<string>();
+  for (const d of devices) {
+    const lower = d.toLowerCase();
+    if (lower === "android" || lower.includes("android")) normalized.add("android");
+    else if (lower === "ios" || lower.includes("ios") || lower.includes("iphone") || lower.includes("ipad")) normalized.add("ios");
+    else if (lower === "web" || lower === "desktop" || lower.includes("desktop")) normalized.add("web");
+    else if (lower === "mobile") {
+      // Generic mobile -> add both android and ios
+      normalized.add("android");
+      normalized.add("ios");
+    }
+  }
+  return Array.from(normalized);
+}
+
 export const revtooAdapter: OfferProviderAdapter = {
   slug: "revtoo",
   providerType: "cpa",
@@ -148,7 +168,7 @@ export const revtooAdapter: OfferProviderAdapter = {
         countries: Array.isArray(item.countries)
           ? item.countries.map((c) => String(c).toUpperCase())
           : undefined,
-        devices: Array.isArray(item.os) ? item.os.map((o) => String(o)) : undefined,
+        devices: Array.isArray(item.os) ? normalizeDevices(item.os.map((o) => String(o))) : undefined,
         isFeatured: item.featured === true,
         category: mapCategory(item.category),
         raw: item,

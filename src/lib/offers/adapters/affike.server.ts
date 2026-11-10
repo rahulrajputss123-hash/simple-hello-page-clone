@@ -46,6 +46,51 @@ function normalizeCountries(raw: (string | null)[] | null | undefined): string[]
 }
 
 /**
+ * Normalize Affike device strings to lowercase ["android", "ios", "web"].
+ * Affike returns: "Android", "iOS", "Web", "Desktop", "Mobile", etc.
+ */
+function normalizeDevices(devices: string[]): string[] {
+  const normalized = new Set<string>();
+  for (const d of devices) {
+    const lower = d.toLowerCase();
+    if (lower === "android" || lower.includes("android")) normalized.add("android");
+    else if (lower === "ios" || lower.includes("ios") || lower.includes("iphone") || lower.includes("ipad")) normalized.add("ios");
+    else if (lower === "web" || lower === "desktop" || lower.includes("desktop")) normalized.add("web");
+    else if (lower === "mobile") {
+      // Generic mobile -> add both android and ios
+      normalized.add("android");
+      normalized.add("ios");
+    }
+  }
+  return Array.from(normalized);
+}
+
+/**
+ * Validate and map Affike category to valid OfferCategory.
+ * Only returns categories that are in OFFER_CATEGORIES, otherwise null.
+ */
+function mapCategory(raw: string | undefined | null): OfferCategory | null {
+  if (!raw) return null;
+  
+  const VALID_CATEGORIES: OfferCategory[] = [
+    "App Install",
+    "Trial",
+    "Deals",
+    "Survey",
+    "Games",
+    "Link Locker",
+    "Shortlink",
+  ];
+  
+  // Check exact match (case-sensitive)
+  if (VALID_CATEGORIES.includes(raw as OfferCategory)) {
+    return raw as OfferCategory;
+  }
+  
+  return null;
+}
+
+/**
  * Only http(s) URLs go in `icon` — that value is written straight to the offers
  * table, so an inline base64 blob must never land there.
  */
@@ -134,9 +179,9 @@ export const affikeAdapter: OfferProviderAdapter = {
         clickUrl: "",
         networkPayout: num(item.payoutAmount),
         countries: normalizeCountries(item.countries),
-        devices: Array.isArray(item.devices) ? (item.devices as string[]) : [],
-        // Affike returns "web" / "app"; passed through (not persisted by the sync upsert).
-        category: (item.category ?? null) as OfferCategory | null,
+        devices: normalizeDevices(Array.isArray(item.devices) ? item.devices : []),
+        // Affike returns "web" / "app"; validate it's a real category.
+        category: mapCategory(item.category),
         raw: item,
       });
     }

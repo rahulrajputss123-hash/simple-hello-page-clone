@@ -10,8 +10,24 @@ export type SyncResult = {
   deactivated: number;
 };
 
+const OFFER_CATEGORIES = [
+  "App Install",
+  "Trial",
+  "Deals",
+  "Survey",
+  "Games",
+  "Link Locker",
+  "Shortlink",
+] as const;
+
 function toRow(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) {
   const share = offer.revenueShare ?? provider.default_revenue_share;
+  
+  // Only write category if it's a valid category, else null
+  const category = offer.category && OFFER_CATEGORIES.includes(offer.category as any)
+    ? offer.category
+    : null;
+  
   return {
     source: "network",
     provider_id: provider.id,
@@ -34,7 +50,7 @@ function toRow(provider: OfferProvider, offer: NormalizedOffer, seenAt: string) 
     // Sync-provided category. The sync engine strips this key from the upsert
     // payload for any offer whose `category_manual` is already true (see
     // `syncProviderImpl`), so admin edits are never overwritten.
-    category: offer.category ?? null,
+    category,
     raw_payload: (offer.raw ?? null) as never,
   };
 }
@@ -136,12 +152,24 @@ export async function syncProviderImpl(providerId: string): Promise<SyncResult> 
       deactivated: stale?.length ?? 0,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Sync failed";
+    // PostgREST errors are plain objects with message, details, hint, code
+    let message = "Sync failed";
+    if (err instanceof Error) {
+      message = err.message;
+    } else if (err && typeof err === "object") {
+      const obj = err as Record<string, unknown>;
+      const parts: string[] = [];
+      if (obj.message) parts.push(String(obj.message));
+      if (obj.details) parts.push(`Details: ${String(obj.details)}`);
+      if (obj.hint) parts.push(`Hint: ${String(obj.hint)}`);
+      if (obj.code) parts.push(`Code: ${String(obj.code)}`);
+      if (parts.length) message = parts.join(". ");
+    }
     await supabaseAdmin
       .from("offer_providers")
       .update({ sync_status: "error", sync_error: message })
       .eq("id", provider.id);
-    throw err;
+    throw new Error(message);
   }
 }
 

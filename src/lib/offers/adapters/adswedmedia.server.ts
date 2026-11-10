@@ -60,6 +60,51 @@ function normalizeList(value: string[] | string | null | undefined): string[] {
   return Array.isArray(value) ? value : [];
 }
 
+/**
+ * Normalize AdswedMedia device strings to lowercase ["android", "ios", "web"].
+ * AdswedMedia returns: "Android", "iOS", "Desktop", "Web", "Mobile", etc.
+ */
+function normalizeDevices(devices: string[]): string[] {
+  const normalized = new Set<string>();
+  for (const d of devices) {
+    const lower = d.toLowerCase();
+    if (lower === "android" || lower.includes("android")) normalized.add("android");
+    else if (lower === "ios" || lower.includes("ios") || lower.includes("iphone") || lower.includes("ipad")) normalized.add("ios");
+    else if (lower === "web" || lower === "desktop" || lower.includes("desktop")) normalized.add("web");
+    else if (lower === "mobile") {
+      // Generic mobile -> add both android and ios
+      normalized.add("android");
+      normalized.add("ios");
+    }
+  }
+  return Array.from(normalized);
+}
+
+/**
+ * Validate and map AdswedMedia category to valid OfferCategory.
+ * Only returns categories that are in OFFER_CATEGORIES, otherwise null.
+ */
+function mapCategory(raw: string | undefined | null): import("../provider-types").OfferCategory | null {
+  if (!raw) return null;
+  
+  const VALID_CATEGORIES = [
+    "App Install",
+    "Trial",
+    "Deals",
+    "Survey",
+    "Games",
+    "Link Locker",
+    "Shortlink",
+  ];
+  
+  // Check exact match (case-sensitive)
+  if (VALID_CATEGORIES.includes(raw)) {
+    return raw as import("../provider-types").OfferCategory;
+  }
+  
+  return null;
+}
+
 export const adswedMediaAdapter: OfferProviderAdapter = {
   slug: "adswedmedia",
   providerType: "cpa",
@@ -140,8 +185,8 @@ export const adswedMediaAdapter: OfferProviderAdapter = {
             ? item.payout
             : Number.parseFloat(String(item.payout ?? "")) || 0,
         countries: normalizeList(item.countries),
-        devices: normalizeList(item.devices),
-        category: (categories[0] ?? null) as OfferCategory | null,
+        devices: normalizeDevices(normalizeList(item.devices)),
+        category: mapCategory(categories[0]),
         // Keep the multireward events array untouched for future use.
         raw: item,
       });

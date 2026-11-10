@@ -62,15 +62,15 @@ function mapCategory(gemiCategory: string | undefined): OfferCategory | null {
   const cat = (gemiCategory ?? "").toLowerCase();
   switch (cat) {
     case "app":
-      return "app_install";
+      return "App Install";
     case "web":
-      return "signup";
+      return "Trial";
     case "survey":
-      return "survey";
-    case "click":
-      return "click";
+      return "Survey";
     case "game":
-      return "game";
+      return "Games";
+    case "click":
+      return null; // click-only offers don't map to our categories
     default:
       return null;
   }
