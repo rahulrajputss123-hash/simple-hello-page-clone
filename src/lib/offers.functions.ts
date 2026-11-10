@@ -167,9 +167,11 @@ export const getFeaturedFeed = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { detectCountryFromRequest, detectIpFromRequest } = await import("./offers/geo.server");
     const { getFeaturedFeedImpl } = await import("./offers/feed-cache.server");
+    const { detectPlatformFromRequest } = await import("./offers/platform.server");
     const country = detectCountryFromRequest();
     const ip = detectIpFromRequest();
-    return getFeaturedFeedImpl(country, data.scope, ip, context.userId);
+    const platform = detectPlatformFromRequest();
+    return getFeaturedFeedImpl(country, data.scope, ip, context.userId, platform);
   });
 
 /** Authenticated: get single offer by ID with user's claim status */

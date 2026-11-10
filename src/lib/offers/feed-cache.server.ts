@@ -847,10 +847,17 @@ export async function getFeaturedFeedImpl(
   scope: "home" | "all",
   ip?: string | null,
   userId?: string | null,
+  userPlatform?: "android" | "ios" | "web",
 ): Promise<FeaturedFeedResult> {
   const settings = await getFeedSettingsImpl();
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
   let offers = await assembleFeaturedImpl(requestedCountry, scope, settings, ip, userId);
+
+  // Filter by user's platform if provided
+  if (userPlatform) {
+    const { filterOffersByPlatform } = await import("./platform.server");
+    offers = filterOffersByPlatform(offers, userPlatform);
+  }
 
   // Enrich with user's claim status
   offers = await enrichOffersWithClaimStatus(offers, userId);
