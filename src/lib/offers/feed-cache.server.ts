@@ -1086,10 +1086,19 @@ export async function getOfferByIdImpl(
     raw_payload: offer.raw_payload,
   } as FeaturedOffer & { raw_payload?: unknown };
 
+  // DEBUG: Log before enrichment
+  console.log("[getOfferByIdImpl] BEFORE enrich:", offerId, "steps=" + (featuredOffer.steps?.length ?? "undefined"), "raw_payload=" + (featuredOffer.raw_payload ? "exists" : "null"));
+  
   // Enrich with user's claim status
   const enriched = await enrichOffersWithClaimStatus([featuredOffer], userId);
+  
+  // DEBUG: Log after enrichment
+  console.log("[getOfferByIdImpl] AFTER enrich:", offerId, "steps=" + (enriched[0]?.steps?.length ?? "undefined"), "raw_payload=" + ((enriched[0] as any)?.raw_payload ? "exists" : "null"));
+  
   const result = enriched[0] ?? null;
   
+  // DEBUG: Log final result
+  console.log("[getOfferByIdImpl] FINAL result:", offerId, "steps=" + (result?.steps?.length ?? "undefined"), "raw_payload=" + ((result as any)?.raw_payload ? "exists" : "null"));
   console.log("[getOfferByIdImpl] end", offerId, "ms=" + (Date.now() - start), "steps=" + (result?.steps?.length ?? 0));
   return result;
 }
