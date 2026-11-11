@@ -1048,11 +1048,6 @@ export async function getOfferByIdImpl(
   return enriched[0] ?? null;
 }
 
-/** Clear the assembled feed cache (call after admin offer edits) */
-export function clearAssembledCache() {
-  _assembledCache.clear();
-}
-
 export type FeedRefreshSummary = {
   refreshed: { provider: string; country: string; count: number }[];
   errors: { provider: string; country: string; message: string }[];
