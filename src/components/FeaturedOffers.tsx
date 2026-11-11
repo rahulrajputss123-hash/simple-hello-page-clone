@@ -93,9 +93,21 @@ export function FeaturedOffers({
   // Memoize filtered offers
   const offers = useMemo(() => {
     const rawOffers = data?.offers ?? [];
-    return deferredFilter && deferredFilter !== "All"
+    const result = deferredFilter && deferredFilter !== "All"
       ? rawOffers.filter((o) => offerMatchesFilter(deferredFilter, o))
       : rawOffers;
+    
+    // Debug logging for Games filter
+    if (deferredFilter === "Games") {
+      console.log('[FeaturedOffers] Games filter active');
+      console.log('[FeaturedOffers] Raw offers:', rawOffers.length);
+      console.log('[FeaturedOffers] Games offers:', result.length);
+      console.log('[FeaturedOffers] Sample offers with category:', 
+        rawOffers.slice(0, 5).map(o => ({ title: o.title, category: o.category }))
+      );
+    }
+    
+    return result;
   }, [data?.offers, deferredFilter]);
 
   // Memoize visible offers
