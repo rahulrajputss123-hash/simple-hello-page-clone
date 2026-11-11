@@ -66,9 +66,13 @@ function OfferDetailsPage() {
   } = useQuery({
     queryKey: ["offer", offerId],
     queryFn: () => fetchOffer({ data: { offerId } }),
+    // Cached feed items don't have steps - always fetch the full detail
+    // Only consider detail data stale after 5 minutes
     staleTime: 5 * 60 * 1000, // 5 minutes
-    // Use cached data as placeholder while fetching full details
-    placeholderData: cachedOffer,
+    // Use cached data as immediate placeholder while fetching full details
+    initialData: cachedOffer,
+    // Mark initial data as stale immediately so fetch always runs
+    initialDataUpdatedAt: cachedOffer ? 0 : undefined,
   });
 
   const handleBack = () => {
