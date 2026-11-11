@@ -44,11 +44,64 @@ function formatStepReward(usd: number): string {
 }
 
 /**
+ * Split a long step text into multiple numbered parts if it contains patterns like:
+ * "1. ... 2. ..." or "... → ..."
+ * Returns array of split parts, or original single item if no split pattern found.
+ */
+function splitStepText(label: string): string[] {
+  // Clean up stray punctuation before numbers (e.g., "email., 2." -> "email. 2.")
+  const cleaned = label.replace(/([a-z]),\s*(\d+\.)/gi, "$1. $2");
+  
+  // Split on numbered patterns like "1. " or on arrow "→"
+  const parts = cleaned.split(/(?=\d+\.\s)|→/).map(s => s.trim()).filter(Boolean);
+  
+  // If split gives only 1 part or no parts, return original
+  if (parts.length <= 1) return [label];
+  
+  return parts;
+}
+
+/**
  * Normalize device for display: treat "desktop" as "web", capitalize first letter
  */
 function displayDevice(device: string): string {
   const normalized = device.toLowerCase() === "desktop" ? "web" : device.toLowerCase();
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+/**
+ * Get platform icon SVG for a device label
+ */
+function getPlatformIcon(device: string): JSX.Element | null {
+  const lower = device.toLowerCase();
+  
+  if (lower === "android") {
+    return (
+      <svg className="inline size-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24a11.5 11.5 0 0 0-8.94 0L5.65 5.67c-.19-.28-.54-.37-.83-.22-.3.16-.42.54-.26.85l1.84 3.18C4.3 11.36 2.84 14.4 3 17.5h18c.16-3.1-1.3-6.14-3.4-8.02M7.5 15a1 1 0 1 1 0-2 1 1 0 0 1 0 2m9 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/>
+      </svg>
+    );
+  }
+  
+  if (lower === "ios") {
+    return (
+      <svg className="inline size-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01M12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25"/>
+      </svg>
+    );
+  }
+  
+  if (lower === "web") {
+    return (
+      <svg className="inline size-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        <path d="M2 12h20"/>
+      </svg>
+    );
+  }
+  
+  return null;
 }
 
 export type OfferDetailsData = {
@@ -103,9 +156,19 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   // Steps display logic
   const steps = offer?.steps ?? [];
   const hasSteps = steps.length > 0;
+  
+  // Split long steps if needed (for single-step offers with embedded lists)
+  const expandedSteps = hasSteps && steps.length === 1 
+    ? splitStepText(steps[0].label).map((label, i) => ({
+        label,
+        // Only show reward on first split part
+        usd: i === 0 ? steps[0].usd : 0,
+      }))
+    : steps;
+  
   const MAX_VISIBLE_STEPS = 8;
-  const hasMoreSteps = steps.length > MAX_VISIBLE_STEPS;
-  const visibleSteps = hasMoreSteps && !showAllSteps ? steps.slice(0, MAX_VISIBLE_STEPS) : steps;
+  const hasMoreSteps = expandedSteps.length > MAX_VISIBLE_STEPS;
+  const visibleSteps = hasMoreSteps && !showAllSteps ? expandedSteps.slice(0, MAX_VISIBLE_STEPS) : expandedSteps;
 
   // Device labels: show "All devices" if empty, otherwise show chips
   const devices = offer?.devices ?? [];
@@ -387,7 +450,15 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
               {deviceLabels.length > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Devices:</span>
-                  <span className="font-semibold">{deviceLabels.join(", ")}</span>
+                  <span className="font-semibold flex items-center gap-2">
+                    {deviceLabels.map((device, i) => (
+                      <span key={device} className="inline-flex items-center">
+                        {i > 0 && <span className="mr-2">,</span>}
+                        {getPlatformIcon(device)}
+                        {device}
+                      </span>
+                    ))}
+                  </span>
                 </div>
               )}
               {offer?.difficulty && (
@@ -433,9 +504,11 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
                     </span>
                     <span className="leading-relaxed">{step.label}</span>
                   </div>
-                  <span className="shrink-0 rounded-full bg-gold-gradient px-2 py-0.5 text-[11px] font-bold text-gold-foreground shadow-sm">
-                    {formatStepReward(step.usd)}
-                  </span>
+                  {step.usd > 0 && (
+                    <span className="shrink-0 rounded-full bg-gold-gradient px-2 py-0.5 text-[11px] font-bold text-gold-foreground shadow-sm">
+                      {formatStepReward(step.usd)}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -446,7 +519,7 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
                 className="w-full rounded-lg border border-primary/25 bg-primary/5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
                 data-testid="offer-show-all-steps"
               >
-                Show all {steps.length} steps
+                Show all {expandedSteps.length} steps
               </button>
             )}
           </section>
