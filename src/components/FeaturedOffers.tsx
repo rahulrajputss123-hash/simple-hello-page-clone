@@ -6,7 +6,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState, ErrorState } from "@/components/States";
 import { OfferCard } from "@/components/OfferCard";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
-import { getFeaturedFeed } from "@/lib/offers.functions";
+import { getFeaturedFeed, getOfferById } from "@/lib/offers.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const INITIAL_RENDER = 18; // First 6 rows of 3
@@ -25,6 +25,7 @@ export function FeaturedOffers({
   filter?: OfferFilter;
 }) {
   const fetchFeed = useServerFn(getFeaturedFeed);
+  const fetchOffer = useServerFn(getOfferById);
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -79,6 +80,36 @@ export function FeaturedOffers({
       }
     }
   }, [scope, queryClient, fetchFeed]);
+
+  // Prefetch detail data for first 6 visible offers when feed loads
+  useEffect(() => {
+    if (!data?.offers?.length) return;
+
+    const prefetchDetails = () => {
+      const offersToPrefetch = data.offers.slice(0, 6);
+      
+      offersToPrefetch.forEach((offer) => {
+        // Skip if already cached
+        const existingData = queryClient.getQueryData(["offer", offer.id]);
+        if (existingData) return;
+
+        queryClient.prefetchQuery({
+          queryKey: ["offer", offer.id],
+          queryFn: () => fetchOffer({ data: { offerId: offer.id } }),
+          staleTime: 0,
+        });
+      });
+    };
+
+    // Use requestIdleCallback with setTimeout fallback
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(prefetchDetails);
+      return () => cancelIdleCallback(id);
+    } else {
+      const timeout = setTimeout(prefetchDetails, 1000);
+      return () => clearTimeout(timeout);
+    }
+  }, [data?.offers, queryClient, fetchOffer]);
 
   // Progressive loading with IntersectionObserver
   useEffect(() => {
