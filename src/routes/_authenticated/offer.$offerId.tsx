@@ -63,10 +63,17 @@ function OfferDetailsPage() {
     data: offer,
     isLoading,
     isError,
+    error,
+    isFetching,
+    fetchStatus,
+    isPlaceholderData,
+    status,
+    dataUpdatedAt,
   } = useQuery({
     queryKey: ["offer", offerId],
     queryFn: () => fetchOffer({ data: { offerId } }),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0,
+    refetchOnMount: "always",
     // Use cached data as placeholder while fetching full details
     placeholderData: cachedOffer,
   });
@@ -148,6 +155,14 @@ function OfferDetailsPage() {
             Back
           </button>
         </div>
+        
+        {/* TEMP DEBUG - remove after verification */}
+        <div className="mb-2 rounded bg-muted/50 p-2">
+          <p className="text-[11px] opacity-60">
+            DEBUG2: fetchStatus={fetchStatus} isFetching={isFetching.toString()} isPlaceholder={isPlaceholderData.toString()} status={status} dataUpdatedAt={dataUpdatedAt} steps={offer?.steps?.length ?? "undefined"} rawKeys={(offer as any)?.raw_payload ? Object.keys((offer as any).raw_payload).slice(0, 5).join(",") : "none"}
+          </p>
+        </div>
+        
         <OfferDetailsView offer={offer} />
       </AppShell>
     </ErrorBoundary>

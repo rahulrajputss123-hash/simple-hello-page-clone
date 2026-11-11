@@ -988,6 +988,9 @@ export async function getOfferByIdImpl(
   offerId: string,
   userId: string | null,
 ): Promise<FeaturedOffer | null> {
+  const start = Date.now();
+  console.log("[getOfferByIdImpl] start", offerId, start);
+  
   const hasImageUrl = await offersHasImageUrl();
 
   const { data: offer, error } = await supabaseAdmin
@@ -997,7 +1000,15 @@ export async function getOfferByIdImpl(
     .eq("is_active", true)
     .maybeSingle();
 
-  if (error || !offer) return null;
+  if (error) {
+    console.log("[getOfferByIdImpl] null", offerId, "error:", error.message);
+    return null;
+  }
+  
+  if (!offer) {
+    console.log("[getOfferByIdImpl] null", offerId, "not found or not active");
+    return null;
+  }
 
   // Extract provider info from join
   const providerData = (offer as any).offer_providers;
@@ -1010,7 +1021,8 @@ export async function getOfferByIdImpl(
   const strippedRequirements = stripHtml(offer.requirements ?? "");
   const strippedNotAllowed = stripHtml(offer.not_allowed ?? "");
 
-  // Extract steps from raw_payload (torox, gemiad, affike, revtoo)
+  // Extract steps from raw_payload for all network offers (when requirements_manual is false/missing)
+  // This works even before the requirements_manual migration runs
   const steps = extractStepsFromRawPayload(
     providerSlug,
     offer.raw_payload,
@@ -1018,6 +1030,15 @@ export async function getOfferByIdImpl(
     offer.revenue_share ? Number(offer.revenue_share) : null,
     defaultRevenueShare,
   );
+  
+  // Debug logging
+  console.log(`[getOfferByIdImpl] ${offer.id} (${offer.title})`);
+  console.log(`[getOfferByIdImpl] Provider: ${providerSlug}`);
+  console.log(`[getOfferByIdImpl] Has raw_payload: ${offer.raw_payload !== null && offer.raw_payload !== undefined}`);
+  console.log(`[getOfferByIdImpl] Steps extracted: ${steps?.length || 0}`);
+  if (steps && steps.length > 0) {
+    console.log(`[getOfferByIdImpl] First step: ${steps[0].label} ($${steps[0].usd})`);
+  }
 
   // Extract difficulty from raw_payload (adswedmedia only)
   let difficulty: string | undefined;
@@ -1061,11 +1082,25 @@ export async function getOfferByIdImpl(
     tags: [],
     steps: steps ?? undefined,
     difficulty,
-  };
+    // TEMP: Include raw_payload for debugging
+    raw_payload: offer.raw_payload,
+  } as FeaturedOffer & { raw_payload?: unknown };
 
+  // DEBUG: Log before enrichment
+  console.log("[getOfferByIdImpl] BEFORE enrich:", offerId, "steps=" + (featuredOffer.steps?.length ?? "undefined"), "raw_payload=" + (featuredOffer.raw_payload ? "exists" : "null"));
+  
   // Enrich with user's claim status
   const enriched = await enrichOffersWithClaimStatus([featuredOffer], userId);
-  return enriched[0] ?? null;
+  
+  // DEBUG: Log after enrichment
+  console.log("[getOfferByIdImpl] AFTER enrich:", offerId, "steps=" + (enriched[0]?.steps?.length ?? "undefined"), "raw_payload=" + ((enriched[0] as any)?.raw_payload ? "exists" : "null"));
+  
+  const result = enriched[0] ?? null;
+  
+  // DEBUG: Log final result
+  console.log("[getOfferByIdImpl] FINAL result:", offerId, "steps=" + (result?.steps?.length ?? "undefined"), "raw_payload=" + ((result as any)?.raw_payload ? "exists" : "null"));
+  console.log("[getOfferByIdImpl] end", offerId, "ms=" + (Date.now() - start), "steps=" + (result?.steps?.length ?? 0));
+  return result;
 }
 
 export type FeedRefreshSummary = {
