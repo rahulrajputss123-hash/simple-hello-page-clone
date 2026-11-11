@@ -942,7 +942,7 @@ export async function getFeaturedFeedImpl(
   scope: "home" | "all",
   ip?: string | null,
   userId?: string | null,
-  userPlatform?: "android" | "ios" | "web",
+  userPlatform?: "android" | "ios" | "web" | null,
 ): Promise<FeaturedFeedResult> {
   const settings = await getFeedSettingsImpl();
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
@@ -951,11 +951,11 @@ export async function getFeaturedFeedImpl(
   // Log before platform filter
   const beforeFilterCount = offers.length;
   const beforeGamesCount = offers.filter(o => o.category === "Games").length;
-  console.log(`[getFeaturedFeedImpl] Platform: ${userPlatform || "none"}, Country: ${country}`);
+  console.log(`[getFeaturedFeedImpl] Platform: ${userPlatform || "null"}, Country: ${country}`);
   console.log(`[getFeaturedFeedImpl] Before filter: ${beforeFilterCount} offers, ${beforeGamesCount} Games`);
 
-  // Filter by user's platform ONLY for mobile app users (android/ios)
-  // Web users see ALL offers regardless of device compatibility
+  // Filter by user's platform ONLY if platform is known (android/ios/web)
+  // If platform is null (unknown), skip filtering and show all offers
   if (userPlatform && userPlatform !== "web") {
     const { filterOffersByPlatform } = await import("./platform.server");
     offers = filterOffersByPlatform(offers, userPlatform);
@@ -963,8 +963,15 @@ export async function getFeaturedFeedImpl(
     const afterFilterCount = offers.length;
     const afterGamesCount = offers.filter(o => o.category === "Games").length;
     console.log(`[getFeaturedFeedImpl] After ${userPlatform} filter: ${afterFilterCount} offers, ${afterGamesCount} Games`);
+  } else if (userPlatform === "web") {
+    // Web: filter to only web-compatible or empty-device offers
+    const beforeWebCount = offers.length;
+    offers = offers.filter(o => !o.devices || o.devices.length === 0 || o.devices.includes("web"));
+    const afterWebCount = offers.length;
+    const afterGamesCount = offers.filter(o => o.category === "Games").length;
+    console.log(`[getFeaturedFeedImpl] After web filter: ${afterWebCount} offers (was ${beforeWebCount}), ${afterGamesCount} Games`);
   } else {
-    console.log(`[getFeaturedFeedImpl] Skipping platform filter for web - showing all offers`);
+    console.log(`[getFeaturedFeedImpl] Platform unknown (null) - showing all offers`);
   }
 
   // Enrich with user's claim status

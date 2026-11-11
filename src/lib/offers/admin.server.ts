@@ -171,6 +171,9 @@ export async function listAdminOffersImpl(input: {
 }
 
 export async function upsertManualOfferImpl(input: ManualOfferInput) {
+  // Import normalizeDevices for device normalization
+  const { normalizeDevices } = await import("./normalize-devices");
+  
   // Guard: offers without click URL must use manual_proof payout mode
   const hasClickUrl = Boolean(input.clickUrl?.trim());
   if (!hasClickUrl && input.payoutMode !== "manual_proof") {
@@ -207,7 +210,7 @@ export async function upsertManualOfferImpl(input: ManualOfferInput) {
     network_payout: input.networkPayout ?? null,
     click_url: input.clickUrl ?? null,
     countries: input.countries.map((c) => c.toUpperCase()),
-    devices: input.devices,
+    devices: normalizeDevices(input.devices), // Normalize devices (e.g., "All" → [])
     expires_at: input.expiresAt ?? null,
     is_active: input.isActive,
     is_featured: input.isFeatured,

@@ -170,7 +170,7 @@ export const getFeaturedFeed = createServerFn({ method: "POST" })
     const { detectPlatformFromRequest } = await import("./offers/platform.server");
     const country = detectCountryFromRequest();
     const ip = detectIpFromRequest();
-    const platform = detectPlatformFromRequest();
+    const platform = await detectPlatformFromRequest();
     return getFeaturedFeedImpl(country, data.scope, ip, context.userId, platform);
   });
 
