@@ -33,13 +33,17 @@ export function normalizeDevices(devices: string[]): string[] {
     ) {
       normalized.add("ios");
     }
-    // Web (handle desktop and PC variants)
+    // Web (handle desktop, PC, Windows, macOS variants)
     else if (
       lower === "web" ||
       lower === "desktop" ||
       lower === "pc" ||
+      lower === "windows" ||
+      lower === "macos" ||
       lower.includes("desktop") ||
-      lower.includes("pc")
+      lower.includes("pc") ||
+      lower.includes("windows") ||
+      lower.includes("macos")
     ) {
       normalized.add("web");
     }

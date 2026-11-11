@@ -7,31 +7,46 @@
 
 /**
  * Detect user's platform from request context.
- * Returns "android", "ios", or "web".
+ * Returns "android", "ios", "web", or null if unknown.
  * 
  * Detection strategy:
  * 1. Check for Capacitor-Platform header (set by native apps)
  * 2. Parse User-Agent string for mobile OS indicators
- * 3. Default to "web" if no mobile indicators found
+ * 3. Return null if headers cannot be read (unknown platform)
  */
-export function detectPlatformFromRequest(): "android" | "ios" | "web" {
-  // In server context, try to get the request object
-  // TanStack Start provides request context via vinxi
+export async function detectPlatformFromRequest(): Promise<"android" | "ios" | "web" | null> {
   try {
-    // Try to access the current request
-    const headers = getRequestHeaders();
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const request = getRequest();
+    
+    if (!request) {
+      console.log("[platform] detected=null ua=no request object");
+      return null;
+    }
     
     // Check for Capacitor-Platform header (if native app sets it)
-    const capacitorPlatform = headers.get("capacitor-platform") || headers.get("x-capacitor-platform");
-    if (capacitorPlatform === "android") return "android";
-    if (capacitorPlatform === "ios") return "ios";
+    const capacitorPlatform = request.headers.get("capacitor-platform") || request.headers.get("x-capacitor-platform");
+    if (capacitorPlatform === "android") {
+      const ua = (request.headers.get("user-agent") || "").slice(0, 80);
+      console.log(`[platform] detected=android ua=${ua}`);
+      return "android";
+    }
+    if (capacitorPlatform === "ios") {
+      const ua = (request.headers.get("user-agent") || "").slice(0, 80);
+      console.log(`[platform] detected=ios ua=${ua}`);
+      return "ios";
+    }
     
     // Parse User-Agent
-    const userAgent = headers.get("user-agent") || "";
-    return detectPlatformFromUserAgent(userAgent);
-  } catch {
-    // If we can't access headers, default to web
-    return "web";
+    const userAgent = request.headers.get("user-agent") || "";
+    const platform = detectPlatformFromUserAgent(userAgent);
+    const ua = userAgent.slice(0, 80);
+    console.log(`[platform] detected=${platform} ua=${ua}`);
+    return platform;
+  } catch (err) {
+    // If we can't access headers, return null (unknown)
+    console.log(`[platform] detected=null ua=error: ${err instanceof Error ? err.message : "unknown"}`);
+    return null;
   }
 }
 
@@ -54,39 +69,6 @@ export function detectPlatformFromUserAgent(userAgent: string): "android" | "ios
   
   // Default to web for desktop browsers and unknown platforms
   return "web";
-}
-
-/**
- * Get request headers from the current context.
- * Works with Vinxi/TanStack Start server functions.
- */
-function getRequestHeaders(): Headers {
-  // TanStack Start / Vinxi provides headers through the server function context
-  // This is available in createServerFn handlers
-  if (typeof globalThis !== "undefined" && "$$requestHeaders" in globalThis) {
-    return (globalThis as any).$$requestHeaders;
-  }
-  
-  // Fallback: try to get from AsyncLocalStorage if available
-  try {
-    const { getEvent } = require("vinxi/http");
-    const event = getEvent();
-    if (event?.headers) {
-      // Convert Node.js IncomingHttpHeaders to Web Headers
-      const headers = new Headers();
-      Object.entries(event.headers).forEach(([key, value]) => {
-        if (value) {
-          headers.set(key, Array.isArray(value) ? value[0] : value);
-        }
-      });
-      return headers;
-    }
-  } catch {
-    // vinxi not available or getEvent failed
-  }
-  
-  // Last resort: return empty headers
-  return new Headers();
 }
 
 /**
