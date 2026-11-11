@@ -948,10 +948,23 @@ export async function getFeaturedFeedImpl(
   const country = normalizeCountry(requestedCountry) ?? settings.defaultCountry;
   let offers = await assembleFeaturedImpl(requestedCountry, scope, settings, ip, userId);
 
-  // Filter by user's platform if provided
-  if (userPlatform) {
+  // Log before platform filter
+  const beforeFilterCount = offers.length;
+  const beforeGamesCount = offers.filter(o => o.category === "Games").length;
+  console.log(`[getFeaturedFeedImpl] Platform: ${userPlatform || "none"}, Country: ${country}`);
+  console.log(`[getFeaturedFeedImpl] Before filter: ${beforeFilterCount} offers, ${beforeGamesCount} Games`);
+
+  // Filter by user's platform ONLY for mobile app users (android/ios)
+  // Web users see ALL offers regardless of device compatibility
+  if (userPlatform && userPlatform !== "web") {
     const { filterOffersByPlatform } = await import("./platform.server");
     offers = filterOffersByPlatform(offers, userPlatform);
+    
+    const afterFilterCount = offers.length;
+    const afterGamesCount = offers.filter(o => o.category === "Games").length;
+    console.log(`[getFeaturedFeedImpl] After ${userPlatform} filter: ${afterFilterCount} offers, ${afterGamesCount} Games`);
+  } else {
+    console.log(`[getFeaturedFeedImpl] Skipping platform filter for web - showing all offers`);
   }
 
   // Enrich with user's claim status
