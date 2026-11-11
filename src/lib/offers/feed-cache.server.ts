@@ -988,6 +988,9 @@ export async function getOfferByIdImpl(
   offerId: string,
   userId: string | null,
 ): Promise<FeaturedOffer | null> {
+  const start = Date.now();
+  console.log("[getOfferByIdImpl] start", offerId, start);
+  
   const hasImageUrl = await offersHasImageUrl();
 
   const { data: offer, error } = await supabaseAdmin
@@ -997,7 +1000,15 @@ export async function getOfferByIdImpl(
     .eq("is_active", true)
     .maybeSingle();
 
-  if (error || !offer) return null;
+  if (error) {
+    console.log("[getOfferByIdImpl] null", offerId, "error:", error.message);
+    return null;
+  }
+  
+  if (!offer) {
+    console.log("[getOfferByIdImpl] null", offerId, "not found or not active");
+    return null;
+  }
 
   // Extract provider info from join
   const providerData = (offer as any).offer_providers;
@@ -1077,7 +1088,10 @@ export async function getOfferByIdImpl(
 
   // Enrich with user's claim status
   const enriched = await enrichOffersWithClaimStatus([featuredOffer], userId);
-  return enriched[0] ?? null;
+  const result = enriched[0] ?? null;
+  
+  console.log("[getOfferByIdImpl] end", offerId, "ms=" + (Date.now() - start), "steps=" + (result?.steps?.length ?? 0));
+  return result;
 }
 
 export type FeedRefreshSummary = {

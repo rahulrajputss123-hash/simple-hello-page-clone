@@ -64,6 +64,11 @@ function OfferDetailsPage() {
     isLoading,
     isError,
     error,
+    isFetching,
+    fetchStatus,
+    isPlaceholderData,
+    status,
+    dataUpdatedAt,
   } = useQuery({
     queryKey: ["offer", offerId],
     queryFn: () => fetchOffer({ data: { offerId } }),
@@ -153,7 +158,7 @@ function OfferDetailsPage() {
         {/* TEMP DEBUG - remove after verification */}
         <div className="mb-2 rounded bg-muted/50 p-2">
           <p className="text-[11px] opacity-60">
-            DEBUG: loading={isLoading.toString()} error={error ? (error as Error).message : "none"} steps={offer?.steps?.length ?? "undefined"} provider={offer?.provider_slug ?? "undefined"} rawKeys={(offer as any)?.raw_payload ? Object.keys((offer as any).raw_payload).slice(0, 8).join(",") : "none"}
+            DEBUG2: fetchStatus={fetchStatus} isFetching={isFetching.toString()} isPlaceholder={isPlaceholderData.toString()} status={status} dataUpdatedAt={dataUpdatedAt} steps={offer?.steps?.length ?? "undefined"} rawKeys={(offer as any)?.raw_payload ? Object.keys((offer as any).raw_payload).slice(0, 5).join(",") : "none"}
           </p>
         </div>
         
