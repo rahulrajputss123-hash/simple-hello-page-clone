@@ -1071,7 +1071,9 @@ export async function getOfferByIdImpl(
     tags: [],
     steps: steps ?? undefined,
     difficulty,
-  };
+    // TEMP: Include raw_payload for debugging
+    raw_payload: offer.raw_payload,
+  } as FeaturedOffer & { raw_payload?: unknown };
 
   // Enrich with user's claim status
   const enriched = await enrichOffersWithClaimStatus([featuredOffer], userId);

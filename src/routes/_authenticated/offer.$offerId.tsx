@@ -63,16 +63,13 @@ function OfferDetailsPage() {
     data: offer,
     isLoading,
     isError,
+    error,
   } = useQuery({
     queryKey: ["offer", offerId],
     queryFn: () => fetchOffer({ data: { offerId } }),
-    // Cached feed items don't have steps - always fetch the full detail
-    // Only consider detail data stale after 5 minutes
     staleTime: 5 * 60 * 1000, // 5 minutes
-    // Use cached data as immediate placeholder while fetching full details
-    initialData: cachedOffer,
-    // Mark initial data as stale immediately so fetch always runs
-    initialDataUpdatedAt: cachedOffer ? 0 : undefined,
+    // Use cached data as placeholder while fetching full details
+    placeholderData: cachedOffer,
   });
 
   const handleBack = () => {
@@ -152,6 +149,14 @@ function OfferDetailsPage() {
             Back
           </button>
         </div>
+        
+        {/* TEMP DEBUG - remove after verification */}
+        <div className="mb-2 rounded bg-muted/50 p-2">
+          <p className="text-[11px] opacity-60">
+            DEBUG: loading={isLoading.toString()} error={error ? (error as Error).message : "none"} steps={offer?.steps?.length ?? "undefined"} provider={offer?.provider_slug ?? "undefined"} rawKeys={(offer as any)?.raw_payload ? Object.keys((offer as any).raw_payload).slice(0, 8).join(",") : "none"}
+          </p>
+        </div>
+        
         <OfferDetailsView offer={offer} />
       </AppShell>
     </ErrorBoundary>
