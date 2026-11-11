@@ -462,12 +462,12 @@ async function refreshProviderCountry(
       : new Map<string, string>();
 
     // Fetch existing manual-override flags so we never overwrite admin edits
-    const manualFlags = new Map<string, { categoryManual: boolean; tagsManual: boolean; requirementsManual: boolean }>();
+    const manualFlags = new Map<string, { categoryManual: boolean; tagsManual: boolean }>();
     const PAGE_SIZE = 1000;
     for (let from = 0; ; from += PAGE_SIZE) {
       const { data: page, error: pageError } = await supabaseAdmin
         .from("offers")
-        .select("external_offer_id, category_manual, tags_manual, requirements_manual")
+        .select("external_offer_id, category_manual, tags_manual")
         .eq("provider_id", provider.id)
         .range(from, from + PAGE_SIZE - 1);
       if (pageError) throw pageError;
@@ -477,7 +477,6 @@ async function refreshProviderCountry(
         manualFlags.set(row.external_offer_id, {
           categoryManual: Boolean((row as { category_manual?: boolean }).category_manual),
           tagsManual: Boolean((row as { tags_manual?: boolean }).tags_manual),
-          requirementsManual: Boolean((row as { requirements_manual?: boolean }).requirements_manual),
         });
       }
       if (rows.length < PAGE_SIZE) break;
@@ -497,11 +496,10 @@ async function refreshProviderCountry(
           null;
         row.image_url = imageUrl;
       }
-      // Strip category/tags/requirements if admin has manually set them
+      // Strip category/tags if admin has manually set them
       const flags = manualFlags.get(o.externalOfferId);
       if (flags?.categoryManual) delete row["category"];
       if (flags?.tagsManual) delete row["tags"];
-      if (flags?.requirementsManual) delete row["requirements"];
       return row;
     });
     const { data: upserted, error } = await supabaseAdmin
@@ -1012,19 +1010,15 @@ export async function getOfferByIdImpl(
   const strippedRequirements = stripHtml(offer.requirements ?? "");
   const strippedNotAllowed = stripHtml(offer.not_allowed ?? "");
 
-  // Extract steps from raw_payload UNLESS requirements_manual is true
-  // When requirements_manual = true, admin has written custom requirements and we skip step extraction
-  // When requirements_manual = false/null, adapter wrote requirements, so extract steps from raw if available
-  const requirementsManual = Boolean((offer as any).requirements_manual);
-  const steps = !requirementsManual
-    ? extractStepsFromRawPayload(
-        providerSlug,
-        offer.raw_payload,
-        Number(offer.reward_amount),
-        offer.revenue_share ? Number(offer.revenue_share) : null,
-        defaultRevenueShare,
-      )
-    : null;
+  // Extract steps from raw_payload for all network offers (when requirements_manual is false/missing)
+  // This works even before the requirements_manual migration runs
+  const steps = extractStepsFromRawPayload(
+    providerSlug,
+    offer.raw_payload,
+    Number(offer.reward_amount),
+    offer.revenue_share ? Number(offer.revenue_share) : null,
+    defaultRevenueShare,
+  );
 
   // Extract difficulty from raw_payload (adswedmedia only)
   let difficulty: string | undefined;
