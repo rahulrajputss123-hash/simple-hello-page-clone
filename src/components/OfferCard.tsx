@@ -70,6 +70,7 @@ export const OfferCard = memo(function OfferCard({
         params={{ offerId: id }}
         preload="intent"
         className="flex flex-1 flex-col"
+        onTouchStart={onPrefetch}
         onPointerDown={onPrefetch}
         onMouseEnter={onPrefetch}
       >

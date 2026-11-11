@@ -6,7 +6,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState, ErrorState } from "@/components/States";
 import { OfferCard } from "@/components/OfferCard";
 import { offerMatchesFilter, type OfferFilter } from "@/components/OfferFilterButton";
-import { getFeaturedFeed } from "@/lib/offers.functions";
+import { getFeaturedFeed, getOfferById } from "@/lib/offers.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const INITIAL_RENDER = 18; // First 6 rows of 3
@@ -25,6 +25,7 @@ export function FeaturedOffers({
   filter?: OfferFilter;
 }) {
   const fetchFeed = useServerFn(getFeaturedFeed);
+  const fetchOffer = useServerFn(getOfferById);
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -79,6 +80,25 @@ export function FeaturedOffers({
       }
     }
   }, [scope, queryClient, fetchFeed]);
+
+  // Prefetch detail data for visible offers when feed loads (cap at 12)
+  useEffect(() => {
+    if (!data?.offers?.length) return;
+
+    const offersToPrefetch = data.offers.slice(0, Math.min(12, data.offers.length));
+    
+    offersToPrefetch.forEach((offer) => {
+      // Skip if already cached
+      const existingData = queryClient.getQueryData(["offer", offer.id]);
+      if (existingData) return;
+
+      queryClient.prefetchQuery({
+        queryKey: ["offer", offer.id],
+        queryFn: () => fetchOffer({ data: { offerId: offer.id } }),
+        staleTime: 0,
+      });
+    });
+  }, [data?.offers, queryClient, fetchOffer]);
 
   // Progressive loading with IntersectionObserver
   useEffect(() => {
@@ -170,8 +190,16 @@ export function FeaturedOffers({
       <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
         {visibleOffers.map((offer, index) => {
           const handlePrefetch = () => {
-            // Prefetch offer details using cached data
-            queryClient.setQueryData(["offer", offer.id], offer);
+            // Skip if already cached
+            const existingData = queryClient.getQueryData(["offer", offer.id]);
+            if (existingData) return;
+
+            // Prefetch full offer details
+            queryClient.prefetchQuery({
+              queryKey: ["offer", offer.id],
+              queryFn: () => fetchOffer({ data: { offerId: offer.id } }),
+              staleTime: 0,
+            });
           };
           
           return (
