@@ -72,7 +72,8 @@ function OfferDetailsPage() {
   } = useQuery({
     queryKey: ["offer", offerId],
     queryFn: () => fetchOffer({ data: { offerId } }),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0,
+    refetchOnMount: "always",
     // Use cached data as placeholder while fetching full details
     placeholderData: cachedOffer,
   });
