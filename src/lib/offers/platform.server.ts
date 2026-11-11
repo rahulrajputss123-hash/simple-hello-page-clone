@@ -75,6 +75,8 @@ export function detectPlatformFromUserAgent(userAgent: string): "android" | "ios
  * Filter offers by user's platform.
  * Only returns offers that support the user's device.
  * 
+ * Normalizes device values before filtering (e.g., "All" → []).
+ * 
  * @param offers - List of offers to filter
  * @param userPlatform - User's platform (android/ios/web)
  * @returns Filtered list of compatible offers
@@ -88,6 +90,12 @@ export function filterOffersByPlatform<T extends { devices?: string[] | null }>(
     
     // If no device info, assume offer works everywhere
     if (!devices || devices.length === 0) {
+      return true;
+    }
+    
+    // Normalize "All" (case-insensitive) to empty array (works everywhere)
+    const hasAll = devices.some(d => d.toLowerCase() === "all");
+    if (hasAll) {
       return true;
     }
     
