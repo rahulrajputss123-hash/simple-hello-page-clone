@@ -34,6 +34,17 @@ export function FeaturedOffers({
     gcTime: 10 * 60 * 1000,
   });
 
+  // Debug: log feed data when it changes
+  useEffect(() => {
+    if (data?.offers) {
+      console.log('[FeaturedOffers] Feed loaded:', {
+        country: data.country,
+        totalOffers: data.offers.length,
+        categories: [...new Set(data.offers.map(o => o.category || 'null'))],
+      });
+    }
+  }, [data]);
+
   // Restore or initialize visible count
   const [visibleCount, setVisibleCount] = useState(() => {
     const stored = visibleCountStore.get(scope);
@@ -105,6 +116,21 @@ export function FeaturedOffers({
       console.log('[FeaturedOffers] Sample offers with category:', 
         rawOffers.slice(0, 5).map(o => ({ title: o.title, category: o.category }))
       );
+      
+      // Count offers by category
+      const categoryCount = new Map();
+      rawOffers.forEach(o => {
+        const cat = o.category || 'null';
+        categoryCount.set(cat, (categoryCount.get(cat) || 0) + 1);
+      });
+      console.log('[FeaturedOffers] Category breakdown:', Object.fromEntries(categoryCount));
+      
+      // Check if any Games exist at all
+      const allGames = rawOffers.filter(o => o.category === 'Games');
+      console.log('[FeaturedOffers] Total Games in feed:', allGames.length);
+      if (allGames.length > 0) {
+        console.log('[FeaturedOffers] Sample Games:', allGames.slice(0, 3).map(g => ({ title: g.title, devices: g.devices })));
+      }
     }
     
     return result;
