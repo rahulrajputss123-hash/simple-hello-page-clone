@@ -204,6 +204,7 @@ export async function upsertManualOfferImpl(input: ManualOfferInput) {
     title: input.title,
     description: input.description,
     requirements: input.requirements,
+    requirements_manual: input.requirements !== undefined, // Mark as manual if admin provides requirements
     not_allowed: input.notAllowed ?? "",
     icon: input.icon || "gift",
     reward_amount: effectiveReward,
