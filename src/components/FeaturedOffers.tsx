@@ -81,34 +81,23 @@ export function FeaturedOffers({
     }
   }, [scope, queryClient, fetchFeed]);
 
-  // Prefetch detail data for first 6 visible offers when feed loads
+  // Prefetch detail data for visible offers when feed loads (cap at 12)
   useEffect(() => {
     if (!data?.offers?.length) return;
 
-    const prefetchDetails = () => {
-      const offersToPrefetch = data.offers.slice(0, 6);
-      
-      offersToPrefetch.forEach((offer) => {
-        // Skip if already cached
-        const existingData = queryClient.getQueryData(["offer", offer.id]);
-        if (existingData) return;
+    const offersToPrefetch = data.offers.slice(0, Math.min(12, data.offers.length));
+    
+    offersToPrefetch.forEach((offer) => {
+      // Skip if already cached
+      const existingData = queryClient.getQueryData(["offer", offer.id]);
+      if (existingData) return;
 
-        queryClient.prefetchQuery({
-          queryKey: ["offer", offer.id],
-          queryFn: () => fetchOffer({ data: { offerId: offer.id } }),
-          staleTime: 0,
-        });
+      queryClient.prefetchQuery({
+        queryKey: ["offer", offer.id],
+        queryFn: () => fetchOffer({ data: { offerId: offer.id } }),
+        staleTime: 0,
       });
-    };
-
-    // Use requestIdleCallback with setTimeout fallback
-    if (typeof requestIdleCallback !== "undefined") {
-      const id = requestIdleCallback(prefetchDetails);
-      return () => cancelIdleCallback(id);
-    } else {
-      const timeout = setTimeout(prefetchDetails, 1000);
-      return () => clearTimeout(timeout);
-    }
+    });
   }, [data?.offers, queryClient, fetchOffer]);
 
   // Progressive loading with IntersectionObserver
@@ -201,8 +190,16 @@ export function FeaturedOffers({
       <ul className="grid grid-cols-3 gap-3" data-testid="featured-offers-list">
         {visibleOffers.map((offer, index) => {
           const handlePrefetch = () => {
-            // Prefetch offer details using cached data
-            queryClient.setQueryData(["offer", offer.id], offer);
+            // Skip if already cached
+            const existingData = queryClient.getQueryData(["offer", offer.id]);
+            if (existingData) return;
+
+            // Prefetch full offer details
+            queryClient.prefetchQuery({
+              queryKey: ["offer", offer.id],
+              queryFn: () => fetchOffer({ data: { offerId: offer.id } }),
+              staleTime: 0,
+            });
           };
           
           return (
