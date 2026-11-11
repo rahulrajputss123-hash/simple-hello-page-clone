@@ -1019,6 +1019,15 @@ export async function getOfferByIdImpl(
     offer.revenue_share ? Number(offer.revenue_share) : null,
     defaultRevenueShare,
   );
+  
+  // Debug logging
+  console.log(`[getOfferByIdImpl] ${offer.id} (${offer.title})`);
+  console.log(`[getOfferByIdImpl] Provider: ${providerSlug}`);
+  console.log(`[getOfferByIdImpl] Has raw_payload: ${offer.raw_payload !== null && offer.raw_payload !== undefined}`);
+  console.log(`[getOfferByIdImpl] Steps extracted: ${steps?.length || 0}`);
+  if (steps && steps.length > 0) {
+    console.log(`[getOfferByIdImpl] First step: ${steps[0].label} ($${steps[0].usd})`);
+  }
 
   // Extract difficulty from raw_payload (adswedmedia only)
   let difficulty: string | undefined;
