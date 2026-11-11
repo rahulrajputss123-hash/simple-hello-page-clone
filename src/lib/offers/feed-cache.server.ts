@@ -28,7 +28,15 @@ type AssembledCacheEntry = {
   expires: number;
 };
 const _assembledCache = new Map<string, AssembledCacheEntry>();
-const ASSEMBLED_CACHE_TTL_MS = 45_000; // 45 seconds
+const ASSEMBLED_CACHE_TTL_MS = 5_000; // 5 seconds (temporarily reduced for debugging)
+
+/**
+ * Clear the in-memory assembled cache (for debugging/admin use)
+ */
+export function clearAssembledCache() {
+  _assembledCache.clear();
+  console.log('[feed-cache] Cleared assembled cache');
+}
 
 // In-memory TTL cache for enabled providers (60s)
 let _enabledProvidersCache: { data: OfferProvider[]; expires: number } | null = null;
