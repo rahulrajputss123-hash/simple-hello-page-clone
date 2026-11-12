@@ -430,7 +430,7 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
       {/* Content */}
       <div className="space-y-4">
         {/* Read-only states */}
-        {isPending && (
+        {isPending && !autoPostback && (
           <section className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
             We're reviewing your proof. You'll be notified once it's approved.
           </section>
