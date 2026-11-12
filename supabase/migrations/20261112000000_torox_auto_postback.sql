@@ -1,5 +1,5 @@
 -- Migration: Set Torox offers to auto_postback mode
--- Date: 2027-08-20
+-- Date: 2026-11-12
 -- Purpose: Fix Torox postback flow by preventing manual claims
 
 -- Update all Torox offers to use auto_postback payout mode

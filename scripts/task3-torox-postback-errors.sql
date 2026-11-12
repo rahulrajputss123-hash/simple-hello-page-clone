@@ -75,7 +75,7 @@ LIMIT 10;
 -- Check successful credits
 SELECT 
   COUNT(*) AS successful_credits,
-  SUM((context->>'offerId')::numeric) FILTER (WHERE context->>'offerId' IS NOT NULL) AS offers_credited,
+  COUNT(DISTINCT context->>'offerId') AS offers_credited,
   COUNT(DISTINCT user_id) AS unique_users_credited
 FROM automation_logs
 WHERE source = 'torox_feed_postback'
