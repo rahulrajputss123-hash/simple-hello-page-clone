@@ -161,21 +161,43 @@ export const getToroxClickUrl = createServerFn({ method: "POST" })
           campaignId, 
           httpStatus: response.status,
           contentType: response.headers.get("content-type"),
-          responseBody: text.slice(0, 500) // Increased from 200 to 500 chars
+          responseBody: text.slice(0, 500)
         },
       });
       throw new Error("Invalid response from tracking service.");
     }
 
-    // Extract click URL (try multiple field names)
+    // Extract click URL (try multiple field names and nested paths)
     let clickUrl = "";
     if (parsed && typeof parsed === "object") {
       const obj = parsed as Record<string, unknown>;
+      
+      // Try top-level fields first
       clickUrl = String(obj.url ?? obj.click_url ?? obj.tracking_url ?? obj.redirect_url ?? "").trim();
+      
+      // Try nested data.url pattern
+      if (!clickUrl && obj.data && typeof obj.data === "object") {
+        const data = obj.data as Record<string, unknown>;
+        clickUrl = String(data.url ?? data.click_url ?? data.tracking_url ?? data.redirect_url ?? "").trim();
+      }
+      
+      // Try nested result.url pattern
+      if (!clickUrl && obj.result && typeof obj.result === "object") {
+        const result = obj.result as Record<string, unknown>;
+        clickUrl = String(result.url ?? result.click_url ?? result.tracking_url ?? result.redirect_url ?? "").trim();
+      }
     }
 
     // Validate it's a proper HTTPS URL
     if (!clickUrl || !clickUrl.startsWith("https://")) {
+      // Log the raw response body and available keys for debugging (no token)
+      const availableKeys = parsed && typeof parsed === "object" ? Object.keys(parsed) : [];
+      const nestedKeys = parsed && typeof parsed === "object" ? 
+        Object.entries(parsed as Record<string, unknown>)
+          .filter(([_, v]) => v && typeof v === "object")
+          .map(([k, v]) => `${k}:${Object.keys(v as Record<string, unknown>).join(",")}`)
+        : [];
+      
       await logAutomation({
         eventType: "offer_click",
         status: "error",
@@ -188,8 +210,9 @@ export const getToroxClickUrl = createServerFn({ method: "POST" })
           campaignId, 
           clickUrl: clickUrl || "(empty)",
           httpStatus: response.status,
-          responseBody: text.slice(0, 500), // Log full response for debugging
-          availableFields: parsed && typeof parsed === "object" ? Object.keys(parsed) : []
+          responseBody: text.slice(0, 500),
+          topLevelKeys: availableKeys,
+          nestedStructure: nestedKeys
         },
       });
       throw new Error("Invalid tracking link received. The offer may not be available in your region.");

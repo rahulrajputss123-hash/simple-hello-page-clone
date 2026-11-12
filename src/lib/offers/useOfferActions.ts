@@ -147,8 +147,9 @@ export function useOfferActions(
           const { clickUrl } = await getToroxUrl({ data: { offerId: input.offerId } });
           if (!clickUrl) {
             blankTab.close();
-            toast.error("Could not generate tracking link.");
-            throw new Error("No tracking link returned");
+            const errorMsg = "Could not generate tracking link.";
+            toast.error(errorMsg);
+            throw new Error(errorMsg);
           }
           
           // Set location on the opened tab
@@ -157,8 +158,14 @@ export function useOfferActions(
           // Bug A fix: Return early - link was opened successfully, don't create a claim
           return { success: true, skipClaim: true };
         } catch (err) {
+          // Fix C: Always close blank tab on error
           blankTab.close();
-          toast.error(err instanceof Error ? err.message : "Could not open offer link.");
+          
+          // Show error message and log to console
+          const errorMessage = err instanceof Error ? err.message : "Could not open offer link.";
+          toast.error(errorMessage);
+          console.error("[Torox] Failed to generate tracking link:", err);
+          
           // Bug A fix: Throw to prevent claim creation
           throw err;
         }
