@@ -173,18 +173,18 @@ export const getToroxClickUrl = createServerFn({ method: "POST" })
       const obj = parsed as Record<string, unknown>;
       
       // Try top-level fields first
-      clickUrl = String(obj.url ?? obj.click_url ?? obj.tracking_url ?? obj.redirect_url ?? "").trim();
+      clickUrl = String(obj.clickUrl ?? obj.url ?? obj.click_url ?? obj.tracking_url ?? obj.redirect_url ?? "").trim();
       
       // Try nested data.url pattern
       if (!clickUrl && obj.data && typeof obj.data === "object") {
         const data = obj.data as Record<string, unknown>;
-        clickUrl = String(data.url ?? data.click_url ?? data.tracking_url ?? data.redirect_url ?? "").trim();
+        clickUrl = String(data.clickUrl ?? data.url ?? data.click_url ?? data.tracking_url ?? data.redirect_url ?? "").trim();
       }
       
       // Try nested result.url pattern
       if (!clickUrl && obj.result && typeof obj.result === "object") {
         const result = obj.result as Record<string, unknown>;
-        clickUrl = String(result.url ?? result.click_url ?? result.tracking_url ?? result.redirect_url ?? "").trim();
+        clickUrl = String(result.clickUrl ?? result.url ?? result.click_url ?? result.tracking_url ?? result.redirect_url ?? "").trim();
       }
     }
 
@@ -215,7 +215,8 @@ export const getToroxClickUrl = createServerFn({ method: "POST" })
           nestedStructure: nestedKeys
         },
       });
-      throw new Error("Invalid tracking link received. The offer may not be available in your region.");
+      console.error(`[Torox] Missing tracking URL for offer ${offerId}, campaign ${campaignId}. Response keys:`, availableKeys);
+      throw new Error("Torox returned no tracking link.");
     }
 
     // Log success
