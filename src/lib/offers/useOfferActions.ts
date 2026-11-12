@@ -134,19 +134,33 @@ export function useOfferActions(
       
       // Special handling for Torox
       if (input.provider_slug === "torox" && input.clickUrl?.startsWith(TOROX_CLICK_URL_SENTINEL)) {
-        const blankTab = window.open("about:blank", "_blank", "noopener,noreferrer");
+        // Bug B fix: Open tab without noopener so we can control location
+        const blankTab = window.open("about:blank", "_blank");
+        
+        if (!blankTab) {
+          // Pop-up blocked or failed
+          toast.error("Please allow pop-ups for this site to open the offer.");
+          throw new Error("Pop-up blocked");
+        }
         
         try {
           const { clickUrl } = await getToroxUrl({ data: { offerId: input.offerId } });
-          if (blankTab && clickUrl) {
-            blankTab.location.href = clickUrl;
-          } else {
-            blankTab?.close();
-            throw new Error("Could not generate tracking link.");
+          if (!clickUrl) {
+            blankTab.close();
+            toast.error("Could not generate tracking link.");
+            throw new Error("No tracking link returned");
           }
+          
+          // Set location on the opened tab
+          blankTab.location.href = clickUrl;
+          
+          // Bug A fix: Return early - link was opened successfully, don't create a claim
+          return { success: true, skipClaim: true };
         } catch (err) {
-          blankTab?.close();
+          blankTab.close();
           toast.error(err instanceof Error ? err.message : "Could not open offer link.");
+          // Bug A fix: Throw to prevent claim creation
+          throw err;
         }
       } else {
         // Normal offer flow
@@ -161,7 +175,7 @@ export function useOfferActions(
         }
       }
       
-      // Submit claim
+      // Submit claim (only reached for non-Torox or when link opening failed)
       return claim({
         data: {
           offerId: input.offerId,
@@ -169,7 +183,17 @@ export function useOfferActions(
         },
       });
     },
-    onSuccess: async (_result, input) => {
+    onSuccess: async (result, input) => {
+      // Check if this was a Torox link-only operation (no claim created)
+      if (result && typeof result === 'object' && 'skipClaim' in result && result.skipClaim) {
+        // Torox: link opened successfully, no claim created
+        await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
+        await queryClient.invalidateQueries({ queryKey: ["featured-feed"] });
+        await queryClient.invalidateQueries({ queryKey: ["offer", input.offerId] });
+        onSuccess?.(input.offerId, "claim");
+        return;
+      }
+      
       // Show appropriate success message based on whether offer has click URL
       if (!input.hasClickUrl) {
         toast.success("Submitted for review. We'll notify you once it's approved.");

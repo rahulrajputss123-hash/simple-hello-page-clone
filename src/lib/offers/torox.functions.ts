@@ -156,7 +156,13 @@ export const getToroxClickUrl = createServerFn({ method: "POST" })
         userId,
         referenceId: offerId,
         message: "Torox click API returned non-JSON",
-        context: { title: offer.title, campaignId, response: text.slice(0, 200) },
+        context: { 
+          title: offer.title, 
+          campaignId, 
+          httpStatus: response.status,
+          contentType: response.headers.get("content-type"),
+          responseBody: text.slice(0, 500) // Increased from 200 to 500 chars
+        },
       });
       throw new Error("Invalid response from tracking service.");
     }
@@ -176,10 +182,17 @@ export const getToroxClickUrl = createServerFn({ method: "POST" })
         source: "torox_click_url",
         userId,
         referenceId: offerId,
-        message: "Torox click API returned invalid URL",
-        context: { title: offer.title, campaignId, clickUrl },
+        message: "Torox click API returned invalid or missing URL",
+        context: { 
+          title: offer.title, 
+          campaignId, 
+          clickUrl: clickUrl || "(empty)",
+          httpStatus: response.status,
+          responseBody: text.slice(0, 500), // Log full response for debugging
+          availableFields: parsed && typeof parsed === "object" ? Object.keys(parsed) : []
+        },
       });
-      throw new Error("Invalid tracking link received.");
+      throw new Error("Invalid tracking link received. The offer may not be available in your region.");
     }
 
     // Log success

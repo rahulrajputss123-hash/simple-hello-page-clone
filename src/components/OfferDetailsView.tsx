@@ -17,9 +17,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { formatReward } from "@/lib/format-reward";
 import { offerDisplayBadge } from "@/lib/offers/display-badge";
-import { requestProofUploadUrl } from "@/lib/offers.functions";
+import { requestProofUploadUrl, trackOfferClick } from "@/lib/offers.functions";
 import { useViewedOffer } from "@/lib/viewed-offer";
 import { useOfferActions, type OfferActionData } from "@/lib/offers/useOfferActions";
+import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/adapters/torox.server";
 
 /**
  * Offer details view supporting 3 types:
@@ -179,6 +180,7 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const requestUpload = useServerFn(requestProofUploadUrl);
+  const trackClick = useServerFn(trackOfferClick);
   const navigate = useNavigate();
   const { setViewedOffer, requestAssistantOpen } = useViewedOffer();
 
@@ -230,6 +232,26 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   const handlePrimaryAction = () => {
     if (!offer) return;
 
+    // Auto-postback offers: only open tracking link, never create a claim
+    if (autoPostback) {
+      if (offer.provider_slug === "torox" && offer.click_url?.startsWith(TOROX_CLICK_URL_SENTINEL)) {
+        // Torox special handling - getToroxUrl will be called in useOfferActions
+        claimOffer.mutate({
+          offerId: offer.id,
+          proofUrl: null,
+          hasClickUrl,
+          clickUrl: offer.click_url,
+          provider_slug: offer.provider_slug,
+          external_offer_id: offer.external_offer_id,
+        });
+      } else if (offer.click_url) {
+        // Direct link opening for other auto_postback offers
+        void trackClick({ data: { offerId: offer.id } }).catch(() => {});
+        window.open(offer.click_url, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+
     // Type 2, not started: start claim and open URL
     if (isType2 && !hasStarted && !isPending && !isApproved) {
       const actionData: OfferActionData = {
@@ -255,7 +277,7 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
       return;
     }
 
-    // Legacy: plain manual or auto_postback
+    // Legacy: plain manual
     claimOffer.mutate({
       offerId: offer.id,
       proofUrl: proofPath,
