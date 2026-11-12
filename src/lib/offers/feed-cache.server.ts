@@ -909,6 +909,10 @@ export type FeaturedFeedResult = {
 /**
  * Enrich offers with user's claim status (if userId provided).
  * Adds claim_status and claim_reject_reason to each offer.
+ * 
+ * When multiple claims exist for one offer, picks by priority:
+ * 1. approved > pending > started > rejected
+ * 2. Within same status, picks newest (MAX created_at)
  */
 async function enrichOffersWithClaimStatus(
   offers: FeaturedOffer[],
@@ -919,13 +923,35 @@ async function enrichOffersWithClaimStatus(
   const offerIds = offers.map((o) => o.id);
   const { data: claims } = await supabaseAdmin
     .from("offer_claims")
-    .select("offer_id, status, reject_reason")
+    .select("offer_id, status, reject_reason, created_at")
     .eq("user_id", userId)
-    .in("offer_id", offerIds);
+    .in("offer_id", offerIds)
+    .order("created_at", { ascending: false });
 
-  const claimsByOfferId = new Map(
-    (claims ?? []).map((c) => [c.offer_id, { status: c.status, reject_reason: c.reject_reason }]),
-  );
+  // Priority order: approved > pending > started > rejected
+  const statusPriority: Record<string, number> = {
+    approved: 4,
+    pending: 3,
+    started: 2,
+    rejected: 1,
+  };
+
+  // Build map with best claim per offer
+  const claimsByOfferId = new Map<string, { status: string; reject_reason: string | null }>();
+  
+  for (const claim of claims ?? []) {
+    const existing = claimsByOfferId.get(claim.offer_id);
+    const currentPriority = statusPriority[claim.status] ?? 0;
+    const existingPriority = existing ? statusPriority[existing.status] ?? 0 : -1;
+    
+    // Replace if higher priority, or same priority (newest already first due to order)
+    if (currentPriority > existingPriority) {
+      claimsByOfferId.set(claim.offer_id, { 
+        status: claim.status, 
+        reject_reason: claim.reject_reason 
+      });
+    }
+  }
 
   return offers.map((offer) => {
     const claim = claimsByOfferId.get(offer.id);

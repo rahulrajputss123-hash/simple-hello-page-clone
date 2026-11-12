@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { logAutomation } from "@/lib/automation/logs.server";
 import {
   formatMoney,
   MAX_ADS_PER_HOUR,
@@ -709,7 +710,21 @@ export async function claimOfferImpl(userId: string, offerId: string, proofUrl: 
   const o = offer.data as any;
 
   // Auto-postback offers are credited by the network's postback — never the in-app button.
+  // Block manual pending claims unless explicitly from admin (future enhancement)
   if (o.payout_mode === "auto_postback") {
+    await logAutomation({
+      eventType: "offer_claim",
+      status: "error",
+      source: "claim_offer_blocked",
+      userId,
+      referenceId: offerId,
+      message: "Blocked manual claim for auto_postback offer",
+      context: { 
+        offerTitle: o.title,
+        providerSlug: o.provider_slug,
+        payoutMode: o.payout_mode
+      },
+    });
     throw new Error("This offer is credited automatically once you complete it.");
   }
 
