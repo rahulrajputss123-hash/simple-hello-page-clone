@@ -300,8 +300,14 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
 
   // Button state
   const canSubmitProof = Boolean(proofPath);
+  
+  // For auto_postback offers (torox, gemiad), ignore isPending status
+  // since pending claims are manual and shouldn't block the button
+  // For manual_proof offers (revtoo, ogads, adbluemedia, adswedmedia), isPending blocks (proof under review)
+  const pendingBlocks = autoPostback ? false : isPending;
+  
   const buttonDisabled =
-    isSubmitting || !offer || (showProofSection && !canSubmitProof) || isPending || isApproved;
+    isSubmitting || !offer || (showProofSection && !canSubmitProof) || pendingBlocks || isApproved;
 
   let buttonText = "I Understand, Continue";
   if (isSubmitting) {
@@ -319,7 +325,8 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   }
 
   // Show status badge
-  const showStatusBadge = hasStarted || isPending || isApproved || isRejected;
+  // For auto_postback offers, don't show pending status badge (manual pending claims should be ignored)
+  const showStatusBadge = hasStarted || (isPending && !autoPostback) || isApproved || isRejected;
   const statusText = hasStarted
     ? "In progress"
     : isPending
