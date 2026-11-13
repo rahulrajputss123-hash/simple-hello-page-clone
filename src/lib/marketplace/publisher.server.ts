@@ -356,7 +356,11 @@ export type SubmitProofInput = z.infer<typeof submitProofInput>;
  */
 export const submitProofForCampaignInput = z.object({
   campaignId: z.string().uuid(),
-  files: z.array(z.any()).max(5), // Will be uploaded to storage
+  files: z.array(z.object({
+    name: z.string().max(200),
+    type: z.string().max(100),
+    base64: z.string().max(7_000_000), // ~5MB base64 encoded
+  })).max(5),
   fieldValues: z.record(z.string()).optional(),
   userNote: z.string().max(500).optional(),
 });
@@ -431,12 +435,24 @@ export async function submitProofForCampaignImpl(
   const proofPaths: string[] = [];
   for (const file of input.files) {
     if (!file) continue;
+    
+    // Validate file type (images only)
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error(`Invalid file type: ${file.type}. Only JPEG, PNG, and WebP images are allowed.`);
+    }
+    
     const ext = file.name.split(".").pop() || "jpg";
     const uuid = crypto.randomUUID();
     const path = `${userId}/${clickId}/${uuid}.${ext}`;
 
-    // Read file as buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
+    // Decode base64 to Buffer
+    const buffer = Buffer.from(file.base64, 'base64');
+    
+    // Validate decoded size (max 5MB)
+    if (buffer.length > 5 * 1024 * 1024) {
+      throw new Error(`File "${file.name}" is too large. Maximum size is 5 MB.`);
+    }
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from("offer-proofs")
