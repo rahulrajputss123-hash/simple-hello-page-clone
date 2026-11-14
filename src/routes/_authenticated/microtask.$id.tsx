@@ -70,6 +70,21 @@ function MicrotaskDetailPage() {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Helper to convert File to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data:image/jpeg;base64, prefix
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const clickMutation = useMutation({
     mutationFn: () =>
       clickFn({
@@ -122,10 +137,19 @@ function MicrotaskDetailPage() {
       const c = campaigns.data?.find((campaign) => campaign.id === id);
       if (!c) throw new Error("Task not found.");
 
+      // Convert files to base64
+      const filesData = await Promise.all(
+        files.map(async (file) => ({
+          name: file.name,
+          type: file.type,
+          base64: await fileToBase64(file),
+        }))
+      );
+
       return submitProofFn({
         data: {
           campaignId: id,
-          files,
+          files: filesData,
           fieldValues,
           userNote: notes,
         },
@@ -388,20 +412,37 @@ function MicrotaskDetailPage() {
                   className="sr-only"
                   onChange={(e) => {
                     const selected = Array.from(e.target.files ?? []);
-                    const valid = selected
-                      .filter(
-                        (file) =>
-                          ["image/jpeg", "image/png", "image/webp"].includes(file.type) &&
-                          file.size <= 5 * 1024 * 1024,
-                      )
-                      .slice(0, maxImages);
-                    if (valid.length !== selected.length || selected.length > maxImages) {
-                      setErrorMessage(
-                        `Use up to ${maxImages} JPEG, PNG, or WebP images, each no larger than 5 MB.`,
-                      );
+                    const maxSize = 5 * 1024 * 1024; // 5MB
+                    
+                    // Validate file types and sizes
+                    const valid = selected.filter((file) => {
+                      const validType = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+                      const validSize = file.size <= maxSize;
+                      
+                      if (!validType) {
+                        setErrorMessage("Please upload only JPEG, PNG, or WebP images.");
+                        return false;
+                      }
+                      if (!validSize) {
+                        setErrorMessage(`Each image must be 5 MB or smaller. "${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB.`);
+                        return false;
+                      }
+                      return true;
+                    }).slice(0, maxImages);
+                    
+                    if (valid.length === 0) {
+                      return;
                     }
+                    
+                    if (selected.length > maxImages) {
+                      setErrorMessage(`Maximum ${maxImages} images allowed.`);
+                    }
+                    
                     setFiles(valid);
                     setPreview(valid[0] ? URL.createObjectURL(valid[0]) : null);
+                    if (valid.length > 0) {
+                      setErrorMessage(null);
+                    }
                   }}
                 />
               </div>
