@@ -115,7 +115,7 @@ export const gemiAdAdapter: OfferProviderAdapter = {
     return null;
   },
 
-  async fetchOffers(provider, _context) {
+  async fetchOffers(provider, context) {
     const cfg = (provider.sync_config ?? {}) as Record<string, unknown>;
     const placementId = String(cfg["placement_id"] ?? "").trim();
     const apiKey = String(cfg["api_key"] ?? "").trim();
@@ -231,6 +231,17 @@ export const gemiAdAdapter: OfferProviderAdapter = {
         category: mapCategory(item.category),
         stepRewards: stepRewards.length > 0 ? stepRewards : undefined,
         raw: item,
+      });
+    }
+
+    // GemiAd returns full catalog regardless of requested country, so we must filter client-side
+    // Filter offers by requested country if context provided
+    if (context?.country) {
+      const target = context.country.toUpperCase();
+      return offers.filter((o) => {
+        const c = o.countries ?? [];
+        // Include offers with no country restrictions or offers that include the target country
+        return c.length === 0 || c.includes(target);
       });
     }
 

@@ -80,7 +80,16 @@ export const claimOffer = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { claimOfferImpl } = await import("./coinquest.server");
-    return claimOfferImpl(context.userId, data.offerId, data.proofUrl ?? null);
+    const { detectCountryFromRequest } = await import("./offers/geo.server");
+    const { getUserCountry } = await import("./profile.server");
+    
+    // Get country from request first, fallback to profile
+    let country = detectCountryFromRequest();
+    if (!country) {
+      country = await getUserCountry(context.userId);
+    }
+    
+    return claimOfferImpl(context.userId, data.offerId, data.proofUrl ?? null, country);
   });
 
 /** Start an offer claim (for URL+proof workflow) - creates "started" status */
@@ -89,7 +98,16 @@ export const startOfferClaim = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ offerId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { startOfferClaimImpl } = await import("./coinquest.server");
-    return startOfferClaimImpl(context.userId, data.offerId);
+    const { detectCountryFromRequest } = await import("./offers/geo.server");
+    const { getUserCountry } = await import("./profile.server");
+    
+    // Get country from request first, fallback to profile
+    let country = detectCountryFromRequest();
+    if (!country) {
+      country = await getUserCountry(context.userId);
+    }
+    
+    return startOfferClaimImpl(context.userId, data.offerId, country);
   });
 
 /** Submit proof for a started offer claim - moves from "started" to "pending" */

@@ -158,7 +158,15 @@ export async function computeAutoTags(offers: AutoTagRow[]): Promise<AutoTagsMap
 }
 
 /** Insert a click event — called from the pre-redirect popup Continue button. */
-export async function recordOfferClickImpl(offerId: string) {
-  await supabaseAdmin.from("offer_click_events").insert({ offer_id: offerId } as never);
+export async function recordOfferClickImpl(
+  offerId: string, 
+  userId: string | null = null, 
+  country: string | null = null
+) {
+  await supabaseAdmin.from("offer_click_events").insert({ 
+    offer_id: offerId,
+    user_id: userId,
+    country: country,
+  } as never);
   return { ok: true };
 }

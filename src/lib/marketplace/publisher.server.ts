@@ -408,6 +408,122 @@ export async function submitProofForCampaignImpl(
   userId: string,
   input: SubmitProofForCampaignInput,
 ): Promise<{ submissionId: string }> {
+  // 0. Fetch campaign to validate proof_mode
+  const { data: campaign, error: campaignError } = await mktDbPublisher
+    .from("campaigns")
+    .select("proof_mode, proof_min_images, proof_fields")
+    .eq("id", input.campaignId)
+    .single();
+
+  if (campaignError || !campaign) {
+    throw new SubmissionError("MKT_NOT_AVAILABLE", "Campaign not found.");
+  }
+
+  // Validate proof submission based on proof_mode
+  const hasImages = input.files.length > 0;
+  const proofFields = (campaign.proof_fields || []) as Array<{ key: string; required: boolean }>;
+  const hasFieldValues = proofFields.some(field => {
+    const value = input.fieldValues?.[field.key];
+    return value && value.trim().length > 0;
+  });
+
+  const proofMode = campaign.proof_mode;
+  const minImages = campaign.proof_min_images ?? 0;
+
+  if (proofMode === "either") {
+    // Require at least one image OR at least one non-empty field value
+    if (!hasImages && !hasFieldValues) {
+      throw new SubmissionError(
+        "MKT_INVALID_PROOF",
+        "Please provide either a screenshot or fill in the required details."
+      );
+    }
+  } else if (proofMode === "both") {
+    // Require both images AND all required fields
+    if (input.files.length < minImages) {
+      throw new SubmissionError(
+        "MKT_INVALID_PROOF",
+        `Please upload at least ${minImages} image${minImages === 1 ? "" : "s"}.`
+      );
+    }
+    for (const field of proofFields) {
+      if (field.required) {
+        const value = input.fieldValues?.[field.key];
+        if (!value || !value.trim()) {
+          throw new SubmissionError(
+            "MKT_INVALID_PROOF",
+            `Please fill in all required fields.`
+          );
+        }
+      }
+    }
+  } else if (proofMode === "screenshot") {
+    // Require images only
+    if (input.files.length < minImages) {
+      throw new SubmissionError(
+        "MKT_INVALID_PROOF",
+        `Please upload at least ${minImages} screenshot${minImages === 1 ? "" : "s"}.`
+      );
+    }
+  } else if (proofMode === "text") {
+    // Require all required fields, no images needed
+    for (const field of proofFields) {
+      if (field.required) {
+        const value = input.fieldValues?.[field.key];
+        if (!value || !value.trim()) {
+          throw new SubmissionError(
+            "MKT_INVALID_PROOF",
+            `Please fill in all required fields.`
+          );
+        }
+      }
+    }
+  } else if (proofMode === null) {
+    // Fallback to legacy heuristic validation for old campaigns without proof_mode
+    const hasRequiredFields = proofFields.some(f => f.required);
+    if (minImages >= 1 && !hasRequiredFields) {
+      // Legacy "screenshot" mode
+      if (input.files.length < minImages) {
+        throw new SubmissionError(
+          "MKT_INVALID_PROOF",
+          `Please upload at least ${minImages} screenshot${minImages === 1 ? "" : "s"}.`
+        );
+      }
+    } else if (minImages === 0 && proofFields.length > 0) {
+      // Legacy "text" mode
+      for (const field of proofFields) {
+        if (field.required) {
+          const value = input.fieldValues?.[field.key];
+          if (!value || !value.trim()) {
+            throw new SubmissionError(
+              "MKT_INVALID_PROOF",
+              `Please fill in all required fields.`
+            );
+          }
+        }
+      }
+    } else {
+      // Legacy "both" mode
+      if (input.files.length < minImages) {
+        throw new SubmissionError(
+          "MKT_INVALID_PROOF",
+          `Please upload at least ${minImages} image${minImages === 1 ? "" : "s"}.`
+        );
+      }
+      for (const field of proofFields) {
+        if (field.required) {
+          const value = input.fieldValues?.[field.key];
+          if (!value || !value.trim()) {
+            throw new SubmissionError(
+              "MKT_INVALID_PROOF",
+              `Please fill in all required fields.`
+            );
+          }
+        }
+      }
+    }
+  }
+
   // 1. Find existing active click or create one
   const { data: existingClick } = await mktDbPublisher
     .from("campaign_clicks")

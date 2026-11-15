@@ -1575,9 +1575,10 @@ export async function createCampaignImpl(
       input.verification === "proof" && input.proofDescription
         ? input.proofDescription
         : "Please upload proof of completion",
-    proof_min_images: input.verification === "proof" ? (input.proofMinImages ?? 1) : 1,
+    proof_min_images: input.verification === "proof" ? (input.proofMinImages ?? 0) : 0,
     proof_max_images: input.verification === "proof" ? (input.proofMaxImages ?? 3) : 3,
     proof_fields: input.verification === "proof" && input.proofFields ? input.proofFields : [],
+    proof_mode: input.verification === "proof" && input.proofMode ? input.proofMode : null,
     category_id: input.categoryId,
     subcategory_id: input.subcategoryId || null,
     estimated_minutes: input.estimatedMinutes || null,
@@ -1617,59 +1618,11 @@ export async function createCampaignImpl(
   // Step 2: Store campaign options if advanced settings specified (BEFORE money moves)
   if (
     input.verification === "proof" &&
-    (input.proofMode || input.reviewWindow || input.proofExampleUrl || input.dailyLimit)
+    (input.reviewWindow || input.proofExampleUrl || input.dailyLimit)
   ) {
     const optionsData: Record<string, any> = {
       campaign_id: campaign.id,
     };
-
-    // Validate and save proof_mode
-    if (input.proofMode) {
-      const mode = input.proofMode;
-      const minImages = input.proofMinImages ?? 0;
-      const maxImages = input.proofMaxImages ?? 1;
-      const hasFields = (input.proofFields?.length ?? 0) > 0;
-
-      // Validate proof_mode consistency
-      if (mode === "screenshot" && minImages < 1) {
-        throw new DepositError(
-          "INVALID_PROOF_MODE",
-          "Screenshot mode requires at least 1 image",
-        );
-      }
-      if (mode === "text" && !hasFields) {
-        throw new DepositError(
-          "INVALID_PROOF_MODE",
-          "Text mode requires at least one custom field",
-        );
-      }
-      if (mode === "text" && minImages > 0) {
-        throw new DepositError(
-          "INVALID_PROOF_MODE",
-          "Text mode cannot require images (set min images to 0)",
-        );
-      }
-      if (mode === "both" && (minImages < 1 || !hasFields)) {
-        throw new DepositError(
-          "INVALID_PROOF_MODE",
-          "Both mode requires images AND custom fields",
-        );
-      }
-      if (mode === "either" && minImages > 0) {
-        throw new DepositError(
-          "INVALID_PROOF_MODE",
-          "Either mode must allow 0 images (users can choose screenshot OR text)",
-        );
-      }
-      if (mode === "either" && !hasFields) {
-        throw new DepositError(
-          "INVALID_PROOF_MODE",
-          "Either mode requires at least one custom field",
-        );
-      }
-
-      optionsData.proof_mode = mode;
-    }
 
     if (input.reviewWindow) {
       optionsData.review_window_hours = input.reviewWindow;
@@ -2120,6 +2073,7 @@ export async function editCampaignImpl(
   if (input.proofMinImages !== undefined) updates.proof_min_images = input.proofMinImages;
   if (input.proofMaxImages !== undefined) updates.proof_max_images = input.proofMaxImages;
   if (input.proofFields !== undefined) updates.proof_fields = input.proofFields;
+  if (input.proofMode !== undefined) updates.proof_mode = input.proofMode;
   if (input.trackingUrl !== undefined) updates.tracking_url = input.trackingUrl;
   if (input.ipAllowlist !== undefined) updates.ip_allowlist = input.ipAllowlist;
   if (input.startsAt !== undefined) updates.starts_at = input.startsAt;
@@ -2189,10 +2143,6 @@ export async function editCampaignImpl(
   const optionsUpdates: Record<string, any> = {};
   let hasOptionsChanges = false;
 
-  if (input.proofMode !== undefined) {
-    optionsUpdates.proof_mode = input.proofMode;
-    hasOptionsChanges = true;
-  }
   if (input.proofExampleUrl !== undefined) {
     optionsUpdates.proof_example_url = input.proofExampleUrl;
     hasOptionsChanges = true;

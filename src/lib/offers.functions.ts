@@ -7,9 +7,18 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 export const trackOfferClick = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ offerId: z.string().uuid() }).parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { recordOfferClickImpl } = await import("./offers/tags.server");
-    return recordOfferClickImpl(data.offerId);
+    const { detectCountryFromRequest } = await import("./offers/geo.server");
+    const { getUserCountry } = await import("./profile.server");
+    
+    // Get country from request first, fallback to profile
+    let country = detectCountryFromRequest();
+    if (!country) {
+      country = await getUserCountry(context.userId);
+    }
+    
+    return recordOfferClickImpl(data.offerId, context.userId, country);
   });
 
 /** Admin-only API surface for future Providers / Network offer management screens. */
@@ -168,9 +177,17 @@ export const getFeaturedFeed = createServerFn({ method: "POST" })
     const { detectCountryFromRequest, detectIpFromRequest } = await import("./offers/geo.server");
     const { getFeaturedFeedImpl } = await import("./offers/feed-cache.server");
     const { detectPlatformFromRequest } = await import("./offers/platform.server");
+    const { updateUserCountryIfChanged } = await import("./profile.server");
+    
     const country = detectCountryFromRequest();
     const ip = detectIpFromRequest();
     const platform = await detectPlatformFromRequest();
+    
+    // Update user's country if it changed (non-blocking)
+    updateUserCountryIfChanged(context.userId).catch(() => {
+      // Fail silently - don't block feed request
+    });
+    
     return getFeaturedFeedImpl(country, data.scope, ip, context.userId, platform);
   });
 
@@ -324,4 +341,32 @@ export const requestProofUploadUrl = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { requestProofUploadUrlImpl } = await import("./offers/proof-upload.server");
     return requestProofUploadUrlImpl(context.userId, data.offerId, data.filename);
+  });
+
+/** Admin: get country-wise analytics for a date range */
+export const getCountryAnalytics = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
+    const { getCountryAnalyticsImpl } = await import("./admin-country-analytics.server");
+    return getCountryAnalyticsImpl(data.startDate, data.endDate);
+  });
+
+/** Admin: get feed health status per provider */
+export const getFeedHealthStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole } = await import("./admin-audit.server");
+    await requireRole(context.userId, ["admin"]);
+    const { getFeedHealthStatusImpl } = await import("./admin-country-analytics.server");
+    return getFeedHealthStatusImpl();
   });

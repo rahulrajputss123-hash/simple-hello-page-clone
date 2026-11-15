@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron/refresh-offer-feed",
+      "schedule": "0 */6 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
