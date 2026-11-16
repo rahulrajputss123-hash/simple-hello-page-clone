@@ -3,17 +3,15 @@ import { createFileRoute } from "@tanstack/react-router";
 /**
  * Scheduled background refresh for the offer feed cache.
  *
- * Not a per-request live fetch — this is meant to be hit by a cron scheduler on an interval
- * (default every 4-6h, configurable in the admin panel). It refreshes every enabled network for
- * every country that has been requested at least once (present in offer_feed_cache) plus the
- * configured default country.
+ * Not a per-request live fetch — this is meant to be hit by a cron scheduler on an interval.
+ * It refreshes every enabled network for every country that has been requested at least once
+ * (present in offer_feed_cache) plus the configured default country.
  *
- * Wire it up with your platform's scheduler, e.g. a Vercel Cron Job:
- *   { "crons": [{ "path": "/api/cron/refresh-offer-feed?secret=YOUR_SECRET", "schedule": "0 *\/5 * * *" }] }
- * or a Cloudflare Worker cron trigger / any external uptime pinger.
+ * Triggered once a day by Vercel Cron (schedule 0 3 * * *).
+ * Auth: Authorization: Bearer must equal OFFER_FEED_CRON_SECRET.
  *
- * Auth: send the OFFER_FEED_CRON_SECRET via `Authorization: Bearer <secret>`,
- * the `x-cron-secret` header, or `?secret=` query param.
+ * Manual trigger example: /api/cron/refresh-offer-feed?secret=YOUR_SECRET
+ * The route also accepts the secret via the `x-cron-secret` header or `?secret=` query param.
  */
 
 /** Constant-time string compare (portable — avoids node:crypto for edge/worker runtimes). */
