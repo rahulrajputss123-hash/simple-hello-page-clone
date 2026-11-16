@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { track } from "@/lib/analytics/track";
 
 import { QuestCard, type QuestCardQuest, type QuestSessionView } from "@/components/QuestCard";
 import { ErrorState } from "@/components/States";
@@ -50,6 +51,15 @@ export function StarterQuests() {
     enabled: Boolean(session),
     queryFn: () => fetchQuests({ data: { isNative: isNativePlatform() } }),
   });
+
+  // Track home_quest_view when quests are loaded
+  useEffect(() => {
+    if (quests.data && quests.data.length > 0) {
+      track("home_quest_view", {
+        quest_count: quests.data.length,
+      });
+    }
+  }, [quests.data]);
 
   const sessions = useQuery({
     queryKey: ["quest-sessions", session?.user.id],
@@ -146,6 +156,12 @@ export function StarterQuests() {
 
   const runAd = useMutation({
     mutationFn: async (questKey: string) => {
+      // Track quest start
+      track("quest_start", {
+        quest_key: questKey,
+        quest_type: "ads",
+      });
+      
       const questSession = await start({ data: { questKey } });
       const result = await playRewardedAd();
 
@@ -163,7 +179,13 @@ export function StarterQuests() {
     },
     onSuccess: (result: unknown) => {
       const r = result as { credited?: boolean };
-      if (r.credited) toast.success("Quest complete — wallet credited!");
+      if (r.credited) {
+        // Track quest complete
+        track("quest_complete", {
+          quest_type: "ads",
+        });
+        toast.success("Quest complete — wallet credited!");
+      }
       else toast.success("Ad verified. Keep going!");
       void queryClient.invalidateQueries({ queryKey: ["quest-sessions", session?.user.id] });
       void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
@@ -185,6 +207,15 @@ export function StarterQuests() {
 
   const runShortlink = useMutation({
     mutationFn: async ({ questKey, step }: { questKey: string; step: number }) => {
+      // Track quest start (only on step 1)
+      if (step === 1) {
+        const q = quests.data?.find((quest) => quest.key === questKey);
+        track("quest_start", {
+          quest_key: questKey,
+          quest_type: q?.quest_type || "shortlink",
+        });
+      }
+      
       await start({ data: { questKey } });
       return openStep({ data: { questKey, step, isNative: isNativePlatform() } });
     },
@@ -209,8 +240,16 @@ export function StarterQuests() {
   });
 
   const runLocker = useMutation({
-    mutationFn: async (questKey: string) =>
-      openLocker({ data: { questKey, isNative: isNativePlatform() } }),
+    mutationFn: async (questKey: string) => {
+      // Track quest start
+      const q = quests.data?.find((quest) => quest.key === questKey);
+      track("quest_start", {
+        quest_key: questKey,
+        quest_type: q?.quest_type || "locker",
+      });
+      
+      return openLocker({ data: { questKey, isNative: isNativePlatform() } });
+    },
     onSuccess: (result) => {
       // No lockers configured yet — see the note in runShortlink.
       if ("unavailable" in result) {
@@ -238,6 +277,15 @@ export function StarterQuests() {
   const runFeedQuest = useMutation({
     mutationFn: async ({ questKey, step }: { questKey: string; step: number }) => {
       const { startFeedQuest, openFeedQuestStep } = await import("@/lib/quests.functions");
+      
+      // Track quest start (only on step 1)
+      if (step === 1) {
+        const q = quests.data?.find((quest) => quest.key === questKey);
+        track("quest_start", {
+          quest_key: questKey,
+          quest_type: q?.quest_type || "feed",
+        });
+      }
       
       // First call: create session if needed
       if (step === 1) {
@@ -322,6 +370,13 @@ export function StarterQuests() {
     if (!q) return;
     const { credited, nextStep } = questRuntime(q);
     if (Boolean(q.is_locked) || credited) return;
+
+    // Track quest click
+    track("home_quest_click", {
+      quest_key: q.key,
+      quest_type: q.quest_type,
+      step: nextStep,
+    });
 
     setBusy(q.key);
     if (q.quest_type === "timed_ptc") {

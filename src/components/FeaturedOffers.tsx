@@ -2,6 +2,7 @@ import { Gift } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { track } from "@/lib/analytics/track";
 
 import { EmptyState, ErrorState } from "@/components/States";
 import { OfferCard } from "@/components/OfferCard";
@@ -43,8 +44,15 @@ export function FeaturedOffers({
         totalOffers: data.offers.length,
         categories: [...new Set(data.offers.map(o => o.category || 'null'))],
       });
+      
+      // Track offer list view
+      track("offer_list_view", {
+        scope,
+        country: data.country,
+        offer_count: data.offers.length,
+      });
     }
-  }, [data]);
+  }, [data, scope]);
 
   // Restore or initialize visible count
   const [visibleCount, setVisibleCount] = useState(() => {

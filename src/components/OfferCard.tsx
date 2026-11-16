@@ -1,6 +1,7 @@
 import { ArrowUpRight, Gift } from "lucide-react";
 import { memo, useCallback, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { track } from "@/lib/analytics/track";
 
 import { OfferTagRow, type OfferTag } from "@/components/OfferTagRow";
 import { formatReward } from "@/lib/format-reward";
@@ -59,6 +60,14 @@ export const OfferCard = memo(function OfferCard({
   const statusColor =
     claim_status === "started" ? "bg-primary text-primary-foreground" : "bg-amber-500 text-white";
 
+  // Track offer click
+  const handleClick = useCallback(() => {
+    track("offer_click", {
+      offer_id: id,
+      title: title.substring(0, 100), // Truncate to avoid large properties
+    });
+  }, [id, title]);
+
   return (
     <li
       className="surface-card group relative flex cursor-pointer flex-col overflow-hidden !p-0 shadow-soft outline-none transition-[transform,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/50 active:scale-[0.98]"
@@ -70,6 +79,7 @@ export const OfferCard = memo(function OfferCard({
         params={{ offerId: id }}
         preload="intent"
         className="flex flex-1 flex-col"
+        onClick={handleClick}
         onTouchStart={onPrefetch}
         onPointerDown={onPrefetch}
         onMouseEnter={onPrefetch}

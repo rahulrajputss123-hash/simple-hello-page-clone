@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { track } from "@/lib/analytics/track";
 
 import { claimOffer, startOfferClaim, submitOfferProof } from "@/lib/coinquest.functions";
 import { trackOfferClick } from "@/lib/offers.functions";
@@ -34,6 +35,13 @@ export function useOfferActions(
   const startMutation = useMutation({
     mutationFn: async (offer: OfferActionData) => {
       const result = await startClaim({ data: { offerId: offer.id } });
+      
+      // Track offer started
+      track("offer_started", {
+        offer_id: offer.id,
+        provider: offer.provider_slug,
+        payout_mode: offer.payout_mode,
+      });
       
       // Start active time grace period if active time quest is running
       if (activeTimeQuestKey) {
@@ -93,9 +101,20 @@ export function useOfferActions(
   });
 
   const submitProofMutation = useMutation({
-    mutationFn: async (input: { offerId: string; proofPath: string }) =>
-      submitProof({ data: input }),
+    mutationFn: async (input: { offerId: string; proofPath: string }) => {
+      // Track proof submit attempt
+      track("proof_submit_attempt", {
+        offer_id: input.offerId,
+      });
+      
+      return submitProof({ data: input });
+    },
     onSuccess: async (_result, input) => {
+      // Track proof submit success
+      track("proof_submit_success", {
+        offer_id: input.offerId,
+      });
+      
       toast.success("Submitted for review. We'll notify you once it's approved.");
       await queryClient.invalidateQueries({ queryKey: ["offer-claims"] });
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -103,7 +122,24 @@ export function useOfferActions(
       await queryClient.invalidateQueries({ queryKey: ["offer", input.offerId] });
       onSuccess?.(input.offerId, "submit");
     },
-    onError: (err: Error) => toast.error(err.message || "Could not submit proof. Try again."),
+    onError: (err: Error) => {
+      // Track proof submit error with sanitized error code
+      const errorCode = err.message.toLowerCase().includes("file")
+        ? err.message.toLowerCase().includes("large")
+          ? "file_too_large"
+          : err.message.toLowerCase().includes("type") || err.message.toLowerCase().includes("format")
+            ? "unsupported_type"
+            : "file_error"
+        : err.message.toLowerCase().includes("network") || err.message.toLowerCase().includes("fetch")
+          ? "network"
+          : "server";
+      
+      track("proof_submit_error", {
+        error_code: errorCode,
+      });
+      
+      toast.error(err.message || "Could not submit proof. Try again.");
+    },
   });
 
   const claimMutation = useMutation({
@@ -115,6 +151,14 @@ export function useOfferActions(
       provider_slug?: string | null;
       external_offer_id?: string | null;
     }) => {
+      // Track offer started when hasClickUrl (means it's starting, not just claiming)
+      if (input.hasClickUrl) {
+        track("offer_started", {
+          offer_id: input.offerId,
+          provider: input.provider_slug,
+        });
+      }
+      
       // Track click first
       if (input.hasClickUrl) {
         void trackClick({ data: { offerId: input.offerId } }).catch(() => {});
