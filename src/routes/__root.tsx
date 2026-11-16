@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { useIsNative } from "@/hooks/useIsNative";
+import { useSessionStart, usePageViewTracking, useAppBackgroundTracking, useClientErrorTracking } from "@/hooks/useAnalytics";
 import { ViewedOfferProvider } from "@/lib/viewed-offer";
 import { SplashScreen } from "@/components/SplashScreen";
 import { Toaster } from "@/components/ui/sonner";
@@ -237,6 +238,16 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // Track session start and page views
+  useSessionStart();
+  usePageViewTracking();
+  
+  // Track app going to background
+  useAppBackgroundTracking();
+  
+  // Track client errors
+  useClientErrorTracking();
 
   return (
     <QueryClientProvider client={queryClient}>

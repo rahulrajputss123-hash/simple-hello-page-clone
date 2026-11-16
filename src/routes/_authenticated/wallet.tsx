@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowDownToLine, ArrowRightLeft, Check, Plus, Receipt, ShieldCheck, Wallet } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { track } from "@/lib/analytics/track";
 
 import { AppShell } from "@/components/AppShell";
 import { SectionHeading } from "@/components/SectionHeading";
@@ -53,6 +54,14 @@ export const Route = createFileRoute("/_authenticated/wallet")({
 /** Loose email check for the gift-card / PayPal fields. */
 function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+/** Bucket amount for privacy-preserving analytics */
+function bucketAmount(amount: number): string {
+  if (amount < 10) return "under_10";
+  if (amount < 50) return "10_50";
+  if (amount < 100) return "50_100";
+  return "over_100";
 }
 
 type DraftFields = Partial<Record<PayoutFieldName, string>>;
@@ -246,6 +255,13 @@ function WalletPage() {
   // Display-only count-up for the headline balance.
   const shownBalance = useCountUp(balance);
 
+  // Track wallet view when page loads
+  useEffect(() => {
+    track("wallet_view", {
+      balance_bucket: bucketAmount(balance),
+    });
+  }, []); // Only track once on mount
+
   const transactions = useQuery({
     queryKey: ["transactions", session?.user.id],
     enabled: Boolean(session),
@@ -316,8 +332,25 @@ function WalletPage() {
   });
 
   const requestWithdrawal = useMutation({
-    mutationFn: () => withdraw({ data: { amount: Number(amount), payoutMethodId: methodId } }),
+    mutationFn: () => {
+      const withdrawAmount = Number(amount);
+      
+      // Track withdraw view (when user opens withdraw dialog)
+      track("withdraw_view", {
+        amount_bucket: bucketAmount(withdrawAmount),
+        balance_bucket: bucketAmount(balance),
+      });
+      
+      return withdraw({ data: { amount: withdrawAmount, payoutMethodId: methodId } });
+    },
     onSuccess: () => {
+      const withdrawAmount = Number(amount);
+      
+      // Track withdraw submit success
+      track("withdraw_submit", {
+        amount_bucket: bucketAmount(withdrawAmount),
+      });
+      
       toast.success("Withdrawal requested — we'll review it shortly.");
       setAmount("");
       setBurstKey((key) => key + 1);

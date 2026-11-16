@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { track } from "@/lib/analytics/track";
 
 import { Button } from "@/components/ui/button";
 import { formatReward } from "@/lib/format-reward";
@@ -189,6 +190,26 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   useEffect(() => {
     if (offer) setViewedOffer({ id: offer.id, title: offer.title });
   }, [offer, setViewedOffer]);
+
+  // Track claim status view when viewing an offer with a claim
+  useEffect(() => {
+    if (offer && offer.claim_status && offer.claim_status !== "started") {
+      track("claim_status_view", {
+        offer_id: offer.id,
+        status: offer.claim_status,
+      });
+    }
+  }, [offer]);
+
+  // Track proof screen view when proof section becomes visible
+  useEffect(() => {
+    if (offer && showProofSection && !isPending && !isApproved) {
+      track("proof_screen_view", {
+        offer_id: offer.id,
+        payout_mode: offer.payout_mode,
+      });
+    }
+  }, [offer, showProofSection, isPending, isApproved]);
 
   const reset = () => {
     setProofPath(null);
