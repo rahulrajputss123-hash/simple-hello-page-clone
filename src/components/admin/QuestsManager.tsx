@@ -231,6 +231,7 @@ export function QuestsManager() {
   const save = useServerFn(saveQuest);
   const remove = useServerFn(deleteQuest);
   const [form, setForm] = useState<FormState | null>(null);
+  const [formDirty, setFormDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<QuestRow | null>(null);
 
   const quests = useQuery({
@@ -244,8 +245,10 @@ export function QuestsManager() {
   });
 
   const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ["admin-quests"] });
-    void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
+    if (!formDirty) {
+      void queryClient.invalidateQueries({ queryKey: ["admin-quests"] });
+      void queryClient.invalidateQueries({ queryKey: ["quests-active"] });
+    }
   };
   const onError = (error: Error) => {
     console.error(error);
@@ -368,6 +371,7 @@ export function QuestsManager() {
     onSuccess: () => {
       toast.success("Quest saved.");
       setForm(null);
+      setFormDirty(false);
       refresh();
     },
     onError,
@@ -1440,6 +1444,7 @@ export function QuestsManager() {
                               type="checkbox"
                               checked={form.allowedNetworks.includes(network.value as never)}
                               onChange={(e) => {
+                                setFormDirty(true);
                                 if (e.target.checked) {
                                   setForm({
                                     ...form,
@@ -1479,7 +1484,7 @@ export function QuestsManager() {
                           onChange={(e) => setForm({ ...form, minPayoutUsd: e.target.value })}
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Filter out low-paying surveys (default: $0.50)
+                          Filter out low-paying surveys (leave empty for no filter)
                         </p>
                       </Field>
 

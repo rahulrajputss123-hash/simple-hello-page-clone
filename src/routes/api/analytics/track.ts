@@ -34,15 +34,12 @@ async function handle(request: Request) {
     // Get user ID from session if available
     let userId: string | null = null;
     try {
-      const { getWebRequest } = await import("vinxi/http");
-      const event = getWebRequest();
-      const { createSupabaseServerClient } = await import(
-        "@/integrations/supabase/server"
+      const { supabaseServerClient } = await import(
+        "@/integrations/supabase/client.server"
       );
-      const supabase = createSupabaseServerClient(event);
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await supabaseServerClient.auth.getUser();
       userId = user?.id || null;
     } catch {
       // Anonymous user - this is fine
