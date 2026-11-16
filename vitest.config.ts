@@ -32,6 +32,7 @@ export default defineConfig({
       'tests/feed-quest-persistence.test.ts',
       'tests/quest-network-adswedmedia.test.ts',
       'tests/marketplace/razorpay.server.test.ts',
+      'tests/checkin-profile-race.test.ts',
     ],
     exclude: [
       '**/node_modules/**',

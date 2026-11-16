@@ -1230,6 +1230,32 @@ async function getOrCreateCheckinSession(
 }
 
 /**
+ * Attempts to complete a check-in day
+ */
+async function attemptCompleteDay(
+  userId: string,
+  sessionId: string,
+  questKey: string,
+  localDate: string,
+  quest: QuestRow,
+): Promise<any> {
+  const { error } = await db.from("quest_checkin_days").upsert(
+    {
+      session_id: sessionId,
+      user_id: userId,
+      quest_key: questKey,
+      local_date: localDate,
+      active_seconds: quest.required_active_seconds, // Mark as fully active
+      completed_at: new Date().toISOString(),
+    } as any,
+    {
+      onConflict: "session_id,local_date",
+    },
+  );
+  return error;
+}
+
+/**
  * Complete a check-in day and credit the step reward.
  * Idempotent via quest_step_credits unique constraint.
  *
@@ -1256,23 +1282,37 @@ async function completeCheckinDay(
     return false; // Already completed
   }
 
-  // Upsert the day record as completed
-  const { error: upsertError } = await db.from("quest_checkin_days").upsert(
-    {
-      session_id: sessionId,
-      user_id: userId,
-      quest_key: questKey,
-      local_date: localDate,
-      active_seconds: quest.required_active_seconds, // Mark as fully active
-      completed_at: new Date().toISOString(),
-    } as any,
-    {
-      onConflict: "session_id,local_date",
-    },
-  );
+  // Ensure profile exists using the existing ensureProfileImpl
+  // This handles race condition where check-in happens before profile creation completes
+  // Get user's email from Supabase auth
+  const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userId);
+  const userEmail = authData.user?.email ?? null;
+  
+  const { ensureProfileImpl } = await import("./coinquest.server");
+  await ensureProfileImpl({
+    userId,
+    email: userEmail,
+  });
+
+  // Attempt to upsert the day record as completed
+  let upsertError = await attemptCompleteDay(userId, sessionId, questKey, localDate, quest);
+
+  // If foreign key error (profile missing), retry once after 500ms
+  if (upsertError && upsertError.code === "23503") {
+    console.warn("[checkin] Foreign key error on first attempt, retrying after profile creation...");
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await ensureProfileImpl({
+      userId,
+      email: userEmail,
+    });
+    upsertError = await attemptCompleteDay(userId, sessionId, questKey, localDate, quest);
+  }
 
   if (upsertError) {
     console.error("[checkin] Failed to complete day:", upsertError);
+    if (upsertError.code === "23503") {
+      throw new Error("Unable to save check-in. Please refresh the page and try again.");
+    }
     throw new Error("Failed to complete check-in day");
   }
 

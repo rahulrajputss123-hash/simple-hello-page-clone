@@ -219,17 +219,40 @@ export const toroxAdapter: OfferProviderAdapter = {
     url.searchParams.set("goals", "all");
 
     let response: Response;
-    try {
-      response = await fetch(url.toString(), {
-        headers: {
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(15000),
-      });
-    } catch (err) {
-      throw new Error(
-        `Torox fetch failed: ${err instanceof Error ? err.message : "network error"}`,
-      );
+    let attempt = 0;
+    const maxAttempts = 2; // One retry on timeout
+    const timeout = 30000; // 30 seconds
+    
+    while (attempt < maxAttempts) {
+      attempt++;
+      try {
+        response = await fetch(url.toString(), {
+          headers: {
+            Accept: "application/json",
+          },
+          signal: AbortSignal.timeout(timeout),
+        });
+        break; // Success, exit loop
+      } catch (err) {
+        const isTimeout = err instanceof Error && 
+          (err.name === "TimeoutError" || err.message.includes("timeout"));
+        
+        if (isTimeout && attempt < maxAttempts) {
+          // Retry once on timeout
+          console.log(`[Torox] Timeout on attempt ${attempt}, retrying...`);
+          continue;
+        }
+        
+        // Either not a timeout, or we've exhausted retries
+        const errorType = isTimeout ? "timeout" : "network error";
+        throw new Error(
+          `Torox fetch failed (${errorType}): ${err instanceof Error ? err.message : "unknown"}`,
+        );
+      }
+    }
+    
+    if (!response!) {
+      throw new Error("Torox fetch failed: no response after retries");
     }
 
     // Handle auth errors (never include token in error message)

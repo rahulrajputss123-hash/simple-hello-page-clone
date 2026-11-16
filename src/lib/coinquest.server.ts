@@ -680,7 +680,12 @@ async function payManualTask(userId: string, userTaskId: string, title: string, 
   }
 }
 
-export async function claimOfferImpl(userId: string, offerId: string, proofUrl: string | null) {
+export async function claimOfferImpl(
+  userId: string, 
+  offerId: string, 
+  proofUrl: string | null,
+  country: string | null = null
+) {
   // Check maintenance mode
   try {
     const maintenanceStatus = await supabaseAdmin.rpc("get_maintenance_status");
@@ -708,6 +713,43 @@ export async function claimOfferImpl(userId: string, offerId: string, proofUrl: 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const o = offer.data as any;
+
+  // Check country availability for network offers
+  if (o.source === "network" && country) {
+    const { data: availability } = await supabaseAdmin
+      .from("offer_country_availability")
+      .select("offer_id")
+      .eq("offer_id", offerId)
+      .eq("country", country)
+      .maybeSingle();
+
+    // Also check if this offer has ANY availability entries
+    const { data: hasAnyAvailability } = await supabaseAdmin
+      .from("offer_country_availability")
+      .select("offer_id")
+      .eq("offer_id", offerId)
+      .limit(1)
+      .maybeSingle();
+
+    // Reject if offer has availability entries but not for this country
+    if (hasAnyAvailability && !availability) {
+      await logAutomation({
+        eventType: "offer_claim",
+        status: "error",
+        source: "claim_country_blocked",
+        userId,
+        referenceId: offerId,
+        message: "Blocked claim for offer not available in user country",
+        context: { 
+          offerTitle: o.title,
+          providerSlug: o.provider_slug,
+          userCountry: country,
+          offerSource: o.source
+        },
+      });
+      throw new Error("This offer is not available in your region.");
+    }
+  }
 
   // Auto-postback offers are credited by the network's postback — never the in-app button.
   // Block manual pending claims unless explicitly from admin (future enhancement)
@@ -780,6 +822,7 @@ export async function claimOfferImpl(userId: string, offerId: string, proofUrl: 
       reward_amount: o.reward_amount,
       proof_url: proofUrl,
       status: "pending",
+      country: country,
     } as never)
     .select("*")
     .single();
@@ -795,12 +838,53 @@ export async function claimOfferImpl(userId: string, offerId: string, proofUrl: 
 }
 
 /** Start an offer claim for URL+proof workflow (Type 2) */
-export async function startOfferClaimImpl(userId: string, offerId: string) {
+export async function startOfferClaimImpl(
+  userId: string, 
+  offerId: string,
+  country: string | null = null
+) {
   const offer = await supabaseAdmin.from("offers").select("*").eq("id", offerId).single();
   if (offer.error || !offer.data.is_active) throw new Error("Offer unavailable.");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const o = offer.data as any;
+
+  // Check country availability for network offers
+  if (o.source === "network" && country) {
+    const { data: availability } = await supabaseAdmin
+      .from("offer_country_availability")
+      .select("offer_id")
+      .eq("offer_id", offerId)
+      .eq("country", country)
+      .maybeSingle();
+
+    // Also check if this offer has ANY availability entries
+    const { data: hasAnyAvailability } = await supabaseAdmin
+      .from("offer_country_availability")
+      .select("offer_id")
+      .eq("offer_id", offerId)
+      .limit(1)
+      .maybeSingle();
+
+    // Reject if offer has availability entries but not for this country
+    if (hasAnyAvailability && !availability) {
+      await logAutomation({
+        eventType: "offer_claim",
+        status: "error",
+        source: "start_claim_country_blocked",
+        userId,
+        referenceId: offerId,
+        message: "Blocked start claim for offer not available in user country",
+        context: { 
+          offerTitle: o.title,
+          providerSlug: o.provider_slug,
+          userCountry: country,
+          offerSource: o.source
+        },
+      });
+      throw new Error("This offer is not available in your region.");
+    }
+  }
 
   // Only for manual_proof offers with a URL
   if (o.payout_mode !== "manual_proof" || !o.click_url?.trim()) {
@@ -847,6 +931,7 @@ export async function startOfferClaimImpl(userId: string, offerId: string) {
       offer_id: offerId,
       reward_amount: o.reward_amount,
       status: "started",
+      country: country,
     } as never)
     .select("*")
     .single();

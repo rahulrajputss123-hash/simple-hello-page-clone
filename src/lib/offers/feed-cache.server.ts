@@ -417,6 +417,119 @@ async function readCacheRow(providerId: string, country: string) {
 }
 
 /**
+ * Update offer_country_availability table after successful feed refresh.
+ * Records which offers are available in which countries based on per-offer country data.
+ * 
+ * Country data sources:
+ * - Revtoo: item.countries[] from API
+ * - Torox: geos field from API  
+ * - OGAds: country field from API
+ * - GemiAd: country[] field from API
+ * - Affike: countries[] field from API
+ * - AdSwedMedia: countries[] field from API
+ * - AdBlueMedia: NO country field in API - uses requested country as fallback assumption
+ */
+async function updateOfferCountryAvailability(
+  providerId: string,
+  providerSlug: string,
+  requestedCountry: string,
+  normalizedOffers: NormalizedOffer[],
+  upsertedDbOffers: Array<{ id: string; external_offer_id: string | null }>
+): Promise<void> {
+  if (!upsertedDbOffers.length) {
+    // If no offers were upserted, clean up old availability for this provider+country
+    await supabaseAdmin
+      .from("offer_country_availability")
+      .delete()
+      .eq("provider_id", providerId)
+      .eq("country", requestedCountry);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const rows: Array<{
+    offer_id: string;
+    country: string;
+    provider_id: string;
+    last_seen_at: string;
+  }> = [];
+
+  // Build map of externalOfferId -> dbId for quick lookup
+  const externalIdToDbId = new Map<string, string>();
+  for (const dbOffer of upsertedDbOffers) {
+    if (dbOffer.external_offer_id) {
+      externalIdToDbId.set(dbOffer.external_offer_id, dbOffer.id);
+    }
+  }
+
+  // Extract countries from normalized offers (which come from adapters)
+  for (const normalizedOffer of normalizedOffers) {
+    const dbId = externalIdToDbId.get(normalizedOffer.externalOfferId);
+    if (!dbId) continue; // Shouldn't happen, but be defensive
+
+    const countries = normalizedOffer.countries ?? [];
+    
+    if (countries.length > 0) {
+      // Provider returned per-offer country data - use it
+      for (const countryCode of countries) {
+        // Skip "all" marker - empty array means global, not literal "all" country
+        if (countryCode.toLowerCase() === "all") continue;
+        
+        rows.push({
+          offer_id: dbId,
+          country: countryCode.toUpperCase(),
+          provider_id: providerId,
+          last_seen_at: now,
+        });
+      }
+    } else {
+      // Empty countries array means offer is globally available (no geo-restriction)
+      // For AdBlueMedia specifically: API doesn't provide country field, so we assume
+      // the requested country. This is a fallback assumption and may not be accurate.
+      if (providerSlug === "adbluemedia") {
+        // AdBlueMedia assumption: requested country is assumed since API has no country field
+        rows.push({
+          offer_id: dbId,
+          country: requestedCountry.toUpperCase(),
+          provider_id: providerId,
+          last_seen_at: now,
+        });
+      }
+      // For other providers: empty array means global offer, no row written
+      // (absence in offer_country_availability = available everywhere)
+    }
+  }
+
+  if (rows.length > 0) {
+    // Upsert availability records
+    const { error: upsertError } = await supabaseAdmin
+      .from("offer_country_availability")
+      .upsert(rows as never, { onConflict: "offer_id,country" });
+    
+    if (upsertError) {
+      console.error("[feed-cache] Failed to update offer_country_availability:", upsertError);
+      // Don't throw - this is supplementary data, don't fail the whole refresh
+    }
+  }
+
+  // Clean up stale availability records for this provider+country
+  // Only delete offers that were NOT in this refresh
+  const offerIds = upsertedDbOffers.map(o => o.id);
+  if (offerIds.length > 0) {
+    const { error: deleteError } = await supabaseAdmin
+      .from("offer_country_availability")
+      .delete()
+      .eq("provider_id", providerId)
+      .eq("country", requestedCountry)
+      .not("offer_id", "in", `(${offerIds.join(",")})`);
+    
+    if (deleteError) {
+      console.error("[feed-cache] Failed to clean up stale availability:", deleteError);
+    }
+  }
+}
+
+/**
  * Fetch this provider's feed for `country`, upsert into `offers`, and write the country cache row.
  * Bounded by the network's configured max offers. Throws on adapter/config failure.
  */
@@ -514,6 +627,18 @@ async function refreshProviderCountry(
       rewardAmount: Number(r.reward_amount),
       networkPayout: r.network_payout == null ? null : Number(r.network_payout),
     }));
+
+    // Update offer_country_availability table with per-offer country data
+    await updateOfferCountryAvailability(
+      provider.id,
+      provider.slug,
+      country,
+      limited, // Pass normalized offers with countries field populated by adapters
+      upserted // Pass DB offers for id mapping
+    );
+  } else {
+    // No offers in feed - clean up availability table for this provider+country
+    await updateOfferCountryAvailability(provider.id, provider.slug, country, [], []);
   }
 
   const expiresAt = new Date(
@@ -635,14 +760,7 @@ export async function assembleFeaturedImpl(
 
   const providerResults = await Promise.all(
     providers.map(async (provider) => {
-      let list = await getOrRefreshProviderCountry(provider, country, settings, ip);
-      if (
-        list.length === 0 &&
-        settings.fallbackBehavior === "default_country" &&
-        country !== settings.defaultCountry
-      ) {
-        list = await getOrRefreshProviderCountry(provider, settings.defaultCountry, settings, ip);
-      }
+      const list = await getOrRefreshProviderCountry(provider, country, settings, ip);
       return { provider, list };
     }),
   );
@@ -656,7 +774,8 @@ export async function assembleFeaturedImpl(
   }
 
   // Load network offers and manual offers IN PARALLEL
-  const [networkOffersData, manualRowsData] = await Promise.all([
+  // For network offers, we need to filter by country availability
+  const [networkOffersData, manualRowsData, countryAvailability] = await Promise.all([
     // Network offers query - JOIN offer_providers for provider name
     collected.size > 0
       ? supabaseAdmin
@@ -680,13 +799,45 @@ export async function assembleFeaturedImpl(
       .eq("is_active", true)
       .order("admin_priority", { ascending: false })
       .order("sort_order", { ascending: true }),
+    // Get country availability for network offers
+    // Returns offers available in the requested country
+    collected.size > 0
+      ? supabaseAdmin
+          .from("offer_country_availability")
+          .select("offer_id")
+          .eq("country", country)
+          .in("offer_id", [...collected.keys()])
+      : Promise.resolve({ data: [] }),
   ]);
 
-  // Process network offers
+  // Build a set of offer IDs available in this country
+  const availableInCountry = new Set(
+    (countryAvailability.data ?? []).map((row: any) => row.offer_id)
+  );
+
+  // Also get offers that have NO country availability entries (global offers)
+  // These are typically old offers or manually created offers
+  const offersWithNoAvailability = collected.size > 0
+    ? await supabaseAdmin
+        .from("offers")
+        .select("id")
+        .in("id", [...collected.keys()])
+        .not("id", "in", `(SELECT DISTINCT offer_id FROM offer_country_availability)`)
+    : { data: [] };
+  
+  const globalOfferIds = new Set(
+    (offersWithNoAvailability.data ?? []).map((row: any) => row.id)
+  );
+
+  // Process network offers - filter by country availability
   const now = Date.now();
   const networkOffers: FeaturedOffer[] = ((networkOffersData.data ?? []) as any[])
     .filter((o) => !o.expires_at || new Date(o.expires_at).getTime() > now)
     .filter((o) => hasValidReward(Number(o.reward_amount))) // Filter zero-reward offers
+    .filter((o) => {
+      // Include offers available in this country OR offers with no availability data (global)
+      return availableInCountry.has(o.id) || globalOfferIds.has(o.id);
+    })
     .map((o) => ({
       id: o.id,
       external_offer_id: o.external_offer_id ?? null,
@@ -1149,30 +1300,84 @@ export async function refreshAllFeedsImpl(force = false): Promise<FeedRefreshSum
   const { data: cacheRows } = await supabaseAdmin
     .from("offer_feed_cache")
     .select("country, expires_at");
-  const countries = new Set<string>([settings.defaultCountry]);
+  
+  // Build set of countries to refresh
+  const countries = new Set<string>([
+    settings.defaultCountry,
+    "IN", "BD", "PK", "MA", "US" // Priority countries
+  ]);
+  
   for (const row of cacheRows ?? []) {
     const c = normalizeCountry(row.country);
     if (c) countries.add(c);
   }
 
+  // Track GemiAd requests for rate limiting (5 req/min)
+  let gemiAdRequests = 0;
+  const gemiAdDelay = 12000; // 12 seconds between requests = 5 per minute
+  let lastGemiAdRequest = 0;
+
   for (const provider of providers) {
+    const isGemiAd = provider.slug === "gemiad";
+    
     for (const country of countries) {
       try {
         if (!force) {
           const existing = await readCacheRow(provider.id, country);
           if (existing && new Date(existing.expires_at).getTime() > Date.now()) continue;
         }
+
+        // Rate limit GemiAd requests
+        if (isGemiAd) {
+          const now = Date.now();
+          const timeSinceLastRequest = now - lastGemiAdRequest;
+          if (timeSinceLastRequest < gemiAdDelay && gemiAdRequests > 0) {
+            const waitTime = gemiAdDelay - timeSinceLastRequest;
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          }
+          lastGemiAdRequest = Date.now();
+          gemiAdRequests++;
+        }
+
         const list = await refreshProviderCountry(provider, country, settings);
         summary.refreshed.push({ provider: provider.slug, country, count: list.length });
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "refresh failed";
+        
+        // Create cache row if it doesn't exist, with error recorded
+        const cacheRow = await readCacheRow(provider.id, country);
+        if (!cacheRow) {
+          const expiresAt = new Date(
+            Date.now() + Math.max(1, settings.refreshIntervalHours) * 60 * 60 * 1000,
+          ).toISOString();
+          
+          await supabaseAdmin.from("offer_feed_cache").insert({
+            provider_id: provider.id,
+            country,
+            offers: [] as never,
+            offer_count: 0,
+            last_synced_at: new Date().toISOString(),
+            expires_at: expiresAt,
+            sync_error: errorMessage,
+          } as never);
+        } else {
+          // Update existing row with error
+          await supabaseAdmin
+            .from("offer_feed_cache")
+            .update({ sync_error: errorMessage } as never)
+            .eq("provider_id", provider.id)
+            .eq("country", country);
+        }
+        
         summary.errors.push({
           provider: provider.slug,
           country,
-          message: err instanceof Error ? err.message : "refresh failed",
+          message: errorMessage,
         });
       }
     }
   }
+  
   return summary;
 }
 

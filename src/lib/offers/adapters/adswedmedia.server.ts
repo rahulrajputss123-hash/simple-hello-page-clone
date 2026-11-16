@@ -61,6 +61,113 @@ function normalizeList(value: string[] | string | null | undefined): string[] {
   return Array.isArray(value) ? value : [];
 }
 
+/**
+ * Map AdswedMedia country names to ISO 3166-1 alpha-2 codes.
+ * AdswedMedia uses full country names (lowercase) like "united states", "canada".
+ */
+function mapCountryNameToIso(countryName: string): string | null {
+  const normalized = countryName.toLowerCase().trim();
+  
+  // Common country name mappings
+  const countryMap: Record<string, string> = {
+    "united states": "US",
+    "canada": "CA",
+    "united kingdom": "GB",
+    "australia": "AU",
+    "germany": "DE",
+    "france": "FR",
+    "spain": "ES",
+    "italy": "IT",
+    "netherlands": "NL",
+    "the netherlands": "NL",
+    "belgium": "BE",
+    "switzerland": "CH",
+    "austria": "AT",
+    "sweden": "SE",
+    "norway": "NO",
+    "denmark": "DK",
+    "finland": "FI",
+    "poland": "PL",
+    "czech republic": "CZ",
+    "portugal": "PT",
+    "greece": "GR",
+    "ireland": "IE",
+    "new zealand": "NZ",
+    "india": "IN",
+    "brazil": "BR",
+    "mexico": "MX",
+    "japan": "JP",
+    "south korea": "KR",
+    "china": "CN",
+    "singapore": "SG",
+    "hong kong": "HK",
+    "philippines": "PH",
+    "thailand": "TH",
+    "vietnam": "VN",
+    "indonesia": "ID",
+    "malaysia": "MY",
+    "bangladesh": "BD",
+    "pakistan": "PK",
+    "south africa": "ZA",
+    "egypt": "EG",
+    "nigeria": "NG",
+    "kenya": "KE",
+    "argentina": "AR",
+    "chile": "CL",
+    "colombia": "CO",
+    "peru": "PE",
+    "venezuela": "VE",
+    "turkey": "TR",
+    "israel": "IL",
+    "saudi arabia": "SA",
+    "uae": "AE",
+    "united arab emirates": "AE",
+    "qatar": "QA",
+    "kuwait": "KW",
+    "romania": "RO",
+    "hungary": "HU",
+    "bulgaria": "BG",
+    "croatia": "HR",
+    "slovakia": "SK",
+    "slovenia": "SI",
+    "lithuania": "LT",
+    "latvia": "LV",
+    "estonia": "EE",
+    "russia": "RU",
+    "uzbekistan": "UZ",
+    "tajikistan": "TJ",
+    "cameroon": "CM",
+    "mongolia": "MN",
+    "luxembourg": "LU",
+  };
+  
+  return countryMap[normalized] ?? null;
+}
+
+/**
+ * Normalize AdswedMedia countries array: convert country names to ISO codes.
+ * Returns ["all"] for "all", empty array for unknowns, or ISO codes array.
+ */
+function normalizeCountries(value: string[] | string | null | undefined): string[] {
+  const list = normalizeList(value);
+  if (list.length === 0) return [];
+  if (list[0] === "all") return ["all"];
+  
+  // Map country names to ISO codes
+  const isoCodes: string[] = [];
+  for (const countryName of list) {
+    const iso = mapCountryNameToIso(countryName);
+    if (iso) {
+      isoCodes.push(iso);
+    } else {
+      // Unknown country name - log warning
+      console.warn(`[AdswedMedia] Unknown country name: "${countryName}"`);
+    }
+  }
+  
+  return isoCodes;
+}
+
 // Part 2 B4: Removed local normalizeDevices - using shared function
 
 /**
@@ -168,7 +275,7 @@ export const adswedMediaAdapter: OfferProviderAdapter = {
           typeof item.payout === "number"
             ? item.payout
             : Number.parseFloat(String(item.payout ?? "")) || 0,
-        countries: normalizeList(item.countries),
+        countries: normalizeCountries(item.countries),
         devices: normalizeDevices(normalizeList(item.devices)),
         category: mapCategory(categories[0]),
         // Keep the multireward events array untouched for future use.
