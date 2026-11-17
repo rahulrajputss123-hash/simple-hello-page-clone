@@ -13,7 +13,7 @@ import {
 import { toast } from "sonner";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-
+import { track } from "@/lib/analytics/track";
 import { Button } from "@/components/ui/button";
 import { formatReward } from "@/lib/format-reward";
 import { offerDisplayBadge } from "@/lib/offers/display-badge";
@@ -21,17 +21,6 @@ import { requestProofUploadUrl, trackOfferClick } from "@/lib/offers.functions";
 import { useViewedOffer } from "@/lib/viewed-offer";
 import { useOfferActions, type OfferActionData } from "@/lib/offers/useOfferActions";
 import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/adapters/torox.server";
-
-// Lazy import analytics to avoid circular dependency issues
-const track = async (eventName: string, properties?: Record<string, unknown>) => {
-  try {
-    const { track: trackFn } = await import("@/lib/analytics/track");
-    trackFn(eventName, properties);
-  } catch (err) {
-    // Analytics is optional, fail silently
-    console.warn("[Analytics] Failed to track event:", eventName, err);
-  }
-};
 
 /**
  * Offer details view supporting 3 types:
