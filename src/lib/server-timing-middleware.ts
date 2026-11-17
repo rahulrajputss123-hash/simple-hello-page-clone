@@ -11,8 +11,6 @@
  *     .handler(withServerTiming("myFn", async ({ context }) => { ... }));
  */
 
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-
 type HandlerFn = (args: any) => Promise<any>;
 
 /**
@@ -47,6 +45,8 @@ export function withServerTiming<T extends HandlerFn>(
 
       if (shouldLog) {
         try {
+          // Lazy import to avoid bundling supabaseAdmin in client code
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const userIdPrefix = userId ? userId.slice(0, 8) : null;
 
           await supabaseAdmin.from("automation_logs").insert({
