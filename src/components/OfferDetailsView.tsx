@@ -20,7 +20,7 @@ import { offerDisplayBadge } from "@/lib/offers/display-badge";
 import { requestProofUploadUrl, trackOfferClick } from "@/lib/offers.functions";
 import { useViewedOffer } from "@/lib/viewed-offer";
 import { useOfferActions, type OfferActionData } from "@/lib/offers/useOfferActions";
-import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/adapters/torox.server";
+import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/constants";
 
 /**
  * Offer details view supporting 3 types:

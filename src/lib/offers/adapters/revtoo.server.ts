@@ -5,6 +5,7 @@ import type {
   OfferCategory,
 } from "../provider-types";
 import { normalizeDevices } from "../normalize-devices";
+import { REVTOO_USER_ID_PLACEHOLDER } from "../constants";
 
 /**
  * Revtoo CPA offer feed adapter.
@@ -25,7 +26,6 @@ import { normalizeDevices } from "../normalize-devices";
  * placeholder is then replaced with the real user id at click time in
  * click-url.ts — the same pattern used by the "adswedmedia" adapter.
  */
-export const REVTOO_USER_ID_PLACEHOLDER = "REVTOO_USER_ID_PLACEHOLDER";
 
 const REVTOO_API_URL = "https://revtoo.com/api/offers/";
 
