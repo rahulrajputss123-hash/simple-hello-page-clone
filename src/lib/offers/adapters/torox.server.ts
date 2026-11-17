@@ -1,6 +1,5 @@
 import type { NormalizedOffer, OfferCategory, OfferProviderAdapter } from "../provider-types";
 import { normalizeDevices } from "../normalize-devices";
-import { TOROX_CLICK_URL_SENTINEL } from "../constants";
 
 /**
  * Torox Offer Feed adapter (Partner API - CPA network).
@@ -27,6 +26,9 @@ import { TOROX_CLICK_URL_SENTINEL } from "../constants";
  */
 
 const DEFAULT_API_BASE = "https://api.wall.torox.io";
+
+// Torox click URLs use a sentinel pattern since they must be generated per-user
+export const TOROX_CLICK_URL_SENTINEL = "torox://campaign/";
 
 type ToroxOffer = {
   offerId: number;

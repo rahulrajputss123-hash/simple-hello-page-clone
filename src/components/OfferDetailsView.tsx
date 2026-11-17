@@ -14,13 +14,14 @@ import { toast } from "sonner";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { track } from "@/lib/analytics/track";
+
 import { Button } from "@/components/ui/button";
 import { formatReward } from "@/lib/format-reward";
 import { offerDisplayBadge } from "@/lib/offers/display-badge";
 import { requestProofUploadUrl, trackOfferClick } from "@/lib/offers.functions";
 import { useViewedOffer } from "@/lib/viewed-offer";
 import { useOfferActions, type OfferActionData } from "@/lib/offers/useOfferActions";
-import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/constants";
+import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/adapters/torox.server";
 
 /**
  * Offer details view supporting 3 types:

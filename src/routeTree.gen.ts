@@ -39,7 +39,6 @@ import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
 import { Route as LegalReferralTermsRouteImport } from './routes/legal/referral-terms'
 import { Route as LegalTermsRouteImport } from './routes/legal/terms'
 import { Route as LegalWithdrawalPolicyRouteImport } from './routes/legal/withdrawal-policy'
-import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
 import { Route as AuthenticatedAdvertiserCampaignsRouteImport } from './routes/_authenticated/advertiser/campaigns'
 import { Route as AuthenticatedAdvertiserCreateRouteImport } from './routes/_authenticated/advertiser/create'
 import { Route as AuthenticatedAdvertiserFundsRouteImport } from './routes/_authenticated/advertiser/funds'
@@ -50,8 +49,6 @@ import { Route as AuthenticatedAdvertiserTransactionsRouteImport } from './route
 import { Route as AuthenticatedMicrotaskProofIdRouteImport } from './routes/_authenticated/microtask-proof.$id'
 import { Route as AuthenticatedMicrotaskIdRouteImport } from './routes/_authenticated/microtask.$id'
 import { Route as AuthenticatedOfferOfferIdRouteImport } from './routes/_authenticated/offer.$offerId'
-import { Route as ApiAnalyticsTrackRouteImport } from './routes/api/analytics/track'
-import { Route as ApiCronCleanupEventsRouteImport } from './routes/api/cron/cleanup-events'
 import { Route as ApiCronRefreshOfferFeedRouteImport } from './routes/api/cron/refresh-offer-feed'
 import { Route as ApiPublicMarketplacePostbackRouteImport } from './routes/api/public/marketplace-postback'
 import { Route as ApiPublicRazorpayWebhookRouteImport } from './routes/api/public/razorpay-webhook'
@@ -219,12 +216,6 @@ const LegalWithdrawalPolicyRoute = LegalWithdrawalPolicyRouteImport.update({
   path: '/legal/withdrawal-policy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAdminAnalyticsRoute =
-  AuthenticatedAdminAnalyticsRouteImport.update({
-    id: '/analytics',
-    path: '/analytics',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdvertiserCampaignsRoute =
   AuthenticatedAdvertiserCampaignsRouteImport.update({
     id: '/advertiser/campaigns',
@@ -285,16 +276,6 @@ const AuthenticatedOfferOfferIdRoute =
     path: '/offer/$offerId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const ApiAnalyticsTrackRoute = ApiAnalyticsTrackRouteImport.update({
-  id: '/api/analytics/track',
-  path: '/api/analytics/track',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiCronCleanupEventsRoute = ApiCronCleanupEventsRouteImport.update({
-  id: '/api/cron/cleanup-events',
-  path: '/api/cron/cleanup-events',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiCronRefreshOfferFeedRoute = ApiCronRefreshOfferFeedRouteImport.update({
   id: '/api/cron/refresh-offer-feed',
   path: '/api/cron/refresh-offer-feed',
@@ -388,7 +369,7 @@ export interface FileRoutesByFullPath {
   '/preview-referral-rules': typeof PreviewReferralRulesRoute
   '/preview-section-heading': typeof PreviewSectionHeadingRoute
   '/preview-splash': typeof PreviewSplashRoute
-  '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
   '/home': typeof AuthenticatedHomeRoute
   '/my-submissions': typeof AuthenticatedMySubmissionsRoute
@@ -408,7 +389,6 @@ export interface FileRoutesByFullPath {
   '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
   '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
-  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/advertiser/campaigns': typeof AuthenticatedAdvertiserCampaignsRoute
   '/advertiser/create': typeof AuthenticatedAdvertiserCreateRoute
   '/advertiser/funds': typeof AuthenticatedAdvertiserFundsRoute
@@ -419,8 +399,6 @@ export interface FileRoutesByFullPath {
   '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
   '/offer/$offerId': typeof AuthenticatedOfferOfferIdRoute
-  '/api/analytics/track': typeof ApiAnalyticsTrackRoute
-  '/api/cron/cleanup-events': typeof ApiCronCleanupEventsRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/marketplace-postback': typeof ApiPublicMarketplacePostbackRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
@@ -446,7 +424,7 @@ export interface FileRoutesByTo {
   '/preview-referral-rules': typeof PreviewReferralRulesRoute
   '/preview-section-heading': typeof PreviewSectionHeadingRoute
   '/preview-splash': typeof PreviewSplashRoute
-  '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/admin': typeof AuthenticatedAdminRoute
   '/featured': typeof AuthenticatedFeaturedRoute
   '/home': typeof AuthenticatedHomeRoute
   '/my-submissions': typeof AuthenticatedMySubmissionsRoute
@@ -466,7 +444,6 @@ export interface FileRoutesByTo {
   '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
   '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
-  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/advertiser/campaigns': typeof AuthenticatedAdvertiserCampaignsRoute
   '/advertiser/create': typeof AuthenticatedAdvertiserCreateRoute
   '/advertiser/funds': typeof AuthenticatedAdvertiserFundsRoute
@@ -477,8 +454,6 @@ export interface FileRoutesByTo {
   '/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
   '/offer/$offerId': typeof AuthenticatedOfferOfferIdRoute
-  '/api/analytics/track': typeof ApiAnalyticsTrackRoute
-  '/api/cron/cleanup-events': typeof ApiCronCleanupEventsRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/marketplace-postback': typeof ApiPublicMarketplacePostbackRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
@@ -506,7 +481,7 @@ export interface FileRoutesById {
   '/preview-referral-rules': typeof PreviewReferralRulesRoute
   '/preview-section-heading': typeof PreviewSectionHeadingRoute
   '/preview-splash': typeof PreviewSplashRoute
-  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/featured': typeof AuthenticatedFeaturedRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/my-submissions': typeof AuthenticatedMySubmissionsRoute
@@ -526,7 +501,6 @@ export interface FileRoutesById {
   '/legal/referral-terms': typeof LegalReferralTermsRoute
   '/legal/terms': typeof LegalTermsRoute
   '/legal/withdrawal-policy': typeof LegalWithdrawalPolicyRoute
-  '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/advertiser/campaigns': typeof AuthenticatedAdvertiserCampaignsRoute
   '/_authenticated/advertiser/create': typeof AuthenticatedAdvertiserCreateRoute
   '/_authenticated/advertiser/funds': typeof AuthenticatedAdvertiserFundsRoute
@@ -537,8 +511,6 @@ export interface FileRoutesById {
   '/_authenticated/microtask-proof/$id': typeof AuthenticatedMicrotaskProofIdRoute
   '/_authenticated/microtask/$id': typeof AuthenticatedMicrotaskIdRoute
   '/_authenticated/offer/$offerId': typeof AuthenticatedOfferOfferIdRoute
-  '/api/analytics/track': typeof ApiAnalyticsTrackRoute
-  '/api/cron/cleanup-events': typeof ApiCronCleanupEventsRoute
   '/api/cron/refresh-offer-feed': typeof ApiCronRefreshOfferFeedRoute
   '/api/public/marketplace-postback': typeof ApiPublicMarketplacePostbackRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
@@ -586,7 +558,6 @@ export interface FileRouteTypes {
     | '/legal/referral-terms'
     | '/legal/terms'
     | '/legal/withdrawal-policy'
-    | '/admin/analytics'
     | '/advertiser/campaigns'
     | '/advertiser/create'
     | '/advertiser/funds'
@@ -597,8 +568,6 @@ export interface FileRouteTypes {
     | '/microtask-proof/$id'
     | '/microtask/$id'
     | '/offer/$offerId'
-    | '/api/analytics/track'
-    | '/api/cron/cleanup-events'
     | '/api/cron/refresh-offer-feed'
     | '/api/public/marketplace-postback'
     | '/api/public/razorpay-webhook'
@@ -644,7 +613,6 @@ export interface FileRouteTypes {
     | '/legal/referral-terms'
     | '/legal/terms'
     | '/legal/withdrawal-policy'
-    | '/admin/analytics'
     | '/advertiser/campaigns'
     | '/advertiser/create'
     | '/advertiser/funds'
@@ -655,8 +623,6 @@ export interface FileRouteTypes {
     | '/microtask-proof/$id'
     | '/microtask/$id'
     | '/offer/$offerId'
-    | '/api/analytics/track'
-    | '/api/cron/cleanup-events'
     | '/api/cron/refresh-offer-feed'
     | '/api/public/marketplace-postback'
     | '/api/public/razorpay-webhook'
@@ -703,7 +669,6 @@ export interface FileRouteTypes {
     | '/legal/referral-terms'
     | '/legal/terms'
     | '/legal/withdrawal-policy'
-    | '/_authenticated/admin/analytics'
     | '/_authenticated/advertiser/campaigns'
     | '/_authenticated/advertiser/create'
     | '/_authenticated/advertiser/funds'
@@ -714,8 +679,6 @@ export interface FileRouteTypes {
     | '/_authenticated/microtask-proof/$id'
     | '/_authenticated/microtask/$id'
     | '/_authenticated/offer/$offerId'
-    | '/api/analytics/track'
-    | '/api/cron/cleanup-events'
     | '/api/cron/refresh-offer-feed'
     | '/api/public/marketplace-postback'
     | '/api/public/razorpay-webhook'
@@ -748,8 +711,6 @@ export interface RootRouteChildren {
   LegalReferralTermsRoute: typeof LegalReferralTermsRoute
   LegalTermsRoute: typeof LegalTermsRoute
   LegalWithdrawalPolicyRoute: typeof LegalWithdrawalPolicyRoute
-  ApiAnalyticsTrackRoute: typeof ApiAnalyticsTrackRoute
-  ApiCronCleanupEventsRoute: typeof ApiCronCleanupEventsRoute
   ApiCronRefreshOfferFeedRoute: typeof ApiCronRefreshOfferFeedRoute
   ApiPublicMarketplacePostbackRoute: typeof ApiPublicMarketplacePostbackRoute
   ApiPublicRazorpayWebhookRoute: typeof ApiPublicRazorpayWebhookRoute
@@ -973,13 +934,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalWithdrawalPolicyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin/analytics': {
-      id: '/_authenticated/admin/analytics'
-      path: '/analytics'
-      fullPath: '/admin/analytics'
-      preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/advertiser/campaigns': {
       id: '/_authenticated/advertiser/campaigns'
       path: '/advertiser/campaigns'
@@ -1049,20 +1003,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/offer/$offerId'
       preLoaderRoute: typeof AuthenticatedOfferOfferIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/api/analytics/track': {
-      id: '/api/analytics/track'
-      path: '/api/analytics/track'
-      fullPath: '/api/analytics/track'
-      preLoaderRoute: typeof ApiAnalyticsTrackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/cron/cleanup-events': {
-      id: '/api/cron/cleanup-events'
-      path: '/api/cron/cleanup-events'
-      fullPath: '/api/cron/cleanup-events'
-      preLoaderRoute: typeof ApiCronCleanupEventsRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/cron/refresh-offer-feed': {
       id: '/api/cron/refresh-offer-feed'
@@ -1165,19 +1105,8 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedAdminRouteChildren {
-  AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
-}
-
-const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
-  AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
-}
-
-const AuthenticatedAdminRouteWithChildren =
-  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
-
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedFeaturedRoute: typeof AuthenticatedFeaturedRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedMySubmissionsRoute: typeof AuthenticatedMySubmissionsRoute
@@ -1210,7 +1139,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedFeaturedRoute: AuthenticatedFeaturedRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedMySubmissionsRoute: AuthenticatedMySubmissionsRoute,
@@ -1263,8 +1192,6 @@ const rootRouteChildren: RootRouteChildren = {
   LegalReferralTermsRoute: LegalReferralTermsRoute,
   LegalTermsRoute: LegalTermsRoute,
   LegalWithdrawalPolicyRoute: LegalWithdrawalPolicyRoute,
-  ApiAnalyticsTrackRoute: ApiAnalyticsTrackRoute,
-  ApiCronCleanupEventsRoute: ApiCronCleanupEventsRoute,
   ApiCronRefreshOfferFeedRoute: ApiCronRefreshOfferFeedRoute,
   ApiPublicMarketplacePostbackRoute: ApiPublicMarketplacePostbackRoute,
   ApiPublicRazorpayWebhookRoute: ApiPublicRazorpayWebhookRoute,

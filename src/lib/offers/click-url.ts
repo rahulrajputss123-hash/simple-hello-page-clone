@@ -1,4 +1,5 @@
-import { REVTOO_USER_ID_PLACEHOLDER, TOROX_CLICK_URL_SENTINEL } from "./constants";
+import { REVTOO_USER_ID_PLACEHOLDER } from "./adapters/revtoo.server";
+import { TOROX_CLICK_URL_SENTINEL } from "./adapters/torox.server";
 
 /**
  * Client-side per-user tracking for offer click URLs.
