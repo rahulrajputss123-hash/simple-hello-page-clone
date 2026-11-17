@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { withServerTiming } from "@/lib/server-timing-middleware";
 import { LOCKER_MAX_URLS, SHORTLINK_MAX_STEPS } from "./coinquest";
 
 const shortlinkStepSchema = z.object({
@@ -132,42 +132,42 @@ export const listActiveQuests = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ isNative: z.boolean().optional().default(false) }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("listActiveQuests", async ({ data, context }) => {
     const { listActiveQuestsImpl } = await import("./quests.server");
     return listActiveQuestsImpl(context.userId, data.isNative);
-  });
+  }));
 
 /** Admin: full list including inactive quests. */
 export const listAdminQuests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("listAdminQuests", async ({ context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { listAdminQuestsImpl } = await import("./quests.server");
     return listAdminQuestsImpl();
-  });
+  }));
 
 /** Admin: create or update a quest definition. */
 export const saveQuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => questFormSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("saveQuest", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { upsertQuestImpl } = await import("./quests.server");
     return upsertQuestImpl(data);
-  });
+  }));
 
 /** Admin: delete a quest definition (deactivates if it already has sessions). */
 export const deleteQuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("deleteQuest", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { deleteQuestImpl } = await import("./quests.server");
     return deleteQuestImpl(data.id);
-  });
+  }));
 
 /** User: begin a shortlink step — sets current_step + step_issued_at on the active session. */
 export const startShortlinkStep = createServerFn({ method: "POST" })
@@ -181,10 +181,10 @@ export const startShortlinkStep = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("startShortlinkStep", async ({ data, context }) => {
     const { startShortlinkStepImpl } = await import("./quests.server");
     return startShortlinkStepImpl(context.userId, data.questKey, data.step, data.isNative);
-  });
+  }));
 
 /** User: called by the /go/$key/$step return page. Validates time-check + advances / credits. */
 export const completeShortlinkStep = createServerFn({ method: "POST" })
@@ -198,10 +198,10 @@ export const completeShortlinkStep = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("completeShortlinkStep", async ({ data, context }) => {
     const { completeShortlinkStepImpl } = await import("./quests.server");
     return completeShortlinkStepImpl(context.userId, data.questKey, data.step, data.isNative);
-  });
+  }));
 
 /** User: begin a timed PTC step — sets issued_step + step_issued_at on the active session. */
 export const startTimedPtcStep = createServerFn({ method: "POST" })
@@ -215,10 +215,10 @@ export const startTimedPtcStep = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("startTimedPtcStep", async ({ data, context }) => {
     const { startTimedPtcStepImpl } = await import("./quests/timed-ptc.server");
     return startTimedPtcStepImpl(context.userId, data.questKey, data.step, data.isNative);
-  });
+  }));
 
 /** User: complete a timed PTC step. Validates elapsed time, checkpoints, advances / credits. */
 export const completeTimedPtcStep = createServerFn({ method: "POST" })
@@ -233,7 +233,7 @@ export const completeTimedPtcStep = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("completeTimedPtcStep", async ({ data, context }) => {
     const { completeTimedPtcStepImpl } = await import("./quests/timed-ptc.server");
     return completeTimedPtcStepImpl(
       context.userId,
@@ -242,7 +242,7 @@ export const completeTimedPtcStep = createServerFn({ method: "POST" })
       data.checkpointsDone,
       data.isNative,
     );
-  });
+  }));
 
 /** User: start a locker quest — creates a session and returns the locker URL to open. */
 export const startLockerQuest = createServerFn({ method: "POST" })
@@ -255,10 +255,10 @@ export const startLockerQuest = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("startLockerQuest", async ({ data, context }) => {
     const { startLockerQuestImpl } = await import("./quests.server");
     return startLockerQuestImpl(context.userId, data.questKey, data.isNative);
-  });
+  }));
 
 /**
  * User: called by /go/locker/return after AdBlueMedia redirects back.
@@ -274,10 +274,10 @@ export const completeLockerQuest = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("completeLockerQuest", async ({ data, context }) => {
     const { completeLockerQuestImpl } = await import("./quests.server");
     return completeLockerQuestImpl(context.userId, data.questKey, data.isNative);
-  });
+  }));
 
 /**
  * User: ensure check-in session exists and is valid.
@@ -293,10 +293,10 @@ export const ensureCheckinSession = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("ensureCheckinSession", async ({ data, context }) => {
     const { ensureCheckinSessionImpl } = await import("./quests.server");
     return ensureCheckinSessionImpl(context.userId, data.questKey);
-  });
+  }));
 
 /**
  * User: ping active time for check-in quest.
@@ -312,10 +312,10 @@ export const pingActiveTime = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("pingActiveTime", async ({ data, context }) => {
     const { pingActiveTimeImpl } = await import("./quests.server");
     return pingActiveTimeImpl(context.userId, data.questKey);
-  });
+  }));
 
 /**
  * User: check in today (tap-only mode).
@@ -330,10 +330,10 @@ export const checkInToday = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("checkInToday", async ({ data, context }) => {
     const { checkInTodayImpl } = await import("./quests.server");
     return checkInTodayImpl(context.userId, data.questKey);
-  });
+  }));
 
 /**
  * User: update user's timezone (client-detected via Intl API).
@@ -349,10 +349,10 @@ export const updateUserTimezone = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("updateUserTimezone", async ({ data, context }) => {
     const { updateUserTimezoneImpl } = await import("./quests.server");
     return updateUserTimezoneImpl(context.userId, data.timezone);
-  });
+  }));
 
 /**
  * User: open a network quest provider.
@@ -369,10 +369,10 @@ export const openQuestNetwork = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("openQuestNetwork", async ({ data, context }) => {
     const { openQuestNetworkImpl } = await import("./quests.server");
     return openQuestNetworkImpl(context.userId, data.questKey, data.providerId);
-  });
+  }));
 
 /**
  * User: get network quest progress.
@@ -387,10 +387,10 @@ export const getNetworkQuestProgress = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getNetworkQuestProgress", async ({ data, context }) => {
     const { getNetworkQuestProgressImpl } = await import("./quests.server");
     return getNetworkQuestProgressImpl(context.userId, data.questKey);
-  });
+  }));
 
 /**
  * Start a feed quest: fetch and snapshot campaigns.
@@ -398,10 +398,11 @@ export const getNetworkQuestProgress = createServerFn({ method: "POST" })
 export const startFeedQuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ questKey: z.string() }).parse(input))
-  .handler(async ({ context, data: { questKey } }) => {
+  .handler(withServerTiming("startFeedQuest", async ({ context, data: { questKey } }) => {
     try {
       const { getRequest } = await import("@tanstack/react-start/server");
       const { getActiveQuestByKey, startFeedQuestImpl } = await import("./quests.server");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const db = supabaseAdmin as never;
 
       const quest = await getActiveQuestByKey(context.userId, questKey);
@@ -429,7 +430,7 @@ export const startFeedQuest = createServerFn({ method: "POST" })
       console.error("[feed-quest] startFeedQuest FAILED:", e instanceof Error ? e.stack : e);
       throw e;
     }
-  });
+  }));
 
 /**
  * Open a specific feed quest step.
@@ -439,10 +440,11 @@ export const openFeedQuestStep = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ questKey: z.string(), step: z.number().int().min(1) }).parse(input),
   )
-  .handler(async ({ context, data: { questKey, step } }) => {
+  .handler(withServerTiming("openFeedQuestStep", async ({ context, data: { questKey, step } }) => {
     try {
       const { getRequest } = await import("@tanstack/react-start/server");
       const { getActiveQuestByKey, openFeedQuestStepImpl } = await import("./quests.server");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const db = supabaseAdmin as never;
 
       const quest = await getActiveQuestByKey(context.userId, questKey);
@@ -472,7 +474,7 @@ export const openFeedQuestStep = createServerFn({ method: "POST" })
       console.error("[feed-quest] openFeedQuestStep FAILED:", e instanceof Error ? e.stack : e);
       throw e;
     }
-  });
+  }));
 
 /**
  * Get feed quest progress (completed steps).
@@ -480,7 +482,8 @@ export const openFeedQuestStep = createServerFn({ method: "POST" })
 export const getFeedQuestProgress = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ questKey: z.string() }).parse(input))
-  .handler(async ({ context, data: { questKey } }) => {
+  .handler(withServerTiming("getFeedQuestProgress", async ({ context, data: { questKey } }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as never;
 
     // Get active session
@@ -524,7 +527,7 @@ export const getFeedQuestProgress = createServerFn({ method: "POST" })
       })),
       completed: Array.from(completedStepIndexes),
     };
-  });
+  }));
 
 /**
  * User: fetch survey feed for a survey quest.
@@ -541,7 +544,7 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("fetchSurveyFeed", async ({ data, context }) => {
     const { getRequest } = await import("@tanstack/react-start/server");
     const { detectIpFromRequest, detectCountryFromRequest } = await import("./offers/geo.server");
     const { getActiveQuestByKey } = await import("./quests.server");
@@ -591,7 +594,7 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
     });
 
     return result;
-  });
+  }));
 
 /**
  * User: start a survey quest session.
@@ -606,7 +609,7 @@ export const startSurveyQuest = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("startSurveyQuest", async ({ data, context }) => {
     const { getActiveQuestByKey } = await import("./quests.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -651,7 +654,7 @@ export const startSurveyQuest = createServerFn({ method: "POST" })
     }
 
     return { sessionId: newSession.id };
-  });
+  }));
 
 /**
  * User: get survey quest progress.
@@ -666,7 +669,7 @@ export const getSurveyQuestProgress = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getSurveyQuestProgress", async ({ data, context }) => {
     const { getActiveQuestByKey } = await import("./quests.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -712,15 +715,16 @@ export const getSurveyQuestProgress = createServerFn({ method: "POST" })
       required: quest.required_surveys,
       isComplete: session.status === "verified",
     };
-  });
+  }));
 
 /** Admin: list enabled SDK offerwall providers for quest configuration. */
 export const listSdkProvidersForQuests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("listSdkProvidersForQuests", async ({ context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
 
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("sdk_offerwall_providers")
       .select("id, name, slug, enabled, status")
@@ -729,7 +733,7 @@ export const listSdkProvidersForQuests = createServerFn({ method: "POST" })
 
     if (error) throw error;
     return data || [];
-  });
+  }));
 
 // ========== Active Time Quest Functions ==========
 
@@ -738,7 +742,7 @@ export const listSdkProvidersForQuests = createServerFn({ method: "POST" })
  */
 export const getActiveTimeQuestKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("getActiveTimeQuestKey", async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     
     // Get active time quest that is active and not locked
@@ -781,7 +785,7 @@ export const getActiveTimeQuestKey = createServerFn({ method: "POST" })
     
     // Already completed/claimed
     return { questKey: null };
-  });
+  }));
 
 /**
  * Process active time ping - server authoritative time tracking.
@@ -799,7 +803,7 @@ export const processActiveTimePing = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("processActiveTimePing", async ({ data, context }) => {
     const { processActiveTimePingImpl, claimActiveTimeRewardImpl } = await import("./quests.server");
     const result = await processActiveTimePingImpl(context.userId, data.questKey, data.pingToken, data.isActive);
     
@@ -816,7 +820,7 @@ export const processActiveTimePing = createServerFn({ method: "POST" })
     }
     
     return result;
-  });
+  }));
 
 /**
  * Get quest active time progress - read initial state from DB
@@ -830,7 +834,7 @@ export const getQuestActiveTimeProgress = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getQuestActiveTimeProgress", async ({ data, context }) => {
     // 1. Read progress from quest_active_time_progress (no FK to quests)
     const { data: progress, error: progressError } = await supabaseAdmin
       .from("quest_active_time_progress")
@@ -869,7 +873,7 @@ export const getQuestActiveTimeProgress = createServerFn({ method: "POST" })
       todayDate: progress.today_date,
       targetSeconds: targetMinutes * 60,
     };
-  });
+  }));
 
 /**
  * Start active time grace period - called when user clicks an offer.
@@ -885,10 +889,10 @@ export const startActiveTimeGrace = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("startActiveTimeGrace", async ({ data, context }) => {
     const { startActiveTimeGraceImpl } = await import("./quests.server");
     return await startActiveTimeGraceImpl(context.userId, data.questKey, data.offerId);
-  });
+  }));
 
 /**
  * End active time grace period - called when user closes offer or grace expires.
@@ -902,10 +906,10 @@ export const endActiveTimeGrace = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("endActiveTimeGrace", async ({ data, context }) => {
     const { endActiveTimeGraceImpl } = await import("./quests.server");
     return await endActiveTimeGraceImpl(context.userId, data.questKey);
-  });
+  }));
 
 /**
  * Claim active time quest reward - atomic Postgres function.
@@ -919,7 +923,7 @@ export const claimActiveTimeReward = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("claimActiveTimeReward", async ({ data, context }) => {
     const { claimActiveTimeRewardImpl } = await import("./quests.server");
     return await claimActiveTimeRewardImpl(context.userId, data.questKey);
-  });
+  }));

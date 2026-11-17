@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withServerTiming } from "@/lib/server-timing-middleware";
 
 /** Admin-only automation observability + retry API. */
 
@@ -16,28 +17,28 @@ export const listAutomationLogs = createServerFn({ method: "POST" })
       })
       .parse(input ?? {}),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("listAutomationLogs", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { listAutomationLogsImpl } = await import("./automation/logs.server");
     return listAutomationLogsImpl(data);
-  });
+  }));
 
 export const automationStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("automationStats", async ({ context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { automationStatsImpl } = await import("./automation/logs.server");
     return automationStatsImpl();
-  });
+  }));
 
 export const retryConversion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ conversionId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("retryConversion", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { retryConversionImpl } = await import("./automation/retry.server");
     return retryConversionImpl(data.conversionId);
-  });
+  }));

@@ -7,7 +7,7 @@ import { claimOffer, startOfferClaim, submitOfferProof } from "@/lib/coinquest.f
 import { trackOfferClick } from "@/lib/offers.functions";
 import { getToroxClickUrl } from "@/lib/offers/torox.functions";
 import { appendAffSub4 } from "@/lib/offers/click-url";
-import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/adapters/torox.server";
+import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/constants";
 import { useAuth } from "@/lib/auth";
 import { startActiveTimeGrace } from "@/lib/quests.functions";
 

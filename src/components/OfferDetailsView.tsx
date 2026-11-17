@@ -14,14 +14,13 @@ import { toast } from "sonner";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { track } from "@/lib/analytics/track";
-
 import { Button } from "@/components/ui/button";
 import { formatReward } from "@/lib/format-reward";
 import { offerDisplayBadge } from "@/lib/offers/display-badge";
 import { requestProofUploadUrl, trackOfferClick } from "@/lib/offers.functions";
 import { useViewedOffer } from "@/lib/viewed-offer";
 import { useOfferActions, type OfferActionData } from "@/lib/offers/useOfferActions";
-import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/adapters/torox.server";
+import { TOROX_CLICK_URL_SENTINEL } from "@/lib/offers/constants";
 
 /**
  * Offer details view supporting 3 types:
@@ -176,6 +175,10 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   const devices = offer?.devices ?? [];
   const deviceLabels = devices.length === 0 ? ["All devices"] : devices.map(displayDevice);
 
+  // Show proof section for: Type 2 (started), Type 3 (always), or limited deals
+  const showProofSection =
+    (isType2 && hasStarted) || isType3 || (offer?.is_limited_deal && !autoPostback);
+
   const [proofPath, setProofPath] = useState<string | null>(null);
   const [proofName, setProofName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -314,10 +317,6 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
       window.open(offer.click_url, "_blank", "noopener,noreferrer");
     }
   };
-
-  // Show proof section for: Type 2 (started), Type 3 (always), or limited deals
-  const showProofSection =
-    (isType2 && hasStarted) || isType3 || (offer?.is_limited_deal && !autoPostback);
 
   // Button state
   const canSubmitProof = Boolean(proofPath);
