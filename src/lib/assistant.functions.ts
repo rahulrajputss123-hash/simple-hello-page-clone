@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withServerTiming } from "@/lib/server-timing-middleware";
 
 const turnSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -30,7 +31,7 @@ const chatInput = z.object({
 export const sendAssistantMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => chatInput.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("sendAssistantMessage", async ({ data, context }) => {
     const { generateAssistantReply, OFFER_CONTEXT_RULES } = await import("./assistant/server");
     const { buildOfferAssistantContext, resolveOfferIdFromMessage } =
       await import("./assistant/offer-context.server");
@@ -75,4 +76,4 @@ export const sendAssistantMessage = createServerFn({ method: "POST" })
 
     const reply = await generateAssistantReply(data.message, data.history, extraContext);
     return { reply };
-  });
+  }));

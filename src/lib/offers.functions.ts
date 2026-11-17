@@ -2,12 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withServerTiming } from "@/lib/server-timing-middleware";
 
 /** User: log a click event for an offer (called when Continue is tapped in the pre-redirect popup). */
 export const trackOfferClick = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ offerId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("trackOfferClick", async ({ data, context }) => {
     const { recordOfferClickImpl } = await import("./offers/tags.server");
     const { detectCountryFromRequest } = await import("./offers/geo.server");
     const { getUserCountry } = await import("./profile.server");
@@ -19,18 +20,18 @@ export const trackOfferClick = createServerFn({ method: "POST" })
     }
     
     return recordOfferClickImpl(data.offerId, context.userId, country);
-  });
+  }));
 
 /** Admin-only API surface for future Providers / Network offer management screens. */
 
 export const listOfferProviders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("listOfferProviders", async ({ context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { listProvidersImpl } = await import("./offers/sync.server");
     return listProvidersImpl();
-  });
+  }));
 
 export const upsertOfferProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -52,31 +53,31 @@ export const upsertOfferProvider = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("upsertOfferProvider", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { upsertProviderImpl } = await import("./offers/sync.server");
     return upsertProviderImpl(data);
-  });
+  }));
 
 export const syncOfferProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ providerId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("syncOfferProvider", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { syncProviderImpl } = await import("./offers/sync.server");
     return syncProviderImpl(data.providerId);
-  });
+  }));
 
 export const adminDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("adminDashboard", async ({ context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { adminDashboardImpl } = await import("./offers/admin.server");
     return adminDashboardImpl();
-  });
+  }));
 
 export const listAdminOffers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -92,12 +93,12 @@ export const listAdminOffers = createServerFn({ method: "POST" })
       })
       .parse(input ?? {}),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("listAdminOffers", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { listAdminOffersImpl } = await import("./offers/admin.server");
     return listAdminOffersImpl(data);
-  });
+  }));
 
 export const saveManualOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -150,22 +151,22 @@ export const saveManualOffer = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("saveManualOffer", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { upsertManualOfferImpl } = await import("./offers/admin.server");
     return upsertManualOfferImpl(data);
-  });
+  }));
 
 export const deleteManualOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("deleteManualOffer", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { deleteManualOfferImpl } = await import("./offers/admin.server");
     return deleteManualOfferImpl(data.id);
-  });
+  }));
 
 /** Authenticated: geo-targeted, ranked Featured Offers for the requesting user's country. */
 export const getFeaturedFeed = createServerFn({ method: "POST" })
@@ -173,7 +174,7 @@ export const getFeaturedFeed = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ scope: z.enum(["home", "all"]).default("home") }).parse(input ?? {}),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getFeaturedFeed", async ({ data, context }) => {
     const { detectCountryFromRequest, detectIpFromRequest } = await import("./offers/geo.server");
     const { getFeaturedFeedImpl } = await import("./offers/feed-cache.server");
     const { detectPlatformFromRequest } = await import("./offers/platform.server");
@@ -189,26 +190,26 @@ export const getFeaturedFeed = createServerFn({ method: "POST" })
     });
     
     return getFeaturedFeedImpl(country, data.scope, ip, context.userId, platform);
-  });
+  }));
 
 /** Authenticated: get single offer by ID with user's claim status */
 export const getOfferById = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ offerId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getOfferById", async ({ data, context }) => {
     const { getOfferByIdImpl } = await import("./offers/feed-cache.server");
     return getOfferByIdImpl(data.offerId, context.userId);
-  });
+  }));
 
 /** Admin: read feed-automation settings + per-network config + cache freshness. */
 export const getFeedAutomation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("getFeedAutomation", async ({ context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { getFeedAutomationImpl } = await import("./offers/feed-cache.server");
     return getFeedAutomationImpl();
-  });
+  }));
 
 /** Admin: update global feed-automation settings. */
 export const updateFeedSettings = createServerFn({ method: "POST" })
@@ -227,12 +228,12 @@ export const updateFeedSettings = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("updateFeedSettings", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { updateFeedSettingsImpl } = await import("./offers/feed-settings.server");
     return updateFeedSettingsImpl(data);
-  });
+  }));
 
 /** Admin: update per-network automation config (enable, max offers, ranking weight). */
 export const updateNetworkFeedSettings = createServerFn({ method: "POST" })
@@ -247,12 +248,12 @@ export const updateNetworkFeedSettings = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("updateNetworkFeedSettings", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { updateNetworkFeedSettingsImpl } = await import("./offers/feed-settings.server");
     return updateNetworkFeedSettingsImpl(data);
-  });
+  }));
 
 /** Admin: manually refresh one network's feed for a country (defaults to the default country). */
 export const adminRefreshFeed = createServerFn({ method: "POST" })
@@ -270,12 +271,12 @@ export const adminRefreshFeed = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("adminRefreshFeed", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { adminRefreshProviderImpl } = await import("./offers/feed-cache.server");
     return adminRefreshProviderImpl(data.providerId, data.country);
-  });
+  }));
 
 export const updateOfferControls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -303,12 +304,12 @@ export const updateOfferControls = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("updateOfferControls", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { updateOfferControlsImpl } = await import("./offers/admin.server");
     return updateOfferControlsImpl(data);
-  });
+  }));
 
 /** Admin: fetch a short-lived signed URL to preview a proof file. */
 export const adminSignProofUrl = createServerFn({ method: "POST" })
@@ -316,13 +317,13 @@ export const adminSignProofUrl = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ path: z.string().trim().min(1).max(500) }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("adminSignProofUrl", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { signProofUrl } = await import("./offers/proof.server");
     const url = await signProofUrl(data.path, 300);
     return { url };
-  });
+  }));
 
 /** User: request a signed upload URL for a proof file (path scoped to their uid). */
 export const requestProofUploadUrl = createServerFn({ method: "POST" })
@@ -338,10 +339,10 @@ export const requestProofUploadUrl = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("requestProofUploadUrl", async ({ data, context }) => {
     const { requestProofUploadUrlImpl } = await import("./offers/proof-upload.server");
     return requestProofUploadUrlImpl(context.userId, data.offerId, data.filename);
-  });
+  }));
 
 /** Admin: get country-wise analytics for a date range */
 export const getCountryAnalytics = createServerFn({ method: "POST" })
@@ -354,19 +355,19 @@ export const getCountryAnalytics = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getCountryAnalytics", async ({ data, context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { getCountryAnalyticsImpl } = await import("./admin-country-analytics.server");
     return getCountryAnalyticsImpl(data.startDate, data.endDate);
-  });
+  }));
 
 /** Admin: get feed health status per provider */
 export const getFeedHealthStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("getFeedHealthStatus", async ({ context }) => {
     const { requireRole } = await import("./admin-audit.server");
     await requireRole(context.userId, ["admin"]);
     const { getFeedHealthStatusImpl } = await import("./admin-country-analytics.server");
     return getFeedHealthStatusImpl();
-  });
+  }));

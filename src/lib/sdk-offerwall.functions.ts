@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withServerTiming } from "@/lib/server-timing-middleware";
 
 /** SDK Offerwall management API. Separate from the Offer Feed provider API. */
 
@@ -70,29 +71,29 @@ export const listSdkOfferwallProviders = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ limit: z.number().int().min(1).max(50).optional() }).parse(input ?? {}),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("listSdkOfferwallProviders", async ({ data, context }) => {
     const { listPublicSdkProvidersImpl } = await import("./sdk-offerwall/admin.server");
     return listPublicSdkProvidersImpl(data.limit, context.userId);
-  });
+  }));
 
 export const listAdminSdkProviders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("listAdminSdkProviders", async ({ context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { listSdkProvidersImpl } = await import("./sdk-offerwall/admin.server");
     return listSdkProvidersImpl();
-  });
+  }));
 
 export const saveSdkProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => providerSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("saveSdkProvider", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { upsertSdkProviderImpl } = await import("./sdk-offerwall/admin.server");
     return upsertSdkProviderImpl(data);
-  });
+  }));
 
 export const updateSdkProviderControls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -106,22 +107,22 @@ export const updateSdkProviderControls = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("updateSdkProviderControls", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { updateSdkProviderControlsImpl } = await import("./sdk-offerwall/admin.server");
     return updateSdkProviderControlsImpl(data);
-  });
+  }));
 
 export const deleteSdkProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("deleteSdkProvider", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { deleteSdkProviderImpl } = await import("./sdk-offerwall/admin.server");
     return deleteSdkProviderImpl(data.id);
-  });
+  }));
 
 export const requestOfferwallLogoUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -131,12 +132,12 @@ export const requestOfferwallLogoUploadUrl = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ filename: z.string().trim().min(1).max(120) }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("requestOfferwallLogoUploadUrl", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { requestOfferwallLogoUploadUrlImpl } = await import("./sdk-offerwall/admin.server");
     return requestOfferwallLogoUploadUrlImpl(context.userId, data.filename);
-  });
+  }));
 
 export const listSdkConversions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -148,12 +149,12 @@ export const listSdkConversions = createServerFn({ method: "POST" })
       })
       .parse(input ?? {}),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("listSdkConversions", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { listSdkConversionsImpl } = await import("./sdk-offerwall/admin.server");
     return listSdkConversionsImpl(data);
-  });
+  }));
 
 /**
  * Get a signed URL for offerwall.me (requires signed user identity).
@@ -161,10 +162,10 @@ export const listSdkConversions = createServerFn({ method: "POST" })
  */
 export const getOfferwallMeSignedUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("getOfferwallMeSignedUrl", async ({ context }) => {
     const { getOfferwallMeSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
     return getOfferwallMeSignedUrlImpl(context.userId);
-  });
+  }));
 
 /**
  * Get a signed URL for TheoremReach (requires signed user identity).
@@ -172,10 +173,10 @@ export const getOfferwallMeSignedUrl = createServerFn({ method: "POST" })
  */
 export const getTheoremReachSignedUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("getTheoremReachSignedUrl", async ({ context }) => {
     const { getTheoremReachSignedUrlImpl } = await import("./sdk-offerwall/admin.server");
     return getTheoremReachSignedUrlImpl(context.userId);
-  });
+  }));
 
 /**
  * Generate a signed wall URL for Torox by calling their session endpoint.
@@ -183,7 +184,7 @@ export const getTheoremReachSignedUrl = createServerFn({ method: "POST" })
  */
 export const getToroxWallUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("getToroxWallUrl", async ({ context }) => {
     const { getToroxWallUrlImpl } = await import("./sdk-offerwall/admin.server");
     return getToroxWallUrlImpl(context.userId);
-  });
+  }));

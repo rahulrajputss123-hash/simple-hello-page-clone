@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withServerTiming } from "@/lib/server-timing-middleware";
 import { TASK_FREQUENCIES, TASK_LOCK_TYPES, TASK_TYPES } from "./tasks/types";
 
 const taskInput = z.object({
@@ -38,44 +39,44 @@ export const listAdminTasks = createServerFn({ method: "POST" })
       })
       .parse(input ?? {}),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("listAdminTasks", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { listAdminTasksImpl } = await import("./tasks/admin.server");
     return listAdminTasksImpl(data);
-  });
+  }));
 
 export const saveAdminTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => taskInput.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("saveAdminTask", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { upsertAdminTaskImpl } = await import("./tasks/admin.server");
     return upsertAdminTaskImpl(data);
-  });
+  }));
 
 export const setAdminTaskActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ id: z.string().uuid(), isActive: z.boolean() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("setAdminTaskActive", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { setAdminTaskActiveImpl } = await import("./tasks/admin.server");
     return setAdminTaskActiveImpl(data.id, data.isActive);
-  });
+  }));
 
 export const deleteAdminTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("deleteAdminTask", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { deleteAdminTaskImpl } = await import("./tasks/admin.server");
     return deleteAdminTaskImpl(data.id);
-  });
+  }));
 
 /**
  * Signed upload URL for admin task images (task-assets bucket).
@@ -90,17 +91,17 @@ export const requestTaskImageUploadUrl = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ filename: z.string().trim().min(1).max(120) }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("requestTaskImageUploadUrl", async ({ data, context }) => {
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
     const { requestTaskImageUploadUrlImpl } = await import("./tasks/admin.server");
     return requestTaskImageUploadUrlImpl(context.userId, data.filename);
-  });
+  }));
 
 /** Refreshes the signed-in user's automated task progress from real activity. */
 export const refreshMyTasks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("refreshMyTasks", async ({ context }) => {
     const { syncUserTasks } = await import("./tasks/engine.server");
     return syncUserTasks(context.userId);
-  });
+  }));

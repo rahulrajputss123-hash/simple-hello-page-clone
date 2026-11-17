@@ -33,6 +33,8 @@ export default defineConfig({
       'tests/quest-network-adswedmedia.test.ts',
       'tests/marketplace/razorpay.server.test.ts',
       'tests/checkin-profile-race.test.ts',
+      'tests/marketplace-proof-mode.test.ts',
+      'tests/server-timing.test.ts',
     ],
     exclude: [
       '**/node_modules/**',

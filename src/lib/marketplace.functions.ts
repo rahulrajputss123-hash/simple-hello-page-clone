@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withServerTiming } from "@/lib/server-timing-middleware";
 
 /**
  * Phase 2 — client-callable advertiser functions. Thin: validation here,
@@ -11,10 +12,10 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const getAdvertiserOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("getAdvertiserOverview", async ({ context }) => {
     const { getOverviewImpl } = await import("./marketplace/advertiser.server");
     return getOverviewImpl(context.userId);
-  });
+  }));
 
 export const becomeAdvertiser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -22,10 +23,10 @@ export const becomeAdvertiser = createServerFn({ method: "POST" })
     const { becomeAdvertiserInput } = await import("./marketplace/advertiser.server");
     return becomeAdvertiserInput.parse(input);
   })
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("becomeAdvertiser", async ({ data, context }) => {
     const { becomeAdvertiserImpl } = await import("./marketplace/advertiser.server");
     return becomeAdvertiserImpl(context.userId, data);
-  });
+  }));
 
 export const updateAdvertiserProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -33,17 +34,17 @@ export const updateAdvertiserProfile = createServerFn({ method: "POST" })
     const { updateAdvertiserProfileInput } = await import("./marketplace/advertiser.server");
     return updateAdvertiserProfileInput.parse(input);
   })
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("updateAdvertiserProfile", async ({ data, context }) => {
     const { updateAdvertiserProfileImpl } = await import("./marketplace/advertiser.server");
     return updateAdvertiserProfileImpl(context.userId, data);
-  });
+  }));
 
 export const createDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ amountUsd: z.number().positive().max(100000) }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("createDeposit", async ({ data, context }) => {
     const { createDepositImpl, DepositError } = await import("./marketplace/advertiser.server");
     try {
       return await createDepositImpl(context.userId, data.amountUsd);
@@ -51,14 +52,14 @@ export const createDeposit = createServerFn({ method: "POST" })
       if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const createNowpaymentsDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ amountUsd: z.number().positive().max(100000) }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("createNowpaymentsDeposit", async ({ data, context }) => {
     const { createNowpaymentsDepositImpl, DepositError } =
       await import("./marketplace/advertiser.server");
     try {
@@ -67,14 +68,14 @@ export const createNowpaymentsDeposit = createServerFn({ method: "POST" })
       if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const createQropayDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ amountUsd: z.number().positive().max(100000) }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("createQropayDeposit", async ({ data, context }) => {
     const { createQropayDepositImpl, DepositError } =
       await import("./marketplace/advertiser.server");
     try {
@@ -83,7 +84,7 @@ export const createQropayDeposit = createServerFn({ method: "POST" })
       if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const confirmCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -97,7 +98,7 @@ export const confirmCheckout = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("confirmCheckout", async ({ data, context }) => {
     const { confirmCheckoutImpl, DepositError } = await import("./marketplace/advertiser.server");
     try {
       return await confirmCheckoutImpl(context.userId, data);
@@ -105,7 +106,7 @@ export const confirmCheckout = createServerFn({ method: "POST" })
       if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const abandonDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -117,34 +118,34 @@ export const abandonDeposit = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("abandonDeposit", async ({ data, context }) => {
     const { abandonDepositImpl } = await import("./marketplace/advertiser.server");
     await abandonDepositImpl(context.userId, data.depositId, data.reason);
     return { ok: true };
-  });
+  }));
 
 export const getDepositStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ depositId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getDepositStatus", async ({ data, context }) => {
     const { getDepositImpl } = await import("./marketplace/advertiser.server");
     return getDepositImpl(context.userId, data.depositId);
-  });
+  }));
 
 export const listAdvertiserTransactions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("listAdvertiserTransactions", async ({ context }) => {
     const { listTransactionsImpl } = await import("./marketplace/advertiser.server");
     return listTransactionsImpl(context.userId);
-  });
+  }));
 
 // Admin: get marketplace settings for auto-approval configuration
 export const getMarketplaceSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("getMarketplaceSettings", async ({ context }) => {
     const { getMarketplaceSettingsImpl } = await import("./marketplace/admin.server");
     return getMarketplaceSettingsImpl(context.userId);
-  });
+  }));
 
 // Admin: update marketplace settings
 export const updateMarketplaceSettings = createServerFn({ method: "POST" })
@@ -158,17 +159,17 @@ export const updateMarketplaceSettings = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("updateMarketplaceSettings", async ({ data, context }) => {
     const { updateMarketplaceSettingsImpl } = await import("./marketplace/admin.server");
     return updateMarketplaceSettingsImpl(context.userId, data);
-  });
+  }));
 
 export const listMyCampaigns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("listMyCampaigns", async ({ context }) => {
     const { listCampaignsImpl } = await import("./marketplace/advertiser.server");
     return listCampaignsImpl(context.userId);
-  });
+  }));
 
 export const createCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -176,7 +177,7 @@ export const createCampaign = createServerFn({ method: "POST" })
     const { createCampaignInput } = await import("./marketplace/advertiser.server");
     return createCampaignInput.parse(input);
   })
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("createCampaign", async ({ data, context }) => {
     const { createCampaignImpl, DepositError } = await import("./marketplace/advertiser.server");
     try {
       return await createCampaignImpl(context.userId, data);
@@ -184,7 +185,7 @@ export const createCampaign = createServerFn({ method: "POST" })
       if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const campaignAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -196,7 +197,7 @@ export const campaignAction = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("campaignAction", async ({ data, context }) => {
     const { campaignActionImpl, DepositError } = await import("./marketplace/advertiser.server");
     try {
       const result = await campaignActionImpl(context.userId, data.campaignId, data.action);
@@ -209,7 +210,7 @@ export const campaignAction = createServerFn({ method: "POST" })
       if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const rotateCampaignSecret = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -220,7 +221,7 @@ export const rotateCampaignSecret = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("rotateCampaignSecret", async ({ data, context }) => {
     const { rotateCampaignSecretImpl, DepositError } =
       await import("./marketplace/advertiser.server");
     try {
@@ -229,7 +230,7 @@ export const rotateCampaignSecret = createServerFn({ method: "POST" })
       if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const editCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -237,7 +238,7 @@ export const editCampaign = createServerFn({ method: "POST" })
     const { editCampaignInput } = await import("./marketplace/advertiser.server");
     return editCampaignInput.parse(input);
   })
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("editCampaign", async ({ data, context }) => {
     const { editCampaignImpl, DepositError } = await import("./marketplace/advertiser.server");
     try {
       return await editCampaignImpl(context.userId, data);
@@ -245,7 +246,7 @@ export const editCampaign = createServerFn({ method: "POST" })
       if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const addCampaignBudget = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -253,7 +254,7 @@ export const addCampaignBudget = createServerFn({ method: "POST" })
     const { addCampaignBudgetInput } = require("./marketplace/advertiser.server");
     return addCampaignBudgetInput.parse(input);
   })
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("addCampaignBudget", async ({ data, context }) => {
     const { addCampaignBudgetImpl, DepositError } = await import("./marketplace/advertiser.server");
     try {
       return await addCampaignBudgetImpl(context.userId, data);
@@ -261,47 +262,47 @@ export const addCampaignBudget = createServerFn({ method: "POST" })
       if (err instanceof DepositError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const getCampaignResults = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getCampaignResults", async ({ data, context }) => {
     const { getCampaignResultsImpl } = await import("./marketplace/advertiser.server");
     return getCampaignResultsImpl(context.userId, data.campaignId);
-  });
+  }));
 
 export const getCampaignForEdit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getCampaignForEdit", async ({ data, context }) => {
     const { getCampaignForEditImpl } = await import("./marketplace/advertiser.server");
     return getCampaignForEditImpl(context.userId, data.campaignId);
-  });
+  }));
 
 export const getCampaignForEarner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("getCampaignForEarner", async ({ data, context }) => {
     const { getCampaignForEarnerImpl } = await import("./marketplace/publisher.server");
     return getCampaignForEarnerImpl(context.userId, data.campaignId);
-  });
+  }));
 
 /* ---------------------------------------------------------------- publisher */
 
 export const listActiveCampaigns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("listActiveCampaigns", async ({ context }) => {
     const { listActiveCampaignsImpl } = await import("./marketplace/publisher.server");
     return listActiveCampaignsImpl(context.userId);
-  });
+  }));
 
 export const listMySubmissions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("listMySubmissions", async ({ context }) => {
     const { listMySubmissionsImpl } = await import("./marketplace/publisher.server");
     return listMySubmissionsImpl(context.userId);
-  });
+  }));
 
 export const submitProof = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -309,7 +310,7 @@ export const submitProof = createServerFn({ method: "POST" })
     const { submitProofInput } = await import("./marketplace/publisher.server");
     return submitProofInput.parse(input);
   })
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("submitProof", async ({ data, context }) => {
     const { submitProofImpl, SubmissionError } = await import("./marketplace/publisher.server");
     try {
       return await submitProofImpl(context.userId, data);
@@ -317,7 +318,7 @@ export const submitProof = createServerFn({ method: "POST" })
       if (err instanceof SubmissionError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const submitProofForCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -325,7 +326,7 @@ export const submitProofForCampaign = createServerFn({ method: "POST" })
     const { submitProofForCampaignInput } = await import("./marketplace/publisher.server");
     return submitProofForCampaignInput.parse(input);
   })
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("submitProofForCampaign", async ({ data, context }) => {
     const { submitProofForCampaignImpl, SubmissionError } =
       await import("./marketplace/publisher.server");
     try {
@@ -334,7 +335,7 @@ export const submitProofForCampaign = createServerFn({ method: "POST" })
       if (err instanceof SubmissionError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const appealSubmission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -342,7 +343,7 @@ export const appealSubmission = createServerFn({ method: "POST" })
     const { appealSubmissionInput } = await import("./marketplace/publisher.server");
     return appealSubmissionInput.parse(input);
   })
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("appealSubmission", async ({ data, context }) => {
     const { appealSubmissionImpl, SubmissionError } =
       await import("./marketplace/publisher.server");
     try {
@@ -352,23 +353,23 @@ export const appealSubmission = createServerFn({ method: "POST" })
       if (err instanceof SubmissionError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 /* -------------------------------------------------------------------- admin */
 
 export const listPendingCampaigns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(withServerTiming("listPendingCampaigns", async () => {
     const { listPendingCampaignsImpl } = await import("./marketplace/admin.server");
     return listPendingCampaignsImpl();
-  });
+  }));
 
 export const listPendingProofs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(withServerTiming("listPendingProofs", async () => {
     const { listPendingProofsImpl } = await import("./marketplace/admin.server");
     return listPendingProofsImpl();
-  });
+  }));
 
 export const reviewCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -381,7 +382,7 @@ export const reviewCampaign = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("reviewCampaign", async ({ data, context }) => {
     const { reviewCampaignImpl, AdminActionError } = await import("./marketplace/admin.server");
     try {
       await reviewCampaignImpl(context.userId, data.campaignId, data.decision, data.note);
@@ -390,7 +391,7 @@ export const reviewCampaign = createServerFn({ method: "POST" })
       if (err instanceof AdminActionError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 export const reviewProof = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -404,7 +405,7 @@ export const reviewProof = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("reviewProof", async ({ data, context }) => {
     const { reviewProofImpl, AdminActionError } = await import("./marketplace/admin.server");
     try {
       await reviewProofImpl(
@@ -419,7 +420,7 @@ export const reviewProof = createServerFn({ method: "POST" })
       if (err instanceof AdminActionError) throw new Error(`${err.code}: ${err.message}`);
       throw err;
     }
-  });
+  }));
 
 /* ----------------------------------------------------------- conversions */
 
@@ -433,10 +434,10 @@ export const startCampaign = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("startCampaign", async ({ data, context }) => {
     const { startCampaignImpl } = await import("./marketplace/publisher.server");
     return startCampaignImpl(context.userId, data.campaignId, data.userAgent);
-  });
+  }));
 
 // Legacy alias for backward compatibility
 export const recordClick = startCampaign;
@@ -445,37 +446,37 @@ export const recordClick = startCampaign;
 
 export const getPreferredRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("getPreferredRole", async ({ context }) => {
     const { getPreferredRoleImpl } = await import("./marketplace/role-preference.server");
     return getPreferredRoleImpl(context.userId);
-  });
+  }));
 
 export const setPreferredRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ role: z.enum(["publisher", "advertiser"]) }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("setPreferredRole", async ({ data, context }) => {
     const { setPreferredRoleImpl } = await import("./marketplace/role-preference.server");
     await setPreferredRoleImpl(context.userId, data.role);
     return { ok: true };
-  });
+  }));
 
 /* ------------------------------------------------------------ categories */
 
 export const listCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(withServerTiming("listCategories", async () => {
     const { listCategoriesWithSubcategoriesImpl } = await import("./marketplace/categories.server");
     return listCategoriesWithSubcategoriesImpl();
-  });
+  }));
 
 export const listPendingReviews = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(withServerTiming("listPendingReviews", async ({ context }) => {
     const { listPendingReviewsImpl } = await import("./marketplace/advertiser.server");
     return listPendingReviewsImpl(context.userId);
-  });
+  }));
 
 export const reviewSubmission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -488,8 +489,8 @@ export const reviewSubmission = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(withServerTiming("reviewSubmission", async ({ data, context }) => {
     const { reviewSubmissionImpl } = await import("./marketplace/advertiser.server");
     await reviewSubmissionImpl(context.userId, data.submissionId, data.decision, data.reason);
     return { ok: true };
-  });
+  }));

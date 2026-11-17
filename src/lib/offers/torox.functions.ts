@@ -14,6 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withServerTiming } from "@/lib/server-timing-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { detectCountryFromRequest } from "@/lib/offers/geo.server";
 import { logAutomation } from "@/lib/automation/logs.server";
@@ -27,7 +28,7 @@ const getToroxClickUrlSchema = z.object({
 export const getToroxClickUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => getToroxClickUrlSchema.parse(input))
-  .handler(async ({ data: { offerId }, context }) => {
+  .handler(withServerTiming("getToroxClickUrl", async ({ data: { offerId }, context }) => {
     const userId = context.userId;
 
     // 1. Load offer and verify it's Torox
@@ -231,4 +232,4 @@ export const getToroxClickUrl = createServerFn({ method: "POST" })
     });
 
     return { clickUrl };
-  });
+  }));
