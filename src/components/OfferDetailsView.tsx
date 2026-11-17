@@ -175,6 +175,10 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
   const devices = offer?.devices ?? [];
   const deviceLabels = devices.length === 0 ? ["All devices"] : devices.map(displayDevice);
 
+  // Show proof section for: Type 2 (started), Type 3 (always), or limited deals
+  const showProofSection =
+    (isType2 && hasStarted) || isType3 || (offer?.is_limited_deal && !autoPostback);
+
   const [proofPath, setProofPath] = useState<string | null>(null);
   const [proofName, setProofName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -313,10 +317,6 @@ export function OfferDetailsView({ offer }: { offer: OfferDetailsData }) {
       window.open(offer.click_url, "_blank", "noopener,noreferrer");
     }
   };
-
-  // Show proof section for: Type 2 (started), Type 3 (always), or limited deals
-  const showProofSection =
-    (isType2 && hasStarted) || isType3 || (offer?.is_limited_deal && !autoPostback);
 
   // Button state
   const canSubmitProof = Boolean(proofPath);
