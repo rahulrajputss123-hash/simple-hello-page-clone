@@ -15,9 +15,6 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { withServerTiming } from "@/lib/server-timing-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { detectCountryFromRequest } from "@/lib/offers/geo.server";
-import { logAutomation } from "@/lib/automation/logs.server";
 
 const DEFAULT_API_BASE = "https://api.wall.torox.io";
 
@@ -29,6 +26,10 @@ export const getToroxClickUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => getToroxClickUrlSchema.parse(input))
   .handler(withServerTiming("getToroxClickUrl", async ({ data: { offerId }, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { detectCountryFromRequest } = await import("@/lib/offers/geo.server");
+    const { logAutomation } = await import("@/lib/automation/logs.server");
+    
     const userId = context.userId;
 
     // 1. Load offer and verify it's Torox

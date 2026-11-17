@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { withServerTiming } from "@/lib/server-timing-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { LOCKER_MAX_URLS, SHORTLINK_MAX_STEPS } from "./coinquest";
 
 const shortlinkStepSchema = z.object({
@@ -403,6 +402,7 @@ export const startFeedQuest = createServerFn({ method: "POST" })
     try {
       const { getRequest } = await import("@tanstack/react-start/server");
       const { getActiveQuestByKey, startFeedQuestImpl } = await import("./quests.server");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const db = supabaseAdmin as never;
 
       const quest = await getActiveQuestByKey(context.userId, questKey);
@@ -444,6 +444,7 @@ export const openFeedQuestStep = createServerFn({ method: "POST" })
     try {
       const { getRequest } = await import("@tanstack/react-start/server");
       const { getActiveQuestByKey, openFeedQuestStepImpl } = await import("./quests.server");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const db = supabaseAdmin as never;
 
       const quest = await getActiveQuestByKey(context.userId, questKey);
@@ -482,6 +483,7 @@ export const getFeedQuestProgress = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ questKey: z.string() }).parse(input))
   .handler(withServerTiming("getFeedQuestProgress", async ({ context, data: { questKey } }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as never;
 
     // Get active session
@@ -722,6 +724,7 @@ export const listSdkProvidersForQuests = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("./coinquest.server");
     await assertAdmin(context.supabase, context.userId);
 
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("sdk_offerwall_providers")
       .select("id, name, slug, enabled, status")
