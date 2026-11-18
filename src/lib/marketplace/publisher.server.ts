@@ -547,7 +547,7 @@ export async function submitProofForCampaignImpl(
     clickId = startResult.clickId;
   }
 
-  // 2. Upload files to offer-proofs bucket under {user_id}/{click_id}/{uuid}.ext
+  // 2. Upload files to offer-proofs bucket under {user_id}/campaign/{campaign_id}/{uuid}.ext
   const proofPaths: string[] = [];
   for (const file of input.files) {
     if (!file) continue;
@@ -560,7 +560,7 @@ export async function submitProofForCampaignImpl(
     
     const ext = file.name.split(".").pop() || "jpg";
     const uuid = crypto.randomUUID();
-    const path = `${userId}/${clickId}/${uuid}.${ext}`;
+    const path = `${userId}/campaign/${input.campaignId}/${uuid}.${ext}`;
 
     // Decode base64 to Buffer
     const buffer = Buffer.from(file.base64, 'base64');
