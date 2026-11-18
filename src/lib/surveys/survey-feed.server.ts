@@ -11,7 +11,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 /**
  * Check if surveys section and specific networks are enabled.
  */
-async function getSurveySettings(): Promise<{
+export async function getSurveySettings(): Promise<{
   sectionEnabled: boolean;
   cpxEnabled: boolean;
   theoremreachEnabled: boolean;
