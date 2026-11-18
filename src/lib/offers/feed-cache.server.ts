@@ -1008,16 +1008,15 @@ export async function assembleFeaturedImpl(
     expires: Date.now() + ASSEMBLED_CACHE_TTL_MS,
   });
 
-  // Apply per-user filtering
-  const visible = userId ? await filterUserHiddenOffers(combined, userId) : combined;
-  if (scope === "home") return visible.slice(0, settings.featuredSlots);
-  return visible;
+  // Return non-user-specific list - filtering happens AFTER awaiting buildPromise
+  return combined;
   })();
 
   _assembleInFlight.set(cacheKey, buildPromise);
   
   try {
     const result = await buildPromise;
+    // Each caller applies their own per-user filtering
     const visible = userId ? await filterUserHiddenOffers(result, userId) : result;
     if (scope === "home") return visible.slice(0, settings.featuredSlots);
     return visible;
