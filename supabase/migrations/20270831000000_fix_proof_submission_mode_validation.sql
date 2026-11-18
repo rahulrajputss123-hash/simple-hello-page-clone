@@ -148,11 +148,11 @@ COMMENT ON FUNCTION public.mkt_submit_proof IS 'Submit proof for a campaign clic
 -- ============================================================================
 -- Fix specific campaign 056ee9d2-24e0-46e3-b999-8c8f4e876568
 -- Set proof_min_images = 0 and account_id_ field required = false
--- Note: Bypass the mkt__guard_campaigns trigger by using ALTER TABLE ... DISABLE TRIGGER
+-- Note: Bypass the campaigns_guard trigger by using ALTER TABLE ... DISABLE TRIGGER
 -- ============================================================================
 
 -- Temporarily disable the guard trigger to allow direct UPDATE
-ALTER TABLE public.campaigns DISABLE TRIGGER mkt__guard_campaigns;
+ALTER TABLE public.campaigns DISABLE TRIGGER campaigns_guard;
 
 -- Update campaign proof_min_images to 0
 UPDATE public.campaigns 
@@ -178,4 +178,4 @@ WHERE c.id = '056ee9d2-24e0-46e3-b999-8c8f4e876568'
   );
 
 -- Re-enable the guard trigger
-ALTER TABLE public.campaigns ENABLE TRIGGER mkt__guard_campaigns;
+ALTER TABLE public.campaigns ENABLE TRIGGER campaigns_guard;
