@@ -20,7 +20,7 @@ type Survey = {
   title: string;
   payoutCoins: number; // Already converted with multiplier
   loi: number; // Minutes
-  rating?: number; // 0-5
+  rating?: number | undefined; // 0-5, explicit undefined for exactOptionalPropertyTypes
   entryLink: string;
 };
 
@@ -42,7 +42,7 @@ export function SurveysSection() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["surveys-home-feed"],
-    queryFn: () => fetchSurveys({ data: {} }),
+    queryFn: () => fetchSurveys({ data: {} as never }), // Empty input for now
     enabled: inView, // Only fetch when section is visible
     staleTime: 5 * 60 * 1000, // 5 minutes client-side
     gcTime: 10 * 60 * 1000,
@@ -65,7 +65,7 @@ export function SurveysSection() {
         </div>
         {surveys.length > 0 && (
           <Link
-            to="/surveys"
+            to="/featured"
             className="text-sm font-medium text-primary hover:underline"
           >
             See all
