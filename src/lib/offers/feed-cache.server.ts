@@ -28,7 +28,13 @@ type AssembledCacheEntry = {
   expires: number;
 };
 const _assembledCache = new Map<string, AssembledCacheEntry>();
-const ASSEMBLED_CACHE_TTL_MS = 5_000; // 5 seconds (temporarily reduced for debugging)
+const ASSEMBLED_CACHE_TTL_MS = 60_000; // 60 seconds
+
+// In-flight promise deduplication for assembleFeaturedImpl
+const _assembleInFlight = new Map<string, Promise<FeaturedOffer[]>>();
+
+// In-flight promise deduplication for refreshProviderCountry
+const _refreshInFlight = new Map<string, Promise<void>>();
 
 /**
  * Clear the in-memory assembled cache (for debugging/admin use)
@@ -539,6 +545,24 @@ async function refreshProviderCountry(
   settings: FeedSettings,
   ip?: string | null,
 ): Promise<CachedOffer[]> {
+  // In-flight deduplication: only one refresh per provider+country at a time
+  const dedupeKey = `${provider.id}:${country}`;
+  const inFlight = _refreshInFlight.get(dedupeKey);
+  if (inFlight) {
+    await inFlight;
+    // After waiting, fetch from DB cache
+    const { data } = await supabaseAdmin
+      .from("offer_feed_cache")
+      .select("offers")
+      .eq("provider_id", provider.id)
+      .eq("country", country)
+      .maybeSingle();
+    return ((data?.offers as CachedOffer[]) ?? []);
+  }
+
+  // Start refresh and store promise
+  const refreshPromise = (async () => {
+    try {
   const adapter = getAdapter(provider.slug);
   if (!adapter) throw new Error(`No adapter registered for "${provider.slug}"`);
 
@@ -660,6 +684,22 @@ async function refreshProviderCountry(
   if (cacheError) throw cacheError;
 
   return cached;
+    } finally {
+      _refreshInFlight.delete(dedupeKey);
+    }
+  })();
+
+  _refreshInFlight.set(dedupeKey, refreshPromise);
+  await refreshPromise;
+  
+  // Fetch result from DB
+  const { data } = await supabaseAdmin
+    .from("offer_feed_cache")
+    .select("offers")
+    .eq("provider_id", provider.id)
+    .eq("country", country)
+    .maybeSingle();
+  return ((data?.offers as CachedOffer[]) ?? []);
 }
 
 /** Serve fresh cache if valid; otherwise refresh synchronously. Falls back to stale on error. */
@@ -747,6 +787,18 @@ export async function assembleFeaturedImpl(
     if (scope === "home") return visible.slice(0, settings.featuredSlots);
     return visible;
   }
+
+  // In-flight deduplication: if already building this cache, wait for it
+  const inFlight = _assembleInFlight.get(cacheKey);
+  if (inFlight) {
+    const result = await inFlight;
+    const visible = userId ? await filterUserHiddenOffers(result, userId) : result;
+    if (scope === "home") return visible.slice(0, settings.featuredSlots);
+    return visible;
+  }
+
+  // Start building and store promise for deduplication
+  const buildPromise = (async () => {
 
   const [providers, hasImageUrl] = await Promise.all([enabledProviders(), offersHasImageUrl()]);
 
@@ -960,6 +1012,18 @@ export async function assembleFeaturedImpl(
   const visible = userId ? await filterUserHiddenOffers(combined, userId) : combined;
   if (scope === "home") return visible.slice(0, settings.featuredSlots);
   return visible;
+  })();
+
+  _assembleInFlight.set(cacheKey, buildPromise);
+  
+  try {
+    const result = await buildPromise;
+    const visible = userId ? await filterUserHiddenOffers(result, userId) : result;
+    if (scope === "home") return visible.slice(0, settings.featuredSlots);
+    return visible;
+  } finally {
+    _assembleInFlight.delete(cacheKey);
+  }
 }
 
 /**
@@ -1128,8 +1192,6 @@ export async function getFeaturedFeedImpl(
   // Log before platform filter
   const beforeFilterCount = offers.length;
   const beforeGamesCount = offers.filter(o => o.category === "Games").length;
-  console.log(`[getFeaturedFeedImpl] Platform: ${userPlatform || "null"}, Country: ${country}`);
-  console.log(`[getFeaturedFeedImpl] Before filter: ${beforeFilterCount} offers, ${beforeGamesCount} Games`);
 
   // Filter by user's platform ONLY if platform is known (android/ios/web)
   // If platform is null (unknown), skip filtering and show all offers
@@ -1139,16 +1201,14 @@ export async function getFeaturedFeedImpl(
     
     const afterFilterCount = offers.length;
     const afterGamesCount = offers.filter(o => o.category === "Games").length;
-    console.log(`[getFeaturedFeedImpl] After ${userPlatform} filter: ${afterFilterCount} offers, ${afterGamesCount} Games`);
   } else if (userPlatform === "web") {
     // Web: filter to only web-compatible or empty-device offers
     const beforeWebCount = offers.length;
     offers = offers.filter(o => !o.devices || o.devices.length === 0 || o.devices.includes("web"));
     const afterWebCount = offers.length;
     const afterGamesCount = offers.filter(o => o.category === "Games").length;
-    console.log(`[getFeaturedFeedImpl] After web filter: ${afterWebCount} offers (was ${beforeWebCount}), ${afterGamesCount} Games`);
   } else {
-    console.log(`[getFeaturedFeedImpl] Platform unknown (null) - showing all offers`);
+    // Platform unknown - show all offers
   }
 
   // Enrich with user's claim status
@@ -1166,7 +1226,6 @@ export async function getOfferByIdImpl(
   userId: string | null,
 ): Promise<FeaturedOffer | null> {
   const start = Date.now();
-  console.log("[getOfferByIdImpl] start", offerId, start);
   
   const hasImageUrl = await offersHasImageUrl();
 
@@ -1178,12 +1237,11 @@ export async function getOfferByIdImpl(
     .maybeSingle();
 
   if (error) {
-    console.log("[getOfferByIdImpl] null", offerId, "error:", error.message);
+    console.error("[getOfferByIdImpl] error:", error.message);
     return null;
   }
   
   if (!offer) {
-    console.log("[getOfferByIdImpl] null", offerId, "not found or not active");
     return null;
   }
 
@@ -1208,13 +1266,8 @@ export async function getOfferByIdImpl(
     defaultRevenueShare,
   );
   
-  // Debug logging
-  console.log(`[getOfferByIdImpl] ${offer.id} (${offer.title})`);
-  console.log(`[getOfferByIdImpl] Provider: ${providerSlug}`);
-  console.log(`[getOfferByIdImpl] Has raw_payload: ${offer.raw_payload !== null && offer.raw_payload !== undefined}`);
-  console.log(`[getOfferByIdImpl] Steps extracted: ${steps?.length || 0}`);
   if (steps && steps.length > 0) {
-    console.log(`[getOfferByIdImpl] First step: ${steps[0].label} ($${steps[0].usd})`);
+    // Steps extracted successfully
   }
 
   // Extract difficulty from raw_payload (adswedmedia only)
@@ -1263,20 +1316,11 @@ export async function getOfferByIdImpl(
     raw_payload: offer.raw_payload,
   } as FeaturedOffer & { raw_payload?: unknown };
 
-  // DEBUG: Log before enrichment
-  console.log("[getOfferByIdImpl] BEFORE enrich:", offerId, "steps=" + (featuredOffer.steps?.length ?? "undefined"), "raw_payload=" + (featuredOffer.raw_payload ? "exists" : "null"));
-  
   // Enrich with user's claim status
   const enriched = await enrichOffersWithClaimStatus([featuredOffer], userId);
   
-  // DEBUG: Log after enrichment
-  console.log("[getOfferByIdImpl] AFTER enrich:", offerId, "steps=" + (enriched[0]?.steps?.length ?? "undefined"), "raw_payload=" + ((enriched[0] as any)?.raw_payload ? "exists" : "null"));
-  
   const result = enriched[0] ?? null;
   
-  // DEBUG: Log final result
-  console.log("[getOfferByIdImpl] FINAL result:", offerId, "steps=" + (result?.steps?.length ?? "undefined"), "raw_payload=" + ((result as any)?.raw_payload ? "exists" : "null"));
-  console.log("[getOfferByIdImpl] end", offerId, "ms=" + (Date.now() - start), "steps=" + (result?.steps?.length ?? 0));
   return result;
 }
 
