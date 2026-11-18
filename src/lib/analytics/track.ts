@@ -10,6 +10,9 @@
  * - Never includes PII (email, phone, IP, auth tokens)
  */
 
+// Analytics feature flag - set to false to disable all tracking
+const ANALYTICS_ENABLED = false;
+
 type EventProperties = Record<string, unknown>;
 
 interface QueuedEvent {
@@ -231,6 +234,9 @@ let tracker: AnalyticsTracker | null = null;
  * @param properties - Optional event properties
  */
 export function track(eventName: string, properties?: EventProperties): void {
+  // Early return if analytics disabled
+  if (!ANALYTICS_ENABLED) return;
+  
   if (typeof window === "undefined") return; // SSR safety
 
   if (!tracker) {

@@ -40,33 +40,33 @@ export function withServerTiming<T extends HandlerFn>(
       const duration = Date.now() - startTime;
       const userId = args?.context?.userId || null;
 
-      // Log strategy: all requests over 2000ms, plus 1% sample of others
-      const shouldLog = duration > 2000 || Math.random() < 0.01;
+      // Log only requests over 2000ms (no random sampling)
+      if (duration > 2000) {
+        // Fire and forget - don't await, just log errors
+        (async () => {
+          try {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            const userIdPrefix = userId ? userId.slice(0, 8) : null;
 
-      if (shouldLog) {
-        try {
-          // Lazy import to avoid bundling supabaseAdmin in client code
-          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          const userIdPrefix = userId ? userId.slice(0, 8) : null;
-
-          await supabaseAdmin.from("automation_logs").insert({
-            event_type: "server_request_timing",
-            source: "server_timing",
-            status: statusCode === 200 ? "info" : "error",
-            message: `${fnName} | ${duration}ms | user=${userIdPrefix || "anon"} | status=${statusCode}`,
-            context: {
-              fn_name: fnName,
-              wall_ms: duration,
-              user_id_prefix: userIdPrefix,
-              status_code: statusCode,
-              error: errorMessage,
-              over_2s: duration > 2000,
-            },
-          });
-        } catch (logError) {
-          // Never fail the request due to logging
-          console.error("[server-timing] Failed to log:", logError);
-        }
+            await supabaseAdmin.from("automation_logs").insert({
+              event_type: "server_request_timing",
+              source: "server_timing",
+              status: statusCode === 200 ? "info" : "error",
+              message: `${fnName} | ${duration}ms | user=${userIdPrefix || "anon"} | status=${statusCode}`,
+              context: {
+                fn_name: fnName,
+                wall_ms: duration,
+                user_id_prefix: userIdPrefix,
+                status_code: statusCode,
+                error: errorMessage,
+                over_2s: true,
+              },
+            });
+          } catch (logError) {
+            // Never fail the request due to logging
+            console.error("[server-timing] Failed to log:", logError);
+          }
+        })();
       }
     }
   }) as T;

@@ -161,25 +161,30 @@ function MicrotaskDetailPage() {
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message : "Could not submit proof";
-      const detail = msg.match(/detail[=: ]+([a-z_]+)/i)?.[1]?.toLowerCase();
+      
+      // Extract detail from MKT_INVALID_PROOF errors
+      const detailMatch = msg.match(/DETAIL:\s*(.+?)(?:\n|$)/i) || msg.match(/detail[=: ]+(.+?)(?:\n|$)/i);
+      const detail = detailMatch?.[1]?.trim();
       
       const description = msg.includes("MKT_NO_SLOTS")
         ? "This task is full. All slots have been taken."
         : msg.includes("MKT_ALREADY_DONE")
           ? "You already completed this task."
-          : msg.includes("MKT_NOT_ELIGIBLE") && detail === "country"
+          : msg.includes("MKT_NOT_ELIGIBLE") && detail?.toLowerCase() === "country"
             ? "This campaign is not available in your country."
-            : msg.includes("MKT_NOT_ELIGIBLE") && detail === "device"
+            : msg.includes("MKT_NOT_ELIGIBLE") && detail?.toLowerCase() === "device"
               ? "This campaign does not support your device."
-              : msg.includes("MKT_NOT_ELIGIBLE") && detail === "age"
+              : msg.includes("MKT_NOT_ELIGIBLE") && detail?.toLowerCase() === "age"
                 ? "You are not eligible for this campaign's age requirements."
-                : msg.includes("MKT_NOT_ELIGIBLE") && detail === "linked"
+                : msg.includes("MKT_NOT_ELIGIBLE") && detail?.toLowerCase() === "linked"
                   ? "You are not eligible because of an account link."
                   : msg.includes("MKT_NOT_AVAILABLE")
                     ? "This campaign is no longer available."
-                    : msg.includes("MKT_INVALID_PROOF")
-                      ? msg.replace(/^[A-Z_]+: /, "")
-                      : msg;
+                    : msg.includes("MKT_INVALID_PROOF") && detail
+                      ? detail // Show the DETAIL message directly
+                      : msg.includes("MKT_INVALID_PROOF")
+                        ? msg.replace(/^[A-Z_]+: /, "")
+                        : msg;
       
       setErrorMessage(description);
       toast.error("Couldn't submit proof", { description });
@@ -362,8 +367,8 @@ function MicrotaskDetailPage() {
             {showImages && maxImages > 0 && (
               <div className="space-y-1.5">
                 <Label htmlFor="proof-file">
-                  Screenshot{minImages > 1 ? "s" : ""}{" "}
-                  {minImages > 0 && `(${minImages}-${maxImages} required)`}
+                  {derivedMode === "either" ? "Option 1: Screenshot" : "Screenshot"}{minImages > 1 ? "s" : ""}{" "}
+                  {derivedMode === "either" ? "" : minImages > 0 && `(${minImages}-${maxImages} required)`}
                 </Label>
                 {preview ? (
                   <div className="relative overflow-hidden rounded-2xl border border-border">
@@ -450,10 +455,13 @@ function MicrotaskDetailPage() {
 
             {showFields && proofFields.length > 0 && (
               <div className="space-y-3">
+                {derivedMode === "either" && (
+                  <Label className="text-sm font-medium">Option 2: Fill in the details</Label>
+                )}
                 {proofFields.map((field: any) => (
                   <div key={field.key} className="space-y-1.5">
                     <Label htmlFor={`field-${field.key}`}>
-                      {field.label} {field.required && <span className="text-destructive">*</span>}
+                      {field.label} {derivedMode !== "either" && field.required && <span className="text-destructive">*</span>}
                     </Label>
                     <Input
                       id={`field-${field.key}`}

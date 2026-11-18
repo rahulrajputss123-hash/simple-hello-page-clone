@@ -262,10 +262,37 @@ export async function getCampaignForEarnerImpl(userId: string, campaignId: strin
     throw new Error(clickError.message);
   }
   
+  // Extract proof_mode from campaign_options and flatten it
+  const campaignOptions = campaign.campaign_options as any;
+  const proofModeFromOptions = Array.isArray(campaignOptions) 
+    ? campaignOptions[0]?.proof_mode 
+    : campaignOptions?.proof_mode;
+  const proofExampleUrlFromOptions = Array.isArray(campaignOptions)
+    ? campaignOptions[0]?.proof_example_url
+    : campaignOptions?.proof_example_url;
+  
+  const proofFields = campaign.proof_fields ?? [];
+  const minImages = campaign.proof_min_images ?? 1;
+  
+  // Derive proof_mode when missing (same logic as listActiveCampaignsImpl)
+  let derivedMode = proofModeFromOptions || null;
+  if (!derivedMode && campaign.verification_mode !== "auto") {
+    const hasRequiredFields = proofFields.some((f: any) => f.required);
+    if (minImages >= 1 && !hasRequiredFields) {
+      derivedMode = "screenshot";
+    } else if (minImages === 0 && proofFields.length > 0) {
+      derivedMode = "text";
+    } else {
+      derivedMode = "both";
+    }
+  }
+  
   return {
     ...campaign,
     countries: normalizeCampaignCountries(campaign.countries),
     clickId: click?.click_id ?? null,
+    proofMode: derivedMode,
+    proofExampleUrl: proofExampleUrlFromOptions || null,
   };
 }
 
@@ -547,7 +574,7 @@ export async function submitProofForCampaignImpl(
     clickId = startResult.clickId;
   }
 
-  // 2. Upload files to offer-proofs bucket under {user_id}/{click_id}/{uuid}.ext
+  // 2. Upload files to offer-proofs bucket under {user_id}/campaign/{campaign_id}/{uuid}.ext
   const proofPaths: string[] = [];
   for (const file of input.files) {
     if (!file) continue;
@@ -560,7 +587,7 @@ export async function submitProofForCampaignImpl(
     
     const ext = file.name.split(".").pop() || "jpg";
     const uuid = crypto.randomUUID();
-    const path = `${userId}/${clickId}/${uuid}.${ext}`;
+    const path = `${userId}/campaign/${input.campaignId}/${uuid}.${ext}`;
 
     // Decode base64 to Buffer
     const buffer = Buffer.from(file.base64, 'base64');
