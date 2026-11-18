@@ -8,6 +8,54 @@
 import { createHash, createHmac } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+/**
+ * Check if surveys section and specific networks are enabled.
+ */
+async function getSurveySettings(): Promise<{
+  sectionEnabled: boolean;
+  cpxEnabled: boolean;
+  theoremreachEnabled: boolean;
+  timewallEnabled: boolean;
+}> {
+  const { data } = await supabaseAdmin
+    .from("app_settings")
+    .select("key, value")
+    .in("key", ["survey_section_enabled", "cpx_enabled", "theoremreach_enabled", "timewall_enabled"]);
+
+  const settings = (data ?? []).reduce(
+    (acc, row) => {
+      acc[row.key as string] = row.value === "true" || row.value === true;
+      return acc;
+    },
+    {} as Record<string, boolean>,
+  );
+
+  return {
+    sectionEnabled: settings.survey_section_enabled ?? true, // Default enabled
+    cpxEnabled: settings.cpx_enabled ?? true,
+    theoremreachEnabled: settings.theoremreach_enabled ?? true,
+    timewallEnabled: settings.timewall_enabled ?? true,
+  };
+}
+
+/**
+ * Check if network should be fetched (has env vars and is enabled).
+ */
+function canFetchNetwork(network: SurveyNetwork, settings: Awaited<ReturnType<typeof getSurveySettings>>): boolean {
+  switch (network) {
+    case "cpxresearch":
+      if (!settings.cpxEnabled) return false;
+      return Boolean(process.env.CPX_APP_ID && process.env.CPX_SECURE_HASH_SECRET);
+    case "theoremreach":
+      if (!settings.theoremreachEnabled) return false;
+      return Boolean(process.env.THEOREMREACH_API_KEY && process.env.THEOREMREACH_SECRET);
+    case "timewall":
+      return settings.timewallEnabled;
+    default:
+      return false;
+  }
+}
+
 export type SurveyNetwork = "cpxresearch" | "theoremreach" | "timewall";
 
 export type Survey = {
@@ -67,6 +115,23 @@ const CACHE_TTL = 120 * 1000; // 120 seconds
  * Fetch surveys from all allowed networks and merge into one list.
  */
 export async function fetchSurveyFeed(params: SurveyFeedParams): Promise<SurveyFeedResult> {
+  const settings = await getSurveySettings();
+
+  // Check if surveys section is enabled
+  if (!settings.sectionEnabled) {
+    return {
+      surveys: [],
+      networks: [
+        {
+          network: "cpxresearch",
+          ok: false,
+          count: 0,
+          reason: "Surveys section is disabled",
+        },
+      ],
+    };
+  }
+
   const profileVersion = params.profile?.updatedAt ?? null;
   const cacheKey = `${params.userId}:${params.allowedNetworks.join(",")}:${profileVersion}`;
   const cached = feedCache.get(cacheKey);
@@ -81,30 +146,46 @@ export async function fetchSurveyFeed(params: SurveyFeedParams): Promise<SurveyF
   const allSurveys: Survey[] = [];
   const networks: NetworkStatus[] = [];
 
-  // Fetch from each allowed network in parallel
-  const promises = params.allowedNetworks.map(async (network) => {
-    try {
-      let surveys: Survey[];
-      switch (network) {
-        case "cpxresearch":
-          surveys = await fetchCPXSurveys(params);
-          break;
-        case "theoremreach":
-          surveys = await fetchTheoremReachSurveys(params);
-          break;
-        case "timewall":
-          surveys = []; // Timewall has no list API
-          break;
-        default:
-          surveys = [];
+  // Fetch from each allowed network in parallel (only if enabled and has env vars)
+  const promises = params.allowedNetworks
+    .filter((network) => canFetchNetwork(network, settings))
+    .map(async (network) => {
+      try {
+        let surveys: Survey[];
+        switch (network) {
+          case "cpxresearch":
+            surveys = await fetchCPXSurveys(params);
+            break;
+          case "theoremreach":
+            surveys = await fetchTheoremReachSurveys(params);
+            break;
+          case "timewall":
+            surveys = []; // Timewall has no list API
+            break;
+          default:
+            surveys = [];
+        }
+        return { network, surveys, ok: true, reason: undefined };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        console.error(`[survey-feed] ${network} failed:`, reason);
+        return { network, surveys: [], ok: false, reason };
       }
-      return { network, surveys, ok: true, reason: undefined };
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      console.error(`[survey-feed] ${network} failed:`, reason);
-      return { network, surveys: [], ok: false, reason };
+    });
+
+  // Add status for disabled/missing networks
+  for (const network of params.allowedNetworks) {
+    if (!canFetchNetwork(network, settings)) {
+      let reason: string;
+      if (network === "cpxresearch" && !settings.cpxEnabled) reason = "CPX disabled";
+      else if (network === "theoremreach" && !settings.theoremreachEnabled)
+        reason = "TheoremReach disabled";
+      else if (network === "timewall" && !settings.timewallEnabled) reason = "Timewall disabled";
+      else reason = "Missing env vars";
+
+      networks.push({ network, ok: false, count: 0, reason });
     }
-  });
+  }
 
   const results = await Promise.all(promises);
   
