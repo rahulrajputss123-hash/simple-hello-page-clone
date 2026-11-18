@@ -38,6 +38,13 @@ export type SurveyFeedParams = {
   allowedNetworks: SurveyNetwork[];
   minPayoutUsd?: number;
   maxLoi?: number;
+  profile?: {
+    age: number;
+    gender: "male" | "female";
+    postalCode: string;
+    countryCode: string;
+    updatedAt: string; // For cache versioning
+  } | null;
 };
 
 export type SurveyFeedResult = {
@@ -49,6 +56,7 @@ type CachedFeed = {
   surveys: Survey[];
   networks: NetworkStatus[];
   cachedAt: number;
+  profileVersion: string | null; // Cache key includes profile updated_at
 };
 
 // Cache feeds per user for 120 seconds
@@ -59,10 +67,11 @@ const CACHE_TTL = 120 * 1000; // 120 seconds
  * Fetch surveys from all allowed networks and merge into one list.
  */
 export async function fetchSurveyFeed(params: SurveyFeedParams): Promise<SurveyFeedResult> {
-  const cacheKey = `${params.userId}:${params.allowedNetworks.join(",")}`;
+  const profileVersion = params.profile?.updatedAt ?? null;
+  const cacheKey = `${params.userId}:${params.allowedNetworks.join(",")}:${profileVersion}`;
   const cached = feedCache.get(cacheKey);
   
-  if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL && cached.profileVersion === profileVersion) {
     return {
       surveys: filterSurveys(cached.surveys, params),
       networks: cached.networks,
@@ -116,6 +125,7 @@ export async function fetchSurveyFeed(params: SurveyFeedParams): Promise<SurveyF
       surveys: allSurveys,
       networks,
       cachedAt: Date.now(),
+      profileVersion,
     });
   }
 
@@ -175,6 +185,16 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
   url.searchParams.set("limit", "12");
   url.searchParams.set("secure_hash", secureHash);
 
+  // Add profile data if available
+  if (params.profile) {
+    url.searchParams.set("main_info", "true");
+    url.searchParams.set("gender", params.profile.gender === "male" ? "m" : "f");
+    url.searchParams.set("user_country_code", params.profile.countryCode);
+    url.searchParams.set("zip_code", params.profile.postalCode);
+    // Note: CPX wants birthday_day, birthday_month, birthday_year
+    // We only have age, so we omit birthday fields (as per instructions)
+  }
+
   const response = await fetch(url.toString());
   
   console.log(`[survey-feed] CPX HTTP ${response.status}`);
@@ -197,6 +217,60 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
     conversionRate: Number(s.conversion_rate || 0),
     entryLink: s.href || "",
   }));
+}
+
+/**
+ * Update TheoremReach profile with user demographics.
+ * POST https://api.theoremreach.com/api/publishers/v1/update_profile
+ * Body: { user_id, ip, country_code, attributes: { postal_code, facet_hash: { "1": [age], "2": [100|101] } } }
+ * Sign: HMAC-SHA1(secret, URL + raw_body)
+ */
+async function updateTheoremReachProfile(
+  params: SurveyFeedParams,
+  apiKey: string,
+  secret: string,
+): Promise<void> {
+  if (!params.profile) return;
+
+  const baseUrl = "https://api.theoremreach.com/api/publishers/v1/update_profile";
+  const url = new URL(baseUrl);
+  url.searchParams.set("api_key", apiKey);
+
+  const body = {
+    user_id: params.userId,
+    ip: params.ip,
+    country_code: params.countryCode,
+    attributes: {
+      postal_code: params.profile.postalCode,
+      facet_hash: {
+        "1": [String(params.profile.age)],
+        "2": [params.profile.gender === "male" ? "100" : "101"],
+      },
+    },
+  };
+
+  const rawBody = JSON.stringify(body);
+  const signaturePayload = url.toString() + rawBody;
+  const hash = signTheoremReachUrl(signaturePayload, secret);
+  url.searchParams.set("hash", hash);
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: rawBody,
+    });
+
+    console.log(`[survey-feed] TheoremReach update_profile HTTP ${response.status}`);
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      console.error(`[survey-feed] TheoremReach update_profile error:`, body.substring(0, 200));
+      // Don't throw - profile update failure shouldn't block survey fetching
+    }
+  } catch (err) {
+    console.error(`[survey-feed] TheoremReach update_profile failed:`, err);
+    // Don't throw - profile update failure shouldn't block survey fetching
+  }
 }
 
 /**
@@ -235,6 +309,11 @@ async function fetchTheoremReachSurveys(params: SurveyFeedParams): Promise<Surve
     .maybeSingle();
 
   const rewardMultiplier = provider?.reward_multiplier ?? 0.8;
+
+  // Call update_profile if profile data is available
+  if (params.profile) {
+    await updateTheoremReachProfile(params, apiKey, secret);
+  }
 
   // Build URL for /surveys request (use correct Publisher API v1 endpoint)
   const baseUrl = "https://api.theoremreach.com/api/publishers/v1/surveys";
@@ -325,12 +404,25 @@ function signTheoremReachEntryLink(
   secret: string,
   params: SurveyFeedParams,
 ): string {
-  // TODO: Optionally append &question_1[]=age / &question_2[]=100|101 / &postal_code if we have them
-  // For now, sign as-is
-  
-  const hash = signTheoremReachUrl(entryLink, secret);
-  const separator = entryLink.includes("?") ? "&" : "?";
-  return `${entryLink}${separator}hash=${hash}`;
+  let urlWithProfile = entryLink;
+
+  // Append profile params if available
+  if (params.profile) {
+    const profileUrl = new URL(urlWithProfile);
+    // Add age as question_1[]=<value>
+    profileUrl.searchParams.append("question_1[]", String(params.profile.age));
+    // Add gender as question_2[]=100 (male) or question_2[]=101 (female)
+    const genderCode = params.profile.gender === "male" ? "100" : "101";
+    profileUrl.searchParams.append("question_2[]", genderCode);
+    // Add postal_code
+    profileUrl.searchParams.set("postal_code", params.profile.postalCode);
+    urlWithProfile = profileUrl.toString();
+  }
+
+  // Compute hash and append LAST
+  const hash = signTheoremReachUrl(urlWithProfile, secret);
+  const separator = urlWithProfile.includes("?") ? "&" : "?";
+  return `${urlWithProfile}${separator}hash=${hash}`;
 }
 
 /**
