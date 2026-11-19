@@ -1,1 +1,0 @@
-function e(e){let t=typeof e==`string`?Number(e):e??0;return`$${(Number.isFinite(t)?t:0).toFixed(2)}`}function t(e){return e?new Date(e).toLocaleDateString(void 0,{day:`numeric`,month:`short`,year:`numeric`}):`—`}function n(e){return e?new Date(e).toLocaleString(void 0,{day:`numeric`,month:`short`,hour:`2-digit`,minute:`2-digit`}):`—`}export{n,e as r,t};

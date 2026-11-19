@@ -1,1 +1,0 @@
-var e=new Map;function t(){if(typeof window>`u`)return null;try{return window.localStorage??null}catch{return null}}var n={getItem(n){try{let e=t();if(e)return e.getItem(n)}catch{}return e.get(n)??null},setItem(n,r){e.set(n,r);try{t()?.setItem(n,r)}catch{}},removeItem(n){e.delete(n);try{t()?.removeItem(n)}catch{}}};export{n as t};
