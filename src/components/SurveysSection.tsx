@@ -78,8 +78,8 @@ export function SurveysSection() {
       {!isLoading && surveys.length === 0 && (
         <EmptyState
           icon={Star}
-          title="Abhi koi survey nahi"
-          description="Thodi der baad check karein"
+          title="No surveys available"
+          description="Check back later for new surveys"
         />
       )}
 
