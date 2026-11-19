@@ -75,6 +75,7 @@ import {
   ProofReviews,
 } from "@/components/admin/MarketplaceManagers";
 import { MarketplaceSettingsPanel } from "@/components/admin/MarketplaceSettingsPanel";
+import { SurveySettingsPanel } from "@/components/admin/SurveySettingsPanel";
 import {
   Dialog,
   DialogContent,
@@ -630,6 +631,7 @@ function AdminPage() {
       ["sdk-offerwalls", "SDK Offerwalls"],
       ["automation", "Automation"],
       ["offer-feed", "Offer Feed"],
+      ["survey-settings", "Survey Settings"],
     ],
     marketplace: [
       ["campaigns", "Campaigns ★"],
@@ -2173,6 +2175,8 @@ function AdminPage() {
           <OfferFeedAutomationPanel />
         </>
       )}
+
+      {tab === "survey-settings" && <SurveySettingsPanel />}
 
       {tab === "providers" && (
         <>
