@@ -3,9 +3,9 @@
 
 CREATE TABLE public.user_survey_profiles (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  age integer NOT NULL CHECK (age >= 1 AND age <= 99),
+  birth_date date CHECK (birth_date <= CURRENT_DATE AND birth_date >= CURRENT_DATE - INTERVAL '100 years'),
   gender text NOT NULL CHECK (gender IN ('male', 'female')),
-  postal_code text NOT NULL,
+  postal_code text,
   country_code text NOT NULL CHECK (country_code ~ '^[A-Z]{2}$'),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -39,7 +39,7 @@ CREATE TRIGGER user_survey_profiles_updated_at
 CREATE INDEX user_survey_profiles_user_id_idx ON public.user_survey_profiles(user_id);
 
 COMMENT ON TABLE public.user_survey_profiles IS 'User demographic profiles for survey targeting (CPX Research, TheoremReach)';
-COMMENT ON COLUMN public.user_survey_profiles.age IS 'User age in years (1-99)';
+COMMENT ON COLUMN public.user_survey_profiles.birth_date IS 'User birth date (used to calculate age for survey targeting)';
 COMMENT ON COLUMN public.user_survey_profiles.gender IS 'User gender: male or female';
 COMMENT ON COLUMN public.user_survey_profiles.postal_code IS 'Postal/ZIP code (format validated per country)';
 COMMENT ON COLUMN public.user_survey_profiles.country_code IS 'ISO 3166-1 alpha-2 country code';

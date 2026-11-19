@@ -45,10 +45,10 @@ function canFetchNetwork(network: SurveyNetwork, settings: Awaited<ReturnType<ty
   switch (network) {
     case "cpxresearch":
       if (!settings.cpxEnabled) return false;
-      return Boolean(process.env.CPX_APP_ID && process.env.CPX_SECURE_HASH_SECRET);
+      return Boolean(process.env.CPX_APP_ID && process.env.CPX_SECURE_HASH);
     case "theoremreach":
       if (!settings.theoremreachEnabled) return false;
-      return Boolean(process.env.THEOREMREACH_API_KEY && process.env.THEOREMREACH_SECRET);
+      return Boolean(process.env.THEOREMREACH_API_KEY && process.env.THEOREMREACH_SECRET_KEY);
     case "timewall":
       return settings.timewallEnabled;
     default:
@@ -89,7 +89,8 @@ export type SurveyFeedParams = {
   profile?: {
     age: number;
     gender: "male" | "female";
-    postalCode: string;
+    postalCode?: string;
+    birthDate?: string; // ISO date for birthday calculations
     countryCode: string;
     updatedAt: string; // For cache versioning
   } | null;
@@ -242,12 +243,12 @@ function filterSurveys(surveys: Survey[], params: SurveyFeedParams): Survey[] {
  */
 async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
   const appId = process.env.CPX_APP_ID;
-  const secret = process.env.CPX_SECURE_HASH_SECRET;
+  const secret = process.env.CPX_SECURE_HASH;
 
   if (!appId || !secret) {
     const missing = [];
     if (!appId) missing.push("CPX_APP_ID");
-    if (!secret) missing.push("CPX_SECURE_HASH_SECRET");
+    if (!secret) missing.push("CPX_SECURE_HASH");
     console.error(`[survey-feed] CPX missing env vars: ${missing.join(", ")}`);
     throw new Error(`Missing env: ${missing.join(", ")}`);
   }
@@ -271,9 +272,16 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
     url.searchParams.set("main_info", "true");
     url.searchParams.set("gender", params.profile.gender === "male" ? "m" : "f");
     url.searchParams.set("user_country_code", params.profile.countryCode);
-    url.searchParams.set("zip_code", params.profile.postalCode);
-    // Note: CPX wants birthday_day, birthday_month, birthday_year
-    // We only have age, so we omit birthday fields (as per instructions)
+    if (params.profile.postalCode) {
+      url.searchParams.set("zip_code", params.profile.postalCode);
+    }
+    // Pass birthday only if birth_date exists
+    if (params.profile.birthDate) {
+      const birth = new Date(params.profile.birthDate);
+      url.searchParams.set("birthday_day", String(birth.getDate()));
+      url.searchParams.set("birthday_month", String(birth.getMonth() + 1)); // 1-12
+      url.searchParams.set("birthday_year", String(birth.getFullYear()));
+    }
   }
 
   const response = await fetch(url.toString());
@@ -367,12 +375,12 @@ async function updateTheoremReachProfile(
  */
 async function fetchTheoremReachSurveys(params: SurveyFeedParams): Promise<Survey[]> {
   const apiKey = process.env.THEOREMREACH_API_KEY;
-  const secret = process.env.THEOREMREACH_SECRET;
+  const secret = process.env.THEOREMREACH_SECRET_KEY;
 
   if (!apiKey || !secret) {
     const missing = [];
     if (!apiKey) missing.push("THEOREMREACH_API_KEY");
-    if (!secret) missing.push("THEOREMREACH_SECRET");
+    if (!secret) missing.push("THEOREMREACH_SECRET_KEY");
     console.error(`[survey-feed] TheoremReach missing env vars: ${missing.join(", ")}`);
     throw new Error(`Missing env: ${missing.join(", ")}`);
   }

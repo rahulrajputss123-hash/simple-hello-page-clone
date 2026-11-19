@@ -73,15 +73,27 @@ export const fetchSurveysList = createServerFn({ method: "POST" })
       // Fetch user survey profile
       const { data: profileData } = await supabaseAdmin
         .from("user_survey_profiles")
-        .select("age, gender, postal_code, country_code, updated_at")
+        .select("birth_date, gender, postal_code, country_code, updated_at")
         .eq("user_id", context.userId)
         .maybeSingle();
 
       const profile = profileData
         ? {
-            age: profileData.age,
+            birthDate: profileData.birth_date,
+            age: profileData.birth_date
+              ? (() => {
+                  const birth = new Date(profileData.birth_date);
+                  const today = new Date();
+                  let age = today.getFullYear() - birth.getFullYear();
+                  const monthDiff = today.getMonth() - birth.getMonth();
+                  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                    age--;
+                  }
+                  return age;
+                })()
+              : 0,
             gender: profileData.gender as "male" | "female",
-            postalCode: profileData.postal_code,
+            postalCode: profileData.postal_code || undefined,
             countryCode: profileData.country_code,
             updatedAt: profileData.updated_at,
           }

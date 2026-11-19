@@ -21,9 +21,14 @@ const POSTAL_CODE_PATTERNS: Record<string, RegExp> = {
 };
 
 const surveyProfileSchema = z.object({
-  age: z.number().int().min(1).max(99),
+  birthDate: z.string().refine((date) => {
+    const d = new Date(date);
+    const now = new Date();
+    const age = now.getFullYear() - d.getFullYear();
+    return !isNaN(d.getTime()) && age >= 1 && age <= 99;
+  }, "Must be a valid date resulting in age 1-99"),
   gender: z.enum(["male", "female"]),
-  postalCode: z.string().trim().min(1).max(20),
+  postalCode: z.string().trim().min(1).max(20).optional(),
   countryCode: z
     .string()
     .trim()
@@ -33,6 +38,19 @@ const surveyProfileSchema = z.object({
 });
 
 export type SurveyProfile = z.infer<typeof surveyProfileSchema>;
+
+/**
+ * Calculate age from birth date.
+ */
+function calculateAge(birthDate: Date): number {
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+}
 
 /**
  * Validate postal code format for a specific country.
@@ -55,17 +73,20 @@ export const getSurveyProfile = createServerFn({ method: "GET" })
     withServerTiming("getSurveyProfile", async ({ context }) => {
       const { data, error } = await supabaseAdmin
         .from("user_survey_profiles")
-        .select("age, gender, postal_code, country_code, updated_at")
+        .select("birth_date, gender, postal_code, country_code, updated_at")
         .eq("user_id", context.userId)
         .maybeSingle();
 
       if (error) throw error;
       if (!data) return null;
 
+      const birthDate = data.birth_date ? new Date(data.birth_date) : null;
+
       return {
-        age: data.age,
+        birthDate: data.birth_date,
+        age: birthDate ? calculateAge(birthDate) : null,
         gender: data.gender as "male" | "female",
-        postalCode: data.postal_code,
+        postalCode: data.postal_code || undefined,
         countryCode: data.country_code,
         updatedAt: data.updated_at,
       };
@@ -80,8 +101,8 @@ export const saveSurveyProfile = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => surveyProfileSchema.parse(input))
   .handler(
     withServerTiming("saveSurveyProfile", async ({ data, context }) => {
-      // Validate postal code format
-      if (!validatePostalCode(data.postalCode, data.countryCode)) {
+      // Validate postal code format if provided
+      if (data.postalCode && !validatePostalCode(data.postalCode, data.countryCode)) {
         throw new Error(`Invalid postal code format for ${data.countryCode}`);
       }
 
@@ -91,9 +112,9 @@ export const saveSurveyProfile = createServerFn({ method: "POST" })
         .upsert(
           {
             user_id: context.userId,
-            age: data.age,
+            birth_date: data.birthDate,
             gender: data.gender,
-            postal_code: data.postalCode,
+            postal_code: data.postalCode || null,
             country_code: data.countryCode,
             updated_at: new Date().toISOString(),
           },
