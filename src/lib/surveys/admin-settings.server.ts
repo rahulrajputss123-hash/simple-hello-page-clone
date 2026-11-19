@@ -20,23 +20,12 @@ const surveySettingsSchema = z.object({
 export type SurveyAdminSettings = z.infer<typeof surveySettingsSchema>;
 
 /**
- * Get survey admin settings (requires admin role).
+ * Get survey admin settings.
  */
 export const getSurveyAdminSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(
-    withServerTiming("getSurveyAdminSettings", async ({ context }) => {
-      // Check admin role
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("app_role")
-        .eq("user_id", context.userId)
-        .single();
-
-      if (profile?.app_role !== "admin") {
-        throw new Error("Admin access required");
-      }
-
+    withServerTiming("getSurveyAdminSettings", async () => {
       // Fetch settings from app_settings table
       const { data } = await supabaseAdmin
         .from("app_settings")
@@ -66,24 +55,13 @@ export const getSurveyAdminSettings = createServerFn({ method: "GET" })
   );
 
 /**
- * Update survey admin settings (requires admin role).
+ * Update survey admin settings.
  */
 export const updateSurveyAdminSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => surveySettingsSchema.parse(input))
   .handler(
-    withServerTiming("updateSurveyAdminSettings", async ({ data, context }) => {
-      // Check admin role
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("app_role")
-        .eq("user_id", context.userId)
-        .single();
-
-      if (profile?.app_role !== "admin") {
-        throw new Error("Admin access required");
-      }
-
+    withServerTiming("updateSurveyAdminSettings", async ({ data }) => {
       // Upsert each setting
       const settingsToUpdate = [
         { key: "survey_section_enabled", value: String(data.sectionEnabled) },
