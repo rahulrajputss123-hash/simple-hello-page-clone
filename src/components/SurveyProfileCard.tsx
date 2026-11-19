@@ -62,10 +62,10 @@ export function SurveyProfileCard() {
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-foreground">
-            Apni details bharein, behtar surveys paayein
+            Complete your profile for better surveys
           </div>
           <div className="text-xs text-muted-foreground">
-            Profile complete karein
+            Fill in your details
           </div>
         </div>
       </button>
@@ -75,10 +75,10 @@ export function SurveyProfileCard() {
           <DialogHeader>
             <DialogTitle>Survey Profile</DialogTitle>
             <DialogDescription>
-              Apni details share karein taaki aapko better surveys mil sakein.
+              Share your details to receive better targeted surveys.
               <br />
               <span className="text-xs text-muted-foreground">
-                Yeh details survey partners ke saath share ki jaayengi.
+                These details will be shared with survey partners.
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -103,7 +103,9 @@ function SurveyProfileForm({
   isLoading: boolean;
   error: Error | null;
 }) {
-  const [age, setAge] = useState<string>("");
+  const [day, setDay] = useState<string>("");
+  const [month, setMonth] = useState<string>("");
+  const [year, setYear] = useState<string>("");
   const [gender, setGender] = useState<"male" | "female">("male");
   const [postalCode, setPostalCode] = useState("");
   const [countryCode, setCountryCode] = useState("IN");
@@ -111,35 +113,92 @@ function SurveyProfileForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const ageNum = parseInt(age, 10);
-    if (isNaN(ageNum) || ageNum < 1 || ageNum > 99) {
-      alert("Please enter a valid age (1-99)");
+    // Validate date inputs
+    const dayNum = parseInt(day, 10);
+    const monthNum = parseInt(month, 10);
+    const yearNum = parseInt(year, 10);
+
+    if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
+      alert("Please enter a valid day (1-31)");
+      return;
+    }
+
+    if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      alert("Please enter a valid month (1-12)");
+      return;
+    }
+
+    const currentYear = new Date().getFullYear();
+    if (isNaN(yearNum) || yearNum < currentYear - 99 || yearNum > currentYear - 1) {
+      alert(`Please enter a valid year (${currentYear - 99} to ${currentYear - 1})`);
+      return;
+    }
+
+    // Format as YYYY-MM-DD
+    const birthDate = `${yearNum}-${monthNum.toString().padStart(2, "0")}-${dayNum.toString().padStart(2, "0")}`;
+
+    // Validate the date is real (e.g., not Feb 30)
+    const dateObj = new Date(birthDate);
+    if (
+      dateObj.getFullYear() !== yearNum ||
+      dateObj.getMonth() + 1 !== monthNum ||
+      dateObj.getDate() !== dayNum
+    ) {
+      alert("Please enter a valid date");
       return;
     }
 
     onSubmit({
-      age: ageNum,
+      birthDate,
       gender,
-      postalCode,
+      postalCode: postalCode || undefined,
       countryCode,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Age */}
+      {/* Birth Date */}
       <div className="space-y-2">
-        <Label htmlFor="age">Age</Label>
-        <Input
-          id="age"
-          type="number"
-          min="1"
-          max="99"
-          value={age}
-          onChange={(e) => setAge(e.target.value)}
-          placeholder="Enter your age"
-          required
-        />
+        <Label>Date of Birth</Label>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <Input
+              type="number"
+              min="1"
+              max="31"
+              value={day}
+              onChange={(e) => setDay(e.target.value)}
+              placeholder="Day"
+              required
+            />
+          </div>
+          <div>
+            <Input
+              type="number"
+              min="1"
+              max="12"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              placeholder="Month"
+              required
+            />
+          </div>
+          <div>
+            <Input
+              type="number"
+              min={new Date().getFullYear() - 99}
+              max={new Date().getFullYear() - 1}
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              placeholder="Year"
+              required
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Format: Day / Month / Year
+        </p>
       </div>
 
       {/* Gender */}
@@ -158,14 +217,13 @@ function SurveyProfileForm({
 
       {/* Postal Code */}
       <div className="space-y-2">
-        <Label htmlFor="postal-code">Postal Code</Label>
+        <Label htmlFor="postal-code">Postal Code (Optional)</Label>
         <Input
           id="postal-code"
           type="text"
           value={postalCode}
           onChange={(e) => setPostalCode(e.target.value)}
           placeholder="110001"
-          required
         />
       </div>
 
@@ -190,7 +248,7 @@ function SurveyProfileForm({
 
       {error && (
         <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-          {error instanceof Error ? error.message : "Failed to save profile"}
+          {error.message || "Failed to save profile. Please check your inputs."}
         </div>
       )}
 

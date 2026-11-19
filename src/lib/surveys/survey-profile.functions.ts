@@ -98,7 +98,19 @@ export const getSurveyProfile = createServerFn({ method: "GET" })
  */
 export const saveSurveyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => surveyProfileSchema.parse(input))
+  .validator((input: unknown) => {
+    try {
+      return surveyProfileSchema.parse(input);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const firstError = error.errors[0];
+        const field = firstError.path.join(".");
+        const message = firstError.message;
+        throw new Error(`${field}: ${message}`);
+      }
+      throw error;
+    }
+  })
   .handler(
     withServerTiming("saveSurveyProfile", async ({ data, context }) => {
       // Validate postal code format if provided
