@@ -549,6 +549,7 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
     const { detectIpFromRequest, detectCountryFromRequest } = await import("./offers/geo.server");
     const { getActiveQuestByKey } = await import("./quests.server");
     const { fetchSurveyFeed: fetchSurveyFeedImpl } = await import("./surveys/survey-feed.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Get quest configuration
     const quest = await getActiveQuestByKey(context.userId, data.questKey);
@@ -581,6 +582,23 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
       };
     }
 
+    // Fetch user survey profile if it exists
+    const { data: profileData } = await supabaseAdmin
+      .from("user_survey_profiles")
+      .select("age, gender, postal_code, country_code, updated_at")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    const profile = profileData
+      ? {
+          age: profileData.age,
+          gender: profileData.gender as "male" | "female",
+          postalCode: profileData.postal_code,
+          countryCode: profileData.country_code,
+          updatedAt: profileData.updated_at,
+        }
+      : null;
+
     // Fetch surveys from allowed networks
     const result = await fetchSurveyFeedImpl({
       userId: context.userId,
@@ -591,6 +609,7 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
       allowedNetworks: quest.allowed_networks as ("cpxresearch" | "theoremreach" | "timewall")[],
       minPayoutUsd: quest.min_payout_usd ?? undefined,
       maxLoi: quest.max_loi ?? undefined,
+      profile,
     });
 
     return result;

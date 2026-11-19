@@ -22,6 +22,8 @@ import { SimulatedLiveActivity } from "@/components/SimulatedLiveActivity";
 import { SocialLinks } from "@/components/SocialLinks";
 import { StarterQuests } from "@/components/StarterQuests";
 import { SectionHeading } from "@/components/SectionHeading";
+import { SurveysSection } from "@/components/SurveysSection";
+import { SurveyProfileCard } from "@/components/SurveyProfileCard";
 import { Button } from "@/components/ui/button";
 import { StoreButtons, StoreDialog } from "@/components/landing/StoreButtons";
 import { useStoreDialog } from "@/components/landing/useStoreDialog";
@@ -217,6 +219,16 @@ function HomePage() {
             />
             <StarterQuests />
           </section>
+
+          {/* Survey Profile Card - prompt users to fill profile */}
+          <div className="rise-in" style={{ animationDelay: "35ms" }}>
+            <SurveyProfileCard />
+          </div>
+
+          {/* Surveys Section - between Quests and Offers */}
+          <div className="rise-in" style={{ animationDelay: "50ms" }}>
+            <SurveysSection />
+          </div>
 
           <section id="tour-featured-offers" className="rise-in" style={{ animationDelay: "70ms" }}>
             <SectionHeading
