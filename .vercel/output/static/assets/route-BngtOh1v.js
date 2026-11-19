@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-D3jfb0Ew.js";import{t}from"./ActiveTimeContext-Cq5I1a4q.js";import{t as n}from"./role-BRL-MnV7.js";import{G as r}from"./index-C-JjyVy9.js";var i=e(),a=()=>(0,i.jsx)(n,{children:(0,i.jsx)(t,{children:(0,i.jsx)(r,{})})});export{a as component};
