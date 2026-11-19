@@ -31,7 +31,12 @@ export function SurveySettingsPanel() {
   const [localTimewallEnabled, setLocalTimewallEnabled] = useState<boolean | null>(null);
 
   const mutation = useMutation({
-    mutationFn: updateSettings,
+    mutationFn: (variables: {
+      sectionEnabled: boolean;
+      cpxEnabled: boolean;
+      theoremreachEnabled: boolean;
+      timewallEnabled: boolean;
+    }) => updateSettings({ data: variables }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["survey-admin-settings"] });
       toast.success("Survey settings updated");
@@ -42,6 +47,7 @@ export function SurveySettingsPanel() {
       setLocalTimewallEnabled(null);
     },
     onError: (error: Error) => {
+      console.error("Mutation error:", error);
       toast.error(error.message || "Failed to update settings");
     },
   });
@@ -82,12 +88,15 @@ export function SurveySettingsPanel() {
     localTimewallEnabled !== null;
 
   const handleSave = () => {
-    mutation.mutate({
+    const payload = {
       sectionEnabled: localSectionEnabled ?? data.sectionEnabled,
       cpxEnabled: localCpxEnabled ?? data.cpxEnabled,
       theoremreachEnabled: localTheoremreachEnabled ?? data.theoremreachEnabled,
       timewallEnabled: localTimewallEnabled ?? data.timewallEnabled,
-    });
+    };
+    
+    console.log("Saving survey settings:", payload);
+    mutation.mutate(payload);
   };
 
   return (

@@ -45,12 +45,34 @@ export const getSurveyAdminSettings = createServerFn({ method: "GET" })
         {} as Record<string, boolean>,
       );
 
-      return {
+      // Initialize missing settings with defaults
+      const defaults = {
         sectionEnabled: settings.survey_section_enabled ?? true,
         cpxEnabled: settings.cpx_enabled ?? true,
         theoremreachEnabled: settings.theoremreach_enabled ?? true,
         timewallEnabled: settings.timewall_enabled ?? true,
       };
+
+      // If any settings are missing, insert them
+      const missingSettings: { key: string; value: string }[] = [];
+      if (!data?.find((s) => s.key === "survey_section_enabled")) {
+        missingSettings.push({ key: "survey_section_enabled", value: "true" });
+      }
+      if (!data?.find((s) => s.key === "cpx_enabled")) {
+        missingSettings.push({ key: "cpx_enabled", value: "true" });
+      }
+      if (!data?.find((s) => s.key === "theoremreach_enabled")) {
+        missingSettings.push({ key: "theoremreach_enabled", value: "true" });
+      }
+      if (!data?.find((s) => s.key === "timewall_enabled")) {
+        missingSettings.push({ key: "timewall_enabled", value: "true" });
+      }
+
+      if (missingSettings.length > 0) {
+        await supabaseAdmin.from("app_settings").insert(missingSettings);
+      }
+
+      return defaults;
     }),
   );
 
@@ -59,9 +81,21 @@ export const getSurveyAdminSettings = createServerFn({ method: "GET" })
  */
 export const updateSurveyAdminSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => surveySettingsSchema.parse(input))
+  .validator((input: unknown) => {
+    console.log("Validating input:", input);
+    try {
+      const result = surveySettingsSchema.parse(input);
+      console.log("Validation passed:", result);
+      return result;
+    } catch (error) {
+      console.error("Validation failed:", error);
+      throw error;
+    }
+  })
   .handler(
     withServerTiming("updateSurveyAdminSettings", async ({ data }) => {
+      console.log("Updating survey settings with data:", data);
+      
       // Upsert each setting
       const settingsToUpdate = [
         { key: "survey_section_enabled", value: String(data.sectionEnabled) },
@@ -70,12 +104,18 @@ export const updateSurveyAdminSettings = createServerFn({ method: "POST" })
         { key: "timewall_enabled", value: String(data.timewallEnabled) },
       ];
 
+      console.log("Upserting settings:", settingsToUpdate);
+
       const { error } = await supabaseAdmin
         .from("app_settings")
         .upsert(settingsToUpdate, { onConflict: "key" });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Upsert error:", error);
+        throw error;
+      }
 
+      console.log("Survey settings updated successfully");
       return { success: true };
     }),
   );
