@@ -7,13 +7,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Star, ExternalLink, ArrowLeft } from "lucide-react";
+import { Star, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/States";
-import { Link } from "@tanstack/react-router";
+import { SectionHeading } from "@/components/SectionHeading";
 import { fetchSurveysList } from "@/lib/surveys/surveys-home.functions";
-import { SURVEY_PROVIDER_IMAGES } from "@/lib/surveys/survey-ui-config";
+import { SURVEY_PROVIDER_IMAGES, SURVEY_PROVIDER_NAMES } from "@/lib/surveys/survey-ui-config";
 import { useState } from "react";
 
 export const Route = createFileRoute("/_authenticated/surveys")({
@@ -50,23 +50,21 @@ function SurveysPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-6xl space-y-6 p-4">
+    <div className="space-y-4 p-4">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link to="/home">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold">Surveys</h1>
-          {surveys.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {surveys.length} surveys available
-            </p>
-          )}
-        </div>
-      </div>
+      <SectionHeading
+        variant="ribbon"
+        size="page"
+        iconSrc="/icons/survey.png"
+        icon={Star}
+        title="All Surveys"
+      />
+
+      {surveys.length > 0 && !isLoading && (
+        <p className="text-sm text-muted-foreground">
+          {surveys.length} {surveys.length === 1 ? "survey" : "surveys"} available
+        </p>
+      )}
 
       {/* Grid */}
       {isLoading && <SurveyGridSkeleton />}
@@ -108,37 +106,30 @@ function SurveyGridCard({ survey }: { survey: Survey }) {
   };
 
   const providerImage = SURVEY_PROVIDER_IMAGES[survey.network];
-  const providerName =
-    survey.network === "cpxresearch"
-      ? "CPX"
-      : survey.network === "theoremreach"
-        ? "TheoremReach"
-        : "Timewall";
+  const providerName = SURVEY_PROVIDER_NAMES[survey.network] || survey.network;
 
   // Timewall wall card
   if (survey.network === "timewall" && survey.id === "timewall-wall") {
     return (
       <button
         onClick={handleClick}
-        className="group relative flex h-full flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
+        className="group relative flex h-full min-h-[180px] flex-col gap-2.5 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
       >
         {/* Provider chip */}
-        <div className="absolute right-2 top-2 h-6 w-6 overflow-hidden rounded-full bg-white">
+        <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm">
           {providerImage && !imageBroken ? (
             <img
               src={providerImage}
               alt={providerName}
-              className="h-full w-full object-contain"
+              className="h-5 w-5 object-contain"
               onError={() => setImageBroken(true)}
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-[8px] font-bold">
-              {providerName}
-            </div>
+            <span className="text-[9px] font-semibold text-foreground">{providerName}</span>
           )}
         </div>
 
-        <div className="mt-6 flex flex-1 flex-col gap-2">
+        <div className="mt-4 flex flex-1 flex-col">
           <div className="text-sm font-medium">Browse surveys</div>
           
           <Button size="sm" className="mt-auto w-full text-xs">
@@ -154,28 +145,29 @@ function SurveyGridCard({ survey }: { survey: Survey }) {
   return (
     <button
       onClick={handleClick}
-      className="group relative flex h-full flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
+      className="group relative flex h-full min-h-[180px] flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
     >
-      {/* Provider chip */}
-      <div className="absolute right-2 top-2 h-6 w-6 overflow-hidden rounded-full bg-white">
+      {/* Provider chip with logo + name */}
+      <div className="absolute right-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm">
         {providerImage && !imageBroken ? (
-          <img
-            src={providerImage}
-            alt={providerName}
-            className="h-full w-full object-contain"
-            onError={() => setImageBroken(true)}
-          />
+          <>
+            <img
+              src={providerImage}
+              alt={providerName}
+              className="h-5 w-5 shrink-0 object-contain"
+              onError={() => setImageBroken(true)}
+            />
+            <span className="truncate text-[9px] font-semibold text-foreground">{providerName}</span>
+          </>
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-[8px] font-bold text-foreground">
-            {providerName}
-          </div>
+          <span className="truncate text-[9px] font-semibold text-foreground">{providerName}</span>
         )}
       </div>
 
       <div className="mt-6 flex flex-1 flex-col gap-2">
         {/* Reward */}
         <div className="flex items-baseline gap-1">
-          <span className="text-2xl font-bold text-primary">
+          <span className="text-2xl font-bold leading-none text-primary">
             {survey.payoutCoins}
           </span>
           <span className="text-xs text-muted-foreground">coins</span>
