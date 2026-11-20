@@ -23,10 +23,28 @@ export const SURVEY_PROVIDER_IMAGES: Record<string, string> = {
 };
 
 /**
- * Provider display names for fallback when image fails to load.
+ * Provider display names for chip (short versions).
  */
 export const SURVEY_PROVIDER_NAMES: Record<string, string> = {
-  cpxresearch: "CPX Research",
+  cpxresearch: "CPX",
   theoremreach: "TheoremReach",
   timewall: "Timewall",
+};
+
+/**
+ * Provider colors for card backgrounds and borders.
+ */
+export const SURVEY_PROVIDER_COLORS: Record<string, { bg: string; border: string }> = {
+  cpxresearch: {
+    bg: "rgba(8, 184, 136, 0.10)", // Green tint
+    border: "rgba(8, 184, 136, 0.20)",
+  },
+  theoremreach: {
+    bg: "rgba(136, 24, 248, 0.10)", // Purple tint
+    border: "rgba(136, 24, 248, 0.20)",
+  },
+  timewall: {
+    bg: "rgba(8, 152, 248, 0.10)", // Blue tint
+    border: "rgba(8, 152, 248, 0.20)",
+  },
 };

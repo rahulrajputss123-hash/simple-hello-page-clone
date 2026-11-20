@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/States";
 import { SectionHeading } from "@/components/SectionHeading";
 import { fetchSurveysList } from "@/lib/surveys/surveys-home.functions";
-import { SURVEY_PROVIDER_IMAGES, SURVEY_PROVIDER_NAMES } from "@/lib/surveys/survey-ui-config";
+import { SURVEY_PROVIDER_IMAGES, SURVEY_PROVIDER_NAMES, SURVEY_PROVIDER_COLORS } from "@/lib/surveys/survey-ui-config";
 import { useState } from "react";
 
 export const Route = createFileRoute("/_authenticated/surveys")({
@@ -107,25 +107,53 @@ function SurveyGridCard({ survey }: { survey: Survey }) {
 
   const providerImage = SURVEY_PROVIDER_IMAGES[survey.network];
   const providerName = SURVEY_PROVIDER_NAMES[survey.network] || survey.network;
+  const providerColors = SURVEY_PROVIDER_COLORS[survey.network];
 
   // Timewall wall card
   if (survey.network === "timewall" && survey.id === "timewall-wall") {
     return (
       <button
         onClick={handleClick}
-        className="group relative flex h-full min-h-[180px] flex-col gap-2.5 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
+        className="group relative flex h-full min-h-[180px] flex-col gap-2.5 rounded-2xl p-3 text-left transition-transform active:scale-[0.98]"
+        style={{
+          background: `linear-gradient(to bottom, ${providerColors.bg}, white)`,
+          border: `1px solid ${providerColors.border}`,
+        }}
       >
         {/* Provider chip */}
-        <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm">
+        <div className="absolute right-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm">
           {providerImage && !imageBroken ? (
-            <img
-              src={providerImage}
-              alt={providerName}
-              className="h-5 w-5 object-contain"
-              onError={() => setImageBroken(true)}
-            />
+            <>
+              <img
+                src={providerImage}
+                alt={providerName}
+                className="h-5 w-5 shrink-0 object-contain"
+                onError={() => setImageBroken(true)}
+              />
+              <span 
+                className="text-[9px] font-semibold text-foreground"
+                style={{
+                  maxWidth: "14ch",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {providerName}
+              </span>
+            </>
           ) : (
-            <span className="text-[9px] font-semibold text-foreground">{providerName}</span>
+            <span 
+              className="text-[9px] font-semibold text-foreground"
+              style={{
+                maxWidth: "14ch",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {providerName}
+            </span>
           )}
         </div>
 
@@ -145,9 +173,13 @@ function SurveyGridCard({ survey }: { survey: Survey }) {
   return (
     <button
       onClick={handleClick}
-      className="group relative flex h-full min-h-[180px] flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
+      className="group relative flex h-full min-h-[180px] flex-col gap-2 rounded-2xl p-3 text-left transition-transform active:scale-[0.98]"
+      style={{
+        background: `linear-gradient(to bottom, ${providerColors.bg}, white)`,
+        border: `1px solid ${providerColors.border}`,
+      }}
     >
-      {/* Provider chip with logo + name */}
+      {/* Provider chip with logo + short name */}
       <div className="absolute right-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm">
         {providerImage && !imageBroken ? (
           <>
@@ -157,24 +189,44 @@ function SurveyGridCard({ survey }: { survey: Survey }) {
               className="h-5 w-5 shrink-0 object-contain"
               onError={() => setImageBroken(true)}
             />
-            <span className="truncate text-[9px] font-semibold text-foreground">{providerName}</span>
+            <span 
+              className="text-[9px] font-semibold text-foreground"
+              style={{
+                maxWidth: "14ch",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {providerName}
+            </span>
           </>
         ) : (
-          <span className="truncate text-[9px] font-semibold text-foreground">{providerName}</span>
+          <span 
+            className="text-[9px] font-semibold text-foreground"
+            style={{
+              maxWidth: "14ch",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {providerName}
+          </span>
         )}
       </div>
 
       <div className="mt-6 flex flex-1 flex-col gap-2">
-        {/* Reward */}
+        {/* Reward - dark color */}
         <div className="flex items-baseline gap-1">
-          <span className="text-2xl font-bold leading-none text-primary">
+          <span className="text-2xl font-bold leading-none" style={{ color: "#0F3D3A" }}>
             {survey.payoutCoins}
           </span>
           <span className="text-xs text-muted-foreground">coins</span>
         </div>
 
-        {/* Meta */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {/* Meta - no wrap */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground" style={{ whiteSpace: "nowrap" }}>
           <span>{survey.loi} min</span>
           {survey.rating != null && survey.rating > 0 && (
             <>
