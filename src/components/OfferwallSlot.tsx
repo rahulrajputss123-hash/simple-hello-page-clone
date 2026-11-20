@@ -50,6 +50,9 @@ function buildOfferwallUrl(slug: string, appId: string, userId: string): string 
   if (slug === "adswedmedia") {
     return `https://adswedmedia.com/offer/${appId}/${encodeURIComponent(userId)}`;
   }
+  if (slug === "bitcotasks") {
+    return `https://bitcotasks.com/offerwall/${appId}/${encodeURIComponent(userId)}`;
+  }
   return null;
 }
 
