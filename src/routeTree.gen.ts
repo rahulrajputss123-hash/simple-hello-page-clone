@@ -32,6 +32,7 @@ import { Route as AuthenticatedReferRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedReferralRulesRouteImport } from './routes/_authenticated/referral-rules'
 import { Route as AuthenticatedSpecialRouteImport } from './routes/_authenticated/special'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
+import { Route as AuthenticatedSurveysRouteImport } from './routes/_authenticated/surveys'
 import { Route as AuthenticatedTaskRouteImport } from './routes/_authenticated/task'
 import { Route as AuthenticatedWalletRouteImport } from './routes/_authenticated/wallet'
 import { Route as AuthConfirmedRouteImport } from './routes/auth_.confirmed'
@@ -182,6 +183,11 @@ const AuthenticatedSpecialRoute = AuthenticatedSpecialRouteImport.update({
 const AuthenticatedSupportRoute = AuthenticatedSupportRouteImport.update({
   id: '/support',
   path: '/support',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSurveysRoute = AuthenticatedSurveysRouteImport.update({
+  id: '/surveys',
+  path: '/surveys',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedTaskRoute = AuthenticatedTaskRouteImport.update({
@@ -401,6 +407,7 @@ export interface FileRoutesByFullPath {
   '/referral-rules': typeof AuthenticatedReferralRulesRoute
   '/special': typeof AuthenticatedSpecialRoute
   '/support': typeof AuthenticatedSupportRoute
+  '/surveys': typeof AuthenticatedSurveysRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
   '/auth/confirmed': typeof AuthConfirmedRoute
@@ -459,6 +466,7 @@ export interface FileRoutesByTo {
   '/referral-rules': typeof AuthenticatedReferralRulesRoute
   '/special': typeof AuthenticatedSpecialRoute
   '/support': typeof AuthenticatedSupportRoute
+  '/surveys': typeof AuthenticatedSurveysRoute
   '/task': typeof AuthenticatedTaskRoute
   '/wallet': typeof AuthenticatedWalletRoute
   '/auth/confirmed': typeof AuthConfirmedRoute
@@ -519,6 +527,7 @@ export interface FileRoutesById {
   '/_authenticated/referral-rules': typeof AuthenticatedReferralRulesRoute
   '/_authenticated/special': typeof AuthenticatedSpecialRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
+  '/_authenticated/surveys': typeof AuthenticatedSurveysRoute
   '/_authenticated/task': typeof AuthenticatedTaskRoute
   '/_authenticated/wallet': typeof AuthenticatedWalletRoute
   '/auth_/confirmed': typeof AuthConfirmedRoute
@@ -579,6 +588,7 @@ export interface FileRouteTypes {
     | '/referral-rules'
     | '/special'
     | '/support'
+    | '/surveys'
     | '/task'
     | '/wallet'
     | '/auth/confirmed'
@@ -637,6 +647,7 @@ export interface FileRouteTypes {
     | '/referral-rules'
     | '/special'
     | '/support'
+    | '/surveys'
     | '/task'
     | '/wallet'
     | '/auth/confirmed'
@@ -696,6 +707,7 @@ export interface FileRouteTypes {
     | '/_authenticated/referral-rules'
     | '/_authenticated/special'
     | '/_authenticated/support'
+    | '/_authenticated/surveys'
     | '/_authenticated/task'
     | '/_authenticated/wallet'
     | '/auth_/confirmed'
@@ -922,6 +934,13 @@ declare module '@tanstack/react-router' {
       path: '/support'
       fullPath: '/support'
       preLoaderRoute: typeof AuthenticatedSupportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/surveys': {
+      id: '/_authenticated/surveys'
+      path: '/surveys'
+      fullPath: '/surveys'
+      preLoaderRoute: typeof AuthenticatedSurveysRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/task': {
@@ -1190,6 +1209,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReferralRulesRoute: typeof AuthenticatedReferralRulesRoute
   AuthenticatedSpecialRoute: typeof AuthenticatedSpecialRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
+  AuthenticatedSurveysRoute: typeof AuthenticatedSurveysRoute
   AuthenticatedTaskRoute: typeof AuthenticatedTaskRoute
   AuthenticatedWalletRoute: typeof AuthenticatedWalletRoute
   AuthenticatedAdvertiserCampaignsRoute: typeof AuthenticatedAdvertiserCampaignsRoute
@@ -1223,6 +1243,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReferralRulesRoute: AuthenticatedReferralRulesRoute,
   AuthenticatedSpecialRoute: AuthenticatedSpecialRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
+  AuthenticatedSurveysRoute: AuthenticatedSurveysRoute,
   AuthenticatedTaskRoute: AuthenticatedTaskRoute,
   AuthenticatedWalletRoute: AuthenticatedWalletRoute,
   AuthenticatedAdvertiserCampaignsRoute: AuthenticatedAdvertiserCampaignsRoute,

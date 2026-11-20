@@ -2,6 +2,7 @@
  * Surveys Section - Home Page
  * 
  * Displays survey cards from CPX Research, TheoremReach, and Timewall.
+ * Horizontal scroll row showing SURVEY_CARDS_VISIBLE cards with peek.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -13,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/States";
 import { Link } from "@tanstack/react-router";
 import { fetchSurveysList } from "@/lib/surveys/surveys-home.functions";
+import { SURVEY_CARDS_VISIBLE, SURVEY_PROVIDER_IMAGES } from "@/lib/surveys/survey-ui-config";
+import { useState } from "react";
 
 type Survey = {
   id: string;
@@ -40,17 +43,20 @@ export function SurveysSection() {
 
   const fetchSurveys = useServerFn(fetchSurveysList);
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["surveys-home-feed"],
-    queryFn: () => fetchSurveys({ data: {} as never }), // Empty input for now
-    enabled: inView, // Only fetch when section is visible
-    staleTime: 5 * 60 * 1000, // 5 minutes client-side
+    queryFn: () => fetchSurveys({ data: {} as never }),
+    enabled: inView,
+    staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
   const surveys = data?.surveys ?? [];
-  const networks = data?.networks ?? [];
-  const hasError = networks.some((n: NetworkStatus) => !n.ok && n.reason);
+  const displaySurveys = surveys.slice(0, 8); // Max 8 on home
+
+  // Calculate card width: (100% - gaps) / SURVEY_CARDS_VISIBLE
+  // Gap is 0.75rem = 12px, so for 2.5 cards: (100% - 2*12px) / 2.5
+  const cardWidthPercent = (100 - ((SURVEY_CARDS_VISIBLE - 0.5) * 0.75 * 16)) / SURVEY_CARDS_VISIBLE;
 
   return (
     <section ref={ref} className="space-y-3">
@@ -65,7 +71,7 @@ export function SurveysSection() {
         </div>
         {surveys.length > 0 && (
           <Link
-            to="/featured"
+            to="/surveys"
             className="text-sm font-medium text-primary hover:underline"
           >
             See all
@@ -84,135 +90,152 @@ export function SurveysSection() {
       )}
 
       {!isLoading && surveys.length > 0 && (
-        <>
-          <div className="grid grid-cols-3 gap-3">
-            {surveys.slice(0, 9).map((survey: Survey) => (
-              <SurveyCard key={survey.id} survey={survey} />
+        <div className="relative -mx-4 overflow-x-auto px-4">
+          <div className="flex gap-3" style={{ width: "max-content" }}>
+            {displaySurveys.map((survey: Survey) => (
+              <div
+                key={survey.id}
+                style={{
+                  width: `calc((100vw - 2rem - ${(SURVEY_CARDS_VISIBLE - 0.5) * 0.75}rem) / ${SURVEY_CARDS_VISIBLE})`,
+                  minWidth: "140px",
+                  maxWidth: "200px",
+                }}
+              >
+                <SurveyCard survey={survey} />
+              </div>
             ))}
           </div>
-
-          {/* Network status - show errors as muted text */}
-          {hasError && (
-            <div className="space-y-1">
-              {networks
-                .filter((n: NetworkStatus) => !n.ok && n.reason)
-                .map((n: NetworkStatus) => (
-                  <div
-                    key={n.network}
-                    className="text-xs text-muted-foreground"
-                  >
-                    {n.network}: {n.reason}
-                  </div>
-                ))}
-            </div>
-          )}
-        </>
+        </div>
       )}
     </section>
   );
 }
 
 function SurveyCard({ survey }: { survey: Survey }) {
+  const [imageBroken, setImageBroken] = useState(false);
+
   const handleClick = () => {
-    // Open synchronously to avoid popup blockers
     window.open(survey.entryLink, "_blank", "noopener,noreferrer");
   };
+
+  // Provider image or name fallback
+  const providerImage = SURVEY_PROVIDER_IMAGES[survey.network];
+  const providerName =
+    survey.network === "cpxresearch"
+      ? "CPX"
+      : survey.network === "theoremreach"
+        ? "TheoremReach"
+        : "Timewall";
 
   // Special card for Timewall wall
   if (survey.network === "timewall" && survey.id === "timewall-wall") {
     return (
       <button
         onClick={handleClick}
-        className="group relative flex flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
+        className="group relative flex h-full flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
       >
-        {/* Network chip */}
-        <div className="absolute right-2 top-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-          Timewall
+        {/* Provider chip - top right */}
+        <div className="absolute right-2 top-2 h-6 w-6 overflow-hidden rounded-full bg-white">
+          {providerImage && !imageBroken ? (
+            <img
+              src={providerImage}
+              alt={providerName}
+              className="h-full w-full object-contain"
+              onError={() => setImageBroken(true)}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[8px] font-bold">
+              {providerName}
+            </div>
+          )}
         </div>
 
-        {/* Badge */}
-        <div className="w-fit rounded-lg bg-purple-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-400">
-          Survey
+        {/* Content */}
+        <div className="mt-6 flex flex-1 flex-col gap-2">
+          <div className="text-sm font-medium">Browse surveys</div>
+          
+          {/* Open button */}
+          <Button size="sm" className="mt-auto w-full text-xs">
+            Open
+            <ExternalLink className="ml-1 h-3 w-3" />
+          </Button>
         </div>
-
-        {/* Title */}
-        <div className="min-h-[2.5rem] text-sm font-medium line-clamp-2">
-          Timewall Surveys
-        </div>
-
-        {/* Description */}
-        <div className="text-xs text-muted-foreground">Browse surveys</div>
-
-        {/* Start button */}
-        <Button size="sm" className="mt-auto w-full">
-          Browse
-          <ExternalLink className="ml-1 h-3 w-3" />
-        </Button>
       </button>
     );
   }
 
+  // Regular survey card
   return (
     <button
       onClick={handleClick}
-      className="group relative flex flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
+      className="group relative flex h-full flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
     >
-      {/* Network chip */}
-      <div className="absolute right-2 top-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-        {survey.network === "cpxresearch"
-          ? "CPX"
-          : survey.network === "theoremreach"
-            ? "TheoremReach"
-            : "Timewall"}
-      </div>
-
-      {/* Badge */}
-      <div className="w-fit rounded-lg bg-purple-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-400">
-        Survey
-      </div>
-
-      {/* Title */}
-      <div className="min-h-[2.5rem] text-sm font-medium line-clamp-2">
-        {survey.title}
-      </div>
-
-      {/* Reward */}
-      <div className="flex items-baseline gap-1">
-        <span className="text-lg font-bold text-primary">
-          {survey.payoutCoins}
-        </span>
-        <span className="text-xs text-muted-foreground">coins</span>
-      </div>
-
-      {/* LOI and Rating */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span>{survey.loi} min</span>
-        {survey.rating != null && survey.rating > 0 && (
-          <>
-            <span>•</span>
-            <div className="flex items-center gap-0.5">
-              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-              <span>{survey.rating.toFixed(1)}</span>
-            </div>
-          </>
+      {/* Provider chip - top right */}
+      <div className="absolute right-2 top-2 h-6 w-6 overflow-hidden rounded-full bg-white">
+        {providerImage && !imageBroken ? (
+          <img
+            src={providerImage}
+            alt={providerName}
+            className="h-full w-full object-contain"
+            onError={() => setImageBroken(true)}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[8px] font-bold text-foreground">
+            {providerName}
+          </div>
         )}
       </div>
 
-      {/* Start button */}
-      <Button size="sm" className="mt-1 w-full">
-        Start
-        <ExternalLink className="ml-1 h-3 w-3" />
-      </Button>
+      {/* Content */}
+      <div className="mt-6 flex flex-1 flex-col gap-2">
+        {/* Reward - large and prominent */}
+        <div className="flex items-baseline gap-1">
+          <span className="text-2xl font-bold text-primary">
+            {survey.payoutCoins}
+          </span>
+          <span className="text-xs text-muted-foreground">coins</span>
+        </div>
+
+        {/* Meta: LOI and Rating */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span>{survey.loi} min</span>
+          {survey.rating != null && survey.rating > 0 && (
+            <>
+              <span>•</span>
+              <div className="flex items-center gap-0.5">
+                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                <span>{survey.rating.toFixed(1)}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Start button */}
+        <Button size="sm" className="mt-auto w-full text-xs">
+          Start
+          <ExternalLink className="ml-1 h-3 w-3" />
+        </Button>
+      </div>
     </button>
   );
 }
 
 function SurveysSkeleton() {
   return (
-    <div className="grid grid-cols-3 gap-3">
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <Skeleton key={i} className="aspect-[3/4] w-full rounded-2xl" />
-      ))}
+    <div className="relative -mx-4 overflow-x-auto px-4">
+      <div className="flex gap-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton
+            key={i}
+            className="h-40 shrink-0 rounded-2xl"
+            style={{
+              width: `calc((100vw - 2rem - ${(SURVEY_CARDS_VISIBLE - 0.5) * 0.75}rem) / ${SURVEY_CARDS_VISIBLE})`,
+              minWidth: "140px",
+              maxWidth: "200px",
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
