@@ -5,7 +5,7 @@
 Please save the survey provider images to these exact locations:
 
 1. **Survey Icon:**
-   - Path: `public/icons/survey.png`
+   - Path: `public/icons/icon-survey.png`
    - Description: Survey/checklist icon (green rounded square with checklist and star)
 
 2. **CPX Research Logo:**
@@ -23,7 +23,7 @@ Please save the survey provider images to these exact locations:
 ## Usage
 
 These images are used in:
-- Survey section header (`/icons/survey.png`)
+- Survey section header (`/icons/icon-survey.png`)
 - Survey card provider chips (`/images/providers/{slug}.png`)
 - Both home page and /surveys page
 

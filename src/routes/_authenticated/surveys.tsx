@@ -55,7 +55,7 @@ function SurveysPage() {
       <SectionHeading
         variant="ribbon"
         size="page"
-        iconSrc="/icons/survey.png"
+        iconSrc="/icons/icon-survey.png"
         icon={Star}
         title="All Surveys"
       />

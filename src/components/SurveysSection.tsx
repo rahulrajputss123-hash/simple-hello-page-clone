@@ -63,7 +63,7 @@ export function SurveysSection() {
     <section ref={ref} className="space-y-3">
       <SectionHeading
         variant="ribbon"
-        iconSrc="/icons/survey.png"
+        iconSrc="/icons/icon-survey.png"
         icon={Star}
         title="Featured Surveys"
         action={
