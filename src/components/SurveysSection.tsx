@@ -13,8 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/States";
 import { Link } from "@tanstack/react-router";
+import { SectionHeading } from "@/components/SectionHeading";
 import { fetchSurveysList } from "@/lib/surveys/surveys-home.functions";
-import { SURVEY_CARDS_VISIBLE, SURVEY_PROVIDER_IMAGES } from "@/lib/surveys/survey-ui-config";
+import { 
+  SURVEY_CARDS_VISIBLE, 
+  SURVEY_PROVIDER_IMAGES,
+  SURVEY_PROVIDER_NAMES 
+} from "@/lib/surveys/survey-ui-config";
 import { useState } from "react";
 
 type Survey = {
@@ -54,30 +59,24 @@ export function SurveysSection() {
   const surveys = data?.surveys ?? [];
   const displaySurveys = surveys.slice(0, 8); // Max 8 on home
 
-  // Calculate card width: (100% - gaps) / SURVEY_CARDS_VISIBLE
-  // Gap is 0.75rem = 12px, so for 2.5 cards: (100% - 2*12px) / 2.5
-  const cardWidthPercent = (100 - ((SURVEY_CARDS_VISIBLE - 0.5) * 0.75 * 16)) / SURVEY_CARDS_VISIBLE;
-
   return (
     <section ref={ref} className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">Surveys</h2>
-          {surveys.length > 0 && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
-              {surveys.length}
-            </span>
-          )}
-        </div>
-        {surveys.length > 0 && (
-          <Link
-            to="/surveys"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            See all
-          </Link>
-        )}
-      </div>
+      <SectionHeading
+        variant="ribbon"
+        iconSrc="/icons/survey.png"
+        icon={Star}
+        title="Featured Surveys"
+        action={
+          surveys.length > 0 ? (
+            <Link
+              to="/surveys"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              See all
+            </Link>
+          ) : null
+        }
+      />
 
       {isLoading && <SurveysSkeleton />}
 
@@ -118,40 +117,32 @@ function SurveyCard({ survey }: { survey: Survey }) {
     window.open(survey.entryLink, "_blank", "noopener,noreferrer");
   };
 
-  // Provider image or name fallback
   const providerImage = SURVEY_PROVIDER_IMAGES[survey.network];
-  const providerName =
-    survey.network === "cpxresearch"
-      ? "CPX"
-      : survey.network === "theoremreach"
-        ? "TheoremReach"
-        : "Timewall";
+  const providerName = SURVEY_PROVIDER_NAMES[survey.network] || survey.network;
 
-  // Special card for Timewall wall
+  // Timewall wall card
   if (survey.network === "timewall" && survey.id === "timewall-wall") {
     return (
       <button
         onClick={handleClick}
-        className="group relative flex h-full flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
+        className="group relative flex h-full min-h-[180px] flex-col gap-2.5 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
       >
         {/* Provider chip - top right */}
-        <div className="absolute right-2 top-2 h-6 w-6 overflow-hidden rounded-full bg-white">
+        <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm">
           {providerImage && !imageBroken ? (
             <img
               src={providerImage}
               alt={providerName}
-              className="h-full w-full object-contain"
+              className="h-5 w-5 object-contain"
               onError={() => setImageBroken(true)}
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-[8px] font-bold">
-              {providerName}
-            </div>
+            <span className="text-[9px] font-semibold text-foreground">{providerName}</span>
           )}
         </div>
 
         {/* Content */}
-        <div className="mt-6 flex flex-1 flex-col gap-2">
+        <div className="mt-4 flex flex-1 flex-col">
           <div className="text-sm font-medium">Browse surveys</div>
           
           {/* Open button */}
@@ -168,21 +159,22 @@ function SurveyCard({ survey }: { survey: Survey }) {
   return (
     <button
       onClick={handleClick}
-      className="group relative flex h-full flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
+      className="group relative flex h-full min-h-[180px] flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-transform active:scale-[0.98]"
     >
-      {/* Provider chip - top right */}
-      <div className="absolute right-2 top-2 h-6 w-6 overflow-hidden rounded-full bg-white">
+      {/* Provider chip - top right with logo + name */}
+      <div className="absolute right-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm">
         {providerImage && !imageBroken ? (
-          <img
-            src={providerImage}
-            alt={providerName}
-            className="h-full w-full object-contain"
-            onError={() => setImageBroken(true)}
-          />
+          <>
+            <img
+              src={providerImage}
+              alt={providerName}
+              className="h-5 w-5 shrink-0 object-contain"
+              onError={() => setImageBroken(true)}
+            />
+            <span className="truncate text-[9px] font-semibold text-foreground">{providerName}</span>
+          </>
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-[8px] font-bold text-foreground">
-            {providerName}
-          </div>
+          <span className="truncate text-[9px] font-semibold text-foreground">{providerName}</span>
         )}
       </div>
 
@@ -190,7 +182,7 @@ function SurveyCard({ survey }: { survey: Survey }) {
       <div className="mt-6 flex flex-1 flex-col gap-2">
         {/* Reward - large and prominent */}
         <div className="flex items-baseline gap-1">
-          <span className="text-2xl font-bold text-primary">
+          <span className="text-2xl font-bold leading-none text-primary">
             {survey.payoutCoins}
           </span>
           <span className="text-xs text-muted-foreground">coins</span>

@@ -14,11 +14,19 @@ export const SURVEY_CARDS_VISIBLE = 2.5;
 
 /**
  * Provider image mapping.
- * Maps network slugs to their logo image paths.
- * Falls back to provider name if image doesn't exist.
+ * Maps network slugs to their logo image paths in /images/providers/
  */
-export const SURVEY_PROVIDER_IMAGES: Record<string, string | null> = {
-  cpxresearch: null, // Will fallback to "CPX" text
-  theoremreach: null, // Will fallback to "TheoremReach" text
-  timewall: null, // Will fallback to "Timewall" text
+export const SURVEY_PROVIDER_IMAGES: Record<string, string> = {
+  cpxresearch: "/images/providers/cpxresearch.png",
+  theoremreach: "/images/providers/theoremreach.png",
+  timewall: "/images/providers/timewall.png",
+};
+
+/**
+ * Provider display names for fallback when image fails to load.
+ */
+export const SURVEY_PROVIDER_NAMES: Record<string, string> = {
+  cpxresearch: "CPX Research",
+  theoremreach: "TheoremReach",
+  timewall: "Timewall",
 };
