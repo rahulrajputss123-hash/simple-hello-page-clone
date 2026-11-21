@@ -43,9 +43,20 @@ export function SurveyProfileCard() {
   const mutation = useMutation({
     mutationFn: (data: SurveyProfile) => saveProfile({ data }),
     onSuccess: () => {
+      // Invalidate and immediately refetch all survey queries
       queryClient.invalidateQueries({ queryKey: ["survey-profile"] });
       queryClient.invalidateQueries({ queryKey: ["surveys-home-feed"] });
       queryClient.invalidateQueries({ queryKey: ["survey-feed"] });
+      
+      // Force immediate refetch of home surveys
+      queryClient.refetchQueries({ queryKey: ["surveys-home-feed"] });
+      
+      // Force refetch of any active quest survey feeds
+      queryClient.refetchQueries({ 
+        queryKey: ["survey-feed"],
+        type: "active" 
+      });
+      
       setOpen(false);
     },
   });

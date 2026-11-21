@@ -987,6 +987,30 @@ function SurveyQuestFeed({
         )}
       </section>
 
+      {/* Standalone Timewall Card - Always Shows When Timewall Allowed */}
+      {quest.allowed_networks?.includes("timewall") && session?.user?.id && (
+        <section>
+          <button
+            onClick={() => {
+              // Get Timewall app_id from environment or use default
+              const timewallAppId = "b6537df755dd96d2";
+              const userId = session.user.id;
+              const timewallUrl = `https://timewall.io/users/login?oid=${timewallAppId}&uid=${encodeURIComponent(userId)}`;
+              window.open(timewallUrl, "_blank", "noopener,noreferrer");
+              toast.success("Timewall opened in new tab");
+            }}
+            disabled={credited}
+            className="w-full flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3 transition-colors hover:bg-primary/10 disabled:opacity-50"
+          >
+            <div>
+              <p className="font-medium text-sm">Timewall Surveys</p>
+              <p className="text-xs text-muted-foreground">Browse more surveys</p>
+            </div>
+            <ArrowUpRight className="size-5 text-primary" />
+          </button>
+        </section>
+      )}
+
       {/* Info */}
       <section className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-primary">
         <Info className="size-4 shrink-0" />
