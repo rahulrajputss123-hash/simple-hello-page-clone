@@ -158,12 +158,14 @@ async function countProgress(userId: string, task: TaskRow, from: Date): Promise
     }
     const res = await q;
     const total = (res.data ?? []).reduce((sum, row) => sum + Number(row.quantity), 0);
+    // Round to 4 decimals to avoid float drift (e.g., 0.0999999)
+    const rounded = Math.round(total * 10000) / 10000;
     console.log("[tasks] countProgress - offerwall_earning sum", { 
       eventCount: res.data?.length ?? 0,
-      total,
+      total: rounded,
       events: res.data?.map(e => ({ quantity: e.quantity }))
     });
-    return total;
+    return rounded;
   }
 
   const res = await supabaseAdmin
@@ -173,12 +175,14 @@ async function countProgress(userId: string, task: TaskRow, from: Date): Promise
     .eq("event_type", eventType)
     .gte("occurred_at", from.toISOString());
   const total = (res.data ?? []).reduce((sum, row) => sum + Number(row.quantity), 0);
+  // Round to 4 decimals to avoid float drift
+  const rounded = Math.round(total * 10000) / 10000;
   console.log("[tasks] countProgress - generic event count", { 
     eventType,
     eventCount: res.data?.length ?? 0,
-    total
+    total: rounded
   });
-  return total;
+  return rounded;
 }
 
 /** Recomputes automated task progress for one user and pays finished tasks once. */
