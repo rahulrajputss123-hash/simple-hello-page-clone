@@ -127,8 +127,10 @@ export const fetchSurveysList = createServerFn({ method: "POST" })
             network: s.network,
             title: `${s.loi} min survey`,
             payoutCoins: coins,
+            payoutUsd: s.payoutUsd,
             loi: s.loi,
             rating: s.rating,
+            conversionRate: s.conversionRate,
             entryLink: s.entryLink,
           };
         });
@@ -143,17 +145,36 @@ export const fetchSurveysList = createServerFn({ method: "POST" })
             network: s.network,
             title: `${s.loi} min survey`,
             payoutCoins: coins,
+            payoutUsd: s.payoutUsd,
             loi: s.loi,
             rating: s.rating,
+            conversionRate: s.conversionRate,
             entryLink: s.entryLink,
           };
         });
 
-      // Combine: CPX first, then TheoremReach
-      const surveysWithCoins = [...cpxSurveys, ...theoremreachSurveys];
+      // Mix surveys based on performance score
+      // Score = (conversion × 0.6) + (rating × 20 × 0.3) + (payout × 10 × 0.1)
+      const allSurveys = [...cpxSurveys, ...theoremreachSurveys];
+      
+      allSurveys.sort((a, b) => {
+        const scoreA = 
+          (a.conversionRate || 0) * 0.6 + 
+          (a.rating || 0) * 20 * 0.3 + 
+          (a.payoutUsd || 0) * 10 * 0.1;
+        
+        const scoreB = 
+          (b.conversionRate || 0) * 0.6 + 
+          (b.rating || 0) * 20 * 0.3 + 
+          (b.payoutUsd || 0) * 10 * 0.1;
+        
+        return scoreB - scoreA; // Highest score first
+      });
 
-      // Add ONE Timewall wall card at the very end if enabled
-      if (settings.timewallEnabled) {
+      // Insert Timewall card at position 5 (0-indexed = 4)
+      const surveysWithTimewall = [...allSurveys];
+      
+      if (settings.timewallEnabled && allSurveys.length >= 4) {
         const { data: timewallProvider } = await supabaseAdmin
           .from("sdk_offerwall_providers")
           .select("app_id")
@@ -162,20 +183,23 @@ export const fetchSurveysList = createServerFn({ method: "POST" })
 
         if (timewallProvider?.app_id) {
           const timewallUrl = `https://timewall.io/users/login?oid=${timewallProvider.app_id}&uid=${encodeURIComponent(context.userId)}`;
-          surveysWithCoins.push({
-            id: "timewall-wall",
+          const timewallCard = {
+            id: "timewall-wall-5",
             network: "timewall" as const,
             title: "Timewall Surveys",
             payoutCoins: 0,
             loi: 0,
             rating: undefined,
             entryLink: timewallUrl,
-          });
+          };
+          
+          // Insert at position 5 (after 4th survey)
+          surveysWithTimewall.splice(4, 0, timewallCard);
         }
       }
 
       return {
-        surveys: surveysWithCoins,
+        surveys: surveysWithTimewall,
         networks: result.networks,
       };
     }),
