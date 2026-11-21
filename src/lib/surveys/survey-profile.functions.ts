@@ -23,10 +23,17 @@ const POSTAL_CODE_PATTERNS: Record<string, RegExp> = {
 const surveyProfileSchema = z.object({
   birthDate: z.string().refine((date) => {
     const d = new Date(date);
+    if (isNaN(d.getTime())) {
+      return false;
+    }
     const now = new Date();
-    const age = now.getFullYear() - d.getFullYear();
-    return !isNaN(d.getTime()) && age >= 1 && age <= 99;
-  }, "Must be a valid date resulting in age 1-99"),
+    let age = now.getFullYear() - d.getFullYear();
+    const monthDiff = now.getMonth() - d.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < d.getDate())) {
+      age--;
+    }
+    return age >= 13 && age <= 100;
+  }, "Age must be between 13 and 100 years"),
   gender: z.enum(["male", "female"]),
   postalCode: z.string().trim().min(1).max(20).optional(),
   countryCode: z

@@ -585,15 +585,27 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
     // Fetch user survey profile if it exists
     const { data: profileData } = await supabaseAdmin
       .from("user_survey_profiles")
-      .select("age, gender, postal_code, country_code, updated_at")
+      .select("birth_date, gender, postal_code, country_code, updated_at")
       .eq("user_id", context.userId)
       .maybeSingle();
 
     const profile = profileData
       ? {
-          age: profileData.age,
+          birthDate: profileData.birth_date,
+          age: profileData.birth_date
+            ? (() => {
+                const birth = new Date(profileData.birth_date);
+                const today = new Date();
+                let age = today.getFullYear() - birth.getFullYear();
+                const monthDiff = today.getMonth() - birth.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                  age--;
+                }
+                return age;
+              })()
+            : 0,
           gender: profileData.gender as "male" | "female",
-          postalCode: profileData.postal_code,
+          postalCode: profileData.postal_code || undefined,
           countryCode: profileData.country_code,
           updatedAt: profileData.updated_at,
         }
@@ -612,7 +624,38 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
       profile,
     });
 
-    return result;
+    // Separate CPX and TheoremReach surveys
+    const cpxSurveys = result.surveys.filter((s) => s.network === "cpxresearch");
+    const theoremreachSurveys = result.surveys.filter((s) => s.network === "theoremreach");
+
+    // Combine: CPX first, then TheoremReach
+    const sortedSurveys = [...cpxSurveys, ...theoremreachSurveys];
+
+    // Add ONE Timewall wall card at the very end if allowed
+    if (quest.allowed_networks?.includes("timewall")) {
+      const { data: timewallProvider } = await supabaseAdmin
+        .from("sdk_offerwall_providers")
+        .select("app_id")
+        .eq("slug", "timewall")
+        .maybeSingle();
+
+      if (timewallProvider?.app_id) {
+        const timewallUrl = `https://timewall.io/users/login?oid=${timewallProvider.app_id}&uid=${encodeURIComponent(context.userId)}`;
+        sortedSurveys.push({
+          id: "timewall-wall",
+          network: "timewall" as const,
+          title: "Timewall Surveys",
+          payoutUsd: 0,
+          loi: 0,
+          entryLink: timewallUrl,
+        });
+      }
+    }
+
+    return {
+      surveys: sortedSurveys,
+      networks: result.networks,
+    };
   }));
 
 /**

@@ -56,6 +56,61 @@ function canFetchNetwork(network: SurveyNetwork, settings: Awaited<ReturnType<ty
   }
 }
 
+/**
+ * Log survey inventory to automation_logs for analytics.
+ * Throttled to one log per user per 10 minutes.
+ */
+async function logSurveyInventory(params: {
+  userId: string;
+  country: string;
+  network: "cpxresearch" | "theoremreach" | "timewall";
+  count: number;
+  hasProfile: boolean;
+  reason?: string;
+}): Promise<void> {
+  try {
+    // Check if we've logged for this user in the last 10 minutes
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    
+    const { data: recentLog } = await supabaseAdmin
+      .from("automation_logs")
+      .select("id")
+      .eq("event_type", "survey_inventory")
+      .eq("user_id", params.userId)
+      .gte("created_at", tenMinutesAgo)
+      .limit(1)
+      .maybeSingle();
+
+    // Skip if already logged recently
+    if (recentLog) {
+      return;
+    }
+
+    // Insert log entry
+    const context: Record<string, any> = {
+      country: params.country,
+      network: params.network,
+      count: params.count,
+      has_profile: params.hasProfile,
+    };
+
+    if (params.reason) {
+      context.reason = params.reason;
+    }
+
+    await supabaseAdmin
+      .from("automation_logs")
+      .insert({
+        event_type: "survey_inventory",
+        user_id: params.userId,
+        context,
+      });
+  } catch (err) {
+    console.error("[survey-feed] Failed to log survey inventory:", err);
+    // Don't throw - logging failure shouldn't break survey fetching
+  }
+}
+
 export type SurveyNetwork = "cpxresearch" | "theoremreach" | "timewall";
 
 export type Survey = {
@@ -198,6 +253,16 @@ export async function fetchSurveyFeed(params: SurveyFeedParams): Promise<SurveyF
       count: result.surveys.length,
       reason: result.reason,
     });
+
+    // Log inventory for analytics (throttled to once per 10 minutes per user)
+    void logSurveyInventory({
+      userId: params.userId,
+      country: params.countryCode,
+      network: result.network,
+      count: result.surveys.length,
+      hasProfile: params.profile !== null,
+      reason: result.surveys.length === 0 ? result.reason : undefined,
+    });
   }
 
   // Don't cache empty or failed results
@@ -325,18 +390,27 @@ async function updateTheoremReachProfile(
   const url = new URL(baseUrl);
   url.searchParams.set("api_key", apiKey);
 
-  const body = {
+  // Build body with all required fields
+  const body: Record<string, any> = {
     user_id: params.userId,
     ip: params.ip,
     country_code: params.countryCode,
-    attributes: {
-      postal_code: params.profile.postalCode,
-      facet_hash: {
-        "1": [String(params.profile.age)],
-        "2": [params.profile.gender === "male" ? "100" : "101"],
-      },
-    },
   };
+
+  // Add attributes if profile data exists
+  if (params.profile) {
+    body.attributes = {
+      facet_hash: {
+        "1": [String(params.profile.age)], // Age
+        "2": [params.profile.gender === "male" ? "100" : "101"], // Gender
+      },
+    };
+
+    // Add postal_code only if it exists
+    if (params.profile.postalCode) {
+      body.attributes.postal_code = params.profile.postalCode;
+    }
+  }
 
   const rawBody = JSON.stringify(body);
   const signaturePayload = url.toString() + rawBody;
@@ -352,9 +426,19 @@ async function updateTheoremReachProfile(
 
     console.log(`[survey-feed] TheoremReach update_profile HTTP ${response.status}`);
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      console.error(`[survey-feed] TheoremReach update_profile error:`, body.substring(0, 200));
+      const errorBody = await response.text().catch(() => "");
+      // Log request body keys (no values) for debugging
+      const bodyKeys = Object.keys(body);
+      const attrKeys = body.attributes ? Object.keys(body.attributes) : [];
+      console.error(
+        `[survey-feed] TheoremReach update_profile ${response.status} error. ` +
+        `Request keys: ${bodyKeys.join(", ")}. ` +
+        `Attribute keys: ${attrKeys.join(", ")}. ` +
+        `Error: ${errorBody.substring(0, 200)}`
+      );
       // Don't throw - profile update failure shouldn't block survey fetching
+    } else {
+      console.log(`[survey-feed] TheoremReach update_profile success`);
     }
   } catch (err) {
     console.error(`[survey-feed] TheoremReach update_profile failed:`, err);

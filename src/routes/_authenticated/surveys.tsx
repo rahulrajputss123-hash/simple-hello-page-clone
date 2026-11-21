@@ -158,7 +158,8 @@ function SurveyGridCard({ survey }: { survey: Survey }) {
         </div>
 
         <div className="mt-4 flex flex-1 flex-col">
-          <div className="text-sm font-medium">Browse surveys</div>
+          <div className="text-sm font-medium">Timewall Surveys</div>
+          <div className="text-xs text-muted-foreground">Browse more surveys</div>
           
           <Button size="sm" className="mt-auto w-full text-xs">
             Open

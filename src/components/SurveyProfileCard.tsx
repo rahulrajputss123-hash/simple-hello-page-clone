@@ -44,6 +44,8 @@ export function SurveyProfileCard() {
     mutationFn: (data: SurveyProfile) => saveProfile({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["survey-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["surveys-home-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["survey-feed"] });
       setOpen(false);
     },
   });
@@ -103,48 +105,39 @@ function SurveyProfileForm({
   isLoading: boolean;
   error: Error | null;
 }) {
-  const [day, setDay] = useState<string>("");
-  const [month, setMonth] = useState<string>("");
-  const [year, setYear] = useState<string>("");
+  const [birthDate, setBirthDate] = useState<string>("");
   const [gender, setGender] = useState<"male" | "female">("male");
   const [postalCode, setPostalCode] = useState("");
   const [countryCode, setCountryCode] = useState("IN");
+  const [clientError, setClientError] = useState<string>("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setClientError("");
 
-    // Validate date inputs
-    const dayNum = parseInt(day, 10);
-    const monthNum = parseInt(month, 10);
-    const yearNum = parseInt(year, 10);
-
-    if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
-      alert("Please enter a valid day (1-31)");
+    // Validate birth date
+    if (!birthDate) {
+      setClientError("Birth date is required");
       return;
     }
 
-    if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
-      alert("Please enter a valid month (1-12)");
+    // Calculate age
+    const birth = new Date(birthDate);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+
+    // Validate age (13-100 years)
+    if (age < 13) {
+      setClientError("You must be at least 13 years old to complete surveys");
       return;
     }
 
-    const currentYear = new Date().getFullYear();
-    if (isNaN(yearNum) || yearNum < currentYear - 99 || yearNum > currentYear - 1) {
-      alert(`Please enter a valid year (${currentYear - 99} to ${currentYear - 1})`);
-      return;
-    }
-
-    // Format as YYYY-MM-DD
-    const birthDate = `${yearNum}-${monthNum.toString().padStart(2, "0")}-${dayNum.toString().padStart(2, "0")}`;
-
-    // Validate the date is real (e.g., not Feb 30)
-    const dateObj = new Date(birthDate);
-    if (
-      dateObj.getFullYear() !== yearNum ||
-      dateObj.getMonth() + 1 !== monthNum ||
-      dateObj.getDate() !== dayNum
-    ) {
-      alert("Please enter a valid date");
+    if (age > 100) {
+      setClientError("Please enter a valid birth date");
       return;
     }
 
@@ -156,48 +149,31 @@ function SurveyProfileForm({
     });
   };
 
+  // Calculate max and min dates for the date picker
+  const today = new Date();
+  const maxDate = new Date(today.getFullYear() - 13, today.getMonth(), today.getDate())
+    .toISOString()
+    .split("T")[0];
+  const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate())
+    .toISOString()
+    .split("T")[0];
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Birth Date */}
       <div className="space-y-2">
-        <Label>Date of Birth</Label>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <Input
-              type="number"
-              min="1"
-              max="31"
-              value={day}
-              onChange={(e) => setDay(e.target.value)}
-              placeholder="Day"
-              required
-            />
-          </div>
-          <div>
-            <Input
-              type="number"
-              min="1"
-              max="12"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              placeholder="Month"
-              required
-            />
-          </div>
-          <div>
-            <Input
-              type="number"
-              min={new Date().getFullYear() - 99}
-              max={new Date().getFullYear() - 1}
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              placeholder="Year"
-              required
-            />
-          </div>
-        </div>
+        <Label htmlFor="birth-date">Date of Birth</Label>
+        <Input
+          id="birth-date"
+          type="date"
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
+          min={minDate}
+          max={maxDate}
+          required
+        />
         <p className="text-xs text-muted-foreground">
-          Format: Day / Month / Year
+          You must be between 13 and 100 years old
         </p>
       </div>
 
@@ -246,11 +222,23 @@ function SurveyProfileForm({
         </Select>
       </div>
 
+      {/* Client-side validation errors */}
+      {clientError && (
+        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {clientError}
+        </div>
+      )}
+
+      {/* Server errors */}
       {error && (
         <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
           {error.message || "Failed to save profile. Please check your inputs."}
         </div>
       )}
+
+      <p className="text-xs text-muted-foreground">
+        By submitting, you consent to sharing this information with survey partners for better targeting.
+      </p>
 
       <Button type="submit" className="w-full" disabled={isLoading}>
         {isLoading ? "Saving..." : "Save Profile"}

@@ -931,58 +931,61 @@ function SurveyQuestFeed({
           </div>
         ) : (
           <div className="space-y-2">
-            {surveys.map((survey: any) => (
-              <button
-                key={`${survey.network}-${survey.id}`}
-                onClick={() => handleSurveyClick(survey)}
-                disabled={opening === survey.id || credited}
-                className="w-full flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <span className="font-medium text-sm line-clamp-1">{survey.title}</span>
-                    <span className="shrink-0 font-semibold text-primary">
-                      +${survey.payoutUsd.toFixed(2)}
-                    </span>
+            {surveys.map((survey: any) => {
+              // Special rendering for Timewall wall card
+              if (survey.network === "timewall" && survey.id === "timewall-wall") {
+                return (
+                  <button
+                    key={`${survey.network}-${survey.id}`}
+                    onClick={() => handleSurveyClick(survey)}
+                    disabled={opening === survey.id || credited}
+                    className="w-full flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3 transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div>
+                      <p className="font-medium text-sm">Timewall Surveys</p>
+                      <p className="text-xs text-muted-foreground">Browse more surveys</p>
+                    </div>
+                    {opening === survey.id ? (
+                      <Loader2 className="size-5 shrink-0 animate-spin text-primary" />
+                    ) : (
+                      <ArrowUpRight className="size-5 text-primary" />
+                    )}
+                  </button>
+                );
+              }
+
+              // Regular survey card
+              return (
+                <button
+                  key={`${survey.network}-${survey.id}`}
+                  onClick={() => handleSurveyClick(survey)}
+                  disabled={opening === survey.id || credited}
+                  className="w-full flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-medium text-sm line-clamp-1">{survey.title}</span>
+                      <span className="shrink-0 font-semibold text-primary">
+                        +${survey.payoutUsd.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{survey.loi} min</span>
+                      {survey.rating && <span>★ {survey.rating.toFixed(1)}</span>}
+                      <span className="capitalize">{survey.network.replace("research", "")}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{survey.loi} min</span>
-                    {survey.rating && <span>★ {survey.rating.toFixed(1)}</span>}
-                    <span className="capitalize">{survey.network.replace("research", "")}</span>
-                  </div>
-                </div>
-                {opening === survey.id ? (
-                  <Loader2 className="size-4 shrink-0 animate-spin text-primary mt-0.5" />
-                ) : (
-                  <ExternalLink className="size-4 shrink-0 text-muted-foreground mt-0.5" />
-                )}
-              </button>
-            ))}
+                  {opening === survey.id ? (
+                    <Loader2 className="size-4 shrink-0 animate-spin text-primary mt-0.5" />
+                  ) : (
+                    <ExternalLink className="size-4 shrink-0 text-muted-foreground mt-0.5" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </section>
-
-      {/* Timewall Card */}
-      {quest.allowed_networks?.includes("timewall") && session?.user?.id && (
-        <section>
-          <button
-            onClick={() => {
-              const timewallAppId = "b6537df755dd96d2";
-              const userId = session.user.id;
-              const timewallUrl = `https://timewall.io/users/login?oid=${timewallAppId}&uid=${encodeURIComponent(userId)}`;
-              window.open(timewallUrl, "_blank", "noopener,noreferrer");
-              toast.success("Timewall opened in new tab");
-            }}
-            className="w-full flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3 transition-colors hover:bg-primary/10"
-          >
-            <div>
-              <p className="font-medium text-sm">Timewall Surveys</p>
-              <p className="text-xs text-muted-foreground">Browse more surveys</p>
-            </div>
-            <ArrowUpRight className="size-5 text-primary" />
-          </button>
-        </section>
-      )}
 
       {/* Info */}
       <section className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-primary">
