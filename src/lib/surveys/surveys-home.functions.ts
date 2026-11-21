@@ -116,10 +116,44 @@ export const fetchSurveysList = createServerFn({ method: "POST" })
         profile,
       });
 
-      // Add Timewall wall card if enabled
-      const surveys = [...result.surveys];
+      // Separate CPX and TheoremReach surveys, convert to coins
+      const cpxSurveys = result.surveys
+        .filter((s) => s.network === "cpxresearch")
+        .map((s) => {
+          const multiplier = multiplierBySlug.get("cpxresearch") ?? 0.8;
+          const coins = Math.round(s.payoutUsd * rate * multiplier);
+          return {
+            id: s.id,
+            network: s.network,
+            title: `${s.loi} min survey`,
+            payoutCoins: coins,
+            loi: s.loi,
+            rating: s.rating,
+            entryLink: s.entryLink,
+          };
+        });
+
+      const theoremreachSurveys = result.surveys
+        .filter((s) => s.network === "theoremreach")
+        .map((s) => {
+          const multiplier = multiplierBySlug.get("theoremreach") ?? 0.8;
+          const coins = Math.round(s.payoutUsd * rate * multiplier);
+          return {
+            id: s.id,
+            network: s.network,
+            title: `${s.loi} min survey`,
+            payoutCoins: coins,
+            loi: s.loi,
+            rating: s.rating,
+            entryLink: s.entryLink,
+          };
+        });
+
+      // Combine: CPX first, then TheoremReach
+      const surveysWithCoins = [...cpxSurveys, ...theoremreachSurveys];
+
+      // Add ONE Timewall wall card at the very end if enabled
       if (settings.timewallEnabled) {
-        // Get Timewall provider app_id
         const { data: timewallProvider } = await supabaseAdmin
           .from("sdk_offerwall_providers")
           .select("app_id")
@@ -128,33 +162,17 @@ export const fetchSurveysList = createServerFn({ method: "POST" })
 
         if (timewallProvider?.app_id) {
           const timewallUrl = `https://timewall.io/users/login?oid=${timewallProvider.app_id}&uid=${encodeURIComponent(context.userId)}`;
-          surveys.push({
+          surveysWithCoins.push({
             id: "timewall-wall",
-            network: "timewall",
-            title: "Browse surveys",
-            payoutUsd: 0, // No per-card payout
+            network: "timewall" as const,
+            title: "Timewall Surveys",
+            payoutCoins: 0,
             loi: 0,
+            rating: undefined,
             entryLink: timewallUrl,
           });
         }
       }
-
-      // Convert USD to coins
-      const surveysWithCoins = surveys.map((s) => {
-        const multiplier =
-          multiplierBySlug.get(s.network === "cpxresearch" ? "cpxresearch" : "theoremreach") ?? 0.8;
-        const coins = Math.round(s.payoutUsd * rate * multiplier);
-
-        return {
-          id: s.id,
-          network: s.network,
-          title: s.network === "timewall" ? s.title : `${s.loi} min survey`,
-          payoutCoins: coins,
-          loi: s.loi,
-          rating: s.rating,
-          entryLink: s.entryLink,
-        };
-      });
 
       return {
         surveys: surveysWithCoins,
