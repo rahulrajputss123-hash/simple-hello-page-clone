@@ -169,19 +169,20 @@ export function convertSdkCurrency(
 ): number {
   const perUsd = Number(provider.currency_per_usd) || 1;
   const raw = (currencyAmount / perUsd) * (Number(provider.reward_multiplier) || 1);
-  const cents = raw * 100;
+  // Use 4-decimal precision (10000 scale) instead of cents (100 scale)
+  const scaled = raw * 10000;
   const rounded =
     provider.rounding_mode === "floor"
-      ? Math.floor(cents)
+      ? Math.floor(scaled)
       : provider.rounding_mode === "ceil"
-        ? Math.ceil(cents)
-        : Math.round(cents);
-  let value = rounded / 100;
+        ? Math.ceil(scaled)
+        : Math.round(scaled);
+  let value = rounded / 10000;
   if (value < Number(provider.min_reward)) value = Number(provider.min_reward);
   if (provider.max_reward != null && value > Number(provider.max_reward)) {
     value = Number(provider.max_reward);
   }
-  return Math.max(0, Math.round(value * 100) / 100);
+  return Math.max(0, Math.round(value * 10000) / 10000);
 }
 
 export function compareSdkProviders(
