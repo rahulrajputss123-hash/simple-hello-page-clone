@@ -337,8 +337,12 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
     url.searchParams.set("main_info", "true");
     url.searchParams.set("gender", params.profile.gender === "male" ? "m" : "f");
     url.searchParams.set("user_country_code", params.profile.countryCode);
+    
+    const profileKeys = ["main_info", "gender", "user_country_code"];
+    
     if (params.profile.postalCode) {
       url.searchParams.set("zip_code", params.profile.postalCode);
+      profileKeys.push("zip_code");
     }
     // Pass birthday only if birth_date exists
     if (params.profile.birthDate) {
@@ -346,7 +350,12 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
       url.searchParams.set("birthday_day", String(birth.getDate()));
       url.searchParams.set("birthday_month", String(birth.getMonth() + 1)); // 1-12
       url.searchParams.set("birthday_year", String(birth.getFullYear()));
+      profileKeys.push("birthday_day", "birthday_month", "birthday_year");
     }
+    
+    console.log(`[survey-feed] CPX profile params sent: ${profileKeys.join(", ")}`);
+  } else {
+    console.log(`[survey-feed] CPX no profile data available`);
   }
 
   const response = await fetch(url.toString());
@@ -390,26 +399,25 @@ async function updateTheoremReachProfile(
   const url = new URL(baseUrl);
   url.searchParams.set("api_key", apiKey);
 
-  // Build body with all required fields
-  const body: Record<string, any> = {
-    user_id: params.userId,
-    ip: params.ip,
-    country_code: params.countryCode,
+  // Build body matching TheoremReach docs EXACTLY
+  // Doc: { "user": { "user_id": 123, "ip": "...", "country_code": "...", "attributes": {...} } }
+  const body = {
+    user: {
+      user_id: params.userId,
+      ip: params.ip,
+      country_code: params.countryCode,
+      attributes: {
+        facet_hash: {
+          "1": [String(params.profile.age)], // Age
+          "2": [params.profile.gender === "male" ? "100" : "101"], // Gender
+        },
+      } as Record<string, any>,
+    },
   };
 
-  // Add attributes if profile data exists
-  if (params.profile) {
-    body.attributes = {
-      facet_hash: {
-        "1": [String(params.profile.age)], // Age
-        "2": [params.profile.gender === "male" ? "100" : "101"], // Gender
-      },
-    };
-
-    // Add postal_code only if it exists
-    if (params.profile.postalCode) {
-      body.attributes.postal_code = params.profile.postalCode;
-    }
+  // Add postal_code only if it exists
+  if (params.profile.postalCode) {
+    body.user.attributes.postal_code = params.profile.postalCode;
   }
 
   const rawBody = JSON.stringify(body);
@@ -428,12 +436,12 @@ async function updateTheoremReachProfile(
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "");
       // Log request body keys (no values) for debugging
-      const bodyKeys = Object.keys(body);
-      const attrKeys = body.attributes ? Object.keys(body.attributes) : [];
+      const bodyKeys = Object.keys(body.user);
+      const attrKeys = Object.keys(body.user.attributes);
       console.error(
         `[survey-feed] TheoremReach update_profile ${response.status} error. ` +
-        `Request keys: ${bodyKeys.join(", ")}. ` +
-        `Attribute keys: ${attrKeys.join(", ")}. ` +
+        `Body structure: user.{${bodyKeys.join(", ")}}. ` +
+        `Attributes: {${attrKeys.join(", ")}}. ` +
         `Error: ${errorBody.substring(0, 200)}`
       );
       // Don't throw - profile update failure shouldn't block survey fetching
