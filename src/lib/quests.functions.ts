@@ -624,9 +624,18 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
       profile,
     });
 
+    console.log(`[quest-survey-feed] Quest ${data.questKey} for user ${context.userId.substring(0, 8)}`);
+    console.log(`[quest-survey-feed] IP: ${ip}, Country: ${countryCode}, Has Profile: ${profile !== null}`);
+    console.log(`[quest-survey-feed] Allowed networks: ${quest.allowed_networks?.join(", ")}`);
+    console.log(`[quest-survey-feed] Filters: minPayout=$${quest.min_payout_usd ?? "none"}, maxLoi=${quest.max_loi ?? "none"}min`);
+    console.log(`[quest-survey-feed] Raw surveys count: ${result.surveys.length}`);
+    console.log(`[quest-survey-feed] Networks status:`, result.networks.map(n => `${n.network}(${n.ok ? n.count : "FAIL:" + n.reason})`).join(", "));
+
     // Separate CPX and TheoremReach surveys
     const cpxSurveys = result.surveys.filter((s) => s.network === "cpxresearch");
     const theoremreachSurveys = result.surveys.filter((s) => s.network === "theoremreach");
+
+    console.log(`[quest-survey-feed] After filter: CPX=${cpxSurveys.length}, TheoremReach=${theoremreachSurveys.length}`);
 
     // Combine: CPX first, then TheoremReach
     const sortedSurveys = [...cpxSurveys, ...theoremreachSurveys];
@@ -649,8 +658,13 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
           loi: 0,
           entryLink: timewallUrl,
         });
+        console.log(`[quest-survey-feed] Added Timewall wall card`);
+      } else {
+        console.log(`[quest-survey-feed] Timewall provider not found in database`);
       }
     }
+
+    console.log(`[quest-survey-feed] Final survey count: ${sortedSurveys.length}`);
 
     return {
       surveys: sortedSurveys,

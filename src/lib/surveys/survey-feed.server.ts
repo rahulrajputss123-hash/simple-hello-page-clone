@@ -361,6 +361,7 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
   const response = await fetch(url.toString());
   
   console.log(`[survey-feed] CPX HTTP ${response.status}`);
+  
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     console.error(`[survey-feed] CPX error body:`, body.substring(0, 200));
@@ -369,6 +370,8 @@ async function fetchCPXSurveys(params: SurveyFeedParams): Promise<Survey[]> {
 
   const data = await response.json();
   const surveys = data.surveys || [];
+
+  console.log(`[survey-feed] CPX returned ${surveys.length} surveys (status: ${data.status}, count_available: ${data.count_available_surveys})`);
 
   return surveys.map((s: any) => ({
     id: String(s.id),
@@ -525,6 +528,8 @@ async function fetchTheoremReachSurveys(params: SurveyFeedParams): Promise<Surve
 
   const data = await response.json();
   const surveys = data.surveys || [];
+
+  console.log(`[survey-feed] TheoremReach returned ${surveys.length} surveys`);
 
   if (surveys.length === 0) {
     throw new Error("No surveys for this user/country");
