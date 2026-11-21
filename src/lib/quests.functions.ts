@@ -635,10 +635,30 @@ export const fetchSurveyFeed = createServerFn({ method: "POST" })
     const cpxSurveys = result.surveys.filter((s) => s.network === "cpxresearch");
     const theoremreachSurveys = result.surveys.filter((s) => s.network === "theoremreach");
 
-    console.log(`[quest-survey-feed] After filter: CPX=${cpxSurveys.length}, TheoremReach=${theoremreachSurveys.length}`);
+    console.log(`[quest-survey-feed] Before sort: CPX=${cpxSurveys.length}, TheoremReach=${theoremreachSurveys.length}`);
 
-    // Combine: CPX first, then TheoremReach
-    const sortedSurveys = [...cpxSurveys, ...theoremreachSurveys];
+    // Mix surveys based on performance score
+    // Score = (conversion × 0.6) + (rating × 20 × 0.3) + (payout × 10 × 0.1)
+    const allSurveys = [...cpxSurveys, ...theoremreachSurveys];
+    
+    allSurveys.sort((a, b) => {
+      const scoreA = 
+        (a.conversionRate || 0) * 0.6 + 
+        (a.rating || 0) * 20 * 0.3 + 
+        (a.payoutUsd || 0) * 10 * 0.1;
+      
+      const scoreB = 
+        (b.conversionRate || 0) * 0.6 + 
+        (b.rating || 0) * 20 * 0.3 + 
+        (b.payoutUsd || 0) * 10 * 0.1;
+      
+      return scoreB - scoreA; // Highest score first
+    });
+
+    console.log(`[quest-survey-feed] After performance sort: ${allSurveys.length} surveys`);
+
+    // Combine: sorted by performance
+    const sortedSurveys = allSurveys;
 
     // Add ONE Timewall wall card at the very end if allowed
     if (quest.allowed_networks?.includes("timewall")) {

@@ -42,8 +42,24 @@ function SurveysPage() {
   });
 
   const surveys = data?.surveys ?? [];
-  const displaySurveys = surveys.slice(0, visibleCount);
-  const hasMore = visibleCount < surveys.length;
+  
+  // Insert Timewall cards at specific positions for grid view
+  const surveysWithTimewallCards = [...surveys];
+  
+  // Add Timewall card in middle (after 5th survey, position 5)
+  if (surveys.length >= 5) {
+    const timewallMiddle = surveys.find(s => s.network === "timewall" && s.id.includes("wall"));
+    if (timewallMiddle) {
+      // Clone with different ID for middle position
+      surveysWithTimewallCards.splice(5, 0, {
+        ...timewallMiddle,
+        id: "timewall-wall-middle"
+      });
+    }
+  }
+  
+  const displaySurveys = surveysWithTimewallCards.slice(0, visibleCount);
+  const hasMore = visibleCount < surveysWithTimewallCards.length;
 
   const handleLoadMore = () => {
     setVisibleCount((prev) => prev + 9);
@@ -62,7 +78,7 @@ function SurveysPage() {
 
       {surveys.length > 0 && !isLoading && (
         <p className="text-sm text-muted-foreground">
-          {surveys.length} {surveys.length === 1 ? "survey" : "surveys"} available
+          {surveysWithTimewallCards.length} {surveysWithTimewallCards.length === 1 ? "survey" : "surveys"} available
         </p>
       )}
 
