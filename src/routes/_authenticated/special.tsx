@@ -57,6 +57,45 @@ import { tasksQuery, userTasksQuery } from "@/lib/queries";
 import { refreshMyTasks } from "@/lib/tasks.functions";
 
 /**
+ * Format USD amount for earning task display.
+ * Uses 2 decimals for amounts >= $0.01, otherwise up to 4 decimals.
+ */
+export function formatEarningAmount(amount: number): string {
+  if (amount >= 0.01) {
+    return `$${amount.toFixed(2)}`;
+  }
+  // For sub-cent amounts, remove trailing zeros
+  return `$${amount.toFixed(4).replace(/\.?0+$/, "")}`;
+}
+
+/**
+ * Compute progress percentage for display.
+ */
+export function computeTaskProgress(
+  progress: number,
+  target: number,
+  taskType?: string,
+  earningTarget?: number | null,
+): { progress: number; target: number; percentage: number } {
+  // For offerwall_earning tasks, use earning_target if available
+  if (taskType === "offerwall_earning" && earningTarget != null) {
+    const actualTarget = Number(earningTarget);
+    const actualProgress = Number(progress);
+    return {
+      progress: actualProgress,
+      target: actualTarget,
+      percentage: Math.min(100, (actualProgress / actualTarget) * 100),
+    };
+  }
+  // For all other tasks, use the provided target
+  return {
+    progress: Number(progress),
+    target: Number(target),
+    percentage: Math.min(100, (Number(progress) / Number(target)) * 100),
+  };
+}
+
+/**
  * Admin-configurable `tasks.icon` names mapped to lucide components. Curated
  * rather than a namespace import so the icon set stays tree-shakeable.
  */
@@ -193,12 +232,26 @@ function TaskPage() {
         <ol className="stagger-children space-y-3">
           {tasks.data.map((task, index) => {
             const mine = userTasks.data?.find((t) => t.task_id === task.id);
-            const progress = mine?.progress ?? 0;
+            const rawProgress = mine?.progress ?? 0;
             const done = mine?.status === "completed";
             const automated = (task as { task_type?: string }).task_type !== "manual";
-            const target = automated
+            const rawTarget = automated
               ? ((task as { target?: number }).target ?? 1)
               : task.steps_total;
+            
+            // Compute actual progress and target for display
+            const taskType = (task as { task_type?: string }).task_type;
+            const earningTarget = (task as { earning_target?: number | null }).earning_target;
+            const { progress, target, percentage } = computeTaskProgress(
+              rawProgress,
+              rawTarget,
+              taskType,
+              earningTarget,
+            );
+            
+            // Check if this is an earning task for special formatting
+            const isEarningTask = taskType === "offerwall_earning" && earningTarget != null;
+            
             // Pre-existing "ease new users in" heuristic — unrelated to the
             // admin-configured lock below, kept as-is.
             const gatedForNewUser =
@@ -247,12 +300,11 @@ function TaskPage() {
                     <p className="text-xs text-muted-foreground">{task.description}</p>
                     {(automated || task.steps_total > 1) && (
                       <div className="mt-2">
-                        <Progress
-                          value={Math.min(100, (progress / target) * 100)}
-                          className="h-2"
-                        />
+                        <Progress value={percentage} className="h-2" />
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          {progress} of {target} {automated ? "completed" : "steps"}
+                          {isEarningTask
+                            ? `${formatEarningAmount(progress)} of ${formatEarningAmount(target)} earned`
+                            : `${progress} of ${target} ${automated ? "completed" : "steps"}`}
                         </p>
                       </div>
                     )}
@@ -272,7 +324,9 @@ function TaskPage() {
                         </span>
                       ) : automated ? (
                         <span className="text-xs text-muted-foreground">
-                          Tracks automatically — reward pays out at {target}.
+                          {isEarningTask
+                            ? `Tracks automatically — reward pays out at ${formatEarningAmount(target)}.`
+                            : `Tracks automatically — reward pays out at ${target}.`}
                         </span>
                       ) : (
                         <Button
