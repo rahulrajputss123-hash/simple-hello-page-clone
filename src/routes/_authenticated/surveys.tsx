@@ -7,7 +7,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Star, ExternalLink } from "lucide-react";
+import { Star, ExternalLink, Coins, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/States";
@@ -15,6 +15,7 @@ import { SectionHeading } from "@/components/SectionHeading";
 import { fetchSurveysList } from "@/lib/surveys/surveys-home.functions";
 import { SURVEY_PROVIDER_IMAGES, SURVEY_PROVIDER_NAMES, SURVEY_PROVIDER_COLORS } from "@/lib/surveys/survey-ui-config";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/surveys")({
   component: SurveysPage,
