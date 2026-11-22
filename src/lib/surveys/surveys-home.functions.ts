@@ -171,7 +171,7 @@ export const fetchSurveysList = createServerFn({ method: "POST" })
         return scoreB - scoreA; // Highest score first
       });
 
-      // Insert Timewall card at position 5 (0-indexed = 4)
+      // Insert Timewall cards at position 5 (0-indexed = 4)
       const surveysWithTimewall = [...allSurveys];
       
       if (settings.timewallEnabled && allSurveys.length >= 4) {
@@ -183,18 +183,79 @@ export const fetchSurveysList = createServerFn({ method: "POST" })
 
         if (timewallProvider?.app_id) {
           const timewallUrl = `https://timewall.io/users/login?oid=${timewallProvider.app_id}&uid=${encodeURIComponent(context.userId)}`;
-          const timewallCard = {
-            id: "timewall-wall-5",
-            network: "timewall" as const,
-            title: "Timewall Surveys",
-            payoutCoins: 0,
-            loi: 0,
-            rating: undefined,
-            entryLink: timewallUrl,
-          };
+          
+          // Create 6 Timewall cards with varied coins, time, and ratings
+          const timewallCards = [
+            {
+              id: "timewall-wall-1",
+              network: "timewall" as const,
+              title: "Timewall Surveys",
+              payoutCoins: 80,
+              payoutUsd: 0.80,
+              loi: 8,
+              rating: 4.5,
+              conversionRate: 0.75,
+              entryLink: timewallUrl,
+            },
+            {
+              id: "timewall-wall-2",
+              network: "timewall" as const,
+              title: "Timewall Surveys",
+              payoutCoins: 120,
+              payoutUsd: 1.20,
+              loi: 12,
+              rating: 4.2,
+              conversionRate: 0.68,
+              entryLink: timewallUrl,
+            },
+            {
+              id: "timewall-wall-3",
+              network: "timewall" as const,
+              title: "Timewall Surveys",
+              payoutCoins: 50,
+              payoutUsd: 0.50,
+              loi: 5,
+              rating: 4.7,
+              conversionRate: 0.82,
+              entryLink: timewallUrl,
+            },
+            {
+              id: "timewall-wall-4",
+              network: "timewall" as const,
+              title: "Timewall Surveys",
+              payoutCoins: 200,
+              payoutUsd: 2.00,
+              loi: 20,
+              rating: 4.0,
+              conversionRate: 0.60,
+              entryLink: timewallUrl,
+            },
+            {
+              id: "timewall-wall-5",
+              network: "timewall" as const,
+              title: "Timewall Surveys",
+              payoutCoins: 150,
+              payoutUsd: 1.50,
+              loi: 15,
+              rating: 4.3,
+              conversionRate: 0.70,
+              entryLink: timewallUrl,
+            },
+            {
+              id: "timewall-wall-6",
+              network: "timewall" as const,
+              title: "Timewall Surveys",
+              payoutCoins: 100,
+              payoutUsd: 1.00,
+              loi: 10,
+              rating: 4.6,
+              conversionRate: 0.78,
+              entryLink: timewallUrl,
+            },
+          ];
           
           // Insert at position 5 (after 4th survey)
-          surveysWithTimewall.splice(4, 0, timewallCard);
+          surveysWithTimewall.splice(4, 0, ...timewallCards);
         }
       }
 

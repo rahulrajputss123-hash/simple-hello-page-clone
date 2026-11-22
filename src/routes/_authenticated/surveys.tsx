@@ -125,12 +125,12 @@ function SurveyGridCard({ survey }: { survey: Survey }) {
   const providerName = SURVEY_PROVIDER_NAMES[survey.network] || survey.network;
   const providerColors = SURVEY_PROVIDER_COLORS[survey.network];
 
-  // Timewall wall card
-  if (survey.network === "timewall" && survey.id === "timewall-wall") {
+  // Timewall wall card - now shows coins, time, and rating like regular surveys
+  if (survey.network === "timewall" && survey.id.includes("wall")) {
     return (
       <button
         onClick={handleClick}
-        className="group relative flex h-full min-h-[180px] flex-col gap-2.5 rounded-2xl p-3 text-left transition-transform active:scale-[0.98]"
+        className="group relative flex h-full min-h-[180px] flex-col gap-2 rounded-2xl p-3 text-left transition-transform active:scale-[0.98]"
         style={{
           background: `linear-gradient(to bottom, ${providerColors.bg}, white)`,
           border: `1px solid ${providerColors.border}`,
@@ -174,8 +174,36 @@ function SurveyGridCard({ survey }: { survey: Survey }) {
         </div>
 
         <div className="mt-4 flex flex-1 flex-col">
-          <div className="text-sm font-medium">Timewall Surveys</div>
-          <div className="text-xs text-muted-foreground">Browse more surveys</div>
+          <div className="text-sm font-medium">{survey.title}</div>
+          
+          {/* Coins and Time row */}
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5">
+              <Coins className="h-3 w-3 text-amber-600" />
+              <span className="font-semibold text-amber-700">{survey.payoutCoins}</span>
+            </div>
+            <div className="flex items-center gap-0.5 rounded-full bg-blue-100 px-1.5 py-0.5">
+              <Clock className="h-3 w-3 text-blue-600" />
+              <span className="font-semibold text-blue-700">{survey.loi}m</span>
+            </div>
+          </div>
+
+          {/* Rating stars */}
+          {survey.rating !== undefined && (
+            <div className="mt-1.5 flex items-center gap-0.5">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={cn(
+                    "h-3 w-3",
+                    i < Math.floor(survey.rating!)
+                      ? "fill-amber-400 text-amber-400"
+                      : "text-gray-300"
+                  )}
+                />
+              ))}
+            </div>
+          )}
           
           <Button size="sm" className="mt-auto w-full text-xs">
             Open
