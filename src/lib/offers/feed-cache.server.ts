@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { waitUntil } from "@vercel/functions";
 
 import { getAdapter } from "./registry.server";
 import { existingOfferImageUrls, materializeInlineOfferImages } from "./image-upload.server";
@@ -9,22 +10,6 @@ import {
   type FeedSettings,
 } from "./feed-settings.server";
 import { normalizeCountry } from "./geo.server";
-
-// waitUntil from Vercel Functions extends serverless function lifetime for background work
-// Fallback to no-op in development where @vercel/functions may not be available
-let waitUntil: (promise: Promise<unknown>) => void = (_promise: Promise<unknown>) => {
-  // No-op fallback for development
-};
-
-// Dynamically import @vercel/functions if available
-(async () => {
-  try {
-    const vercelFunctions = await import("@vercel/functions");
-    waitUntil = vercelFunctions.waitUntil;
-  } catch {
-    // Keep no-op fallback
-  }
-})();
 
 /**
  * Geo-targeted network offer cache + Featured Offers assembly.
@@ -740,6 +725,7 @@ async function getOrRefreshProviderCountry(
     waitUntil(
       refreshProviderCountry(provider, country, settings, ip).catch((err) => {
         const message = err instanceof Error ? err.message : "feed refresh failed";
+        console.error(`[feed-cache] Background refresh failed for ${provider.slug} ${country}:`, message);
         return supabaseAdmin
           .from("offer_feed_cache")
           .update({ sync_error: message } as never)

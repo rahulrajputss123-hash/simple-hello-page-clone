@@ -27,6 +27,7 @@ function isAuthorized(request: Request): boolean {
   const offerFeedSecret = process.env["OFFER_FEED_CRON_SECRET"];
   const cronSecret = process.env["CRON_SECRET"];
   
+  // Reject if both configured secrets are empty/undefined
   if (!offerFeedSecret && !cronSecret) return false;
   
   const url = new URL(request.url);
@@ -35,9 +36,10 @@ function isAuthorized(request: Request): boolean {
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
     url.searchParams.get("secret");
   
+  // Reject if no secret provided
   if (!provided) return false;
   
-  // Check against both secrets
+  // Check against both secrets (only if they are non-empty)
   if (offerFeedSecret && safeEqual(provided, offerFeedSecret)) return true;
   if (cronSecret && safeEqual(provided, cronSecret)) return true;
   
