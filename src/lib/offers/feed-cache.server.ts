@@ -10,6 +10,22 @@ import {
 } from "./feed-settings.server";
 import { normalizeCountry } from "./geo.server";
 
+// waitUntil from Vercel Functions extends serverless function lifetime for background work
+// Fallback to no-op in development where @vercel/functions may not be available
+let waitUntil: (promise: Promise<unknown>) => void = (_promise: Promise<unknown>) => {
+  // No-op fallback for development
+};
+
+// Dynamically import @vercel/functions if available
+(async () => {
+  try {
+    const vercelFunctions = await import("@vercel/functions");
+    waitUntil = vercelFunctions.waitUntil;
+  } catch {
+    // Keep no-op fallback
+  }
+})();
+
 /**
  * Geo-targeted network offer cache + Featured Offers assembly.
  *
@@ -562,6 +578,7 @@ async function refreshProviderCountry(
 
   // Start refresh and store promise
   const refreshPromise = (async () => {
+    const refreshStartTime = Date.now();
     try {
   const adapter = getAdapter(provider.slug);
   if (!adapter) throw new Error(`No adapter registered for "${provider.slug}"`);
@@ -683,6 +700,9 @@ async function refreshProviderCountry(
   );
   if (cacheError) throw cacheError;
 
+  const refreshDuration = Date.now() - refreshStartTime;
+  console.log(`[refreshProviderCountry] ${provider.slug} ${country} completed in ${refreshDuration}ms - ${cached.length} offers`);
+
   return cached;
     } finally {
       _refreshInFlight.delete(dedupeKey);
@@ -716,16 +736,17 @@ async function getOrRefreshProviderCountry(
   // Stale-while-revalidate: if we have stale data, return it immediately and refresh in background
   if (existing?.offers) {
     const staleOffers = (existing.offers as unknown as CachedOffer[]) ?? [];
-    // Trigger refresh in background (don't await)
-    refreshProviderCountry(provider, country, settings, ip).catch((err) => {
-      const message = err instanceof Error ? err.message : "feed refresh failed";
-      supabaseAdmin
-        .from("offer_feed_cache")
-        .update({ sync_error: message } as never)
-        .eq("provider_id", provider.id)
-        .eq("country", country)
-        .then(() => {});
-    });
+    // Trigger refresh in background (don't await) using waitUntil to extend function lifetime
+    waitUntil(
+      refreshProviderCountry(provider, country, settings, ip).catch((err) => {
+        const message = err instanceof Error ? err.message : "feed refresh failed";
+        return supabaseAdmin
+          .from("offer_feed_cache")
+          .update({ sync_error: message } as never)
+          .eq("provider_id", provider.id)
+          .eq("country", country);
+      })
+    );
     return staleOffers;
   }
 
@@ -1332,9 +1353,18 @@ export type FeedRefreshSummary = {
  * Background refresh entrypoint (called by the scheduled cron route).
  * Refreshes every enabled network for every country that has been requested at least once
  * (i.e. already present in offer_feed_cache) plus the configured default country.
+ * 
+ * Batching: Processes provider×country pairs in batches to stay within function timeout.
+ * State is tracked via offer_feed_cache.expires_at - expired entries are prioritized.
+ * Each invocation processes a batch, so pg_cron calling every 30min ensures continuous progress.
+ * 
  * `force` ignores the expiry window.
  */
-export async function refreshAllFeedsImpl(force = false): Promise<FeedRefreshSummary> {
+export async function refreshAllFeedsImpl(
+  force = false,
+  batchSize = 20, // Process up to 20 provider×country pairs per run
+): Promise<FeedRefreshSummary> {
+  const startTime = Date.now();
   const settings = await getFeedSettingsImpl();
   const providers = await enabledProviders();
   const summary: FeedRefreshSummary = { refreshed: [], errors: [] };
@@ -1342,7 +1372,7 @@ export async function refreshAllFeedsImpl(force = false): Promise<FeedRefreshSum
 
   const { data: cacheRows } = await supabaseAdmin
     .from("offer_feed_cache")
-    .select("country, expires_at");
+    .select("country, provider_id, expires_at");
   
   // Build set of countries to refresh
   const countries = new Set<string>([
@@ -1355,71 +1385,112 @@ export async function refreshAllFeedsImpl(force = false): Promise<FeedRefreshSum
     if (c) countries.add(c);
   }
 
+  // Build list of all provider×country pairs that need refreshing
+  type RefreshTask = {
+    provider: OfferProvider;
+    country: string;
+    expiresAt: number;
+    priority: number; // Lower = higher priority (expired first)
+  };
+  
+  const tasks: RefreshTask[] = [];
+  const now = Date.now();
+  
+  for (const provider of providers) {
+    for (const country of countries) {
+      if (!force) {
+        const existing = cacheRows?.find(
+          r => r.provider_id === provider.id && normalizeCountry(r.country) === country
+        );
+        
+        if (existing) {
+          const expiresAt = new Date(existing.expires_at).getTime();
+          if (expiresAt > now) continue; // Still fresh, skip
+          
+          // Expired - add to tasks with priority based on how long it's been expired
+          const expiredDuration = now - expiresAt;
+          tasks.push({ provider, country, expiresAt, priority: expiredDuration });
+        } else {
+          // No cache entry - needs initial fetch (highest priority)
+          tasks.push({ provider, country, expiresAt: 0, priority: Infinity });
+        }
+      } else {
+        // Force mode - refresh everything
+        tasks.push({ provider, country, expiresAt: 0, priority: 0 });
+      }
+    }
+  }
+  
+  // Sort by priority (most expired / missing first)
+  tasks.sort((a, b) => b.priority - a.priority);
+  
+  // Process only first batchSize tasks
+  const batch = tasks.slice(0, batchSize);
+  
+  console.log(`[refreshAllFeedsImpl] Processing ${batch.length} of ${tasks.length} total tasks`);
+
   // Track GemiAd requests for rate limiting (5 req/min)
   let gemiAdRequests = 0;
   const gemiAdDelay = 12000; // 12 seconds between requests = 5 per minute
   let lastGemiAdRequest = 0;
 
-  for (const provider of providers) {
+  for (const task of batch) {
+    const { provider, country } = task;
     const isGemiAd = provider.slug === "gemiad";
     
-    for (const country of countries) {
-      try {
-        if (!force) {
-          const existing = await readCacheRow(provider.id, country);
-          if (existing && new Date(existing.expires_at).getTime() > Date.now()) continue;
+    try {
+      // Rate limit GemiAd requests
+      if (isGemiAd) {
+        const nowTime = Date.now();
+        const timeSinceLastRequest = nowTime - lastGemiAdRequest;
+        if (timeSinceLastRequest < gemiAdDelay && gemiAdRequests > 0) {
+          const waitTime = gemiAdDelay - timeSinceLastRequest;
+          await new Promise(resolve => setTimeout(resolve, waitTime));
         }
-
-        // Rate limit GemiAd requests
-        if (isGemiAd) {
-          const now = Date.now();
-          const timeSinceLastRequest = now - lastGemiAdRequest;
-          if (timeSinceLastRequest < gemiAdDelay && gemiAdRequests > 0) {
-            const waitTime = gemiAdDelay - timeSinceLastRequest;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-          }
-          lastGemiAdRequest = Date.now();
-          gemiAdRequests++;
-        }
-
-        const list = await refreshProviderCountry(provider, country, settings);
-        summary.refreshed.push({ provider: provider.slug, country, count: list.length });
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "refresh failed";
-        
-        // Create cache row if it doesn't exist, with error recorded
-        const cacheRow = await readCacheRow(provider.id, country);
-        if (!cacheRow) {
-          const expiresAt = new Date(
-            Date.now() + Math.max(1, settings.refreshIntervalHours) * 60 * 60 * 1000,
-          ).toISOString();
-          
-          await supabaseAdmin.from("offer_feed_cache").insert({
-            provider_id: provider.id,
-            country,
-            offers: [] as never,
-            offer_count: 0,
-            last_synced_at: new Date().toISOString(),
-            expires_at: expiresAt,
-            sync_error: errorMessage,
-          } as never);
-        } else {
-          // Update existing row with error
-          await supabaseAdmin
-            .from("offer_feed_cache")
-            .update({ sync_error: errorMessage } as never)
-            .eq("provider_id", provider.id)
-            .eq("country", country);
-        }
-        
-        summary.errors.push({
-          provider: provider.slug,
-          country,
-          message: errorMessage,
-        });
+        lastGemiAdRequest = Date.now();
+        gemiAdRequests++;
       }
+
+      const list = await refreshProviderCountry(provider, country, settings);
+      summary.refreshed.push({ provider: provider.slug, country, count: list.length });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "refresh failed";
+      
+      // Create cache row if it doesn't exist, with error recorded
+      const cacheRow = await readCacheRow(provider.id, country);
+      if (!cacheRow) {
+        const expiresAt = new Date(
+          Date.now() + Math.max(1, settings.refreshIntervalHours) * 60 * 60 * 1000,
+        ).toISOString();
+        
+        await supabaseAdmin.from("offer_feed_cache").insert({
+          provider_id: provider.id,
+          country,
+          offers: [] as never,
+          offer_count: 0,
+          last_synced_at: new Date().toISOString(),
+          expires_at: expiresAt,
+          sync_error: errorMessage,
+        } as never);
+      } else {
+        // Update existing row with error
+        await supabaseAdmin
+          .from("offer_feed_cache")
+          .update({ sync_error: errorMessage } as never)
+          .eq("provider_id", provider.id)
+          .eq("country", country);
+      }
+      
+      summary.errors.push({
+        provider: provider.slug,
+        country,
+        message: errorMessage,
+      });
     }
   }
+  
+  const duration = Date.now() - startTime;
+  console.log(`[refreshAllFeedsImpl] Completed in ${duration}ms - refreshed: ${summary.refreshed.length}, errors: ${summary.errors.length}`);
   
   return summary;
 }

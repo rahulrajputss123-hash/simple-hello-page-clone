@@ -23,15 +23,25 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 function isAuthorized(request: Request): boolean {
-  const secret = process.env["OFFER_FEED_CRON_SECRET"];
-  if (!secret) return false;
+  // Accept either OFFER_FEED_CRON_SECRET (custom) or CRON_SECRET (Vercel standard)
+  const offerFeedSecret = process.env["OFFER_FEED_CRON_SECRET"];
+  const cronSecret = process.env["CRON_SECRET"];
+  
+  if (!offerFeedSecret && !cronSecret) return false;
+  
   const url = new URL(request.url);
   const provided =
     request.headers.get("x-cron-secret") ??
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
     url.searchParams.get("secret");
+  
   if (!provided) return false;
-  return safeEqual(provided, secret);
+  
+  // Check against both secrets
+  if (offerFeedSecret && safeEqual(provided, offerFeedSecret)) return true;
+  if (cronSecret && safeEqual(provided, cronSecret)) return true;
+  
+  return false;
 }
 
 async function handle(request: Request) {
