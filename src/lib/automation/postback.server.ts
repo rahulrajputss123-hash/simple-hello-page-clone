@@ -1164,20 +1164,86 @@ async function processSurveyQuestProgress(params: {
   const db = supabaseAdmin as unknown as { from: (t: string) => any };
 
   // Find active survey quest sessions for this user
-  const { data: sessions } = await db
+  // Note: quest_sessions has quest_type column, no foreign key to quests table
+  const { data: sessions, error: sessionsError } = await db
     .from("quest_sessions")
-    .select("id, quest_key, quests!inner(quest_type, label, required_surveys, step_reward, step_rewards, reward_amount, allowed_networks, min_payout_usd)")
+    .select("id, quest_key, quest_type")
     .eq("user_id", userId)
     .eq("status", "started")
-    .eq("quests.quest_type", "survey");
+    .eq("quest_type", "survey");
+
+  if (sessionsError) {
+    await logAutomation({
+      eventType: "quest_automation",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversionId,
+      message: `Survey quest: failed to fetch sessions: ${sessionsError.message}`,
+      context: { error: sessionsError },
+    });
+    return;
+  }
 
   if (!sessions || sessions.length === 0) {
     // No active survey quests
     return;
   }
 
+  // Fetch quest details for the session quest_keys
+  const questKeys = sessions.map(s => s.quest_key);
+  const { data: quests, error: questsError } = await db
+    .from("quests")
+    .select("key, quest_type, label, required_surveys, step_reward, step_rewards, reward_amount, allowed_networks, min_payout_usd")
+    .in("key", questKeys);
+
+  if (questsError) {
+    await logAutomation({
+      eventType: "quest_automation",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversionId,
+      message: `Survey quest: failed to fetch quests: ${questsError.message}`,
+      context: { error: questsError, questKeys },
+    });
+    return;
+  }
+
+  if (!quests || quests.length === 0) {
+    await logAutomation({
+      eventType: "quest_automation",
+      status: "error",
+      source: provider.slug,
+      providerId: provider.id,
+      userId,
+      referenceId: conversionId,
+      message: "Survey quest: no quests found for active sessions",
+      context: { questKeys },
+    });
+    return;
+  }
+
+  // Build quest lookup map
+  const questMap = new Map(quests.map(q => [q.key, q]));
+
   for (const session of sessions) {
-    const quest = session.quests;
+    const quest = questMap.get(session.quest_key);
+    if (!quest) {
+      await logAutomation({
+        eventType: "quest_automation",
+        status: "error",
+        source: provider.slug,
+        providerId: provider.id,
+        userId,
+        referenceId: conversionId,
+        message: `Survey quest: quest not found for session`,
+        context: { questKey: session.quest_key, sessionId: session.id },
+      });
+      continue;
+    }
 
     // Check if this network is allowed for this quest
     const allowedNetworks = Array.isArray(quest.allowed_networks) ? quest.allowed_networks : [];
