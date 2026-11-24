@@ -1213,6 +1213,20 @@ export async function getFeaturedFeedImpl(
   // Enrich with user's claim status
   offers = await enrichOffersWithClaimStatus(offers, userId);
 
+  // Replace Revtoo user ID placeholder with real user ID (server-side)
+  if (userId) {
+    const { REVTOO_USER_ID_PLACEHOLDER } = await import("./constants");
+    offers = offers.map(offer => {
+      if (offer.click_url && offer.click_url.includes(REVTOO_USER_ID_PLACEHOLDER)) {
+        return {
+          ...offer,
+          click_url: offer.click_url.split(REVTOO_USER_ID_PLACEHOLDER).join(userId),
+        };
+      }
+      return offer;
+    });
+  }
+
   return { country, offers };
 }
 
@@ -1318,7 +1332,18 @@ export async function getOfferByIdImpl(
   // Enrich with user's claim status
   const enriched = await enrichOffersWithClaimStatus([featuredOffer], userId);
   
-  const result = enriched[0] ?? null;
+  let result = enriched[0] ?? null;
+  
+  // Replace Revtoo user ID placeholder with real user ID (server-side)
+  if (result && userId && result.click_url) {
+    const { REVTOO_USER_ID_PLACEHOLDER } = await import("./constants");
+    if (result.click_url.includes(REVTOO_USER_ID_PLACEHOLDER)) {
+      result = {
+        ...result,
+        click_url: result.click_url.split(REVTOO_USER_ID_PLACEHOLDER).join(userId),
+      };
+    }
+  }
   
   return result;
 }
