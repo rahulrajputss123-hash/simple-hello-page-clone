@@ -99,6 +99,35 @@ const TASK_ICONS: Record<string, LucideIcon> = {
   bell: Bell,
 };
 
+/**
+ * Format USD amount with smart precision:
+ * - Up to 4 decimals, trim trailing zeros
+ * - Never show "0" for positive values below 0.01 (show "$0.002" not "$0")
+ * - Examples: 0.014 -> "$0.014", 0.002 -> "$0.002", 0.1 -> "$0.10", 0 -> "$0"
+ */
+function formatUsd(amount: number): string {
+  if (amount === 0) return "$0";
+  
+  // For positive values below 0.01, show up to 4 decimals (no rounding to 0)
+  if (amount > 0 && amount < 0.01) {
+    // Format with 4 decimals and trim trailing zeros
+    const formatted = amount.toFixed(4).replace(/\.?0+$/, "");
+    return `$${formatted}`;
+  }
+  
+  // For values >= 0.01, show 2 decimals minimum
+  const formatted = amount.toFixed(4).replace(/\.?0+$/, "");
+  // Ensure at least 2 decimal places for values >= 0.01
+  if (amount >= 0.01) {
+    const parts = formatted.split(".");
+    if (!parts[1] || parts[1].length < 2) {
+      return `$${amount.toFixed(2)}`;
+    }
+  }
+  
+  return `$${formatted}`;
+}
+
 /** Resolves a stored icon name (any casing / spacing) to a lucide component. */
 function taskIcon(name: string | null | undefined): LucideIcon {
   const key = (name ?? "")
@@ -196,9 +225,14 @@ function TaskPage() {
             const progress = mine?.progress ?? 0;
             const done = mine?.status === "completed";
             const automated = (task as { task_type?: string }).task_type !== "manual";
+            const isOfferwallEarning = (task as { task_type?: string }).task_type === "offerwall_earning";
             const target = automated
               ? ((task as { target?: number }).target ?? 1)
               : task.steps_total;
+            // For offerwall_earning, use earning_target if available (dollar target), else fall back to target
+            const displayTarget = isOfferwallEarning 
+              ? ((task as { earning_target?: number }).earning_target ?? target)
+              : target;
             // Pre-existing "ease new users in" heuristic — unrelated to the
             // admin-configured lock below, kept as-is.
             const gatedForNewUser =
@@ -219,6 +253,10 @@ function TaskPage() {
             const imageUrl = (task as { image_url?: string | null }).image_url ?? null;
             const showImage = Boolean(imageUrl) && !brokenImages[task.id];
             const TaskIcon = taskIcon((task as { icon?: string | null }).icon);
+            
+            // Progress bar: min 2% width for non-zero progress so it's visibly non-empty
+            const progressPercent = Math.min(100, (progress / displayTarget) * 100);
+            const displayPercent = progress > 0 && progressPercent < 2 ? 2 : progressPercent;
             return (
               <li key={task.id} className="surface-card p-4">
                 <div className="flex items-start gap-3">
@@ -248,11 +286,13 @@ function TaskPage() {
                     {(automated || task.steps_total > 1) && (
                       <div className="mt-2">
                         <Progress
-                          value={Math.min(100, (progress / target) * 100)}
+                          value={displayPercent}
                           className="h-2"
                         />
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          {progress} of {target} {automated ? "completed" : "steps"}
+                          {isOfferwallEarning 
+                            ? `${formatUsd(progress)} of ${formatUsd(displayTarget)} earned`
+                            : `${progress} of ${displayTarget} ${automated ? "completed" : "steps"}`}
                         </p>
                       </div>
                     )}
