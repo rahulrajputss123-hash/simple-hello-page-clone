@@ -35,6 +35,9 @@ export const tasksQuery = () => ({
 export const userTasksQuery = (userId?: string) => ({
   queryKey: ["user-tasks", userId],
   enabled: Boolean(userId),
+  refetchOnMount: true,
+  refetchOnWindowFocus: true,
+  staleTime: 30_000,
   queryFn: async () => {
     const { data, error } = await supabase.from("user_tasks").select("*");
     if (error) throw error;

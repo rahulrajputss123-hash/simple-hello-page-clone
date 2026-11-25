@@ -252,6 +252,9 @@ function TaskPage() {
             // Check if this is an earning task for special formatting
             const isEarningTask = taskType === "offerwall_earning" && earningTarget != null;
             
+            // Progress bar: min 2% width for non-zero progress so it's visibly non-empty
+            const displayPercentage = rawProgress > 0 && percentage < 2 ? 2 : percentage;
+            
             // Pre-existing "ease new users in" heuristic — unrelated to the
             // admin-configured lock below, kept as-is.
             const gatedForNewUser =
@@ -300,7 +303,7 @@ function TaskPage() {
                     <p className="text-xs text-muted-foreground">{task.description}</p>
                     {(automated || task.steps_total > 1) && (
                       <div className="mt-2">
-                        <Progress value={percentage} className="h-2" />
+                        <Progress value={displayPercentage} className="h-2" />
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           {isEarningTask
                             ? `${formatEarningAmount(progress)} of ${formatEarningAmount(target)} earned`
