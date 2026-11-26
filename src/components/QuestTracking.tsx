@@ -56,7 +56,8 @@ export function QuestTracking() {
     enabled: Boolean(session),
     queryFn: () => fetchActiveTimeKey({ data: {} }),
     staleTime: 30_000, // Cache for 30s
-    refetchInterval: 60_000, // Re-check every minute
+    refetchInterval: 120_000, // Re-check every 2 minutes
+    refetchIntervalInBackground: false, // Pause when tab is hidden
     select: (data) => data.questKey,
   });
 
@@ -117,7 +118,8 @@ export function QuestTracking() {
       );
     },
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: 120_000, // Re-check every 2 minutes
+    refetchIntervalInBackground: false, // Pause when tab is hidden
   });
 
   // Get active time tracking from context

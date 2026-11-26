@@ -181,7 +181,9 @@ function TaskPage() {
   useQuery({
     queryKey: ["task-sync", session?.user.id],
     enabled: Boolean(session?.user.id),
-    staleTime: 30_000,
+    staleTime: 60_000, // Run at most once per minute
+    refetchOnMount: true,
+    refetchOnWindowFocus: false, // Don't refetch on every focus
     queryFn: async () => {
       const result = await refresh({});
       await queryClient.invalidateQueries({ queryKey: ["user-tasks"] });

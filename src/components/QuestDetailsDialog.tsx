@@ -577,7 +577,8 @@ function NetworkQuestProviderGrid({
     queryKey: ["network-quest-progress", quest.key],
     queryFn: () => fetchProgress({ data: { questKey: quest.key } }),
     enabled: open && !credited,
-    refetchInterval: 5000, // Poll every 5s while dialog is open
+    refetchInterval: 30000, // Poll every 30s while dialog is open
+    refetchIntervalInBackground: false, // Pause when tab is hidden
   });
 
   // Poll on window focus
@@ -814,6 +815,7 @@ function SurveyQuestFeed({
     enabled: open && !credited && Boolean(sessionId),
     staleTime: 120_000, // 120s cache
     refetchInterval: 120_000, // Refresh every 120s
+    refetchIntervalInBackground: false, // Pause when tab is hidden
   });
 
   // Fetch progress
@@ -821,7 +823,8 @@ function SurveyQuestFeed({
     queryKey: ["survey-progress", quest.key],
     queryFn: () => fetchProgress({ data: { questKey: quest.key } }),
     enabled: open && !credited,
-    refetchInterval: 10_000, // Poll every 10s
+    refetchInterval: 15_000, // Poll every 15s
+    refetchIntervalInBackground: false, // Pause when tab is hidden
   });
 
   // Refresh progress when user returns to tab
