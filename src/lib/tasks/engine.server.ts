@@ -115,17 +115,8 @@ export async function recordTaskEvent(input: {
 
 async function countProgress(userId: string, task: TaskRow, from: Date): Promise<number> {
   const eventType = TASK_TYPE_EVENT[task.task_type];
-  console.log("[tasks] countProgress START", { 
-    userId, 
-    taskId: task.id,
-    taskType: task.task_type, 
-    eventType,
-    fromDate: from.toISOString(),
-    earningProviderId: task.earning_provider_id
-  });
   
   if (!eventType) {
-    console.log("[tasks] countProgress - no event type mapping");
     return 0;
   }
 
@@ -136,7 +127,6 @@ async function countProgress(userId: string, task: TaskRow, from: Date): Promise
       .select("id", { count: "exact", head: true })
       .eq("referrer_id", userId)
       .gte("created_at", from.toISOString());
-    console.log("[tasks] countProgress - referral count", { count: res.count });
     return res.count ?? 0;
   }
 
@@ -151,20 +141,12 @@ async function countProgress(userId: string, task: TaskRow, from: Date): Promise
       .eq("event_type", "offerwall_earning")
       .gte("occurred_at", from.toISOString());
     if (task.earning_provider_id) {
-      console.log("[tasks] countProgress - filtering by provider_id", { providerId: task.earning_provider_id });
       q = q.eq("provider_id", task.earning_provider_id);
-    } else {
-      console.log("[tasks] countProgress - counting ALL providers (earning_provider_id is NULL)");
     }
     const res = await q;
     const total = (res.data ?? []).reduce((sum, row) => sum + Number(row.quantity), 0);
     // Round to 4 decimals to avoid float drift (e.g., 0.0999999)
     const rounded = Math.round(total * 10000) / 10000;
-    console.log("[tasks] countProgress - offerwall_earning sum", { 
-      eventCount: res.data?.length ?? 0,
-      total: rounded,
-      events: res.data?.map(e => ({ quantity: e.quantity }))
-    });
     return rounded;
   }
 
@@ -177,17 +159,11 @@ async function countProgress(userId: string, task: TaskRow, from: Date): Promise
   const total = (res.data ?? []).reduce((sum, row) => sum + Number(row.quantity), 0);
   // Round to 4 decimals to avoid float drift
   const rounded = Math.round(total * 10000) / 10000;
-  console.log("[tasks] countProgress - generic event count", { 
-    eventType,
-    eventCount: res.data?.length ?? 0,
-    total: rounded
-  });
   return rounded;
 }
 
 /** Recomputes automated task progress for one user and pays finished tasks once. */
 export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
-  console.log("[tasks] syncUserTasks START", { userId, eventType });
   const now = new Date();
   const tasks = await supabaseAdmin
     .from("tasks")
@@ -195,13 +171,9 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
     .eq("is_active", true)
     .neq("task_type", "manual");
   if (tasks.error || !tasks.data) {
-    console.log("[tasks] syncUserTasks - failed to fetch tasks", { error: tasks.error });
+    console.error("[tasks] syncUserTasks - failed to fetch tasks", { error: tasks.error });
     return { updated: 0 };
   }
-  console.log("[tasks] syncUserTasks - fetched tasks", { 
-    count: tasks.data.length,
-    taskTypes: tasks.data.map((t: any) => ({ id: t.id, type: t.task_type, title: t.title }))
-  });
 
   // Only fetched when some task actually carries a lock, so the unlocked case
   // costs no extra query.
@@ -210,30 +182,30 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
   );
   const lifetimeWithdrawn = anyLocked ? await fetchLifetimeWithdrawn(userId) : 0;
 
+  // Fetch existing user_tasks once for all tasks
+  const { data: existingUserTasks } = await supabaseAdmin
+    .from("user_tasks")
+    .select("id, task_id, period_key, reward_status, progress, target, status")
+    .eq("user_id", userId);
+  
+  const userTaskMap = new Map(
+    (existingUserTasks ?? []).map((ut) => [
+      `${ut.task_id}:${ut.period_key}`,
+      ut,
+    ])
+  );
+
   let updated = 0;
   for (const raw of tasks.data as unknown as TaskRow[]) {
     const taskEventType = TASK_TYPE_EVENT[raw.task_type];
-    console.log("[tasks] evaluating task", { 
-      taskId: raw.id, 
-      title: raw.title, 
-      taskType: raw.task_type,
-      taskEventType,
-      filterEventType: eventType,
-      frequency: raw.frequency,
-      earningTarget: raw.earning_target,
-      earningProviderId: raw.earning_provider_id
-    });
     
     if (eventType && taskEventType !== eventType) {
-      console.log("[tasks] SKIP - event type mismatch", { taskEventType, filterEventType: eventType });
       continue;
     }
     if (raw.starts_at && new Date(raw.starts_at) > now) {
-      console.log("[tasks] SKIP - task hasn't started yet", { startsAt: raw.starts_at });
       continue;
     }
     if (raw.ends_at && new Date(raw.ends_at) < now) {
-      console.log("[tasks] SKIP - task already ended", { endsAt: raw.ends_at });
       continue;
     }
     // Locked tasks accrue no progress and are never credited. Skipping (rather
@@ -241,7 +213,6 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
     // so one locked task must not abort the rest.
     const lockState = computeTaskLockState(raw, lifetimeWithdrawn, now.toISOString());
     if (lockState.is_locked) {
-      console.log("[tasks] SKIP - task is locked", { lockType: raw.lock_type, unlockAt: raw.unlock_at });
       continue;
     }
 
@@ -256,35 +227,19 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
     const progress = Math.min(await countProgress(userId, raw, periodStartDate), target);
     const completed = progress >= target;
 
-    console.log("[tasks] computed progress", {
-      taskId: raw.id,
-      title: raw.title,
-      periodKey: key,
-      periodStartDate: periodStartDate.toISOString(),
-      target,
-      progress,
-      completed,
-      earningProviderId: raw.earning_provider_id
-    });
+    const lookupKey = `${raw.id}:${key}`;
+    const existing = userTaskMap.get(lookupKey);
 
-    const existing = await supabaseAdmin
-      .from("user_tasks")
-      .select("id, reward_status, progress")
-      .eq("user_id", userId)
-      .eq("task_id", raw.id)
-      .eq("period_key", key)
-      .maybeSingle();
+    let userTaskId: string | null = existing?.id ?? null;
+    let rewardStatus: string = existing?.reward_status ?? "pending";
+    
+    // Skip UPDATE if progress/target/status are unchanged
+    const shouldUpdate = !existing || 
+      existing.progress !== progress || 
+      existing.target !== target || 
+      (completed && existing.status !== "completed");
 
-    console.log("[tasks] existing user_task", { 
-      exists: Boolean(existing.data), 
-      userTaskId: existing.data?.id,
-      oldProgress: existing.data?.progress,
-      rewardStatus: existing.data?.reward_status
-    });
-
-    let userTaskId: string | null = existing.data?.id ?? null;
-    let rewardStatus: string = existing.data?.reward_status ?? "pending";
-    if (!existing.data) {
+    if (!existing) {
       const inserted = await supabaseAdmin
         .from("user_tasks")
         .insert({
@@ -300,15 +255,8 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
         .maybeSingle();
       userTaskId = inserted.data?.id ?? null;
       rewardStatus = inserted.data?.reward_status ?? "pending";
-      console.log("[tasks] INSERTED user_task", { 
-        userTaskId, 
-        progress, 
-        target, 
-        status: completed ? "completed" : "active",
-        error: inserted.error 
-      });
-    } else {
-      const updated = await supabaseAdmin
+    } else if (shouldUpdate) {
+      await supabaseAdmin
         .from("user_tasks")
         .update({
           progress,
@@ -316,15 +264,12 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
           status: completed ? "completed" : "active",
           completed_at: completed ? (now.toISOString() as string) : null,
         })
-        .eq("id", existing.data.id);
-      console.log("[tasks] UPDATED user_task", { 
-        userTaskId: existing.data.id, 
-        newProgress: progress, 
-        newStatus: completed ? "completed" : "active",
-        error: updated.error
-      });
+        .eq("id", existing.id);
     }
-    updated += 1;
+    
+    if (shouldUpdate) {
+      updated += 1;
+    }
 
     if (!completed) continue;
     if (rewardStatus === "paid" || !userTaskId) continue;
@@ -361,6 +306,5 @@ export async function syncUserTasks(userId: string, eventType?: TaskEventType) {
       .eq("id", userTaskId)
       .eq("reward_status", "pending");
   }
-  console.log("[tasks] syncUserTasks COMPLETE", { userId, eventType, updated });
   return { updated };
 }

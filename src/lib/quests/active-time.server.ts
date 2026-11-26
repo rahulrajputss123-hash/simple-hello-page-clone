@@ -46,18 +46,12 @@ export async function processActiveTimePing(
   lastToken: string | null,
   isActive: boolean = true,
 ): Promise<PingResult> {
-  const userShort = userId.slice(0, 8);
-  const tokenShort = lastToken?.slice(0, 8) || 'null';
-  
   const params = {
     p_user_id: userId,
     p_quest_key: questKey,
     p_ping_token: lastToken,
     p_is_active: isActive,
   };
-  
-  console.log(`[active-time] PING user=${userShort} quest=${questKey} token=${tokenShort} active=${isActive}`);
-  console.log(`[active-time] RPC params:`, JSON.stringify(params, null, 2));
 
   try {
     // Call atomic Postgres function with service-role client
@@ -65,24 +59,21 @@ export async function processActiveTimePing(
     const { data, error } = await (db as any).rpc("ping_active_time", params);
 
     if (error) {
-      console.error(`[active-time] RPC ERROR user=${userShort}:`, {
+      console.error(`[active-time] RPC ERROR:`, {
         code: error.code,
         message: error.message,
         details: error.details,
         hint: error.hint,
-        params: params,
       });
       throw new Error(`Ping RPC failed: ${error.code} - ${error.message}${error.hint ? ` (${error.hint})` : ''}`);
     }
 
     if (!data || data.length === 0) {
-      console.error(`[active-time] RPC returned no data for user=${userShort}`);
+      console.error(`[active-time] RPC returned no data`);
       throw new Error("Ping returned no data");
     }
 
     const result = data[0];
-    
-    console.log(`[active-time] SUCCESS user=${userShort} reason=${result.reason} total=${result.total_seconds}s today=${result.today_seconds}s nextToken=${result.next_token?.slice(0, 8) || 'null'}`);
 
     return {
       success: result.success,
@@ -95,7 +86,7 @@ export async function processActiveTimePing(
       canClaim: result.can_claim,
     };
   } catch (error) {
-    console.error(`[active-time] EXCEPTION user=${userShort}:`, error);
+    console.error(`[active-time] EXCEPTION:`, error);
     throw error;
   }
 }
