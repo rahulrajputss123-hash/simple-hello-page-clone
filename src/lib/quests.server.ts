@@ -35,7 +35,8 @@ export type QuestRow = {
     | "network"
     | "survey"
     | "timed_ptc"
-    | "active_time";
+    | "active_time"
+    | "sponsor_ptc";
   ads_required: number;
   /**
    * Completion bonus credited when the entire quest finishes.
@@ -124,6 +125,17 @@ export type QuestRow = {
   daily_cap_minutes: number;
   /** Active Time quest: grace period minutes per offer (default 10). */
   grace_minutes: number;
+  /** Sponsor PTC quest: array of steps with host, content_key, smartlink_url, push_network (1-5). */
+  sponsor_steps: Array<{
+    host: string;
+    content_key: "special_missions" | "marketplace" | "surveys_offers";
+    smartlink_url: string;
+    push_network: "none" | "propush" | "evadav" | "rollerads";
+  }>;
+  /** Sponsor PTC quest: required visits per step (1-10). */
+  sponsor_visits: number;
+  /** Sponsor PTC quest: required seconds per visit (5-300). */
+  sponsor_visit_seconds: number;
   is_active: boolean;
   sort_order: number;
   /** 'first_withdrawal' unlocks once profiles.lifetime_withdrawn > 0. */
@@ -193,7 +205,7 @@ export async function listActiveQuestsImpl(
   // NOTE: isNative flag is client-reported and can be spoofed. This is UI filtering only.
   // Server enforcement happens in assertQuestNotLocked / assertQuestPlatform.
   if (isNative === false) {
-    rows = rows.filter((quest) => !quest.app_only);
+    rows = rows.filter((quest) => !quest.app_only && quest.quest_type !== "sponsor_ptc");
   }
 
   const { lifetimeEarned, lifetimeWithdrawn } = userId
@@ -303,6 +315,7 @@ export async function upsertQuestImpl(input: QuestFormInput) {
   const lockerUrls = (input.lockerUrls ?? []).map((url) => url.trim()).filter(Boolean);
   const shortlinkSteps = input.shortlinkSteps ?? [];
   const timedSteps = input.timedSteps ?? [];
+  const sponsorSteps = input.sponsorSteps ?? [];
 
   // Upper bounds and malformed URLs are still hard errors — they are mistakes,
   // not an unfinished draft.
@@ -311,6 +324,21 @@ export async function upsertQuestImpl(input: QuestFormInput) {
   }
   if (input.questType === "timed_ptc" && timedSteps.length > 10) {
     throw new Error("A timed PTC quest can have at most 10 steps.");
+  }
+  if (input.questType === "sponsor_ptc") {
+    if (sponsorSteps.length < 1 || sponsorSteps.length > 5) {
+      throw new Error("A sponsor PTC quest must have 1-5 steps.");
+    }
+    // Validate hosts end with .cashgpt.in
+    for (const step of sponsorSteps) {
+      if (!step.host.endsWith(".cashgpt.in")) {
+        throw new Error("All sponsor PTC hosts must end with .cashgpt.in");
+      }
+      // Validate smartlink_url is empty or https
+      if (step.smartlink_url && !/^https:\/\/.+/.test(step.smartlink_url)) {
+        throw new Error("Smartlink URLs must be empty or start with https://");
+      }
+    }
   }
   if (input.questType === "ads" && input.adsRequired < 1) {
     throw new Error("Ads-type quests need at least 1 ad.");
@@ -398,6 +426,9 @@ export async function upsertQuestImpl(input: QuestFormInput) {
     target_minutes: input.questType === "active_time" ? input.targetMinutes : 30,
     daily_cap_minutes: input.questType === "active_time" ? input.dailyCapMinutes : 120,
     grace_minutes: input.questType === "active_time" ? input.graceMinutes : 10,
+    sponsor_steps: input.questType === "sponsor_ptc" ? sponsorSteps : [],
+    sponsor_visits: input.questType === "sponsor_ptc" ? (input.sponsorVisits ?? 3) : 3,
+    sponsor_visit_seconds: input.questType === "sponsor_ptc" ? (input.sponsorVisitSeconds ?? 20) : 20,
     is_active: isActive,
     sort_order: input.sortOrder,
     lock_type: input.lockType,

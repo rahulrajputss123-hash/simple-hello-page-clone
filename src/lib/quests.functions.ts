@@ -1023,3 +1023,119 @@ export const claimActiveTimeReward = createServerFn({ method: "POST" })
     const { claimActiveTimeRewardImpl } = await import("./quests.server");
     return await claimActiveTimeRewardImpl(context.userId, data.questKey);
   }));
+
+// ========== Sponsor PTC Quest Functions ==========
+
+/**
+ * Issue a handoff URL for a sponsor PTC step.
+ * Web only (rejects native). Returns URL: https://{step.host}/ptc?t={token}
+ */
+export const issueSponsorHandoff = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        questKey: z.string().min(1).max(40),
+        stepIndex: z.number().int().min(1).max(5),
+        isNative: z.boolean().default(false),
+      })
+      .parse(input),
+  )
+  .handler(withServerTiming("issueSponsorHandoff", async ({ data, context }) => {
+    const { issueSponsorHandoffImpl } = await import("./quests/sponsor-ptc.server");
+    return await issueSponsorHandoffImpl(
+      context.userId,
+      data.questKey,
+      data.stepIndex,
+      data.isNative,
+    );
+  }));
+
+/**
+ * Redeem a handoff token and create a session token.
+ * Public, no auth required.
+ */
+export const redeemSponsorHandoff = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        token: z.string().min(1),
+        requestHost: z.string().min(1),
+      })
+      .parse(input),
+  )
+  .handler(withServerTiming("redeemSponsorHandoff", async ({ data }) => {
+    const { redeemSponsorHandoffImpl } = await import("./quests/sponsor-ptc.server");
+    return await redeemSponsorHandoffImpl(data.token, data.requestHost);
+  }));
+
+/**
+ * Get current state for a sponsor PTC session.
+ * Public, requires valid session token.
+ */
+export const getSponsorState = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        sessionToken: z.string().min(1),
+      })
+      .parse(input),
+  )
+  .handler(withServerTiming("getSponsorState", async ({ data }) => {
+    const { getSponsorStateImpl } = await import("./quests/sponsor-ptc.server");
+    return await getSponsorStateImpl(data.sessionToken);
+  }));
+
+/**
+ * Start a sponsor PTC visit.
+ * Public, requires valid session token.
+ */
+export const startSponsorVisit = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        sessionToken: z.string().min(1),
+      })
+      .parse(input),
+  )
+  .handler(withServerTiming("startSponsorVisit", async ({ data }) => {
+    const { startSponsorVisitImpl } = await import("./quests/sponsor-ptc.server");
+    return await startSponsorVisitImpl(data.sessionToken);
+  }));
+
+/**
+ * Return from a sponsor PTC visit.
+ * Public, requires valid session token.
+ */
+export const returnSponsorVisit = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        sessionToken: z.string().min(1),
+        wasHidden: z.boolean(),
+      })
+      .parse(input),
+  )
+  .handler(withServerTiming("returnSponsorVisit", async ({ data }) => {
+    const { returnSponsorVisitImpl } = await import("./quests/sponsor-ptc.server");
+    return await returnSponsorVisitImpl(data.sessionToken, data.wasHidden);
+  }));
+
+/**
+ * Complete a sponsor PTC step.
+ * Requires authentication.
+ */
+export const completeSponsorStep = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        sessionToken: z.string().min(1),
+        questKey: z.string().min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(withServerTiming("completeSponsorStep", async ({ data, context }) => {
+    const { completeSponsorStepImpl } = await import("./quests/sponsor-ptc.server");
+    return await completeSponsorStepImpl(data.sessionToken, context.userId, data.questKey);
+  }));
