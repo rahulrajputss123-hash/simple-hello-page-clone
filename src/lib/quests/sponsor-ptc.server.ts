@@ -444,12 +444,11 @@ export async function returnSponsorVisitImpl(
 /**
  * Complete a sponsor PTC step.
  * Requires all visits done AND elapsed time >= visits * visit_seconds.
- * Credits step reward and returns next handoff URL or final URL.
+ * Credits step reward idempotently and returns next handoff URL or final URL.
+ * Derives userId, questKey, and stepIndex from the session token.
  */
 export async function completeSponsorStepImpl(
   sessionToken: string,
-  userId: string,
-  questKey: string,
 ): Promise<{ nextUrl?: string; finalUrl?: string }> {
   const hash = hashToken(sessionToken);
 
@@ -463,11 +462,6 @@ export async function completeSponsorStepImpl(
     throw new Error("Invalid or expired session token.");
   }
 
-  // Verify user owns this session
-  if (ptcSession.user_id !== userId) {
-    throw new Error("Unauthorized.");
-  }
-
   // Check expiry
   if (ptcSession.session_expires_at) {
     const expiresAt = new Date(ptcSession.session_expires_at as string).getTime();
@@ -476,16 +470,38 @@ export async function completeSponsorStepImpl(
     }
   }
 
-  // Check if already completed
+  // Check if already completed (idempotent - return same result)
   if (ptcSession.completed_at) {
-    throw new Error("Step already completed.");
+    const { data: quest } = await db
+      .from("quests")
+      .select("key, sponsor_steps")
+      .eq("id", ptcSession.quest_id)
+      .single();
+
+    const sponsorSteps = (quest.sponsor_steps as SponsorStep[]) || [];
+    const isFinal = ptcSession.step_index >= sponsorSteps.length;
+
+    if (isFinal) {
+      return { finalUrl: "https://cashgpt.in/" };
+    }
+
+    // Re-issue next step handoff
+    const nextStepIndex = ptcSession.step_index + 1;
+    const userId = ptcSession.user_id as string;
+    const nextResult = await issueSponsorHandoffImpl(userId, quest.key, nextStepIndex, false);
+    return { nextUrl: nextResult.url };
   }
+
+  // Derive userId and questKey from session
+  const userId = ptcSession.user_id as string;
 
   const { data: quest } = await db
     .from("quests")
     .select("*")
     .eq("id", ptcSession.quest_id)
     .single();
+
+  const questKey = quest.key;
 
   const visits = ptcSession.visits as Visit[];
   const allDone = visits.every((v) => v.done);
@@ -506,7 +522,7 @@ export async function completeSponsorStepImpl(
     );
   }
 
-  // Credit step reward
+  // Credit step reward (idempotent via quest_step_credits unique constraint)
   const stepIndex = ptcSession.step_index;
   const stepReward = quest.step_rewards?.[stepIndex - 1] ?? quest.step_reward;
 
@@ -523,7 +539,8 @@ export async function completeSponsorStepImpl(
   await db
     .from("sponsor_ptc_sessions")
     .update({ completed_at: new Date().toISOString() })
-    .eq("id", ptcSession.id);
+    .eq("id", ptcSession.id)
+    .is("completed_at", null); // Only update if not already completed
 
   // Update quest_sessions.current_step
   await db

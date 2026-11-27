@@ -1123,6 +1123,7 @@ export const returnSponsorVisit = createServerFn({ method: "POST" })
 
 /**
  * Complete a sponsor PTC step.
+ * Derives userId and questKey from session token.
  * Requires authentication.
  */
 export const completeSponsorStep = createServerFn({ method: "POST" })
@@ -1131,11 +1132,10 @@ export const completeSponsorStep = createServerFn({ method: "POST" })
     z
       .object({
         sessionToken: z.string().min(1),
-        questKey: z.string().min(1).max(40),
       })
       .parse(input),
   )
-  .handler(withServerTiming("completeSponsorStep", async ({ data, context }) => {
+  .handler(withServerTiming("completeSponsorStep", async ({ data }) => {
     const { completeSponsorStepImpl } = await import("./quests/sponsor-ptc.server");
-    return await completeSponsorStepImpl(data.sessionToken, context.userId, data.questKey);
+    return await completeSponsorStepImpl(data.sessionToken);
   }));

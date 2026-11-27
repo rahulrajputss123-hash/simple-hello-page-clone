@@ -52,7 +52,7 @@ function PtcPage() {
   const [state, setState] = useState<SponsorState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [buttonState, setButtonState] = useState<"open" | "reopen" | "wait">("open");
+  const [buttonState, setButtonState] = useState<"open" | "reopen" | "wait" | "final">("open");
   const [statusText, setStatusText] = useState("");
   const [showPushCard, setShowPushCard] = useState(true);
   const [wasHiddenSinceTap, setWasHiddenSinceTap] = useState(false);
@@ -185,17 +185,24 @@ function PtcPage() {
       if (!sessionToken) return;
 
       try {
-        // Get quest key from somewhere - for now we'll need to pass it
-        // This is a limitation - we need questKey to complete
-        // For now, just show completion message
-        setStatusText(`PTC complete, +$${state.step_reward.toFixed(2)}`);
-        setButtonState("wait");
+        // Call completeSponsorStep with sessionToken only
+        const result = await completeStep({ data: { sessionToken } });
 
-        // Auto-redirect would happen here but we need nextUrl/finalUrl from completeSponsorStep
-        // This requires passing questKey which we don't have here
-        // UI should show a "Continue" button that calls completeSponsorStep
+        if (result.finalUrl) {
+          // Final step - show completion with button to CashGPT
+          setStatusText(`Quest complete! +$${state.completion_bonus.toFixed(2)} bonus`);
+          setButtonState("final");
+        } else if (result.nextUrl) {
+          // Next step - show step complete and redirect after 3 seconds
+          setStatusText(`Step complete, +$${state.step_reward.toFixed(2)}`);
+          setButtonState("wait");
+          setTimeout(() => {
+            window.location.href = result.nextUrl!;
+          }, 3000);
+        }
       } catch (err) {
         console.error("Complete step error:", err);
+        setStatusText("Error completing step");
       }
     };
 
@@ -358,23 +365,25 @@ function PtcPage() {
           <Button
             size="lg"
             className="w-full"
-            onClick={handleSponsorTap}
+            onClick={buttonState === "final" ? () => window.location.href = "https://cashgpt.in/" : handleSponsorTap}
             disabled={
               buttonState === "wait" ||
-              !state.smartlink_url ||
-              allDone ||
+              (!state.smartlink_url && buttonState !== "final") ||
+              (allDone && buttonState !== "final") ||
               showPushCard
             }
           >
-            {!state.smartlink_url
-              ? "Link jaldi aa raha hai"
-              : allDone
-                ? `PTC complete, +$${state.step_reward.toFixed(2)}`
-                : buttonState === "reopen"
-                  ? "Dobara kholo"
-                  : buttonState === "wait"
-                    ? "Wapas aao..."
-                    : `Sponsor kholo (${state.current_visit_index + 1}/${state.visits})`}
+            {buttonState === "final"
+              ? "CashGPT kholo"
+              : !state.smartlink_url
+                ? "Link jaldi aa raha hai"
+                : allDone
+                  ? statusText
+                  : buttonState === "reopen"
+                    ? "Dobara kholo"
+                    : buttonState === "wait"
+                      ? "Wapas aao..."
+                      : `Sponsor kholo (${state.current_visit_index + 1}/${state.visits})`}
           </Button>
         </div>
       </div>
