@@ -164,6 +164,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { name: "theme-color", content: "#FFF8EC" },
       { name: "pushsdk", content: "a512ff43ba271d73e0f34abc6a217da8" },
+      { name: "impact-site-verification", value: "12640b23-480f-4ef4-9ed5-35bf204fafd0" },
       { title: "CashGPT — Earn real rewards for ads & offers" },
       {
         name: "description",
