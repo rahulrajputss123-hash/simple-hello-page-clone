@@ -95,9 +95,17 @@ export function QuestDetailsDialog({
                   quest.quest_type === "feed_shortlink" ||
                   quest.quest_type === "feed_article"
                 ? "Start"
-                : quest.quest_type === "active_time"
-                  ? credited
-                    ? "Reward Credited"
+                : quest.quest_type === "timed_ptc"
+                  ? started
+                    ? "Continue"
+                    : "Start Quest"
+                  : quest.quest_type === "sponsor_ptc"
+                    ? started
+                      ? "Continue"
+                      : "Start Quest"
+                    : quest.quest_type === "active_time"
+                      ? credited
+                        ? "Reward Credited"
                     : "Claim Reward"
                   : "Complete Locker";
 

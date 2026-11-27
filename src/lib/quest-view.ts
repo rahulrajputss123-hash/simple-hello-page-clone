@@ -1,6 +1,7 @@
 import {
   CalendarCheck,
   Clapperboard,
+  DollarSign,
   Link2,
   Lock,
   LockKeyhole,
@@ -170,6 +171,16 @@ export const QUEST_ACCENTS: Record<QuestRow["quest_type"], QuestAccent> = {
     tileShadow: "rgba(234,88,12,0.32)",
     bar: "linear-gradient(90deg, #FB923C, #EA580C)",
   },
+  sponsor_ptc: {
+    label: "Sponsor PTC",
+    icon: DollarSign,
+    wash: "rgba(34,197,94,0.10)",
+    badgeBg: "rgba(34,197,94,0.12)",
+    badgeInk: "#15803D",
+    tile: "linear-gradient(145deg, #4ADE80 0%, #22C55E 100%)",
+    tileShadow: "rgba(34,197,94,0.32)",
+    bar: "linear-gradient(90deg, #4ADE80, #22C55E)",
+  },
   active_time: {
     label: "Active Time",
     icon: Timer,
@@ -329,6 +340,24 @@ export function deriveQuestView(
         total === 1
           ? "Complete the timed step and get rewarded!"
           : `Complete ${total} timed steps and get rewarded!`,
+    };
+  }
+
+  if (quest.quest_type === "sponsor_ptc") {
+    // Sponsor PTC quest: sequential steps with cross-domain sponsor visits
+    const total = Math.max(1, quest.sponsor_steps?.length ?? 1);
+    const progress = credited ? total : (active?.current_step ?? 0);
+
+    return {
+      total,
+      progress,
+      remaining: Math.max(0, total - progress),
+      nextStep: Math.min(progress + 1, total),
+      progressPercent: Math.min(100, Math.max(0, (progress / Math.max(1, total)) * 100)),
+      description:
+        total === 1
+          ? "Complete the sponsor visit and get rewarded!"
+          : `Complete ${total} sponsor visits and get rewarded!`,
     };
   }
 

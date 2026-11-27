@@ -42,6 +42,14 @@ type TimedPtcStep = {
   pushNetwork: string;
 };
 
+type SponsorStep = {
+  host: string;
+  content_key: string;
+  smartlink_url: string;
+  push_network: string;
+  reward: string;
+};
+
 type FormState = {
   id?: string;
   key: string;
@@ -57,7 +65,8 @@ type FormState = {
     | "feed_article"
     | "network"
     | "survey"
-    | "timed_ptc";
+    | "timed_ptc"
+    | "sponsor_ptc";
   adsRequired: string;
   rewardAmount: string;
   stepReward: string;
@@ -108,6 +117,10 @@ type FormState = {
   timedStepSeconds: string;
   timedCheckpointSeconds: string;
   timedMaxFailedTaps: string;
+  // Sponsor PTC quest fields
+  sponsorSteps: SponsorStep[];
+  sponsorVisits: string;
+  sponsorVisitSeconds: string;
   // Active Time quest fields
   targetMinutes: string;
   dailyCapMinutes: string;
@@ -218,6 +231,16 @@ const emptyForm = (): FormState => ({
   timedStepSeconds: "60",
   timedCheckpointSeconds: "10",
   timedMaxFailedTaps: "2",
+  // Sponsor PTC quest defaults
+  sponsorSteps: [{
+    host: "quest1.cashgpt.in",
+    content_key: "special_missions",
+    smartlink_url: "",
+    push_network: "none",
+    reward: "0.01",
+  }],
+  sponsorVisits: "3",
+  sponsorVisitSeconds: "20",
   // Active Time quest defaults
   targetMinutes: "30",
   dailyCapMinutes: "120",
@@ -358,6 +381,20 @@ export function QuestsManager() {
                 stepRewards: state.timedSteps.map((s) => Number(s.reward) || 0),
               }
             : {}),
+          // Sponsor PTC quest fields
+          ...(state.questType === "sponsor_ptc"
+            ? {
+                sponsorSteps: state.sponsorSteps.map((s) => ({
+                  host: s.host.trim(),
+                  content_key: s.content_key,
+                  smartlink_url: s.smartlink_url.trim(),
+                  push_network: s.push_network,
+                })),
+                sponsorVisits: Number(state.sponsorVisits) || 3,
+                sponsorVisitSeconds: Number(state.sponsorVisitSeconds) || 20,
+                stepRewards: state.sponsorSteps.map((s) => Number(s.reward) || 0),
+              }
+            : {}),
           // Active Time quest fields
           ...(state.questType === "active_time"
             ? {
@@ -496,6 +533,32 @@ export function QuestsManager() {
       timedCheckpointSeconds: String((quest as any).timed_checkpoint_seconds ?? 10),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       timedMaxFailedTaps: String((quest as any).timed_max_failed_taps ?? 2),
+      // Sponsor PTC quest fields
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sponsorSteps:
+        Array.isArray((quest as any).sponsor_steps) && (quest as any).sponsor_steps.length > 0
+          ? (quest as any).sponsor_steps.map((s: any, idx: number) => ({
+              host: s.host || `quest${idx + 1}.cashgpt.in`,
+              content_key: s.content_key || "special_missions",
+              smartlink_url: s.smartlink_url || "",
+              push_network: s.push_network || "none",
+              reward: String(
+                quest.step_rewards && quest.step_rewards[idx] != null
+                  ? quest.step_rewards[idx]
+                  : 0.01,
+              ),
+            }))
+          : [{
+              host: "quest1.cashgpt.in",
+              content_key: "special_missions",
+              smartlink_url: "",
+              push_network: "none",
+              reward: "0.01",
+            }],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sponsorVisits: String((quest as any).sponsor_visits ?? 3),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sponsorVisitSeconds: String((quest as any).sponsor_visit_seconds ?? 20),
       // Active Time quest fields
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       targetMinutes: String((quest as any).target_minutes ?? 30),
@@ -534,15 +597,19 @@ export function QuestsManager() {
                 : form.questType === "timed_ptc"
                   ? form.timedSteps.length > 0 &&
                     form.timedSteps.every((s) => Number(s.reward) > 0)
-                  : form.questType === "active_time"
-                    ? Number(form.targetMinutes) > 0 &&
-                      Number(form.dailyCapMinutes) > 0 &&
-                      Number(form.graceMinutes) > 0
-                    : form.questType === "feed_ptc" ||
-                      form.questType === "feed_shortlink" ||
-                      form.questType === "feed_article"
-                    ? form.feedProviderIds.length > 0 && Number(form.stepsCount) > 0
-                    : true);
+                  : form.questType === "sponsor_ptc"
+                    ? form.sponsorSteps.length > 0 &&
+                      form.sponsorSteps.length <= 5 &&
+                      form.sponsorSteps.every((s) => s.host.trim() && Number(s.reward) > 0)
+                    : form.questType === "active_time"
+                      ? Number(form.targetMinutes) > 0 &&
+                        Number(form.dailyCapMinutes) > 0 &&
+                        Number(form.graceMinutes) > 0
+                      : form.questType === "feed_ptc" ||
+                        form.questType === "feed_shortlink" ||
+                        form.questType === "feed_article"
+                      ? form.feedProviderIds.length > 0 && Number(form.stepsCount) > 0
+                      : true);
 
   const saveValidationReason = !form
     ? "No quest selected"
@@ -584,8 +651,18 @@ export function QuestsManager() {
                                   : form.questType === "timed_ptc" &&
                                       !form.timedSteps.every((s) => Number(s.reward) > 0)
                                     ? "All timed PTC steps must have a reward > 0"
-                                    : form.questType === "active_time" && Number(form.targetMinutes) <= 0
-                                      ? "Active time quest must have target minutes > 0"
+                                    : form.questType === "sponsor_ptc" && form.sponsorSteps.length === 0
+                                      ? "Sponsor PTC quest must have at least one step"
+                                      : form.questType === "sponsor_ptc" && form.sponsorSteps.length > 5
+                                        ? "Sponsor PTC quest cannot have more than 5 steps"
+                                        : form.questType === "sponsor_ptc" &&
+                                            !form.sponsorSteps.every((s) => s.host.trim())
+                                          ? "All sponsor PTC steps must have a host"
+                                          : form.questType === "sponsor_ptc" &&
+                                              !form.sponsorSteps.every((s) => Number(s.reward) > 0)
+                                            ? "All sponsor PTC steps must have a reward > 0"
+                                            : form.questType === "active_time" && Number(form.targetMinutes) <= 0
+                                              ? "Active time quest must have target minutes > 0"
                                       : form.questType === "active_time" &&
                                           Number(form.dailyCapMinutes) <= 0
                                         ? "Active time quest must have daily cap > 0"
@@ -824,6 +901,7 @@ export function QuestsManager() {
                         "feed_shortlink",
                         "feed_article",
                         "timed_ptc",
+                        "sponsor_ptc",
                         "active_time",
                       ] as const
                     ).map((type) => (
@@ -862,7 +940,9 @@ export function QuestsManager() {
                                           ? "Top Articles"
                                           : type === "timed_ptc"
                                             ? "Timed PTC"
-                                            : "Active Time"}
+                                            : type === "sponsor_ptc"
+                                              ? "Sponsor PTC"
+                                              : "Active Time"}
                       </Button>
                     ))}
                   </div>
@@ -1972,6 +2052,219 @@ export function QuestsManager() {
                         <li>After max failed taps, timer resumes (no-fill fallback)</li>
                         <li>Step rewards credited immediately, completion bonus at end</li>
                         <li>Web only — hidden from native app users</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {form.questType === "sponsor_ptc" && (
+                  <div className="space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Sponsor PTC quest: users complete cross-domain sponsor visits with time tracking. Each step runs on a dedicated subdomain.
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <Field label="Visits per step">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={form.sponsorVisits}
+                          onChange={(e) => setForm({ ...form, sponsorVisits: e.target.value })}
+                        />
+                      </Field>
+
+                      <Field label="Seconds per visit">
+                        <Input
+                          type="number"
+                          min="10"
+                          max="600"
+                          value={form.sponsorVisitSeconds}
+                          onChange={(e) => setForm({ ...form, sponsorVisitSeconds: e.target.value })}
+                        />
+                      </Field>
+
+                      <Field label="Final bonus">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.01"
+                          value={form.rewardAmount}
+                          onChange={(e) => setForm({ ...form, rewardAmount: e.target.value })}
+                        />
+                      </Field>
+                    </div>
+
+                    <Field label="PTC Steps (1-5)">
+                      <div className="space-y-2">
+                        {form.sponsorSteps.map((step, idx) => (
+                          <div key={idx} className="rounded-lg border p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold">Step {idx + 1}</span>
+                              {idx > 0 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newSteps = form.sponsorSteps.filter((_, i) => i !== idx);
+                                    setForm({ ...form, sponsorSteps: newSteps });
+                                  }}
+                                >
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs">Host (e.g. quest1.cashgpt.in)</Label>
+                                <Input
+                                  type="text"
+                                  placeholder="quest1.cashgpt.in"
+                                  value={step.host}
+                                  onChange={(e) => {
+                                    const newSteps = [...form.sponsorSteps];
+                                    newSteps[idx] = { ...newSteps[idx], host: e.target.value };
+                                    setForm({ ...form, sponsorSteps: newSteps });
+                                  }}
+                                />
+                              </div>
+                              
+                              <div>
+                                <Label className="text-xs">Content Type</Label>
+                                <select
+                                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                  value={step.content_key}
+                                  onChange={(e) => {
+                                    const newSteps = [...form.sponsorSteps];
+                                    newSteps[idx] = { ...newSteps[idx], content_key: e.target.value };
+                                    setForm({ ...form, sponsorSteps: newSteps });
+                                  }}
+                                >
+                                  <option value="special_missions">Special Missions</option>
+                                  <option value="marketplace">Marketplace</option>
+                                  <option value="surveys_offers">Surveys & Offers</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div>
+                              <Label className="text-xs">Smartlink URL</Label>
+                              <Input
+                                type="url"
+                                placeholder="https://..."
+                                value={step.smartlink_url}
+                                onChange={(e) => {
+                                  const newSteps = [...form.sponsorSteps];
+                                  newSteps[idx] = { ...newSteps[idx], smartlink_url: e.target.value };
+                                  setForm({ ...form, sponsorSteps: newSteps });
+                                }}
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs">Push Network</Label>
+                                <select
+                                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                  value={step.push_network}
+                                  onChange={(e) => {
+                                    const newSteps = [...form.sponsorSteps];
+                                    newSteps[idx] = { ...newSteps[idx], push_network: e.target.value };
+                                    setForm({ ...form, sponsorSteps: newSteps });
+                                  }}
+                                >
+                                  <option value="none">None</option>
+                                  <option value="propush">ProPush</option>
+                                  <option value="rollerads">RollerAds</option>
+                                  <option value="evadav">Evadav</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <Label className="text-xs">Step Reward</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.01"
+                                  value={step.reward}
+                                  onChange={(e) => {
+                                    const newSteps = [...form.sponsorSteps];
+                                    newSteps[idx] = { ...newSteps[idx], reward: e.target.value };
+                                    setForm({ ...form, sponsorSteps: newSteps });
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {form.sponsorSteps.length < 5 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setForm({
+                                ...form,
+                                sponsorSteps: [
+                                  ...form.sponsorSteps,
+                                  {
+                                    host: `quest${form.sponsorSteps.length + 1}.cashgpt.in`,
+                                    content_key: "special_missions",
+                                    smartlink_url: "",
+                                    push_network: "none",
+                                    reward: "0.01",
+                                  },
+                                ],
+                              });
+                            }}
+                          >
+                            + Add Step
+                          </Button>
+                        )}
+                      </div>
+                    </Field>
+
+                    {/* Preview */}
+                    {(() => {
+                      const stepRewards = form.sponsorSteps.map((s) => Number(s.reward) || 0);
+                      const totalStepRewards = stepRewards.reduce((sum, r) => sum + r, 0);
+                      const completionBonus = Number(form.rewardAmount) || 0;
+                      const totalPayout = totalStepRewards + completionBonus;
+
+                      return (
+                        <div className="rounded-lg border p-3 text-xs space-y-2">
+                          <p className="font-semibold">💰 Payout Preview</p>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-muted-foreground">Step rewards:</p>
+                              <p className="text-sm">{formatReward(totalStepRewards)}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Total payout:</p>
+                              <p className="text-sm">
+                                {formatReward(totalStepRewards)} steps + {formatReward(completionBonus)} bonus = {formatReward(totalPayout)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="rounded-xl border border-blue-500/40 bg-blue-500/5 p-3 text-xs">
+                      <p className="font-semibold text-blue-700 dark:text-blue-400">
+                        ℹ️ Sponsor PTC Quest Behavior
+                      </p>
+                      <ul className="mt-2 space-y-1 text-muted-foreground list-disc list-inside">
+                        <li>Each step runs on its own subdomain (quest1/2/3.cashgpt.in)</li>
+                        <li>Time tracking uses visibility API (page hidden = time counted)</li>
+                        <li>Step rewards stored in step_rewards array, indexed by step</li>
+                        <li>Web only — hidden from native app users</li>
+                        <li>Push opt-in card shown before first sponsor visit</li>
                       </ul>
                     </div>
                   </div>

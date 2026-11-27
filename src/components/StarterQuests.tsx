@@ -19,6 +19,7 @@ import {
   ensureCheckinSession,
   updateUserTimezone,
   getActiveTimeQuestKey,
+  issueSponsorHandoff,
 } from "@/lib/quests.functions";
 import { formatLockReason } from "@/lib/lock-state";
 import { isNativePlatform } from "@/lib/platform";
@@ -386,6 +387,18 @@ export function StarterQuests() {
         params: { questKey: q.key, step: String(nextStep) },
       });
       setPendingQuest(null);
+    } else if (q.quest_type === "sponsor_ptc") {
+      // Issue sponsor handoff and redirect to sponsor subdomain
+      issueSponsorHandoff({ data: { questKey: q.key, stepIndex: nextStep } })
+        .then((result) => {
+          window.location.href = result.url;
+        })
+        .catch((err) => {
+          console.error("Failed to issue sponsor handoff:", err);
+          toast.error(err.message || "Failed to start sponsor quest");
+          setBusy(null);
+        });
+      setPendingQuest(null);
     } else if (q.quest_type === "shortlink") {
       runShortlink.mutate({ questKey: q.key, step: nextStep });
     } else if (q.quest_type === "locker") {
@@ -435,8 +448,8 @@ export function StarterQuests() {
       >
         {quests.data
           .filter((quest) => {
-            // Hide timed_ptc quests from native app
-            if (quest.quest_type === "timed_ptc" && isNativePlatform()) {
+            // Hide timed_ptc and sponsor_ptc quests from native app
+            if ((quest.quest_type === "timed_ptc" || quest.quest_type === "sponsor_ptc") && isNativePlatform()) {
               return false;
             }
             return true;
